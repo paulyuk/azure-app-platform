@@ -5,6 +5,8 @@ Unity brings together Azure's modern serverless and AI-native building blocks in
 
 The defining trait of a Unity app is that **it watches itself**. Observability, diagnosis, and safe self-healing are wired into the platform from day one via **SRE Agent**, attached across every tier: front end, agent, skills, sandboxes, connectors, workflows, and data. A Unity app can explain what's wrong with itself in plain language, correlate a symptom against its own deployment history and incident memory, and propose (or, under policy, take) a corrective action. It's a plane that spans the whole architecture, the same way the whiteboard sketch drew "SRE" as a band underneath everything else.
 
+Alongside self-awareness sits **environment safety**: identity, isolation, and egress control enforced outside the agent's reach, not inside its prompt. Every boundary carries a real identity (user, managed, or agent), sensitive work runs in a sandbox that can't see its own controls, and network egress is default-deny rather than allow-listed after the fact. This is the same safety model Azure SRE Agent itself was rebuilt around, and Unity applies it to every tier, not just the ops agent.
+
 **Car buying is Demo #1.** It's a great showcase because a car purchase naturally exercises every tier of the platform with a real, non-contrived job to do: a conversational agent to find a car, a sensitive financial calculation that belongs in an isolated sandbox, a durable multi-step approval, and a handoff to human partners over Teams and email. Each piece already had a job before the demo existed; the demo just makes it visible.
 
 ---
@@ -38,6 +40,19 @@ Every boundary in Unity assumes **Entra ID**. What differs is *which* identity i
 - **Agent and back-end services (Foundry agent, skills, sandboxes, workflows):** dedicated **managed identity** and **agent identity**. Each hosted agent gets its own Entra Agent ID, distinct from any human user, so its actions are independently auditable.
 
 This split (user/OBO at the edge, managed/agent identity in the back end) is itself a demo-worthy Unity pattern, not just plumbing.
+
+### 1.3 Environment safety: the environment is the policy, not the prompt
+
+Identity answers "who is acting." Sandboxing and egress control answer the harder question: "what can that action actually reach." Unity treats both as one safety story, grounded in how Azure SRE Agent itself was rebuilt to run safely at scale (see [Restricting the Environment: How We Rebuilt Azure SRE Agent for AI Safety](https://commandline.microsoft.com/azure-sre-agent-restricting-environment-ai-safety/)). The core lesson from that work: a prompt can tell an agent what it should do, but only the environment can guarantee what it's able to do. So Unity enforces safety outside the agent's reach, not inside its instructions.
+
+This shows up in Unity as four concrete, demoable layers:
+
+- **Sandboxing separates reasoning from execution.** The Foundry Hosted Agent's own reasoning loop runs in a trusted runtime; anything it generates or executes (model-authored code, tools, the loan pre-qualification calculation) runs in a separate, hardware-isolated microVM (**Sandboxes**, built on ACA Sandboxes). The agent has full control inside the sandbox but cannot see or modify the provisioning, policy, or credential machinery that governs it, because that machinery doesn't share its filesystem.
+- **Credentials are used, never possessed.** Tools inside a sandbox (a loan-rate lookup, a call to a partner API) authenticate through normal SDK paths (`az`, HTTP clients) but receive a short-lived, single-use, destination-locked handle rather than a real credential. An egress proxy outside the sandbox performs the actual token exchange. A secret or connection string can never sit in the sandbox's filesystem, memory, or logs waiting to be read back out.
+- **Egress is default-deny, not allow-listed after the fact.** The loan pre-qualification sandbox in Demo #1 can reach exactly one destination (the credit partner API) and nothing else. A prompt injection or a bug can't turn that into an arbitrary outbound call, because the network boundary doesn't consult the prompt.
+- **Approval is risk-classified, not just gated on "read vs. write."** Whether an action needs a human depends on the operation, its target, and the evidence behind it, not a blanket rule. The Unity approval workflow (Durable Task Scheduler) and the SRE Agent's own run modes (Review vs. Autonomous) both follow this pattern: routine, low-risk, well-evidenced actions proceed; anything touching a critical target or resting on weak evidence stops for a person.
+
+Demo #1 makes this tangible on stage: attempt an outbound call from inside the loan pre-qualification sandbox to somewhere other than the one allowed partner endpoint, and show it blocked at the network boundary rather than caught by a prompt instruction. That single moment demonstrates identity, isolation, and egress control together, the same three ideas Azure SRE Agent's own safety redesign converged on.
 
 ---
 
@@ -421,6 +436,7 @@ Extract the platform tiers into a reusable `unity/platform/` Bicep + `lib/` layo
 - https://learn.microsoft.com/en-us/azure/sre-agent/agent-hooks
 - https://learn.microsoft.com/en-us/azure/sre-agent/run-modes
 - https://techcommunity.microsoft.com/blog/appsonazureblog/access-your-sre-agent-from-any-ide-terminal-or-ai-assistant/4523434
+- https://commandline.microsoft.com/azure-sre-agent-restricting-environment-ai-safety/: environment-safety model (sandboxing, credential handles, risk-classified approval, per-user identity)
 - https://learn.microsoft.com/en-us/azure/container-apps/sandboxes-overview
 - https://learn.microsoft.com/en-us/azure/api-management/ai-gateway-overview
 - https://learn.microsoft.com/en-us/azure/connector-namespace/connector-namespace-overview
