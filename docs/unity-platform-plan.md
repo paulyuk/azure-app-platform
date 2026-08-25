@@ -7,6 +7,8 @@ The defining trait of a Unity app is that **it watches itself**. Observability, 
 
 Alongside self-awareness sits **environment safety**: identity, isolation, and egress control enforced outside the agent's reach, not inside its prompt. Every boundary carries a real identity (user, managed, or agent), sensitive work runs in a sandbox that can't see its own controls, and network egress is default-deny rather than allow-listed after the fact. This is the same safety model Azure SRE Agent itself was rebuilt around, and Unity applies it to every tier, not just the ops agent.
 
+The third pillar is a **uniform interface**: every capability is reachable as an API with a published spec, a generated SDK, an MCP server, and a CLI, so a human and an agent use the same door. That consistency is what makes the agent developer experience whole, not an afterthought bolted onto a human-first API.
+
 **Car buying is Demo #1.** It's a great showcase because a car purchase naturally exercises every tier of the platform with a real, non-contrived job to do: a conversational agent to find a car, a sensitive financial calculation that belongs in an isolated sandbox, a durable multi-step approval, and a handoff to human partners over Teams and email. Each piece already had a job before the demo existed; the demo just makes it visible.
 
 ---
@@ -53,6 +55,20 @@ This shows up in Unity as four concrete, demoable layers:
 - **Approval is risk-classified, not just gated on "read vs. write."** Whether an action needs a human depends on the operation, its target, and the evidence behind it, not a blanket rule. The Unity approval workflow (Durable Task Scheduler) and the SRE Agent's own run modes (Review vs. Autonomous) both follow this pattern: routine, low-risk, well-evidenced actions proceed; anything touching a critical target or resting on weak evidence stops for a person.
 
 Demo #1 makes this tangible on stage: attempt an outbound call from inside the loan pre-qualification sandbox to somewhere other than the one allowed partner endpoint, and show it blocked at the network boundary rather than caught by a prompt instruction. That single moment demonstrates identity, isolation, and egress control together, the same three ideas Azure SRE Agent's own safety redesign converged on.
+
+### 1.4 Uniform interface: every capability is API, SDK, spec, MCP server, and CLI
+
+Unity's platform capabilities are only real if a builder or an agent can actually reach them without reading source code first. So every capability in the table above ships the same five interfaces, not just whichever one its team found convenient:
+
+- **API** - a real HTTP endpoint with request/response semantics, versioned like any other service.
+- **API spec** - an OpenAPI (or equivalent) document, published and kept in sync with the API, so both people and tools can generate clients against it instead of guessing.
+- **SDK** - a typed client library in at least the languages Unity's own services use, generated from the spec where possible so it never drifts.
+- **MCP server** - the same capability exposed as MCP tools and resources, so an agent (Unity's own hosted agent, a builder's IDE agent, or a third party) can discover and call it the same way a human calls the API.
+- **CLI** - a command-line surface for the same operations, for scripting, CI, and the moments an engineer just wants to run one command instead of writing code.
+
+This is what makes Unity's agent developer experience whole. A builder can read the spec, generate the SDK, script the CLI, and wire the MCP server into an agent, all against the same underlying capability, with no special case for "the parts that are agent-friendly" versus "the parts that are human-friendly." The Cloud Foundation canvases (§1.1, capability 10) are themselves a client of this uniform interface: `sre-agent-studio` talks to SRE Agent's API and MCP surface, not a bespoke integration.
+
+Every tier in §2 should be read with this lens: Hosted Skills, AI Gateway, Sandboxes, Connectors, Durable Task Scheduler, and SRE Agent each earn a row in a future "interface completeness" checklist (API, spec, SDK, MCP server, CLI), and any gap is a platform gap to close, the same way a missing capability would be.
 
 ---
 
