@@ -16,3 +16,5 @@ configuration:
     role: Maintain
   - member: vyomnagrani
     role: Maintain
+  - team: coreaiteam
+    role: Write
