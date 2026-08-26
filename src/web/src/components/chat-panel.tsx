@@ -3,6 +3,9 @@
 import type { ChatMessage } from "@/lib/types";
 import { FormEvent, useState } from "react";
 
+const STARTER_PROMPT =
+  "Find me an EV under $40,000 with at least 250 miles of range";
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   isStreaming: boolean;
@@ -22,12 +25,49 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
     await onSend(trimmed);
   }
 
+  const hasUserMessage = messages.some((message) => message.role === "user");
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyStarter() {
+    try {
+      await navigator.clipboard.writeText(STARTER_PROMPT);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) — fall back to
+      // filling the input so the user can still send it manually.
+    }
+    setDraft(STARTER_PROMPT);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <header className="border-b border-slate-100 px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-900">Deal finder chat</h2>
         <p className="text-sm text-slate-500">Persona: Maya</p>
       </header>
+
+      {!hasUserMessage && (
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3">
+          <p className="min-w-0 truncate text-sm text-slate-600">
+            Try:{" "}
+            <code
+              data-testid="starter-prompt"
+              className="rounded bg-white px-1.5 py-0.5 font-mono text-xs text-slate-700"
+            >
+              {STARTER_PROMPT}
+            </code>
+          </p>
+          <button
+            type="button"
+            data-testid="starter-prompt-copy"
+            onClick={handleCopyStarter}
+            className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+          >
+            {copied ? "Copied ✓" : "Copy & fill"}
+          </button>
+        </div>
+      )}
 
       <div className="h-[420px] space-y-3 overflow-y-auto px-5 py-4">
         {messages.map((message) => (

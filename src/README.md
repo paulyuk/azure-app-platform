@@ -79,8 +79,10 @@ agent/model. If you stop the agent, the web app falls back to mock
 responses on the next request (a warning is logged server-side, no
 restart needed).
 
-Once both terminals are running, type this into the web chat input to
-verify the live agent path end-to-end:
+Once both terminals are running, use this prompt to verify the live agent
+path end-to-end — the chat panel shows it above the input with a **"Copy &
+fill"** button (copies it to your clipboard and drops it into the input box)
+so you don't have to retype it:
 
 ```
 Find me an EV under $40,000 with at least 250 miles of range
