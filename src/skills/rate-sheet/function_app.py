@@ -1,30 +1,14 @@
-from __future__ import annotations
+"""Hosted Skill entry point for `rate-sheet`, on the real
+`azurefunctions-agents-runtime` (serverless agents runtime) package.
 
-import json
+The runtime discovers `skills/rate-sheet.agent.md` (front matter + instructions),
+auto-discovers the `@tool`-decorated function in `tools/rate_sheet.py`, and
+registers the resulting agent's HTTP trigger plus its
+`builtin_endpoints.mcp: true` MCP tool endpoint (`/runtime/webhooks/mcp`) -
+the same Streamable HTTP transport a real Foundry Toolbox uses, just pointed
+at localhost during local dev.
+"""
 
-import azure.functions as func
+from azure_functions_agents import create_function_app
 
-from tools.rate_sheet import TOOL_DESCRIPTION, TOOL_INPUT_SCHEMA, TOOL_NAME, get_rate_options
-
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
-
-
-@app.function_name(name="rate_sheet")
-@app.route(route="rate-sheet", methods=["POST"])
-def rate_sheet(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        payload = req.get_json()
-    except ValueError:
-        payload = {}
-
-    result = get_rate_options(payload)
-    return func.HttpResponse(json.dumps(result), mimetype="application/json", status_code=200)
-
-
-MCP_TOOL_REGISTRY = {
-    TOOL_NAME: {
-        "description": TOOL_DESCRIPTION,
-        "input_schema": TOOL_INPUT_SCHEMA,
-        "http_route": "/api/rate-sheet",
-    }
-}
+app = create_function_app()

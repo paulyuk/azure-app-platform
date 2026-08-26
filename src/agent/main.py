@@ -81,20 +81,51 @@ def _foundry_toolbox() -> FoundryToolbox:
     )
 
 
+# Local Hosted Skills run as separate `func start` processes (real Azure
+# Functions apps on the serverless agents runtime), each on its own port, each
+# exposing itself as a real MCP tool at /runtime/webhooks/mcp. See
+# `src/skills/README.md` "Run the Hosted Skills locally" for how to start them.
+LOCAL_SKILL_PORTS: dict[str, int] = {
+    "inventory-search": 7071,
+    "trade-in-value": 7072,
+    "rate-sheet": 7073,
+    "deal-doc": 7074,
+}
+
+
+def _local_skill_tools() -> list:
+    """Connect to the 4 Hosted Skills running locally via `func start`.
+
+    Each skill is a real Azure Functions app built on the
+    `azurefunctions-agents-runtime` package, exposing its tool as a real MCP
+    server at `http://localhost:<port>/runtime/webhooks/mcp`. `FoundryToolbox`
+    (used in `_foundry_toolbox()` for the cloud path) is itself a subclass of
+    `agent_framework.MCPStreamableHTTPTool`, so the same Streamable HTTP
+    transport is used here - just pointed at localhost instead of a
+    provisioned toolbox endpoint.
+    """
+    from agent_framework import MCPStreamableHTTPTool
+
+    return [
+        MCPStreamableHTTPTool(
+            name=skill_name,
+            url=f"http://localhost:{port}/runtime/webhooks/mcp",
+        )
+        for skill_name, port in LOCAL_SKILL_PORTS.items()
+    ]
+
+
 def _resolve_tools() -> list:
     """Always try to give the agent real tools; no explicit mode switches.
 
     If a Foundry Toolbox has been provisioned (`TOOLBOX_ENDPOINT` set), use it
-    - that's the real production path. Otherwise, run the Hosted Skills
-    in-process from `src/skills/` via `local_skills.py` so the agent still has
-    real, working tools without requiring cloud provisioning first.
+    - that's the real production path. Otherwise, connect to the 4 Hosted
+    Skills running locally (`func start`, one per skill) over real MCP.
     """
     if os.environ.get("TOOLBOX_ENDPOINT"):
         return [_foundry_toolbox()]
 
-    from local_skills import load_local_skill_tools
-
-    return load_local_skill_tools()
+    return _local_skill_tools()
 
 
 def build_agent() -> Agent:

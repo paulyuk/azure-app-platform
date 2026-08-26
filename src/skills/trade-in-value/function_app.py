@@ -1,35 +1,14 @@
-from __future__ import annotations
+"""Hosted Skill entry point for `trade-in-value`, on the real
+`azurefunctions-agents-runtime` (serverless agents runtime) package.
 
-import json
+The runtime discovers `skills/trade-in-value.agent.md` (front matter + instructions),
+auto-discovers the `@tool`-decorated function in `tools/trade_in_value.py`, and
+registers the resulting agent's HTTP trigger plus its
+`builtin_endpoints.mcp: true` MCP tool endpoint (`/runtime/webhooks/mcp`) -
+the same Streamable HTTP transport a real Foundry Toolbox uses, just pointed
+at localhost during local dev.
+"""
 
-import azure.functions as func
+from azure_functions_agents import create_function_app
 
-from tools.trade_in_value import (
-    TOOL_DESCRIPTION,
-    TOOL_INPUT_SCHEMA,
-    TOOL_NAME,
-    estimate_trade_in_value,
-)
-
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
-
-
-@app.function_name(name="trade_in_value")
-@app.route(route="trade-in-value", methods=["POST"])
-def trade_in_value(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        payload = req.get_json()
-    except ValueError:
-        payload = {}
-
-    result = estimate_trade_in_value(payload)
-    return func.HttpResponse(json.dumps(result), mimetype="application/json", status_code=200)
-
-
-MCP_TOOL_REGISTRY = {
-    TOOL_NAME: {
-        "description": TOOL_DESCRIPTION,
-        "input_schema": TOOL_INPUT_SCHEMA,
-        "http_route": "/api/trade-in-value",
-    }
-}
+app = create_function_app()

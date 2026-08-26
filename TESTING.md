@@ -104,12 +104,12 @@ deployment. The completed response was:
 
 > Electric vehicles can reduce fuel and maintenance costs.
 
-The agent's tool wiring auto-detects: with no `TOOLBOX_ENDPOINT` set, it runs
-the Hosted Skills in-process from `src/skills/` (`local_skills.py`) so tool
-calls (`inventory-search`, etc.) work immediately, with no separate Foundry
-Toolbox deployment required for local/demo testing. Set `TOOLBOX_ENDPOINT`
-(and `TOOLBOX_NAME`) once a real Foundry Toolbox is provisioned to switch to
-it instead.
+The agent's tool wiring auto-detects: with no `TOOLBOX_ENDPOINT` set, it
+connects to the four Hosted Skills over real MCP at
+`http://localhost:707{1..4}` (each is a real Azure Functions app started with
+`func start` — see `src/skills/README.md` "Run the Hosted Skills locally").
+Set `TOOLBOX_ENDPOINT` (and `TOOLBOX_NAME`) once a real Foundry Toolbox is
+provisioned to switch to it instead.
 
 To tear down this standalone slice:
 

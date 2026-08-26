@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from azure_functions_agents import tool
 
 TOOL_NAME = "trade-in-value"
 TOOL_DESCRIPTION = "Estimate trade-in value with a deterministic, synthetic formula."
@@ -101,3 +104,31 @@ def estimate_trade_in_value(payload: dict[str, Any], *, valuation_year: int = 20
 
 def trade_in_value_tool(arguments: dict[str, Any]) -> dict[str, Any]:
     return estimate_trade_in_value(arguments)
+
+
+@tool(name=TOOL_NAME, description=TOOL_DESCRIPTION)
+def trade_in_value_agent_tool(
+    make: str,
+    model: str,
+    year: int,
+    mileage: int,
+    condition: str,
+    ev_battery_certified: bool | None = None,
+) -> str:
+    """Estimate trade-in value with a deterministic, synthetic formula.
+
+    Auto-discovered by the `azurefunctions-agents-runtime` runtime and wired
+    into the agent defined in `skills/trade-in-value.agent.md`.
+    """
+    return json.dumps(
+        estimate_trade_in_value(
+            {
+                "make": make,
+                "model": model,
+                "year": year,
+                "mileage": mileage,
+                "condition": condition,
+                "ev_battery_certified": bool(ev_battery_certified),
+            }
+        )
+    )

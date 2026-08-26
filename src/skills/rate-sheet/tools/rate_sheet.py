@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from azure_functions_agents import tool
 
 TOOL_NAME = "rate-sheet"
 TOOL_DESCRIPTION = "Return deterministic rate/term options by credit band."
@@ -86,3 +89,25 @@ def get_rate_options(payload: dict[str, Any]) -> dict[str, Any]:
 
 def rate_sheet_tool(arguments: dict[str, Any]) -> dict[str, Any]:
     return get_rate_options(arguments)
+
+
+@tool(name=TOOL_NAME, description=TOOL_DESCRIPTION)
+def rate_sheet_agent_tool(
+    credit_band: str,
+    loan_amount: float | None = None,
+    down_payment: float | None = None,
+) -> str:
+    """Return deterministic rate/term options by credit band.
+
+    Auto-discovered by the `azurefunctions-agents-runtime` runtime and wired
+    into the agent defined in `skills/rate-sheet.agent.md`.
+    """
+    return json.dumps(
+        get_rate_options(
+            {
+                "credit_band": credit_band,
+                "loan_amount": loan_amount,
+                "down_payment": down_payment,
+            }
+        )
+    )

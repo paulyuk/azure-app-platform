@@ -1,0 +1,3 @@
+# Global runtime defaults for this Hosted Skill's function app.
+model: $FOUNDRY_MODEL
+timeout: 60

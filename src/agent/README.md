@@ -65,10 +65,11 @@ curl -sS -X POST http://127.0.0.1:8088/responses \
 Model calls always go to the real AI Gateway. **Tool calls also always work**:
 if `TOOLBOX_ENDPOINT` is set (a real Foundry Toolbox has been provisioned and
 registered — see `src/skills/README.md`), the agent uses it; otherwise it
-automatically runs the four Hosted Skills in-process from `src/skills/`
-(`local_skills.py`), so `inventory-search` and friends are always callable
-with no extra setup or environment switches. See the repository-root
-`TESTING.md` for the verified response and all PR test paths.
+connects to the four Hosted Skills over real MCP at `http://localhost:707{1..4}`
+(see `src/skills/README.md` "Run the Hosted Skills locally" — start each with
+`func start` first). No extra environment switches needed once the skills are
+running. See the repository-root `TESTING.md` for the verified response and
+all PR test paths.
 
 ## Manual local configuration
 

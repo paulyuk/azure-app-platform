@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime, UTC
 from typing import Any
 
+from azure_functions_agents import tool
+
 TOOL_NAME = "deal-doc"
 TOOL_DESCRIPTION = "Generate a structured, deterministic deal summary document."
 TOOL_INPUT_SCHEMA: dict[str, Any] = {
@@ -110,3 +112,31 @@ def build_deal_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 def deal_doc_tool(arguments: dict[str, Any]) -> dict[str, Any]:
     return build_deal_summary(arguments)
+
+
+@tool(name=TOOL_NAME, description=TOOL_DESCRIPTION)
+def deal_doc_agent_tool(
+    vehicle: dict[str, Any],
+    financing: dict[str, Any],
+    trade_in: dict[str, Any] | None = None,
+    fees: dict[str, Any] | None = None,
+    tax_rate_percent: float | None = None,
+    customer_alias: str | None = None,
+) -> str:
+    """Generate a structured, deterministic deal summary document.
+
+    Auto-discovered by the `azurefunctions-agents-runtime` runtime and wired
+    into the agent defined in `skills/deal-doc.agent.md`.
+    """
+    return json.dumps(
+        build_deal_summary(
+            {
+                "vehicle": vehicle,
+                "financing": financing,
+                "trade_in": trade_in or {},
+                "fees": fees or {},
+                "tax_rate_percent": tax_rate_percent,
+                "customer_alias": customer_alias,
+            }
+        )
+    )

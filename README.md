@@ -14,15 +14,33 @@ See [`docs/unity-platform-plan.md`](docs/unity-platform-plan.md) for the full pl
 - [`src/`](src) - application code for Demo #1, organized per platform tier (added as the POC build starts)
 - [`tests/`](tests) - automated tests mirroring `src/` by tier
 
-## Quick run (mock)
+## Try it
 
-The POC build hasn't started yet, so there's nothing to `run` today. Once it does, the walkthrough below (from the plan's [demo script](docs/unity-platform-plan.md#55-demo-script-15-minutes)) is the target quick-run path:
+PR #6 shipped the full POC — the web chat, the `deal-finder` Foundry Hosted
+Agent, hosted skills, sandboxed financing, and the approval workflow all run
+today.
 
-1. Open the web client and start a conversation: "EV under $38k, 250+ miles, room for a car seat."
-2. The agent searches inventory, finds a shortlist, and quotes a price.
-3. Ask "what's my payment?" - a sandbox spins up, computes the answer from PII that never leaves it, and is deleted.
-4. Give an email address and tap "Apply" - a durable workflow posts an approval card to Teams.
-5. Approve in Teams - the deal closes and the offer emails back to the customer.
-6. Trigger a fault - SRE Agent notices, correlates, proposes a fix, and (in staging) applies it with no human in the loop.
+![Deal finder chat: multi-turn conversation with the live agent, plus the deal workflow panel](docs/images/demo1-web-chat-screenshot.png)
 
-Each step lands as a working slice in the phased build plan (plan section 5.4) as `src/` fills in.
+The fastest path (no Azure needed, runs entirely on mock data):
+
+```bash
+cd src/web
+npm install
+npm run dev
+```
+
+Then open <http://localhost:3000> and use the chat panel's **"Copy & fill"**
+button to try:
+
+```
+Find me an EV under $40,000 with at least 250 miles of range
+```
+
+The badge in the header tells you the truth about which agent answered —
+green **"● Live agent"** or amber **"⚠ Mock agent"** — never a guess.
+
+To run against the real `deal-finder` agent and AI Gateway (both terminals,
+plus `azd` provisioning), see [`src/README.md`](src/README.md) for the full
+walkthrough, including the demo script from the plan's
+[section 5.5](docs/unity-platform-plan.md#55-demo-script-15-minutes).
