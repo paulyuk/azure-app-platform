@@ -1,0 +1,62 @@
+name: azd provision and deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - azure.yaml
+      - infra/**
+      - src/**
+      - .github/workflows/azd-ci.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: unity-azd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Configure these as repository/environment variables after creating the
+    # GitHub OIDC federated credential. No client secret is used.
+    if: >-
+      ${{ vars.AZURE_CLIENT_ID != '' &&
+          vars.AZURE_TENANT_ID != '' &&
+          vars.AZURE_SUBSCRIPTION_ID != '' &&
+          vars.AZURE_ENV_NAME != '' }}
+    runs-on: ubuntu-latest
+    environment: unity-poc
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: eastus2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Authenticate with workload identity federation
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --tenant-id "$AZURE_TENANT_ID" \
+            --federated-credential-provider github
+
+      - name: Initialize azd environment
+        run: |
+          azd ext install microsoft.foundry
+          azd env new "$AZURE_ENV_NAME" --no-prompt
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+
+      - name: Provision infrastructure
+        run: azd provision --no-prompt
+
+      - name: Deploy services
+        run: azd deploy --no-prompt
