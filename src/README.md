@@ -42,7 +42,7 @@ way `pip` does, so on a Microsoft corp network it falls back to the public
 fetching packages, point it at the same internal mirror `pip` already uses:
 
 ```bash
-export UV_INDEX_URL="$(pip3 config list 2>/dev/null | sed -n \"s/global.index-url='\\(.*\\)'/\\1/p\")"
+export UV_INDEX_URL="$(pip3 config list 2>/dev/null | sed -n "s/global.index-url='\(.*\)'/\1/p")"
 export UV_DEFAULT_INDEX="$UV_INDEX_URL"
 ```
 
