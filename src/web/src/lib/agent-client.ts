@@ -5,6 +5,8 @@
  * does not send CORS headers.
  */
 
+import type { ChatMessage } from "@/lib/types";
+
 const DEFAULT_AGENT_URL = "http://127.0.0.1:8088";
 const DEFAULT_TIMEOUT_MS = 5_000;
 
@@ -22,17 +24,26 @@ function agentBaseUrl(): string {
 }
 
 /**
- * Calls the agent's `/responses` endpoint and extracts the assistant's
- * plain-text reply, discarding the encrypted reasoning trace item.
+ * Calls the agent's `/responses` endpoint with the full conversation history
+ * (as Responses-protocol `input` message items, not just the latest turn —
+ * the agent server is stateless per-request and has no memory of prior
+ * turns unless the full history or a `previous_response_id` is resent) and
+ * extracts the assistant's plain-text reply, discarding the encrypted
+ * reasoning trace item.
  *
  * Uses a short timeout so callers that fall back to mock mode when the
  * agent isn't running (the default dev experience) fail fast instead of
  * hanging the request.
  */
 export async function fetchAgentReply(
-  input: string,
+  messages: ChatMessage[],
   timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<string> {
+  const input = messages.map((message) => ({
+    role: message.role,
+    content: message.content
+  }));
+
   let response: Response;
   try {
     response = await fetch(`${agentBaseUrl()}/responses`, {

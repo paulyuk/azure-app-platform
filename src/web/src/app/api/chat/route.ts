@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     // Next.js route handler, sidesteps that — this request never touches
     // the browser.
     try {
-      const assistantReply = await fetchAgentReply(latestMessage);
+      const assistantReply = await fetchAgentReply(body.messages);
       scenario = { assistantReply, stage: body.stage ?? "idle" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
