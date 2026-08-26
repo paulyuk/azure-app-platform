@@ -1,0 +1,24 @@
+{
+  "name": "unity-studio",
+  "description": "Unity Studio is the hub canvas for exploring the nine-tier Unity platform, checking Demo #1 car-buying flow status, and opening dedicated Cloud Foundation studios.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Cloud Foundation",
+    "url": "https://github.com/coreai-microsoft/unity"
+  },
+  "keywords": [
+    "unity",
+    "unity-studio",
+    "car-buying",
+    "platform",
+    "ai-gateway",
+    "hosted-skills",
+    "sre-agent",
+    "copilot-canvas",
+    "cloud-foundation"
+  ],
+  "extensions": ".",
+  "skills": [
+    "./skills/unity-studio-canvas/"
+  ]
+}
