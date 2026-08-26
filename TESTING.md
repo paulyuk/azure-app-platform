@@ -18,12 +18,13 @@ continue through the financing handoff.
 
 ## 2. Python checks (local, no Azure)
 
-From the repository root:
+All Python components use [`uv`](https://docs.astral.sh/uv/) — do not invoke
+`python`/`pip` directly. From the repository root:
 
 ```bash
-python3 -m pytest src/sandbox/prequal -q
-python3 -m pytest src/workflows/loan-approval -q
-python3 -m compileall src/agent src/skills
+uv run --with pytest pytest src/sandbox/prequal -q
+uv run --with-requirements src/workflows/loan-approval/requirements.txt --with pytest pytest src/workflows/loan-approval -q
+uv run python -m compileall src/agent src/skills
 ```
 
 ## 3. Unity Studio canvas (local Copilot extension, no Azure)
@@ -70,14 +71,11 @@ managed-identity cleanup. The postprovision hook verifies a real model call,
 stores the secret in the gitignored azd environment, and writes a mode-`0600`
 `src/agent/.env`. It never prints the key.
 
-Run the hosted-agent protocol server locally:
+Run the hosted-agent protocol server locally with `uv` (no manual venv needed):
 
 ```bash
 cd src/agent
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python main.py
+uv run --with-requirements requirements.txt python main.py
 ```
 
 In another terminal:
