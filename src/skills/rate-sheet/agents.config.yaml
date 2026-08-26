@@ -1,3 +1,11 @@
 # Global runtime defaults for this Hosted Skill's function app.
-model: $FOUNDRY_MODEL
+#
+# `model` is intentionally left unset here so the runtime's built-in
+# per-provider resolution applies automatically based on whichever
+# AZURE_FUNCTIONS_AGENTS_PROVIDER is active in local.settings.json (or the
+# hosted app's config): FOUNDRY_MODEL for provider=foundry,
+# AZURE_OPENAI_DEPLOYMENT for provider=azure_openai, or
+# AZURE_FUNCTIONS_AGENTS_MODEL as a provider-agnostic override for
+# provider=openai. Hardcoding a $VAR placeholder here would couple this file
+# to one specific provider - see src/skills/README.md.
 timeout: 60

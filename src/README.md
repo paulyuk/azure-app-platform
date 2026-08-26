@@ -99,6 +99,79 @@ To force one mode instead of auto-detecting, set `NEXT_PUBLIC_MOCK` in
 `src/web/.env.local` (copy from `.env.example`): `1` always mocks,
 `0` always calls the agent and surfaces errors instead of falling back.
 
+### Start the Hosted Skills locally (required for real tool calls)
+
+The agent's model calls always go to the real AI Gateway, but its **tool**
+calls (`inventory-search`, `trade-in-value`, `rate-sheet`, `deal-doc`) need
+somewhere to land. Unless `TOOLBOX_ENDPOINT` is set in `src/agent/.env` (a
+real Foundry Toolbox has been deployed), the agent expects each of the four
+Hosted Skills to be running **locally as its own `func start` process** on
+its own port — it does **not** run them in-process or fall back silently.
+
+One-time setup per skill (repeat for all four: `inventory-search`,
+`trade-in-value`, `rate-sheet`, `deal-doc`):
+
+```bash
+cd src/skills/<skill>
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp local.settings.json.example local.settings.json
+# edit local.settings.json: copy in your AZURE_AI_GATEWAY_ENDPOINT /
+# AZURE_AI_GATEWAY_API_KEY from src/agent/.env — each skill runs its own tiny
+# model call and defaults to routing it through the same AI Gateway the agent
+# uses, no az login or Foundry project needed. See src/skills/README.md for
+# the Foundry-project alternative.
+```
+
+Then, in **four separate terminals** (each skill keeps running as a
+foreground server — this is on top of the agent's own terminal and the web
+app's terminal), paste one block per terminal:
+
+Terminal A — `inventory-search`:
+
+```bash
+cd src/skills/inventory-search
+source .venv/bin/activate
+func start --port 7071
+```
+
+Terminal B — `trade-in-value`:
+
+```bash
+cd src/skills/trade-in-value
+source .venv/bin/activate
+func start --port 7072
+```
+
+Terminal C — `rate-sheet`:
+
+```bash
+cd src/skills/rate-sheet
+source .venv/bin/activate
+func start --port 7073
+```
+
+Terminal D — `deal-doc`:
+
+```bash
+cd src/skills/deal-doc
+source .venv/bin/activate
+func start --port 7074
+```
+
+Each one logs both an HTTP route and a real MCP tool trigger once it's up:
+
+```text
+Functions:
+        inventory_search: [POST] http://localhost:7071/api/inventory-search
+        agent_inventory_search_builtin_mcp: mcpToolTrigger
+```
+
+`src/agent/main.py` auto-connects to all four over MCP at
+`http://localhost:707{1..4}/runtime/webhooks/mcp` — no extra agent-side
+config needed once they're running. See [`skills/README.md`](skills/README.md) for the full file layout and an
+MCP `tools/list` smoke test you can run against a single skill directly.
+
 ### Exercising the agent
 
 `MOCK=1 uv run main.py` is a **one-shot rehearsal**: it prints a fixed mock

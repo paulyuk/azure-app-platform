@@ -63,11 +63,47 @@ cd src/skills/<skill>
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp local.settings.json.example local.settings.json
-# edit local.settings.json: set FOUNDRY_PROJECT_ENDPOINT to a real Foundry project
-# (the runtime's own chat/instruction-following model call needs Foundry credentials;
-# az login first if using DefaultAzureCredential)
 func start --port 7071   # 7072 / 7073 / 7074 for the other three skills
 ```
+
+Each Hosted Skill is itself a tiny chat agent: it makes its own model call (via
+`azurefunctions-agents-runtime`'s `ClientManager`) to decide how to invoke its
+`@tool`-decorated function. That call needs its own model credentials,
+separate from the outer deal-finder agent's. `local.settings.json.example`
+defaults to the **`openai` provider pointed at the same AI Gateway** the agent
+itself uses (`src/agent/.env`'s `AZURE_AI_GATEWAY_ENDPOINT` /
+`AZURE_AI_GATEWAY_API_KEY`) — copy those two values in and no `az login` or
+Foundry project is needed:
+
+```jsonc
+"AZURE_FUNCTIONS_AGENTS_PROVIDER": "openai",
+"OPENAI_BASE_URL": "<AZURE_AI_GATEWAY_ENDPOINT>/default/models/openai/v1/",
+"OPENAI_API_KEY": "workload-identity-auth",       // placeholder; auth is via the header below
+"OPENAI_CUSTOM_HEADERS": "Api-Key: <AZURE_AI_GATEWAY_API_KEY>",
+"AZURE_FUNCTIONS_AGENTS_MODEL": "gpt-mini-latest"  // provider-agnostic model override
+```
+
+**Alternative:** point a skill directly at a real Foundry *project* (one with
+an actual model deployment) instead of the AI Gateway. Replace the four keys
+above with:
+
+```jsonc
+"AZURE_FUNCTIONS_AGENTS_PROVIDER": "foundry",
+"FOUNDRY_PROJECT_ENDPOINT": "https://<project-name>.<region>.services.ai.azure.com/api/projects/<project-name>",
+"FOUNDRY_MODEL": "gpt-mini-latest"
+```
+
+This needs Entra credentials (`az login` first if using
+`DefaultAzureCredential`) and a project that actually has `gpt-mini-latest` (or
+your chosen model) deployed — an endpoint with zero deployments fails with an
+opaque `DeploymentNotFound: 404` from inside the skill's own model call, which
+is easy to mistake for a broken tool.
+
+> **Note:** `agents.config.yaml`'s `model:` key is intentionally left unset in
+> each skill so the runtime auto-resolves the right env var for whichever
+> provider is active (see table above). Do not hardcode a `$FOUNDRY_MODEL`-style
+> placeholder there — it only works for `provider=foundry` and silently breaks
+> every other provider.
 
 `func start` logs both surfaces once the app is up:
 
