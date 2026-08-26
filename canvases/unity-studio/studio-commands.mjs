@@ -1,6 +1,14 @@
 import { discoverPlatform, runCommand } from "./discovery.mjs";
 import { traceApp } from "./app-map.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
+export {
+  buildCandidateCatalog,
+  buildWorkspaceRequestPrompt,
+  normalizeWorkspaceRequest,
+  openWorkspaceInVsCode,
+  requestAppWorkspace,
+  WORKSPACE_TIER_IDS,
+} from "./workspace-actions.mjs";
 
 export { PLATFORM_TIERS };
 

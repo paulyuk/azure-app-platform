@@ -1,217 +1,25 @@
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
+import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
+  buildCandidateCatalog,
   discoverUnityPlatform,
   getPlatformOverview,
+  openWorkspaceInVsCode,
+  requestAppWorkspace,
   runDoctor,
   traceUnityApp,
+  WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
+import { renderStudioHtml } from "./studio-ui.mjs";
 
 const servers = new Map();
 let session;
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderHtml(instanceId) {
-  const tierCards = PLATFORM_TIERS.map((tier) => `
-    <article class="card" data-tier-card="${escapeHtml(tier.id)}">
-      <div class="card-heading">
-        <h2>${escapeHtml(tier.name)}</h2>
-        <span class="count" data-count="${escapeHtml(tier.id)}">Not scanned</span>
-      </div>
-      <p class="role">${escapeHtml(tier.role)}</p>
-      <p>${escapeHtml(tier.jobToBeDone)}</p>
-      <button type="button" data-activate-tier="${escapeHtml(tier.id)}">Open or inspect</button>
-    </article>`).join("");
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Unity Studio</title>
-    <style>
-      :root { color-scheme: light dark; }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        padding: 24px;
-        background: var(--background-color-default, #fff);
-        color: var(--text-color-default, #1f2328);
-        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-        font-size: var(--text-body-medium, 14px);
-        line-height: var(--leading-body-medium, 20px);
-      }
-      header, main { max-width: 1080px; }
-      header { margin-bottom: 24px; }
-      h1 {
-        margin: 0 0 8px;
-        font-size: var(--text-title-large, 26px);
-        line-height: var(--leading-title-large, 32px);
-      }
-      h2 { margin: 0; font-size: 16px; }
-      h3 { margin: 28px 0 8px; }
-      p { color: var(--text-color-muted, #59636e); }
-      .eyebrow, .role { color: var(--true-color-blue, #0969da); font-weight: 600; }
-      .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-      .card { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 10px; padding: 16px; }
-      .card-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
-      .count, small { color: var(--text-color-muted, #59636e); font-size: 12px; }
-      button {
-        border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 6px;
-        padding: 7px 10px;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-      }
-      button.primary { background: var(--true-color-blue, #0969da); border-color: var(--true-color-blue, #0969da); color: var(--color-white, #fff); }
-      button:focus { outline: 2px solid var(--color-focus-outline, #0969da); }
-      button:disabled { cursor: wait; opacity: 0.65; }
-      #status { min-height: 20px; }
-      .panel { margin-top: 20px; border-top: 1px solid var(--border-color-default, #d1d9e0); padding-top: 4px; }
-      pre {
-        max-height: 360px;
-        overflow: auto;
-        padding: 12px;
-        border-radius: 8px;
-        background: var(--true-color-blue-muted, #ddf4ff);
-        color: var(--text-color-default, #1f2328);
-        font-family: var(--font-mono, monospace);
-        font-size: 12px;
-        white-space: pre-wrap;
-      }
-      footer { margin-top: 24px; color: var(--text-color-muted, #59636e); font-family: var(--font-mono, monospace); font-size: 12px; }
-    </style>
-  </head>
-  <body>
-    <header>
-      <div class="eyebrow">Unity pattern inspector</div>
-      <h1>Unity Studio</h1>
-      <p>Discover real implementations and Azure resources for the nine Unity tiers, open registered tier studios, and trace an application's evidence-backed flow.</p>
-      <div class="toolbar">
-        <button id="discover" class="primary" type="button">Discover repo + Azure</button>
-        <button id="discover-repo" type="button">Discover repo only</button>
-        <button id="trace" type="button">Trace app</button>
-      </div>
-      <p id="status" role="status">No discovery has run yet.</p>
-    </header>
-    <main>
-      <section aria-labelledby="platform-heading">
-        <h2 id="platform-heading">Platform capability map</h2>
-        <div class="grid">${tierCards}</div>
-      </section>
-      <section class="panel" aria-labelledby="result-heading">
-        <h3 id="result-heading">Evidence</h3>
-        <pre id="result">Run discovery or tracing to inspect source-backed results.</pre>
-      </section>
-    </main>
-    <footer>Instance: ${escapeHtml(instanceId)} · Results are derived at runtime; no tier status is hardcoded.</footer>
-    <script>
-      const status = document.getElementById("status");
-      const result = document.getElementById("result");
-      const buttons = Array.from(document.querySelectorAll("button"));
-
-      function setBusy(busy, message) {
-        buttons.forEach((button) => { button.disabled = busy; });
-        status.textContent = message;
-      }
-
-      async function request(path, options) {
-        const response = await fetch(path, options);
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.error || "Request failed.");
-        }
-        return payload;
-      }
-
-      function renderDiscovery(payload) {
-        payload.tiers.forEach((tier) => {
-          const count = document.querySelector('[data-count="' + tier.id + '"]');
-          count.textContent = tier.candidateCount === 0
-            ? "Scaffold available"
-            : tier.candidateCount + " candidate" + (tier.candidateCount === 1 ? "" : "s");
-        });
-        result.textContent = JSON.stringify({
-          repository: payload.repository,
-          azure: payload.azure,
-          tiers: payload.tiers.map((tier) => ({
-            id: tier.id,
-            candidates: tier.candidates,
-            scaffoldAvailable: tier.scaffoldAvailable
-          })),
-          diagnostics: payload.diagnostics
-        }, null, 2);
-      }
-
-      async function discover(includeAzure) {
-        setBusy(true, includeAzure ? "Discovering repository and active Azure subscription…" : "Discovering repository…");
-        try {
-          const payload = await request("/api/discovery?azure=" + includeAzure);
-          renderDiscovery(payload);
-          status.textContent = "Discovery completed from runtime evidence.";
-        } catch (error) {
-          status.textContent = error.message;
-        } finally {
-          setBusy(false, status.textContent);
-        }
-      }
-
-      document.getElementById("discover").addEventListener("click", () => discover(true));
-      document.getElementById("discover-repo").addEventListener("click", () => discover(false));
-      document.getElementById("trace").addEventListener("click", async () => {
-        setBusy(true, "Tracing source relationships…");
-        try {
-          const payload = await request("/api/app-map", { method: "POST" });
-          result.textContent = JSON.stringify(payload, null, 2);
-          status.textContent = "App Map derived from source evidence.";
-        } catch (error) {
-          status.textContent = error.message;
-        } finally {
-          setBusy(false, status.textContent);
-        }
-      });
-
-      document.querySelectorAll("[data-activate-tier]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const tierId = button.dataset.activateTier;
-          setBusy(true, "Activating " + tierId + "…");
-          try {
-            const payload = await request("/api/tier-action", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tierId })
-            });
-            result.textContent = JSON.stringify(payload, null, 2);
-            status.textContent = payload.outcome === "canvas-opened"
-              ? "Opened the registered tier studio."
-              : payload.outcome === "candidates-discovered"
-                ? "Found eligible tier candidates."
-                : "No candidate found; a scaffold recipe is available.";
-          } catch (error) {
-            status.textContent = error.message;
-          } finally {
-            setBusy(false, status.textContent);
-          }
-        });
-      });
-    </script>
-  </body>
-</html>`;
-}
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -235,16 +43,60 @@ async function readJsonBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-async function handleRequest(request, response, instanceId, workspaceRoot) {
+async function validateCandidatePath(input, workspaceRoot) {
+  if (!input?.candidatePath) {
+    return input;
+  }
+  const resolved = await resolveDiscoveryRoot(input.candidatePath, workspaceRoot);
+  return {
+    ...input,
+    candidatePath: relative(workspaceRoot, resolved) || ".",
+  };
+}
+
+async function discoveryWithCatalog(workspaceRoot, includeAzure) {
+  const discovery = await discoverUnityPlatform({ root: workspaceRoot, includeAzure });
+  return {
+    ...discovery,
+    catalog: buildCandidateCatalog(discovery),
+  };
+}
+
+function authorizeApiRequest(request, url, apiToken, trustedHost) {
+  if (!url.pathname.startsWith("/api/")) {
+    return;
+  }
+  const origin = request.headers.origin;
+  if (
+    request.headers.host !== trustedHost
+    || request.headers["x-unity-studio-token"] !== apiToken
+    || (origin && origin !== `http://${trustedHost}`)
+  ) {
+    const error = new Error("Unauthorized loopback request.");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (
+    request.method === "POST"
+    && !String(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")
+  ) {
+    const error = new Error("POST actions require application/json.");
+    error.statusCode = 415;
+    throw error;
+  }
+}
+
+async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   try {
+    authorizeApiRequest(request, url, apiToken, trustedHost);
     if (request.method === "GET" && url.pathname === "/api/overview") {
       sendJson(response, 200, getPlatformOverview());
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/discovery") {
       const includeAzure = url.searchParams.get("azure") !== "false";
-      sendJson(response, 200, await discoverUnityPlatform({ root: workspaceRoot, includeAzure }));
+      sendJson(response, 200, await discoveryWithCatalog(workspaceRoot, includeAzure));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/app-map") {
@@ -261,37 +113,63 @@ async function handleRequest(request, response, instanceId, workspaceRoot) {
       }));
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/workspace-request") {
+      const input = await validateCandidatePath(await readJsonBody(request), workspaceRoot);
+      sendJson(response, 202, await requestAppWorkspace({
+        session,
+        workspaceRoot,
+        input,
+      }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/open-vscode") {
+      const input = await readJsonBody(request);
+      const root = await resolveDiscoveryRoot(input.root, workspaceRoot);
+      sendJson(response, 200, await openWorkspaceInVsCode({ root }));
+      return;
+    }
     if (request.method !== "GET" || url.pathname !== "/") {
       sendJson(response, 404, { error: "Not found." });
       return;
     }
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end(renderHtml(instanceId));
+    response.end(renderStudioHtml(instanceId, apiToken));
   } catch (error) {
-    sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
+    sendJson(response, error?.statusCode ?? 500, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
 async function startServer(instanceId, workspaceRoot) {
+  const apiToken = randomUUID();
+  let trustedHost;
   const server = createServer((request, response) => {
-    void handleRequest(request, response, instanceId, workspaceRoot);
+    void handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  return { server, url: `http://127.0.0.1:${port}/`, workspaceRoot };
+  trustedHost = `127.0.0.1:${port}`;
+  return { server, url: `http://${trustedHost}/`, workspaceRoot };
 }
 
 function canvasError(error) {
   if (error instanceof CanvasError) {
     return error;
   }
-  return new CanvasError(error?.code ?? "unity-studio-error", error instanceof Error ? error.message : String(error));
+  return new CanvasError(
+    error?.code ?? "unity-studio-error",
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
+function actionWorkspaceRoot(ctx) {
+  return ctx.session?.workingDirectory ?? process.cwd();
 }
 
 async function actionRoot(ctx) {
-  const workspaceRoot = ctx.session?.workingDirectory ?? process.cwd();
-  return resolveDiscoveryRoot(ctx.input?.root, workspaceRoot);
+  return resolveDiscoveryRoot(ctx.input?.root, actionWorkspaceRoot(ctx));
 }
 
 const rootInputProperties = {
@@ -301,10 +179,30 @@ const rootInputProperties = {
   },
 };
 
+const workspaceInputSchema = {
+  type: "object",
+  properties: {
+    mode: { type: "string", enum: ["create", "extend"], default: "create" },
+    appName: { type: "string", minLength: 1, maxLength: 80 },
+    purpose: { type: "string", minLength: 1, maxLength: 500 },
+    tierIds: {
+      type: "array",
+      minItems: 1,
+      uniqueItems: true,
+      items: { type: "string", enum: WORKSPACE_TIER_IDS },
+    },
+    candidatePath: { type: "string" },
+    azureResourceId: { type: "string", maxLength: 512 },
+    openInVsCode: { type: "boolean", default: true },
+  },
+  required: ["appName", "purpose", "tierIds"],
+  additionalProperties: false,
+};
+
 const canvas = createCanvas({
   id: "unity-studio",
   displayName: "Unity Studio",
-  description: "Discover Unity-pattern tier implementations and Azure resources, open tier studios, and trace an app map from source.",
+  description: "Create or extend a Unity-pattern app in a worktree, inspect candidates, open tier studios, and trace its App Map.",
   inputSchema: {
     type: "object",
     properties: {
@@ -321,7 +219,7 @@ const canvas = createCanvas({
     },
     {
       name: "discover_platform",
-      description: "Scan the current repository and, optionally, the active Azure CLI subscription for eligible tier candidates.",
+      description: "Scan the current repository and, optionally, the active Azure subscription for visible tier candidates.",
       inputSchema: {
         type: "object",
         properties: {
@@ -332,10 +230,42 @@ const canvas = createCanvas({
       },
       handler: async (ctx) => {
         try {
-          return await discoverUnityPlatform({
+          const discovery = await discoverUnityPlatform({
             root: await actionRoot(ctx),
             includeAzure: ctx.input?.includeAzure !== false,
           });
+          return { ...discovery, catalog: buildCandidateCatalog(discovery) };
+        } catch (error) {
+          throw canvasError(error);
+        }
+      },
+    },
+    {
+      name: "request_app_workspace",
+      description: "Request a child project session with an isolated worktree, selected Unity capabilities, preloaded studios, and optional VS Code launch.",
+      inputSchema: workspaceInputSchema,
+      handler: async (ctx) => {
+        try {
+          const workspaceRoot = actionWorkspaceRoot(ctx);
+          const input = await validateCandidatePath(ctx.input, workspaceRoot);
+          return await requestAppWorkspace({ session, workspaceRoot, input });
+        } catch (error) {
+          throw canvasError(error);
+        }
+      },
+    },
+    {
+      name: "open_in_vscode",
+      description: "Open a workspace-confined discovered repository path in a new Visual Studio Code window.",
+      inputSchema: {
+        type: "object",
+        properties: rootInputProperties,
+        required: ["root"],
+        additionalProperties: false,
+      },
+      handler: async (ctx) => {
+        try {
+          return await openWorkspaceInVsCode({ root: await actionRoot(ctx) });
         } catch (error) {
           throw canvasError(error);
         }
@@ -343,7 +273,7 @@ const canvas = createCanvas({
     },
     {
       name: "activate_tier",
-      description: "Directly open a registered dedicated studio for a tier, or discover candidates and return a scaffold recipe.",
+      description: "Open a registered specialist studio for a tier; use request_app_workspace to add the tier to an app.",
       inputSchema: {
         type: "object",
         properties: {
@@ -385,7 +315,7 @@ const canvas = createCanvas({
     },
     {
       name: "run_doctor",
-      description: "Compatibility readiness action backed by real repository and optional Azure discovery.",
+      description: "Report repository and optional Azure discovery health.",
       inputSchema: {
         type: "object",
         properties: {
@@ -418,7 +348,7 @@ const canvas = createCanvas({
     }
     return {
       title: "Unity Studio",
-      status: "Discovery-backed",
+      status: "App workspace",
       url: entry.url,
     };
   },

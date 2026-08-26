@@ -1,11 +1,16 @@
 # Unity Studio
 
-Unity Studio is the hub canvas for inspecting applications built with the
-generic nine-tier Unity platform pattern. It helps builders:
+Unity Studio is the hub canvas for creating, extending, and inspecting
+applications built with the generic nine-tier Unity platform pattern. It helps
+builders:
 
 - understand each tier's role and job to be done;
 - discover repository and read-only active-subscription Azure evidence;
-- inspect confidence, provenance, and diagnostics;
+- see eligible candidates as tier cards with confidence and source evidence;
+- create a child project session in an isolated worktree with selected
+  capabilities and relevant studios preloaded;
+- add a discovered repository project or Azure resource to an app workspace;
+- open a workspace-confined repository candidate in VS Code;
 - open registered dedicated studios directly; and
 - trace an evidence-backed App Map without changing files or resources.
 
@@ -34,7 +39,16 @@ from static metadata.
 ## Actions
 
 - `discover_platform` discovers tier candidates from repository evidence and
-  optional read-only Azure inventory in the active CLI subscription.
+  optional read-only Azure inventory in the active CLI subscription. Results
+  include a candidate-card catalog grouped by tier.
+- `request_app_workspace` validates an app name, purpose, selected tiers, and
+  optional discovered candidate, then asks the foreground Copilot agent to use
+  the app-native session API. The requested child session uses a new worktree,
+  starts implementing the selected capabilities, and opens Unity Studio plus
+  registered specialist canvases. The action reports a pending request; it does
+  not claim that the worktree already exists.
+- `open_in_vscode` opens an explicitly selected, workspace-confined repository
+  path in a new VS Code window.
 - `activate_tier` opens a registered preferred studio, returns candidates to
   inspect, or returns a scaffold recipe when no implementation is observed.
 - `trace_app` derives a generic App Map whose nodes and edges retain source
@@ -43,8 +57,9 @@ from static metadata.
   reports repository and Azure discovery health rather than simulated platform
   status.
 
-Discovery and scaffold results are informational. No action writes project
-files, provisions Azure resources, or retrieves secrets.
+Discovery and scaffold results are informational. Workspace creation and
+implementation happen in the child session, not in the source worktree. No
+canvas action provisions Azure resources or retrieves secrets.
 
 ## Run from this repository
 

@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Unity Studio is a generic inspector and navigation hub for applications built with
-the Unity platform pattern. It describes platform capabilities, discovers
-implementation evidence, opens registered specialist studios, and traces
-application relationships. It does not claim that a component is deployed,
-healthy, or production-ready.
+Unity Studio is a generic app-workspace and navigation hub for applications
+built with the Unity platform pattern. It creates or extends apps in isolated
+worktrees, describes platform capabilities, discovers implementation evidence,
+opens registered specialist studios, and traces application relationships. It
+does not claim that a component is deployed, healthy, or production-ready.
 
 ## Nine-tier catalog
 
@@ -72,7 +72,17 @@ reported rather than converted into invented links or statuses.
 ## Deterministic actions
 
 - `discover_platform` gathers repository and optional active-subscription Azure
-  evidence and returns the combined tier inventory.
+  evidence and returns the combined tier inventory plus visible candidate-card
+  view models.
+- `request_app_workspace` validates an app workspace request and sends a
+  structured, data-delimited handoff to the foreground Copilot agent. The agent
+  must call the app-native `create_session` operation with a new worktree,
+  selected tier kickoff, Unity Studio, registered specialist canvases, and an
+  optional VS Code launch. The loopback endpoint returns HTTP 202 and
+  `workspace-requested`; this means delegated, not created.
+- `open_in_vscode` resolves an explicit repository path inside the current
+  workspace before invoking `code --new-window`, with the macOS application
+  launcher as a fallback.
 - `activate_tier` validates a tier and queries
   `session.rpc.canvas.list()`. If a preferred specialist canvas is registered,
   it calls `session.rpc.canvas.open()` with a stable instance ID and tier
@@ -87,6 +97,12 @@ reported rather than converted into invented links or statuses.
 Canvas buttons invoke the same action implementations as external callers.
 Registration checks and stable instance IDs make studio activation
 deterministic. Validation and RPC failures are surfaced explicitly.
+
+The extension SDK can open canvases in the current session but cannot directly
+create app-native project sessions or worktrees. Workspace creation therefore
+uses `session.send()` to hand the validated request to the foreground agent,
+which owns the native session operation. This boundary preserves the visible
+project/worktree UX instead of creating an SDK-only child process.
 
 ## Scaffold recipes
 
@@ -115,6 +131,8 @@ proof that a request path succeeds.
 - Azure discovery is read-only and defaults to the user's active CLI
   subscription; it does not enumerate other subscriptions implicitly.
 - Discovered values are treated as untrusted input and escaped before rendering.
+- Workspace names use a constrained character set, prompt values are serialized
+  as data, and candidate paths are canonicalized within the current workspace.
 - Loopback JSON and action endpoints remain loopback-only.
 - No discovery or scaffold action mutates files, resources, or configuration.
 - Static analysis can miss dynamic registration, generated configuration,
