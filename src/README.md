@@ -32,13 +32,12 @@ uv run python -m compileall src/agent src/skills
 ```
 
 **Web app and hosted agent are two separate, independent long-running
-processes — run each in its own terminal.** They are **not wired
-together yet**: the web app's `/api/chat` route is hardcoded to a mock
-scenario generator (`src/web/src/lib/mock-agent.ts`) and does not call the
-agent. Running both at once demos each in isolation, not end-to-end.
+processes — run each in its own terminal.** By default the web app runs in
+**mock mode** (`NEXT_PUBLIC_MOCK` unset/`1`) and never calls the agent —
+running both at once in default mode demos each in isolation, not end-to-end.
 
 ```bash
-# Terminal 1 — web app (no Azure required)
+# Terminal 1 — web app (no Azure required), mock mode
 cd src/web
 npm install
 npm run dev
@@ -50,6 +49,33 @@ npm run dev
 cd src/agent
 MOCK=1 uv run main.py
 ```
+
+### Live mode: web app calling the real agent
+
+The web app **can** call the real deal-finder agent — the Next.js
+`/api/chat` route calls it server-side (avoiding CORS, since the agent
+server sends no `Access-Control-Allow-Origin` headers and a direct
+browser→agent `fetch()` would be blocked). To try it end-to-end:
+
+```bash
+# Terminal 1 — start the real agent (needs src/agent/.env from azd provision,
+# see "Exercising the agent" below)
+cd src/agent
+uv run main.py
+```
+
+```bash
+# Terminal 2 — web app in live mode, pointed at the agent
+cd src/web
+cp .env.example .env.local
+# edit .env.local: set NEXT_PUBLIC_MOCK=0 (AGENT_URL default already
+# matches the agent's default http://127.0.0.1:8088)
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000` and chat — replies now come from the real
+agent/model instead of the mock scenario generator.
 
 ### Exercising the agent
 
