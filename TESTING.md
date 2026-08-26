@@ -19,11 +19,16 @@ continue through the financing handoff.
 ## 2. Python checks (local, no Azure)
 
 All Python components use [`uv`](https://docs.astral.sh/uv/) — do not invoke
-`python`/`pip` directly. From the repository root:
+`python`/`pip` directly. Each project has its own `pyproject.toml`, so plain
+`uv run` from inside it resolves dependencies automatically.
 
 ```bash
-uv run --with pytest pytest src/sandbox/prequal -q
-uv run --with-requirements src/workflows/loan-approval/requirements.txt --with pytest pytest src/workflows/loan-approval -q
+cd src/sandbox/prequal
+uv run pytest -q
+cd -
+cd src/workflows/loan-approval
+uv run pytest -q
+cd -
 uv run python -m compileall src/agent src/skills
 ```
 
@@ -75,7 +80,7 @@ Run the hosted-agent protocol server locally with `uv` (no manual venv needed):
 
 ```bash
 cd src/agent
-uv run --with-requirements requirements.txt python main.py
+uv run python main.py
 ```
 
 In another terminal:

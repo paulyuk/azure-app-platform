@@ -49,7 +49,7 @@ writes the Gateway endpoint, deployment names, and API key to the gitignored
 Then start the local Responses protocol server with `uv` (no manual venv needed):
 
 ```bash
-uv run --with-requirements requirements.txt python main.py
+uv run python main.py
 ```
 
 In another terminal:
@@ -69,7 +69,7 @@ all PR test paths.
 
 To use a separately provisioned Gateway, copy `.env.example` to `.env`, replace
 the placeholders, and set `AI_GATEWAY_MODEL_ONLY=1` if Toolbox is unavailable.
-By default, `uv run --with-requirements requirements.txt python main.py`
+By default, `uv run python main.py`
 starts the Responses host server on port 8088.
 
 ## Offline demo rehearsal (`MOCK=1`)
@@ -78,7 +78,7 @@ For plan section 5.4 / Phase 6 dry-runs with no network:
 
 ```bash
 cd src/agent
-MOCK=1 uv run --with-requirements requirements.txt python main.py
+MOCK=1 uv run python main.py
 ```
 
 This prints a deterministic mock payload and skips all gateway/tool calls.
