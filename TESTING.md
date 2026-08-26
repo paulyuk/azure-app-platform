@@ -89,8 +89,14 @@ In another terminal:
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
   -H "Content-Type: application/json" \
-  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}'
+  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' \
+  | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
+
+The raw response also includes a `"type":"reasoning"` item with a long
+`encrypted_content` blob — that's the model's encrypted chain-of-thought
+trace, opaque by design. The `jq` filter above prints just the assistant's
+reply text.
 
 Verified on August 26, 2026 against
 `https://aigw-unity-d7xjkqcu.azure-api.net/`, using the `gpt-latest`

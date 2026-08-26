@@ -89,8 +89,16 @@ it with `curl` from a separate terminal:
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
   -H "Content-Type: application/json" \
-  -d '{"input":"Find me an EV under $40,000 with at least 250 miles of range","stream":false}'
+  -d '{"input":"Find me an EV under $40,000 with at least 250 miles of range","stream":false}' \
+  | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
+
+The raw JSON response also includes a `"type":"reasoning"` output item with a
+long `encrypted_content` blob — that's the model's encrypted chain-of-thought
+trace (kept opaque by design, for continuity across turns), not something to
+decode. Piping through `jq` as above filters it out and prints just the
+assistant's reply text. Drop the `jq` if you want to see the full raw
+response, including `agent_session_id`, token/turn metadata, etc.
 
 That path uses the real `INSTRUCTIONS` system prompt and routes through
 Hosted Skills, so you can vary the `input` text to explore matching, quoting,

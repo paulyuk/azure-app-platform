@@ -58,7 +58,8 @@ In another terminal:
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
   -H "Content-Type: application/json" \
-  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}'
+  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' \
+  | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
 
 The generated environment sets `AI_GATEWAY_MODEL_ONLY=1`, so model calls use
