@@ -81,6 +81,18 @@ def _foundry_toolbox() -> FoundryToolbox:
     )
 
 
+def _resolve_tools(model_only: bool) -> list:
+    if model_only:
+        return []
+    if os.environ.get("LOCAL_SKILLS") == "1":
+        # Dev/demo bridge: run the Hosted Skills in-process instead of via a
+        # deployed Foundry Toolbox. See local_skills.py for why/how.
+        from local_skills import load_local_skill_tools
+
+        return load_local_skill_tools()
+    return [_foundry_toolbox()]
+
+
 def build_agent() -> Agent:
     model_only = os.environ.get("AI_GATEWAY_MODEL_ONLY") == "1"
     return Agent(
@@ -91,7 +103,7 @@ def build_agent() -> Agent:
         if not model_only
         else INSTRUCTIONS
         + "\nThis local gateway-only smoke test has no tools. Answer directly and do not claim tool use.",
-        tools=[] if model_only else _foundry_toolbox(),
+        tools=_resolve_tools(model_only),
         default_options={"store": False, "max_tokens": DEFAULT_MAX_OUTPUT_TOKENS},
     )
 

@@ -73,6 +73,35 @@ To use a separately provisioned Gateway, copy `.env.example` to `.env`, replace
 the placeholders, and set `AI_GATEWAY_MODEL_ONLY=1` if Toolbox is unavailable.
 By default, `uv run main.py` starts the Responses host server on port 8088.
 
+## Running with real Hosted Skills locally (`LOCAL_SKILLS=1`)
+
+`AI_GATEWAY_MODEL_ONLY=1` runs the model with **no tools at all** — the agent
+can't call `inventory-search` etc., so it can't ground answers in real
+inventory. The real production path is deploying each skill under
+`src/skills/` as its own Functions app and registering it in **Foundry
+Toolbox** (see `src/skills/README.md` "Hosted registration pattern") — not yet
+done for this POC.
+
+For local dev/demo/e2e testing in the meantime, set `LOCAL_SKILLS=1` to run
+the four Hosted Skills **in-process** (no `func start`, no Functions host, no
+Azure resources) via `local_skills.py`, which imports each skill's
+`tools/*_tool()` function directly and wraps it as an agent tool:
+
+```bash
+cd src/agent
+unset AI_GATEWAY_MODEL_ONLY
+LOCAL_SKILLS=1 uv run main.py
+```
+
+Then the same `curl` from above will actually call `inventory-search` (and
+the other three skills) and ground its answer in the real EPA-sourced data in
+`src/skills/inventory-search/data/inventory.json`.
+
+`LOCAL_SKILLS=1` is a dev/demo convenience only — it does not exercise the
+real deployed-Functions-app + Foundry Toolbox registration path, which should
+still be validated separately (see `src/skills/README.md`) before relying on
+it for anything beyond local testing.
+
 ## Offline demo rehearsal (`MOCK=1`)
 
 For plan section 5.4 / Phase 6 dry-runs with no network — this is a **one-shot
