@@ -32,3 +32,23 @@ cd agent && uv run --with-requirements requirements.txt python main.py   # set M
 
 See [`../TESTING.md`](../TESTING.md) for the full test matrix, including
 running the hosted agent against the already-provisioned real AI Gateway.
+
+### Corporate network / proxy note
+
+`uv` does not read `pip`'s configured index (`pip.conf` / `PIP_INDEX_URL`) the
+way `pip` does, so on a Microsoft corp network it falls back to the public
+`files.pythonhosted.org` CDN, which the corp proxy blocks (fails with
+`Recv failure: Socket is not connected`, on or off VPN). If `uv run` fails
+fetching packages, point it at the same internal mirror `pip` already uses:
+
+```bash
+export UV_INDEX_URL="$(pip3 config list 2>/dev/null | sed -n \"s/global.index-url='\\(.*\\)'/\\1/p\")"
+export UV_DEFAULT_INDEX="$UV_INDEX_URL"
+```
+
+or hardcode it directly if `pip3 config list` returns nothing:
+
+```bash
+export UV_INDEX_URL=https://packagefeedproxy.microsoft.io/pypi/simple/
+export UV_DEFAULT_INDEX=https://packagefeedproxy.microsoft.io/pypi/simple/
+```
