@@ -33,6 +33,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
         {messages.map((message) => (
           <div
             key={message.id}
+            data-testid={`chat-message-${message.role}`}
             className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
               message.role === "user"
                 ? "ml-auto bg-slate-900 text-white"
@@ -47,6 +48,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
       <form className="border-t border-slate-100 p-4" onSubmit={handleSubmit}>
         <div className="flex gap-2">
           <input
+            data-testid="chat-input"
             className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-400"
             placeholder='Try: "EV under $38k, 250+ miles, room for a car seat"'
             value={draft}
@@ -55,6 +57,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
           />
           <button
             type="submit"
+            data-testid="chat-send"
             className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={isStreaming || !draft.trim()}
           >

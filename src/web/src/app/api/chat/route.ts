@@ -1,6 +1,6 @@
 import { buildMockScenario } from "@/lib/mock-agent";
 import { fetchAgentReply } from "@/lib/agent-client";
-import type { ChatApiRequest, ChatStreamEvent, MockScenario } from "@/lib/types";
+import type { ChatApiRequest, ChatStreamEvent, MockScenario, ReplySource } from "@/lib/types";
 
 const encoder = new TextEncoder();
 
@@ -25,8 +25,14 @@ export async function POST(request: Request) {
 
   let scenario: MockScenario;
   let agentError: string | undefined;
+  // Which path actually produced this reply — reported to the client via a
+  // "source" stream event so the UI can show ground truth instead of
+  // guessing from the client-side NEXT_PUBLIC_MOCK env var (which cannot
+  // reflect a same-request fallback, e.g. the agent timing out mid-turn).
+  let source: ReplySource;
 
   if (forceMock) {
+    source = "mock";
     scenario = buildMockScenario({
       latestMessage,
       email: body.email,
@@ -41,15 +47,18 @@ export async function POST(request: Request) {
     // the browser.
     try {
       const assistantReply = await fetchAgentReply(body.messages);
+      source = "agent";
       scenario = { assistantReply, stage: body.stage ?? "idle" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (forceLive) {
+        source = "agent";
         agentError = message;
         scenario = { assistantReply: "", stage: body.stage ?? "idle" };
       } else {
         // Default mode: agent not reachable, fall back to mock.
         console.warn(`[api/chat] Agent unreachable, falling back to mock: ${message}`);
+        source = "mock";
         scenario = buildMockScenario({
           latestMessage,
           email: body.email,
@@ -65,6 +74,10 @@ export async function POST(request: Request) {
       const push = (event: ChatStreamEvent) => {
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
+
+      // Emit before tokens so the UI can label the reply as it streams in,
+      // not just after the fact.
+      push({ type: "source", value: source });
 
       if (agentError) {
         push({ type: "error", value: agentError });

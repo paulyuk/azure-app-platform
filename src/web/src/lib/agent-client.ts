@@ -8,7 +8,12 @@
 import type { ChatMessage } from "@/lib/types";
 
 const DEFAULT_AGENT_URL = "http://127.0.0.1:8088";
-const DEFAULT_TIMEOUT_MS = 5_000;
+// A closed/unreachable port fails via connection refusal almost instantly,
+// so this timeout only matters for a *reachable* agent that's slow to
+// respond (e.g. reasoning-heavy turns can take several seconds) — keep it
+// generous so real replies aren't mistaken for an unreachable agent and
+// silently swapped for a mock reply mid-conversation.
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 interface AgentResponseOutputItem {
   type: string;

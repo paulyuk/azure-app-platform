@@ -79,6 +79,20 @@ agent/model. If you stop the agent, the web app falls back to mock
 responses on the next request (a warning is logged server-side, no
 restart needed).
 
+Once both terminals are running, type this into the web chat input to
+verify the live agent path end-to-end:
+
+```
+Find me an EV under $40,000 with at least 250 miles of range
+```
+
+Watch the badge in the top-right of the page header: it reads the actual
+per-response `source` reported by `/api/chat`, not a guess from env vars —
+**"● Live agent"** (green) means the reply came from the real agent, while
+**"⚠ Mock agent (no live agent reachable)"** (amber) means it silently fell
+back (e.g. the agent process isn't running, or it didn't respond before the
+30s timeout).
+
 To force one mode instead of auto-detecting, set `NEXT_PUBLIC_MOCK` in
 `src/web/.env.local` (copy from `.env.example`): `1` always mocks,
 `0` always calls the agent and surfaces errors instead of falling back.

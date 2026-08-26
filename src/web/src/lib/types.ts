@@ -36,10 +36,13 @@ export interface MockScenario {
   stage?: DealStage;
 }
 
+export type ReplySource = "agent" | "mock";
+
 export type ChatStreamEvent =
   | { type: "token"; value: string }
   | { type: "vehicles"; value: Vehicle[] }
   | { type: "status"; value: DealStage }
+  | { type: "source"; value: ReplySource }
   | { type: "done" }
   | { type: "error"; value: string };
 

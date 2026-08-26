@@ -3,8 +3,8 @@
 import { ChatPanel } from "@/components/chat-panel";
 import { DealStatusPanel } from "@/components/deal-status-panel";
 import { ResultsGrid } from "@/components/results-grid";
-import type { ChatMessage, ChatStreamEvent, DealStage, Vehicle } from "@/lib/types";
-import { useMemo, useState } from "react";
+import type { ChatMessage, ChatStreamEvent, DealStage, ReplySource, Vehicle } from "@/lib/types";
+import { useState } from "react";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -24,8 +24,12 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
-
-  const isMockMode = useMemo(() => process.env.NEXT_PUBLIC_MOCK !== "0", []);
+  // Ground truth for whether the most recent reply actually came from the
+  // real agent or the mock scenario generator — reported by the server on
+  // every response (see the "source" stream event in route.ts), since a
+  // client-side guess based on NEXT_PUBLIC_MOCK can't reflect a same-request
+  // fallback (e.g. the agent being unreachable or timing out mid-turn).
+  const [lastSource, setLastSource] = useState<ReplySource | null>(null);
 
   async function runTurn(userText: string, command?: "apply") {
     if (isStreaming) {
@@ -86,6 +90,10 @@ export default function HomePage() {
             );
           }
 
+          if (event.type === "source") {
+            setLastSource(event.value);
+          }
+
           if (event.type === "vehicles") {
             setVehicles(event.value);
           }
@@ -141,8 +149,21 @@ export default function HomePage() {
             </p>
             <h1 className="text-2xl font-bold text-slate-900">Car-buying chat experience</h1>
           </div>
-          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-            {isMockMode ? "Mock mode" : "Live mode"}
+          <span
+            data-testid="reply-source-badge"
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              lastSource === "mock"
+                ? "bg-amber-500 text-white"
+                : lastSource === "agent"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-900 text-white"
+            }`}
+          >
+            {lastSource === "mock"
+              ? "⚠ Mock agent (no live agent reachable)"
+              : lastSource === "agent"
+                ? "● Live agent"
+                : "Waiting for first reply…"}
           </span>
         </div>
       </header>

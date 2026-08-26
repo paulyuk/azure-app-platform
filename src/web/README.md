@@ -47,10 +47,39 @@ real model/agent. `AGENT_URL` in `.env.example` defaults to
 `http://127.0.0.1:8088`, matching the agent's default port; override it in
 `.env.local` if your agent runs elsewhere.
 
+Once both terminals are running, type this into the web chat input to
+verify the live agent path end-to-end:
+
+```
+Find me an EV under $40,000 with at least 250 miles of range
+```
+
+Watch the badge in the top-right of the page header: it reflects the
+actual per-response `source` reported by `/api/chat`, not a guess from env
+vars — **"● Live agent"** (green) means the reply came from the real
+agent, while **"⚠ Mock agent (no live agent reachable)"** (amber) means it
+silently fell back.
+
 Tool-grounded updates from hosted skills (`inventory-search`, `rate-sheet`,
 etc.) and approval-status events from the Durable Task Scheduler workflow are
 still not wired into the chat/grid events — only the base agent reply is
 live today. The same streaming event contract (`token`, `vehicles`, `status`,
 `done`) is used either way, so UI components don't need to change as more of
 the backend comes online.
+
+## End-to-end tests
+
+```bash
+cd src/web
+npm install
+npx playwright install --with-deps chromium  # first run only
+npm run test:e2e
+```
+
+Runs against a production build (`next build && next start`) in forced mock
+mode (`NEXT_PUBLIC_MOCK=1`), so results are deterministic and independent of
+the real deal-finder agent. Covers the chat flow, vehicle shortlisting, the
+apply-and-approve workflow, the mock/live reply-source badge, and — as a
+regression test — that the full message history (not just the latest turn)
+is sent to `/api/chat` on every request.
 
