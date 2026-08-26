@@ -135,6 +135,30 @@ test.describe("deal-finder chat", () => {
     expect(secondRequest.messages.length).toBeGreaterThan(firstRequest.messages.length);
   });
 
+  test("renders markdown replies as formatted HTML, not raw syntax", async ({ page }) => {
+    // Regression test for the raw-markdown-text bug: assistant replies with
+    // GFM markdown (tables, bold) must render as real HTML elements, not
+    // literal "**"/"|" characters in the DOM text.
+    await page.goto("/");
+
+    await page.getByTestId("chat-input").fill("compare the top two EVs side by side");
+    await page.getByTestId("chat-send").click();
+
+    const lastAssistantMessage = page.getByTestId("chat-message-assistant").last();
+    await expect(lastAssistantMessage).toContainText("IONIQ 5", { timeout: 10_000 });
+
+    // A real <table> with parsed cells must exist inside the bubble...
+    await expect(lastAssistantMessage.locator("table")).toBeVisible();
+    await expect(lastAssistantMessage.locator("td", { hasText: "$37,990" })).toBeVisible();
+    // ...and "IONIQ 5" must be bolded via <strong>, not just present as text.
+    await expect(lastAssistantMessage.locator("strong", { hasText: "IONIQ 5" })).toBeVisible();
+
+    // The raw markdown syntax itself must not leak into the rendered text.
+    const bubbleText = await lastAssistantMessage.innerText();
+    expect(bubbleText).not.toContain("**");
+    expect(bubbleText).not.toContain("| ---");
+  });
+
   test("submits an application and reflects the pending-approval stage", async ({
     page
   }) => {

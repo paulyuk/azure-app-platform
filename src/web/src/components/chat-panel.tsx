@@ -2,6 +2,44 @@
 
 import type { ChatMessage } from "@/lib/types";
 import { FormEvent, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
+
+// Compact markdown rendering for chat bubbles — no external typography
+// plugin, just enough element styling to make tables/lists/bold readable
+// instead of dumping raw markdown text.
+const markdownComponents: Components = {
+  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-950">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => (
+    <code className="rounded bg-slate-200/70 px-1 py-0.5 font-mono text-xs">{children}</code>
+  ),
+  table: ({ children }) => (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="min-w-full border-collapse text-xs">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="border-b border-slate-300">{children}</thead>,
+  th: ({ children }) => <th className="px-2 py-1 text-left font-semibold">{children}</th>,
+  td: ({ children }) => <td className="border-t border-slate-200 px-2 py-1">{children}</td>,
+};
+
+function ChatMessageContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 const STARTER_PROMPT =
   "Find me an EV under $40,000 with at least 250 miles of range";
@@ -80,7 +118,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
                 : "bg-slate-100 text-slate-900"
             }`}
           >
-            {message.content || "…"}
+            {message.content ? <ChatMessageContent content={message.content} /> : "…"}
           </div>
         ))}
       </div>
@@ -90,7 +128,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
           <input
             data-testid="chat-input"
             className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-400"
-            placeholder='Try: "EV under $38k, 250+ miles, room for a car seat"'
+            placeholder={hasUserMessage ? "Type a message…" : 'Try: "EV under $38k, 250+ miles, room for a car seat"'}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             disabled={isStreaming}

@@ -53,6 +53,20 @@ export function buildMockScenario(input: {
     };
   }
 
+  if (hasAny(lower, ["compare", "comparison", "side by side"])) {
+    return {
+      assistantReply:
+        "Here's a quick comparison of the shortlist:\n\n" +
+        "| Model | Price | Range |\n" +
+        "| --- | --- | --- |\n" +
+        "| IONIQ 5 Limited AWD | $37,990 | 303 mi |\n" +
+        "| Mustang Mach-E Select | $36,450 | 312 mi |\n\n" +
+        "**IONIQ 5** has the most cargo room if that matters for you.",
+      vehicles: SHORTLISTED_VEHICLES,
+      stage: input.stage ?? "shortlisted"
+    };
+  }
+
   if (hasAny(lower, ["payment", "monthly", "finance", "apr"])) {
     return {
       assistantReply:
