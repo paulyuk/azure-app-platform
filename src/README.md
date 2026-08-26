@@ -24,10 +24,13 @@ uv run --with-requirements src/workflows/loan-approval/requirements.txt --with p
 uv run python -m compileall src/agent src/skills
 
 # Web app (no Azure required, from the repository root)
-cd src/web && npm install && npm run dev
+cd src/web
+npm install
+npm run dev
 
 # Hosted agent, offline mock mode (no Azure required, from the repository root)
-cd src/agent && uv run --with-requirements requirements.txt python main.py   # set MOCK=1 for a deterministic offline run
+cd src/agent
+uv run --with-requirements requirements.txt python main.py   # set MOCK=1 for a deterministic offline run
 ```
 
 See [`../TESTING.md`](../TESTING.md) for the full test matrix, including
