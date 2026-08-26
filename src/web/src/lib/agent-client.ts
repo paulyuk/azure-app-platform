@@ -6,6 +6,7 @@
  */
 
 const DEFAULT_AGENT_URL = "http://127.0.0.1:8088";
+const DEFAULT_TIMEOUT_MS = 5_000;
 
 interface AgentResponseOutputItem {
   type: string;
@@ -23,13 +24,27 @@ function agentBaseUrl(): string {
 /**
  * Calls the agent's `/responses` endpoint and extracts the assistant's
  * plain-text reply, discarding the encrypted reasoning trace item.
+ *
+ * Uses a short timeout so callers that fall back to mock mode when the
+ * agent isn't running (the default dev experience) fail fast instead of
+ * hanging the request.
  */
-export async function fetchAgentReply(input: string): Promise<string> {
-  const response = await fetch(`${agentBaseUrl()}/responses`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, stream: false })
-  });
+export async function fetchAgentReply(
+  input: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(`${agentBaseUrl()}/responses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input, stream: false }),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not reach agent at ${agentBaseUrl()}: ${reason}`);
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");

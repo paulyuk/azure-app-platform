@@ -11,12 +11,22 @@ function sleep(ms: number): Promise<void> {
 export async function POST(request: Request) {
   const body = (await request.json()) as ChatApiRequest;
   const latestMessage = body.messages.at(-1)?.content ?? "";
-  const useMock = process.env.NEXT_PUBLIC_MOCK !== "0";
+
+  // NEXT_PUBLIC_MOCK unset (default): try the real agent first, silently
+  // fall back to the mock scenario generator if it's not reachable (e.g.
+  // `uv run main.py` isn't running locally). This makes `npm run dev` work
+  // against a real agent with zero config when one happens to be up, while
+  // still working standalone when it's not.
+  // NEXT_PUBLIC_MOCK=1 forces mock (no agent call attempted).
+  // NEXT_PUBLIC_MOCK=0 forces live (no fallback — errors surface as-is).
+  const mockMode = process.env.NEXT_PUBLIC_MOCK;
+  const forceMock = mockMode === "1";
+  const forceLive = mockMode === "0";
 
   let scenario: MockScenario;
   let agentError: string | undefined;
 
-  if (useMock) {
+  if (forceMock) {
     scenario = buildMockScenario({
       latestMessage,
       email: body.email,
@@ -24,16 +34,29 @@ export async function POST(request: Request) {
       stage: body.stage
     });
   } else {
-    // Live mode: the agent server (`src/agent`, ResponsesHostServer) has no
-    // CORS headers, so the browser can't call it directly. Calling it here,
-    // server-side from the Next.js route handler, sidesteps that — this
-    // request never touches the browser.
+    // Live mode (default, or forced via NEXT_PUBLIC_MOCK=0): the agent
+    // server (`src/agent`, ResponsesHostServer) has no CORS headers, so the
+    // browser can't call it directly. Calling it here, server-side from the
+    // Next.js route handler, sidesteps that — this request never touches
+    // the browser.
     try {
       const assistantReply = await fetchAgentReply(latestMessage);
       scenario = { assistantReply, stage: body.stage ?? "idle" };
     } catch (error) {
-      agentError = error instanceof Error ? error.message : String(error);
-      scenario = { assistantReply: "", stage: body.stage ?? "idle" };
+      const message = error instanceof Error ? error.message : String(error);
+      if (forceLive) {
+        agentError = message;
+        scenario = { assistantReply: "", stage: body.stage ?? "idle" };
+      } else {
+        // Default mode: agent not reachable, fall back to mock.
+        console.warn(`[api/chat] Agent unreachable, falling back to mock: ${message}`);
+        scenario = buildMockScenario({
+          latestMessage,
+          email: body.email,
+          command: body.command,
+          stage: body.stage
+        });
+      }
     }
   }
 

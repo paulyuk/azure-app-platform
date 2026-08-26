@@ -32,19 +32,20 @@ uv run python -m compileall src/agent src/skills
 ```
 
 **Web app and hosted agent are two separate, independent long-running
-processes — run each in its own terminal.** By default the web app runs in
-**mock mode** (`NEXT_PUBLIC_MOCK` unset/`1`) and never calls the agent —
-running both at once in default mode demos each in isolation, not end-to-end.
+processes — run each in its own terminal.** By default the web app
+**auto-detects** the real agent: it tries calling it first and transparently
+falls back to the built-in mock scenario generator if it's not reachable.
+So starting only the web app still gives a fully standalone mock demo:
 
 ```bash
-# Terminal 1 — web app (no Azure required), mock mode
+# Terminal — web app (no Azure required); works standalone via mock fallback
 cd src/web
 npm install
 npm run dev
 ```
 
 ```bash
-# Terminal 2 — hosted agent, offline one-shot rehearsal (no Azure required,
+# Optional — hosted agent offline one-shot rehearsal (no Azure required,
 # prints a mock payload and exits — does not start a server; see below)
 cd src/agent
 MOCK=1 uv run main.py
@@ -55,7 +56,9 @@ MOCK=1 uv run main.py
 The web app **can** call the real deal-finder agent — the Next.js
 `/api/chat` route calls it server-side (avoiding CORS, since the agent
 server sends no `Access-Control-Allow-Origin` headers and a direct
-browser→agent `fetch()` would be blocked). To try it end-to-end:
+browser→agent `fetch()` would be blocked). Since auto-detection is the
+default, you only need to start the real agent — no web app config change
+required:
 
 ```bash
 # Terminal 1 — start the real agent (needs src/agent/.env from azd provision,
@@ -65,17 +68,20 @@ uv run main.py
 ```
 
 ```bash
-# Terminal 2 — web app in live mode, pointed at the agent
+# Terminal 2 — web app; auto-detects the agent above with no config
 cd src/web
-cp .env.example .env.local
-# edit .env.local: set NEXT_PUBLIC_MOCK=0 (AGENT_URL default already
-# matches the agent's default http://127.0.0.1:8088)
 npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000` and chat — replies now come from the real
-agent/model instead of the mock scenario generator.
+Open `http://localhost:3000` and chat — replies come from the real
+agent/model. If you stop the agent, the web app falls back to mock
+responses on the next request (a warning is logged server-side, no
+restart needed).
+
+To force one mode instead of auto-detecting, set `NEXT_PUBLIC_MOCK` in
+`src/web/.env.local` (copy from `.env.example`): `1` always mocks,
+`0` always calls the agent and surfaces errors instead of falling back.
 
 ### Exercising the agent
 
