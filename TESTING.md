@@ -54,14 +54,15 @@ The standalone slice is intentionally separate from the future full-platform
 `infra/` deployment. It provisions into `rg-unity-poc-aigateway` in East US 2.
 
 ```bash
-az account set --subscription ca5ce512-88e1-44b1-97c6-22caf84fb2b0
 cd infra-ai-gateway
-azd env new unity-poc-aigateway --no-prompt
-azd env set AZURE_SUBSCRIPTION_ID ca5ce512-88e1-44b1-97c6-22caf84fb2b0
-azd env set AZURE_LOCATION eastus2
-azd provision --no-prompt
+azd env new unity-poc-aigateway
+azd provision
 cd ..
 ```
+
+`azd` will prompt you to select a subscription and region — choose
+**East US 2** (preview region requirement; see `docs/unity-platform-plan.md`
+section 5.1).
 
 If the environment already exists, replace `azd env new` with:
 
@@ -80,7 +81,7 @@ Run the hosted-agent protocol server locally with `uv` (no manual venv needed):
 
 ```bash
 cd src/agent
-uv run python main.py
+uv run main.py
 ```
 
 In another terminal:

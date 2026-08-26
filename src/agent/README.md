@@ -34,12 +34,13 @@ root. This requires Azure credentials and model quota:
 
 ```bash
 cd infra-ai-gateway
-azd env new unity-poc-aigateway --no-prompt
-azd env set AZURE_SUBSCRIPTION_ID <subscription-id>
-azd env set AZURE_LOCATION eastus2
-azd provision --no-prompt
+azd env new unity-poc-aigateway
+azd provision
 cd ../src/agent
 ```
+
+`azd` will prompt you to select a subscription and region — choose **East US 2**
+(preview region requirement, see `docs/unity-platform-plan.md` section 5.1).
 
 For an existing environment, use
 `azd env select unity-poc-aigateway` instead of `azd env new`. Provisioning
@@ -49,7 +50,7 @@ writes the Gateway endpoint, deployment names, and API key to the gitignored
 Then start the local Responses protocol server with `uv` (no manual venv needed):
 
 ```bash
-uv run python main.py
+uv run main.py
 ```
 
 In another terminal:
@@ -69,16 +70,17 @@ all PR test paths.
 
 To use a separately provisioned Gateway, copy `.env.example` to `.env`, replace
 the placeholders, and set `AI_GATEWAY_MODEL_ONLY=1` if Toolbox is unavailable.
-By default, `uv run python main.py`
-starts the Responses host server on port 8088.
+By default, `uv run main.py` starts the Responses host server on port 8088.
 
 ## Offline demo rehearsal (`MOCK=1`)
 
-For plan section 5.4 / Phase 6 dry-runs with no network:
+For plan section 5.4 / Phase 6 dry-runs with no network — this is a **one-shot
+print, not a server**: it prints a fixed mock payload and exits immediately,
+so there's nothing to `curl` afterward.
 
 ```bash
 cd src/agent
-MOCK=1 uv run python main.py
+MOCK=1 uv run main.py
 ```
 
 This prints a deterministic mock payload and skips all gateway/tool calls.

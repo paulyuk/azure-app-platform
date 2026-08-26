@@ -13,15 +13,12 @@ See [`docs/unity-platform-plan.md`](../docs/unity-platform-plan.md) for the full
 ## Quick local test
 
 All Python components use [`uv`](https://docs.astral.sh/uv/) — never invoke
-`python`/`pip` directly. `uv run` provisions an ephemeral virtualenv per
-command from each project's `requirements.txt`, so there is nothing to
-activate by hand.
-
-All Python components use [`uv`](https://docs.astral.sh/uv/) — never invoke
 `python`/`pip` directly. Each Python project (`agent/`, `sandbox/prequal/`,
 `workflows/loan-approval/`) has its own `pyproject.toml`, so a plain
 `uv run <command>` from inside that directory resolves and syncs its
-dependencies automatically — no `--with`/`--with-requirements` flags needed.
+dependencies automatically — no `--with`/`--with-requirements` flags, and no
+`python` prefix needed to run a script (`uv run main.py`, not
+`uv run python main.py`).
 
 ```bash
 # Python checks
@@ -32,16 +29,49 @@ cd src/workflows/loan-approval
 uv run pytest -q
 cd -
 uv run python -m compileall src/agent src/skills
+```
 
-# Web app (no Azure required, from the repository root)
+**Web app and hosted agent are two separate, independent long-running
+processes — run each in its own terminal.** They are **not wired
+together yet**: the web app's `/api/chat` route is hardcoded to a mock
+scenario generator (`src/web/src/lib/mock-agent.ts`) and does not call the
+agent. Running both at once demos each in isolation, not end-to-end.
+
+```bash
+# Terminal 1 — web app (no Azure required)
 cd src/web
 npm install
 npm run dev
-
-# Hosted agent, offline mock mode (no Azure required)
-cd src/agent
-MOCK=1 uv run python main.py
 ```
+
+```bash
+# Terminal 2 — hosted agent, offline one-shot rehearsal (no Azure required,
+# prints a mock payload and exits — does not start a server; see below)
+cd src/agent
+MOCK=1 uv run main.py
+```
+
+### Exercising the agent
+
+`MOCK=1 uv run main.py` is a **one-shot rehearsal**: it prints a fixed mock
+vehicle-match payload to the terminal and exits — no server starts. Use it
+when you just want confirmation the agent code and deps are wired correctly.
+
+To actually exercise the agent as a running service you can send requests to,
+drop `MOCK=1` and provision the real AI Gateway (see
+[`../TESTING.md`](../TESTING.md) section 4). That starts an HTTP server
+implementing the Responses protocol on `http://127.0.0.1:8088` — the agent has
+no interactive CLI/REPL, so talk to it with `curl` from a separate terminal:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8088/responses \
+  -H "Content-Type: application/json" \
+  -d '{"input":"Find me an EV under $40,000 with at least 250 miles of range","stream":false}'
+```
+
+That path uses the real `INSTRUCTIONS` system prompt and routes through
+Hosted Skills, so you can vary the `input` text to explore matching, quoting,
+and financing-handoff behavior.
 
 See [`../TESTING.md`](../TESTING.md) for the full test matrix, including
 running the hosted agent against the already-provisioned real AI Gateway.
