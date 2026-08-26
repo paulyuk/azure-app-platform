@@ -27,18 +27,52 @@ Hosted Skills are referenced by contract/name only here; implementation lives un
 - `.env.example` - local configuration template
 - `requirements.txt` - Python dependencies
 
-## Local run
+## Local run against a real AI Gateway
+
+Provision the standalone East US 2 Gateway/model slice from the repository
+root. This requires Azure credentials and model quota:
 
 ```bash
-cd src/agent
-python -m venv .venv
+cd infra-ai-gateway
+azd env new unity-poc-aigateway --no-prompt
+azd env set AZURE_SUBSCRIPTION_ID <subscription-id>
+azd env set AZURE_LOCATION eastus2
+azd provision --no-prompt
+cd ../src/agent
+```
+
+For an existing environment, use
+`azd env select unity-poc-aigateway` instead of `azd env new`. Provisioning
+writes the Gateway endpoint, deployment names, and API key to the gitignored
+`src/agent/.env` with mode `0600`; it does not print the key.
+
+Then start the local Responses protocol server:
+
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-By default, `python main.py` starts the Responses host server.
+In another terminal:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8088/responses \
+  -H "Content-Type: application/json" \
+  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}'
+```
+
+The generated environment sets `AI_GATEWAY_MODEL_ONLY=1`, so model calls use
+the real Gateway while tools remain disabled until the Foundry Toolbox slice is
+provisioned. See the repository-root `TESTING.md` for the verified response and
+all PR test paths.
+
+## Manual local configuration
+
+To use a separately provisioned Gateway, copy `.env.example` to `.env`, replace
+the placeholders, and set `AI_GATEWAY_MODEL_ONLY=1` if Toolbox is unavailable.
+By default, `python main.py` starts the Responses host server on port 8088.
 
 ## Offline demo rehearsal (`MOCK=1`)
 

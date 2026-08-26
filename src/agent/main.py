@@ -82,12 +82,16 @@ def _foundry_toolbox() -> FoundryToolbox:
 
 
 def build_agent() -> Agent:
+    model_only = os.environ.get("AI_GATEWAY_MODEL_ONLY") == "1"
     return Agent(
         client=_gateway_client(),
         name="deal-finder",
         description="Car-buying assistant for Unity Demo #1, routed through AI Gateway.",
-        instructions=INSTRUCTIONS,
-        tools=_foundry_toolbox(),
+        instructions=INSTRUCTIONS
+        if not model_only
+        else INSTRUCTIONS
+        + "\nThis local gateway-only smoke test has no tools. Answer directly and do not claim tool use.",
+        tools=[] if model_only else _foundry_toolbox(),
         default_options={"store": False, "max_tokens": DEFAULT_MAX_OUTPUT_TOKENS},
     )
 
