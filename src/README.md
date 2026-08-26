@@ -58,10 +58,33 @@ vehicle-match payload to the terminal and exits — no server starts. Use it
 when you just want confirmation the agent code and deps are wired correctly.
 
 To actually exercise the agent as a running service you can send requests to,
-drop `MOCK=1` and provision the real AI Gateway (see
-[`../TESTING.md`](../TESTING.md) section 4). That starts an HTTP server
-implementing the Responses protocol on `http://127.0.0.1:8088` — the agent has
-no interactive CLI/REPL, so talk to it with `curl` from a separate terminal:
+you need real AI Gateway credentials in `src/agent/.env` — provision the
+gateway **once** (see [`../TESTING.md`](../TESTING.md) section 4):
+
+```bash
+cd infra-ai-gateway
+azd env new unity-poc-aigateway
+azd provision
+cd -
+```
+
+`azd provision`'s postprovision hook writes the Gateway endpoint, model
+names, and API key straight into `src/agent/.env` (mode `0600`). You only
+need to do this once — the `.env` file persists across runs.
+
+Then, every time you want to run the agent as a real server, drop `MOCK=1`.
+`main.py` calls `load_dotenv()` on startup, so it reads `src/agent/.env`
+automatically — **no manual env exports are needed**, and none of the
+`azd provision` values need to be re-set by hand:
+
+```bash
+cd src/agent
+uv run main.py
+```
+
+This starts an HTTP server implementing the Responses protocol on
+`http://127.0.0.1:8088` — the agent has no interactive CLI/REPL, so talk to
+it with `curl` from a separate terminal:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
@@ -73,8 +96,7 @@ That path uses the real `INSTRUCTIONS` system prompt and routes through
 Hosted Skills, so you can vary the `input` text to explore matching, quoting,
 and financing-handoff behavior.
 
-See [`../TESTING.md`](../TESTING.md) for the full test matrix, including
-running the hosted agent against the already-provisioned real AI Gateway.
+See [`../TESTING.md`](../TESTING.md) for the full test matrix.
 
 ### Corporate network / proxy note
 
