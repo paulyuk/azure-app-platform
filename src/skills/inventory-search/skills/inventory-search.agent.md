@@ -7,7 +7,11 @@ Best-effort inferred Hosted Skills pattern:
 # inventory-search
 
 ## Purpose
-Return inventory matches for a shopper based on deterministic filters over synthetic vehicle data.
+Return inventory matches for a shopper based on deterministic filters over vehicle
+data. `ev_range_miles` and `mpg` are real EPA test data from fueleconomy.gov
+(refreshed via `scripts/refresh_inventory.py`); `price`, `odometer_miles`, and
+`features` remain synthetic demo data (no free live dealer-listing source yet —
+see `docs/data-sourcing.md` at the repo root).
 
 ## Inputs
 - `min_price`, `max_price`
