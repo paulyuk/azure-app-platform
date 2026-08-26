@@ -1,0 +1,16 @@
+{
+  "name": "rate-sheet-toolserver",
+  "version": "0.1.0",
+  "description": "Hosted Skill toolserver for canned loan rates by credit band.",
+  "tools": [
+    {
+      "name": "rate-sheet",
+      "description": "Return canned APR + term options by credit band.",
+      "entrypoint": "tools/rate_sheet.py:rate_sheet_tool",
+      "http": {
+        "method": "POST",
+        "route": "/api/rate-sheet"
+      }
+    }
+  ]
+}
