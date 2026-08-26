@@ -83,6 +83,19 @@ MOCK=1 uv run --with-requirements requirements.txt python main.py
 
 This prints a deterministic mock payload and skips all gateway/tool calls.
 
+## Running inside the GitHub Copilot CLI terminal
+
+The Copilot CLI sets `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` for its own
+telemetry. The `azure-ai-agentserver` observability layer only accepts
+`http/protobuf` or `grpc` and raises `ValueError: Unsupported OTLP protocol
+'http/json'` at startup if any `OTEL_EXPORTER_OTLP_*` var is set to `http/json`.
+Unset those vars before running the agent:
+
+```bash
+unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL \
+  OTEL_EXPORTER_OTLP_TRACES_PROTOCOL OTEL_EXPORTER_OTLP_METRICS_PROTOCOL
+```
+
 ## Identity and secrets
 
 - Do **not** hardcode keys.
