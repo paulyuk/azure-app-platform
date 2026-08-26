@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1020" width="1400" height="1020" preserveAspectRatio="xMidYMid meet" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Agentic Cloud Application — Reference Architecture</title>
+
+  <style>
+    :root {
+      --bg:#ffffff; --ink:#16202b; --muted:#64748b; --line:#cbd5e1;
+      --card:#ffffff; --soft:#f1f5f9; --accent:#d7263d; --accent-soft:#fdf2f4;
+      --accent-line:#f0b8c1; --bar:#e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0f1620; --ink:#e8eef5; --muted:#93a3b6; --line:#33465c;
+        --card:#16202b; --soft:#1b2733; --accent:#ff6b81; --accent-soft:#24161c;
+        --accent-line:#6d3541; --bar:#2a3949;
+      }
+    }
+    .bg    { fill: var(--bg); }
+    .card  { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+    .soft  { fill: var(--soft); stroke: var(--line); stroke-width: 1.5; }
+    .panel { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+    .gate  { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.75; }
+    .chip  { fill: var(--card); stroke: var(--accent-line); stroke-width: 1.25; }
+    .pill  { fill: var(--accent-soft); stroke: var(--accent-line); stroke-width: 1.25; }
+    .bar   { fill: var(--bar); }
+    .t     { fill: var(--ink); }
+    .m     { fill: var(--muted); }
+    .a     { fill: var(--accent); }
+    .numT  { font-weight: 700; fill: var(--bg); font-size: 12px; }
+    .cap   { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+    .lbl   { font-size: 12px; font-style: italic; }
+    .sub   { font-size: 12.5px; }
+    .node  { font-size: 17px; font-weight: 650; }
+    .flow  { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .rail  { fill: none; stroke: var(--accent-line); stroke-width: 3; }
+    .brace { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+    .rule  { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 6; }
+  </style>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="1020"/>
+
+  <text class="t" x="60" y="62" font-size="30" font-weight="700" letter-spacing="-0.4">Agentic Cloud Application</text>
+  <text class="m" x="60" y="90" font-size="15">Reference architecture — a car-seller agent, from discovery to a human-approved, emailed deal</text>
+  <text class="m cap" x="330" y="118">Called by the agent</text>
+  <rect class="pill" x="330" y="130" width="190" height="76" rx="12"/>
+  <text class="t" x="348" y="160" font-size="14" font-weight="650">★ ACA Sandboxes</text>
+  <text class="m" x="348" y="179" font-size="11">isolated calculation</text>
+  <text class="a" x="348" y="197" font-size="10.5" font-weight="700">PII never leaves it</text>
+  <rect class="chip" x="540" y="130" width="190" height="76" rx="12"/>
+  <text class="t" x="558" y="160" font-size="14" font-weight="650">Hosted Skills</text>
+  <text class="m" x="558" y="179" font-size="11">Azure Functions</text>
+  <rect class="chip" x="750" y="130" width="190" height="76" rx="12"/>
+  <text class="t" x="768" y="160" font-size="14" font-weight="650">Offers</text>
+  <text class="m" x="768" y="179" font-size="11">deal generation</text>
+  <path class="flow" d="M505,238 C470,228 445,220 428,212" marker-end="url(#arw)"/>
+  <path class="flow" d="M580,238 C600,228 618,220 633,212" marker-end="url(#arw)"/>
+  <path class="flow" d="M655,238 C720,230 790,220 841,212" marker-end="url(#arw)"/>
+  <rect class="panel" x="470" y="240" width="220" height="80" rx="13"/>
+  <text class="a" x="494" y="272" font-size="15.5" font-weight="700">★ Foundry Agent</text>
+  <text class="m" x="494" y="294" font-size="11.5">talks to the customer</text>
+  <rect class="gate" x="380" y="344" width="420" height="52" rx="12"/>
+  <text class="a" x="404" y="376" font-size="15.5" font-weight="700">AI Gateway</text>
+  <text class="m" x="520" y="376" font-size="11.5">auth · routing · quotas · logging</text>
+  <path class="flow" d="M580,342 L580,326" marker-end="url(#arw)"/>
+  <path class="flow" d="M580,428 L580,400" marker-end="url(#arw)"/>
+  <text class="m lbl" x="594" y="420">calls</text>
+  <text class="m cap" x="70" y="376">UX</text>
+  <rect class="card" x="70" y="390" width="200" height="250" rx="18"/>
+  <rect class="soft" x="88" y="412" width="164" height="206" rx="10"/>
+  <rect class="bar" x="104" y="428" width="132" height="16" rx="8"/>
+  <text class="t" x="170" y="484" font-size="16" font-weight="650" text-anchor="middle">Finance Deals</text>
+  <rect class="bar" x="104" y="506" width="132" height="12" rx="6"/>
+  <rect class="bar" x="104" y="530" width="132" height="12" rx="6"/>
+  <rect class="bar" x="104" y="554" width="98" height="12" rx="6"/>
+  <text class="a" x="70" y="672" font-size="14" font-weight="700">★ Embr</text>
+  <text class="m sub" x="70" y="692">embeddable agent surface</text>
+  <path class="flow" d="M270,515 L434,515" marker-end="url(#arw)"/>
+  <text class="m lbl" x="352" y="504" text-anchor="middle">customer</text>
+  <circle class="a" cx="352" cy="542" r="11"/><text class="numT" x="352" y="546" text-anchor="middle" font-size="12">3</text>
+  <rect class="card" x="440" y="430" width="280" height="170" rx="16"/>
+  <rect class="a" x="440" y="430" width="6" height="170" rx="3"/>
+  <text class="m cap" x="468" y="468">Application</text>
+  <text class="t" x="468" y="502" font-size="23" font-weight="700">Deal Finder</text>
+  <text class="m sub" x="468" y="526">orchestrates the deal —</text>
+  <text class="m sub" x="468" y="546">calls the agent and the</text>
+  <text class="m sub" x="468" y="566">systems of record</text>
+  <text class="m cap" x="960" y="232">Systems of record</text>
+  <rect class="card" x="960" y="250" width="300" height="76" rx="12"/>
+  <text class="t node" x="984" y="283">Inventory</text>
+  <text class="m sub" x="984" y="304">Cars · scraped DB, kept fresh</text>
+  <rect class="card" x="960" y="346" width="300" height="76" rx="12"/>
+  <text class="t node" x="984" y="379">Dealership</text>
+  <text class="m sub" x="984" y="400">Stock · pricing · scheduling</text>
+  <rect class="card" x="960" y="442" width="300" height="76" rx="12"/>
+  <text class="t node" x="984" y="475">Loans</text>
+  <text class="m sub" x="984" y="496">Rates · terms · pre-qualification</text>
+  <rect class="card" x="960" y="538" width="300" height="76" rx="12"/>
+  <text class="t node" x="984" y="571">Email</text>
+  <rect class="pill" x="1050" y="556" width="40" height="19" rx="9.5"/>
+  <text class="a" x="1070" y="570" font-size="11" font-weight="700" text-anchor="middle">PII</text>
+  <text class="m sub" x="984" y="592">Customer comms · data boundary</text>
+  <path class="flow" d="M720,470 C800,470 880,288 960,288" marker-end="url(#arw)"/>
+  <path class="flow" d="M720,490 C800,490 880,384 960,384" marker-end="url(#arw)"/>
+  <path class="flow" d="M720,530 C800,530 880,480 960,480" marker-end="url(#arw)"/>
+  <path class="flow" d="M720,550 C800,550 880,576 960,576" marker-end="url(#arw)"/>
+  <circle class="a" cx="840" cy="379" r="11"/><text class="numT" x="840" y="383" text-anchor="middle" font-size="12">1</text>
+  <circle class="a" cx="840" cy="437" r="11"/><text class="numT" x="840" y="441" text-anchor="middle" font-size="12">2</text>
+  <circle class="a" cx="840" cy="505" r="11"/><text class="numT" x="840" y="509" text-anchor="middle" font-size="12">4</text>
+  <circle class="a" cx="840" cy="563" r="11"/><text class="numT" x="840" y="567" text-anchor="middle" font-size="12">6</text>
+  <path class="brace" d="M1276,346 C1288,346 1288,356 1288,366 L1288,468 C1288,478 1300,480 1300,480 C1288,480 1288,482 1288,492 L1288,594 C1288,604 1288,614 1276,614"/>
+  <text class="a" x="1322" y="480" font-size="14" font-weight="700" text-anchor="middle" transform="rotate(90 1322 480)">★ Connectors</text>
+  <path class="flow" d="M1080,616 L1080,656" marker-end="url(#arw)"/>
+  <text class="m lbl" x="1096" y="652">back to the customer</text>
+  <rect class="card" x="700" y="700" width="240" height="90" rx="12"/>
+  <text class="t node" x="724" y="738">Teams</text>
+  <text class="m sub" x="724" y="760">Human review · approvals</text>
+  <path class="flow" d="M700,602 C700,655 740,672 786,696" marker-end="url(#arw)"/>
+  <circle class="a" cx="726" cy="660" r="11"/><text class="numT" x="726" y="664" text-anchor="middle" font-size="12">5</text>
+  <text class="m lbl" x="744" y="664">request approval</text>
+  <path class="flow" d="M698,745 L612,745" marker-end="url(#arw)"/>
+  <text class="m lbl" x="655" y="732" text-anchor="middle">approve</text>
+  <path class="card" d="M455,730 L455,810 A75,18 0 0 0 605,810 L605,730 Z"/>
+  <ellipse class="card" cx="530" cy="730" rx="75" ry="18"/>
+  <text class="t node" x="530" y="780" text-anchor="middle">DTS</text>
+  <text class="m sub" x="530" y="842" text-anchor="middle">state for everything — conversation,</text>
+  <text class="m sub" x="530" y="860" text-anchor="middle">deal, approvals — so customers</text>
+  <text class="m sub" x="530" y="878" text-anchor="middle">can come back later</text>
+  <path class="flow" d="M530,712 L530,606" marker-start="url(#arw)" marker-end="url(#arw)"/>
+  <text class="m lbl" x="518" y="660" text-anchor="end">session · deal state</text>
+  <text class="m cap" x="70" y="736">Deal flow</text>
+  <circle class="a" cx="80" cy="761" r="10"/><text class="numT" x="80" y="765" text-anchor="middle" font-size="12">1</text>
+  <text class="t sub" x="102" y="766">Search and discover a car</text>
+  <circle class="a" cx="80" cy="787" r="10"/><text class="numT" x="80" y="791" text-anchor="middle" font-size="12">2</text>
+  <text class="t sub" x="102" y="792">Get a price quote</text>
+  <circle class="a" cx="80" cy="813" r="10"/><text class="numT" x="80" y="817" text-anchor="middle" font-size="12">3</text>
+  <text class="t sub" x="102" y="818">Get the customer's email</text>
+  <circle class="a" cx="80" cy="839" r="10"/><text class="numT" x="80" y="843" text-anchor="middle" font-size="12">4</text>
+  <text class="t sub" x="102" y="844">Get financing</text>
+  <circle class="a" cx="80" cy="865" r="10"/><text class="numT" x="80" y="869" text-anchor="middle" font-size="12">5</text>
+  <text class="t sub" x="102" y="870">Human approves the deal in Teams</text>
+  <circle class="a" cx="80" cy="891" r="10"/><text class="numT" x="80" y="895" text-anchor="middle" font-size="12">6</text>
+  <text class="t sub" x="102" y="896">Email goes back to the customer</text>
+  <rect x="360" y="910" width="900" height="66" rx="12" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 6"/>
+  <text class="a" x="384" y="942" font-size="17" font-weight="700">SRE</text>
+  <text class="m sub" x="384" y="964">Observability · evals · guardrails · on-call across every layer</text>
+  <text class="m sub" x="70" y="936">★ platform capability</text>
+  <text class="m sub" x="70" y="956">— provided by the agent cloud</text>
+</svg>

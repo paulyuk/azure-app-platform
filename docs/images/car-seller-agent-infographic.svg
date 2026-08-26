@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1176" width="1600" height="1176" preserveAspectRatio="xMidYMid meet" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Car-Seller Agent — Agentic Cloud Application</title>
+
+  <style>
+    :root {
+      --bg:#ffffff; --ink:#16202b; --muted:#64748b; --line:#cbd5e1;
+      --card:#ffffff; --soft:#f1f5f9; --accent:#d7263d; --accent-soft:#fdf2f4;
+      --accent-line:#f0b8c1; --bar:#e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0f1620; --ink:#e8eef5; --muted:#93a3b6; --line:#33465c;
+        --card:#16202b; --soft:#1b2733; --accent:#ff6b81; --accent-soft:#24161c;
+        --accent-line:#6d3541; --bar:#2a3949;
+      }
+    }
+    .bg    { fill: var(--bg); }
+    .card  { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+    .soft  { fill: var(--soft); stroke: var(--line); stroke-width: 1.5; }
+    .panel { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+    .gate  { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.75; }
+    .chip  { fill: var(--card); stroke: var(--accent-line); stroke-width: 1.25; }
+    .pill  { fill: var(--accent-soft); stroke: var(--accent-line); stroke-width: 1.25; }
+    .bar   { fill: var(--bar); }
+    .t     { fill: var(--ink); }
+    .m     { fill: var(--muted); }
+    .a     { fill: var(--accent); }
+    .numT  { font-weight: 700; fill: var(--bg); font-size: 12px; }
+    .cap   { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+    .lbl   { font-size: 12px; font-style: italic; }
+    .sub   { font-size: 12.5px; }
+    .node  { font-size: 17px; font-weight: 650; }
+    .flow  { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .rail  { fill: none; stroke: var(--accent-line); stroke-width: 3; }
+    .brace { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+    .rule  { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 6; }
+  </style>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1176"/>
+
+  <text class="t" x="70" y="66" font-size="32" font-weight="700" letter-spacing="-0.4">Car-Seller Agent</text>
+  <text class="m" x="70" y="96" font-size="15">An agentic cloud application — from "show me SUVs I can finance" to a human-approved deal in the customer's inbox</text>
+  <text class="m cap" x="70" y="132">The runtime</text>
+  <text class="m" x="1530" y="132" font-size="11.5" text-anchor="end">★ platform capability provided by the agent cloud</text>
+  <rect class="panel" x="446" y="140" width="300" height="92" rx="13"/>
+  <text class="a" x="470" y="177" font-size="15.5" font-weight="700">★ Foundry Agent</text>
+  <text class="m" x="470" y="199" font-size="11.5">talks to the customer</text>
+  <path class="flow" d="M750,186 L782,186" marker-end="url(#arw)"/>
+  <rect class="pill" x="786" y="140" width="232" height="92" rx="13"/>
+  <text class="t" x="804" y="177" font-size="14.5" font-weight="650">★ ACA Sandboxes</text>
+  <text class="m" x="804" y="199" font-size="11.5">PII-safe calculation</text>
+  <rect class="chip" x="1026" y="140" width="232" height="92" rx="13"/>
+  <text class="t" x="1044" y="177" font-size="14.5" font-weight="650">Hosted Skills</text>
+  <text class="m" x="1044" y="199" font-size="11.5">Azure Functions</text>
+  <rect class="chip" x="1266" y="140" width="232" height="92" rx="13"/>
+  <text class="t" x="1284" y="177" font-size="14.5" font-weight="650">Offers</text>
+  <text class="m" x="1284" y="199" font-size="11.5">deal generation</text>
+  <rect class="gate" x="446" y="252" width="1052" height="52" rx="12"/>
+  <text class="a" x="470" y="284" font-size="15.5" font-weight="700">AI Gateway</text>
+  <text class="m" x="586" y="284" font-size="11.5">one abstraction for calling a Foundry agent — auth · routing · quotas · logging · fallbacks</text>
+  <path class="flow" d="M596,250 L596,236" marker-end="url(#arw)"/>
+  <path class="flow" d="M596,326 L596,308" marker-end="url(#arw)"/>
+  <text class="m lbl" x="610" y="322">calls</text>
+  <rect class="card" x="70" y="330" width="300" height="90" rx="13"/>
+  <text class="t" x="90" y="367" font-size="15.5" font-weight="700">★ Embr</text>
+  <text class="m" x="90" y="389" font-size="11.5">embeddable UX — Finance Deals</text>
+  <path class="flow" d="M376,375 L440,375" marker-end="url(#arw)"/>
+  <rect class="card" x="446" y="330" width="300" height="90" rx="13"/>
+  <text class="t" x="466" y="367" font-size="15.5" font-weight="700">Deal Finder</text>
+  <text class="m" x="466" y="389" font-size="11.5">application agent — runs the deal</text>
+  <path class="flow" d="M752,375 L816,375" marker-end="url(#arw)"/>
+  <rect class="card" x="822" y="330" width="300" height="90" rx="13"/>
+  <text class="t" x="842" y="367" font-size="15.5" font-weight="700">★ Connectors</text>
+  <text class="m" x="842" y="389" font-size="11.5">Dealership · Loans · Email</text>
+  <path class="flow" d="M1128,375 L1192,375" marker-end="url(#arw)"/>
+  <rect class="card" x="1198" y="330" width="300" height="90" rx="13"/>
+  <text class="t" x="1218" y="367" font-size="15.5" font-weight="700">Systems of record</text>
+  <text class="m" x="1218" y="389" font-size="11.5">Inventory DB · partner APIs</text>
+  <text class="m cap" x="70" y="460">The deal, step by step</text>
+  <path class="rail" d="M110,488 L1340,488"/>
+  <rect class="card" x="70" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="94" y="554" font-size="16.5" font-weight="700">Search &amp; discover</text>
+  <text class="m" x="94" y="590" font-size="12.5">Customer describes what they</text>
+  <text class="m" x="94" y="610" font-size="12.5">want; the agent searches the</text>
+  <text class="m" x="94" y="630" font-size="12.5">scraped inventory DB.</text>
+  <rect class="pill" x="94" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="185" y="680" font-size="11" font-weight="700" text-anchor="middle">Inventory DB</text>
+  <rect class="card" x="316" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="340" y="554" font-size="16.5" font-weight="700">Get a price quote</text>
+  <text class="m" x="340" y="590" font-size="12.5">Live stock and pricing pulled</text>
+  <text class="m" x="340" y="610" font-size="12.5">from the dealership for the</text>
+  <text class="m" x="340" y="630" font-size="12.5">shortlisted cars.</text>
+  <rect class="pill" x="340" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="431" y="680" font-size="11" font-weight="700" text-anchor="middle">Dealership connector</text>
+  <rect class="card" x="562" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="586" y="554" font-size="16.5" font-weight="700">Get customer email</text>
+  <text class="m" x="586" y="590" font-size="12.5">Agent collects the customer's</text>
+  <text class="m" x="586" y="610" font-size="12.5">email — PII, handled inside</text>
+  <text class="m" x="586" y="630" font-size="12.5">the sandbox.</text>
+  <rect class="pill" x="586" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="677" y="680" font-size="11" font-weight="700" text-anchor="middle">PII · ACA Sandbox</text>
+  <rect class="card" x="808" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="832" y="554" font-size="16.5" font-weight="700">Get financing</text>
+  <text class="m" x="832" y="590" font-size="12.5">Rates, terms and pre-qual</text>
+  <text class="m" x="832" y="610" font-size="12.5">come back from the loan</text>
+  <text class="m" x="832" y="630" font-size="12.5">provider.</text>
+  <rect class="pill" x="832" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="923" y="680" font-size="11" font-weight="700" text-anchor="middle">Loans connector</text>
+  <rect class="card" x="1054" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="1078" y="554" font-size="16.5" font-weight="700">Human approval</text>
+  <text class="m" x="1078" y="590" font-size="12.5">The packaged deal goes to a</text>
+  <text class="m" x="1078" y="610" font-size="12.5">person in Teams, who signs</text>
+  <text class="m" x="1078" y="630" font-size="12.5">off or sends it back.</text>
+  <rect class="pill" x="1078" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="1169" y="680" font-size="11" font-weight="700" text-anchor="middle">Teams</text>
+  <rect class="card" x="1300" y="508" width="230" height="214" rx="14"/>
+  <text class="t" x="1324" y="554" font-size="16.5" font-weight="700">Email the customer</text>
+  <text class="m" x="1324" y="590" font-size="12.5">Deal and documents are</text>
+  <text class="m" x="1324" y="610" font-size="12.5">emailed to the customer;</text>
+  <text class="m" x="1324" y="630" font-size="12.5">state saved in DTS.</text>
+  <rect class="pill" x="1324" y="662" width="182" height="28" rx="14"/>
+  <text class="a" x="1415" y="680" font-size="11" font-weight="700" text-anchor="middle">Email connector</text>
+  <circle class="a" cx="110" cy="488" r="19"/><text class="numT" x="110" y="492" text-anchor="middle" font-size="15">1</text>
+  <circle class="a" cx="356" cy="488" r="19"/><text class="numT" x="356" y="492" text-anchor="middle" font-size="15">2</text>
+  <circle class="a" cx="602" cy="488" r="19"/><text class="numT" x="602" y="492" text-anchor="middle" font-size="15">3</text>
+  <circle class="a" cx="848" cy="488" r="19"/><text class="numT" x="848" y="492" text-anchor="middle" font-size="15">4</text>
+  <circle class="a" cx="1094" cy="488" r="19"/><text class="numT" x="1094" y="492" text-anchor="middle" font-size="15">5</text>
+  <circle class="a" cx="1340" cy="488" r="19"/><text class="numT" x="1340" y="492" text-anchor="middle" font-size="15">6</text>
+  <text class="m cap" x="70" y="774">Always running behind the scenes</text>
+  <rect class="card" x="70" y="792" width="760" height="230" rx="14"/>
+  <text class="t" x="94" y="826" font-size="17" font-weight="700">Inventory ingestion</text>
+  <text class="m sub" x="94" y="848">A Hosted Skill running as an Azure Function — on a schedule, outside the request path</text>
+  <rect class="soft" x="94" y="872" width="210" height="80" rx="12"/>
+  <text class="t" x="112" y="907" font-size="15" font-weight="650">Dealer sites &amp; feeds</text>
+  <text class="m" x="112" y="928" font-size="11.5">listings, photos, pricing</text>
+  <rect class="soft" x="354" y="872" width="210" height="80" rx="12"/>
+  <text class="t" x="372" y="907" font-size="15" font-weight="650">Azure Function</text>
+  <text class="m" x="372" y="928" font-size="11.5">★ Hosted Skill · scheduled</text>
+  <rect class="soft" x="614" y="872" width="210" height="80" rx="12"/>
+  <text class="t" x="632" y="907" font-size="15" font-weight="650">Inventory DB</text>
+  <text class="m" x="632" y="928" font-size="11.5">normalized, searchable</text>
+  <path class="flow" d="M304,912 L350,912" marker-end="url(#arw)"/>
+  <path class="flow" d="M564,912 L610,912" marker-end="url(#arw)"/>
+  <text class="a" x="719" y="976" font-size="11" font-weight="700" text-anchor="middle">step 1 searches this DB</text>
+  <rect class="card" x="856" y="792" width="340" height="230" rx="14"/>
+  <text class="t" x="880" y="826" font-size="17" font-weight="700">DTS</text>
+  <text class="m sub" x="880" y="848">Durable state for everything</text>
+  <path class="soft" d="M966,874 L966,930 A60,15 0 0 0 1086,930 L1086,874 Z"/>
+  <ellipse class="soft" cx="1026" cy="874" rx="60" ry="15"/>
+  <text class="t" x="1026" y="912" font-size="16" font-weight="700" text-anchor="middle">DTS</text>
+  <text class="m" x="880" y="970" font-size="12">Conversation, deal and approval state —</text>
+  <text class="m" x="880" y="988" font-size="12">so customers can come back later and pick</text>
+  <text class="m" x="880" y="1006" font-size="12">up exactly where they left off.</text>
+  <rect class="card" x="1222" y="792" width="308" height="230" rx="14"/>
+  <text class="a" x="1246" y="826" font-size="17" font-weight="700">★ ACA Sandboxes</text>
+  <text class="m sub" x="1246" y="848">The PII boundary</text>
+  <rect class="pill" x="1246" y="870" width="260" height="60" rx="12"/>
+  <text class="a" x="1376" y="906" font-size="14" font-weight="700" text-anchor="middle">PII never leaves the sandbox</text>
+  <text class="m" x="1246" y="970" font-size="12">The agent runs financing math and</text>
+  <text class="m" x="1246" y="988" font-size="12">customer data inside an isolated</text>
+  <text class="m" x="1246" y="1006" font-size="12">session, then returns only the result.</text>
+  <rect x="70" y="1062" width="1460" height="70" rx="14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 6"/>
+  <text class="a" x="94" y="1094" font-size="17" font-weight="700">SRE</text>
+  <text class="m sub" x="94" y="1116">Observability · evals · guardrails · on-call — across the agent, the skills, the connectors and the data</text>
+</svg>
