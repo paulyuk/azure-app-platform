@@ -44,7 +44,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <header className="border-b border-slate-100 px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-900">Deal finder chat</h2>
-        <p className="text-sm text-slate-500">Persona: Maya</p>
+        <p className="text-sm text-slate-500">Signed in as Maya</p>
       </header>
 
       {!hasUserMessage && (

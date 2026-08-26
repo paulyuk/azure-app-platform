@@ -4,7 +4,7 @@ export const PLATFORM_TIERS = Object.freeze([
   {
     id: "web",
     name: "Surface / web",
-    unityAnswer: "Embr web experiences for buyer, dealer, and lender personas",
+    unityAnswer: "Embr web experiences for buyer, dealer, and lender audiences",
     status: "planned",
     canvas: null,
   },
