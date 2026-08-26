@@ -81,29 +81,29 @@ def _foundry_toolbox() -> FoundryToolbox:
     )
 
 
-def _resolve_tools(model_only: bool) -> list:
-    if model_only:
-        return []
-    if os.environ.get("LOCAL_SKILLS") == "1":
-        # Dev/demo bridge: run the Hosted Skills in-process instead of via a
-        # deployed Foundry Toolbox. See local_skills.py for why/how.
-        from local_skills import load_local_skill_tools
+def _resolve_tools() -> list:
+    """Always try to give the agent real tools; no explicit mode switches.
 
-        return load_local_skill_tools()
-    return [_foundry_toolbox()]
+    If a Foundry Toolbox has been provisioned (`TOOLBOX_ENDPOINT` set), use it
+    - that's the real production path. Otherwise, run the Hosted Skills
+    in-process from `src/skills/` via `local_skills.py` so the agent still has
+    real, working tools without requiring cloud provisioning first.
+    """
+    if os.environ.get("TOOLBOX_ENDPOINT"):
+        return [_foundry_toolbox()]
+
+    from local_skills import load_local_skill_tools
+
+    return load_local_skill_tools()
 
 
 def build_agent() -> Agent:
-    model_only = os.environ.get("AI_GATEWAY_MODEL_ONLY") == "1"
     return Agent(
         client=_gateway_client(),
         name="deal-finder",
         description="Car-buying assistant for Unity Demo #1, routed through AI Gateway.",
-        instructions=INSTRUCTIONS
-        if not model_only
-        else INSTRUCTIONS
-        + "\nThis local gateway-only smoke test has no tools. Answer directly and do not claim tool use.",
-        tools=_resolve_tools(model_only),
+        instructions=INSTRUCTIONS,
+        tools=_resolve_tools(),
         default_options={"store": False, "max_tokens": DEFAULT_MAX_OUTPUT_TOKENS},
     )
 

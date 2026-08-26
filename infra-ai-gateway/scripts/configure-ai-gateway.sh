@@ -78,9 +78,9 @@ AZURE_AI_GATEWAY_ENDPOINT="${gateway_url%/}/"
 AZURE_AI_GATEWAY_API_KEY="${gateway_api_key}"
 AZURE_AI_GATEWAY_MODEL="${gateway_model}"
 AZURE_AI_GATEWAY_MINI_MODEL="${gateway_mini_model}"
-AI_GATEWAY_MODEL_ONLY="1"
 MOCK="0"
 EOF
 chmod 600 "$agent_env"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."
+echo "No TOOLBOX_ENDPOINT set, so the agent will run the Hosted Skills in-process from src/skills/."

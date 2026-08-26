@@ -27,7 +27,7 @@ Hosted Skills are referenced by contract/name only here; implementation lives un
 - `.env.example` - local configuration template
 - `requirements.txt` - Python dependencies
 
-## Local run against a real AI Gateway
+## Local run against a real AI Gateway (with real tools)
 
 Provision the standalone East US 2 Gateway/model slice from the repository
 root. This requires Azure credentials and model quota:
@@ -58,49 +58,23 @@ In another terminal:
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
   -H "Content-Type: application/json" \
-  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' \
+  -d '{"input":"Find me an EV under $40,000 with at least 250 miles of range","stream":false}' \
   | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
 
-The generated environment sets `AI_GATEWAY_MODEL_ONLY=1`, so model calls use
-the real Gateway while tools remain disabled until the Foundry Toolbox slice is
-provisioned. See the repository-root `TESTING.md` for the verified response and
-all PR test paths.
+Model calls always go to the real AI Gateway. **Tool calls also always work**:
+if `TOOLBOX_ENDPOINT` is set (a real Foundry Toolbox has been provisioned and
+registered — see `src/skills/README.md`), the agent uses it; otherwise it
+automatically runs the four Hosted Skills in-process from `src/skills/`
+(`local_skills.py`), so `inventory-search` and friends are always callable
+with no extra setup or environment switches. See the repository-root
+`TESTING.md` for the verified response and all PR test paths.
 
 ## Manual local configuration
 
-To use a separately provisioned Gateway, copy `.env.example` to `.env`, replace
-the placeholders, and set `AI_GATEWAY_MODEL_ONLY=1` if Toolbox is unavailable.
-By default, `uv run main.py` starts the Responses host server on port 8088.
-
-## Running with real Hosted Skills locally (`LOCAL_SKILLS=1`)
-
-`AI_GATEWAY_MODEL_ONLY=1` runs the model with **no tools at all** — the agent
-can't call `inventory-search` etc., so it can't ground answers in real
-inventory. The real production path is deploying each skill under
-`src/skills/` as its own Functions app and registering it in **Foundry
-Toolbox** (see `src/skills/README.md` "Hosted registration pattern") — not yet
-done for this POC.
-
-For local dev/demo/e2e testing in the meantime, set `LOCAL_SKILLS=1` to run
-the four Hosted Skills **in-process** (no `func start`, no Functions host, no
-Azure resources) via `local_skills.py`, which imports each skill's
-`tools/*_tool()` function directly and wraps it as an agent tool:
-
-```bash
-cd src/agent
-unset AI_GATEWAY_MODEL_ONLY
-LOCAL_SKILLS=1 uv run main.py
-```
-
-Then the same `curl` from above will actually call `inventory-search` (and
-the other three skills) and ground its answer in the real EPA-sourced data in
-`src/skills/inventory-search/data/inventory.json`.
-
-`LOCAL_SKILLS=1` is a dev/demo convenience only — it does not exercise the
-real deployed-Functions-app + Foundry Toolbox registration path, which should
-still be validated separately (see `src/skills/README.md`) before relying on
-it for anything beyond local testing.
+To use a separately provisioned Gateway, copy `.env.example` to `.env` and
+replace the placeholders. By default, `uv run main.py` starts the Responses
+host server on port 8088.
 
 ## Offline demo rehearsal (`MOCK=1`)
 

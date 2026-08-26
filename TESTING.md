@@ -104,9 +104,12 @@ deployment. The completed response was:
 
 > Electric vehicles can reduce fuel and maintenance costs.
 
-`AI_GATEWAY_MODEL_ONLY=1` in the generated `.env` tests real model routing
-without requiring the later Foundry Toolbox/Hosted Skills deployment. Remove
-that setting only after `TOOLBOX_ENDPOINT` and `TOOLBOX_NAME` are configured.
+The agent's tool wiring auto-detects: with no `TOOLBOX_ENDPOINT` set, it runs
+the Hosted Skills in-process from `src/skills/` (`local_skills.py`) so tool
+calls (`inventory-search`, etc.) work immediately, with no separate Foundry
+Toolbox deployment required for local/demo testing. Set `TOOLBOX_ENDPOINT`
+(and `TOOLBOX_NAME`) once a real Foundry Toolbox is provisioned to switch to
+it instead.
 
 To tear down this standalone slice:
 

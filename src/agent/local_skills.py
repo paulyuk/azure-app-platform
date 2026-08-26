@@ -5,11 +5,16 @@ toolservers (see `_foundry_toolbox()` in `main.py`), which requires deploying
 each skill as its own Flex Consumption Functions app and registering it in
 Foundry Toolbox (see `src/skills/README.md` "Hosted registration pattern").
 
-For **local dev/demo/e2e-test** runs, that's slow to stand up and not free.
-This module gives the agent the same four tools by importing each skill's
-pure-logic `tools/*.py` module directly out of `src/skills/` and wrapping it
-as an `agent_framework` `FunctionTool` — no network hop, no Functions host,
-no Azure resources required. Enable it with `LOCAL_SKILLS=1` (see README).
+For **local dev/demo/e2e-test** runs before a Foundry Toolbox is provisioned,
+that's slow to stand up and not free. This module gives the agent the same
+four tools by importing each skill's pure-logic `tools/*.py` module directly
+out of `src/skills/` and wrapping it as an `agent_framework` `FunctionTool` -
+no network hop, no Functions host, no Azure resources required.
+
+`main.py` uses this automatically whenever `TOOLBOX_ENDPOINT` is not set in
+the environment - no explicit mode switch needed. Once a real Foundry
+Toolbox is provisioned and `TOOLBOX_ENDPOINT` is set, the agent uses it
+instead and this module is not used.
 
 This is a dev/demo convenience only. It does not exercise the real Hosted
 Skills deployment path (Functions app, `mcp.json`, Foundry Toolbox
