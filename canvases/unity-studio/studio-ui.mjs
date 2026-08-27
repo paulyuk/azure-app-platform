@@ -89,6 +89,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .template-meta { color: var(--text-color-muted, #59636e); font-size: 12px; }
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 999px; padding: 2px 7px; font-size: 11px; }
+      .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
+      .badge.http, .badge.embr { background: #dafbe1; border-color: #4ac26b; color: #116329; }
+      .badge.mcp, .badge.connector { background: #fff8c5; border-color: #d4a72c; color: #7a4f01; }
+      .badge.docker, .badge.sandbox, .badge.durable { background: #fbefff; border-color: #d8b9ff; color: #6639ba; }
+      .badge.data, .badge.gateway { background: #ffebe9; border-color: #ff8182; color: #a40e26; }
       .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
       .actions-right { display: flex; gap: 8px; margin-left: auto; }
       .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
@@ -212,6 +217,23 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         document.getElementById("top-back")?.addEventListener("click", back);
       }
 
+      function badgeClass(badge) {
+        const normalized = badge.toLowerCase();
+        if (normalized.includes("foundry")) return "foundry";
+        if (normalized.includes("hostedagent")) return "hosted-agent";
+        if (normalized.includes("hostedskill")) return "hosted-skill";
+        if (normalized === "http") return "http";
+        if (normalized === "embr") return "embr";
+        if (normalized.includes("mcp")) return "mcp";
+        if (normalized.includes("connector")) return "connector";
+        if (normalized.includes("docker")) return "docker";
+        if (normalized.includes("sandbox")) return "sandbox";
+        if (normalized.includes("durable")) return "durable";
+        if (normalized.includes("direct data")) return "data";
+        if (normalized.includes("gateway")) return "gateway";
+        return "";
+      }
+
       function wireActions({ back, next }) {
         document.getElementById("back")?.addEventListener("click", back);
         document.getElementById("next")?.addEventListener("click", next);
@@ -268,9 +290,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
-            '<button type="button" class="choice source-option" data-existing-app="' + escape(item.path) + '">' +
-            '<strong>' + escape(item.name) + '</strong><small>' + escape(item.branch || "detached") +
-            ' · ' + escape(item.path) + '<br>' + item.capabilityIds.length + ' discovered tier(s)</small></button>').join("") +
+            '<div class="choice source-option"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
+            '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
+            ' discovered tier(s)</small></button><button type="button" class="link" data-delete-existing-app="' +
+            escape(item.path) + '">Delete</button></div>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
           '';
         wireTopBack(renderLanding);
@@ -285,6 +308,26 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           } catch (cause) {
             error(cause.message);
           } finally {
+            setBusy(false, status.textContent);
+          }
+        }));
+        document.querySelectorAll("[data-delete-existing-app]").forEach((button) => button.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          const appRow = button.closest(".choice");
+          const appName = appRow?.querySelector("strong")?.textContent || "this app";
+          if (!window.confirm("Delete " + appName + " permanently? This removes its worktree and cannot be undone.")) return;
+          setBusy(true, "Deleting app…");
+          try {
+            await request("/api/delete-app", {
+              method: "POST",
+              body: JSON.stringify({ root: button.dataset.deleteExistingApp, confirmed: true })
+            });
+            sources = null;
+            await loadSources();
+            renderExistingApps();
+            clearStatus("App deleted.");
+          } catch (cause) {
+            error(cause.message);
             setBusy(false, status.textContent);
           }
         }));
@@ -624,7 +667,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                 tier.implementations.map((item) =>
                   '<br><strong>' + escape(item.title) + '</strong> · ' + escape(item.kind) +
                   (item.badges?.length ? '<div class="badges">' + item.badges.map((badge) =>
-                    '<span class="badge">' + escape(badge) + '</span>').join("") + '</div>' : '') +
+                    '<span class="badge ' + badgeClass(badge) + '">' + escape(badge) + '</span>').join("") + '</div>' : '') +
                   '<br><code>' + escape(item.subtitle || item.projectPath || item.resourceId || "") + '</code>' +
                   (item.matchedFiles?.length
                     ? '<br><small>Source files: ' + escape(item.matchedFiles.map((evidence) =>
