@@ -1,0 +1,5 @@
+version: 1
+skills:
+  - name: __SKILL_NAME__
+    description: Intentionally empty Hosted Skill. Define its bounded operation before production use.
+    entrypoint: function_app.py

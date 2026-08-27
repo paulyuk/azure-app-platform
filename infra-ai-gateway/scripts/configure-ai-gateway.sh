@@ -8,7 +8,10 @@ SLICE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${SLICE_ROOT}/.." && pwd)"
 
 azd_value() {
-  azd env get-value "$1" 2>/dev/null || true
+  local value
+  if value="$(azd env get-value "$1" 2>/dev/null)"; then
+    printf '%s' "$value"
+  fi
 }
 
 require_value() {
@@ -21,15 +24,36 @@ require_value() {
   printf '%s' "$value"
 }
 
-subscription_id="$(require_value AZURE_SUBSCRIPTION_ID "$(azd_value AZURE_SUBSCRIPTION_ID)")"
-resource_group="$(require_value AI_GATEWAY_RESOURCE_GROUP "$(azd_value AI_GATEWAY_RESOURCE_GROUP)")"
-gateway_name="$(require_value AI_GATEWAY_NAME "$(azd_value AI_GATEWAY_NAME)")"
-gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$(azd_value AZURE_AI_GATEWAY_MODEL)")"
-gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)")"
+subscription_id="$(require_value AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID:-$(azd_value AZURE_SUBSCRIPTION_ID)}")"
+resource_group="$(require_value AI_GATEWAY_RESOURCE_GROUP "${AI_GATEWAY_RESOURCE_GROUP:-$(azd_value AI_GATEWAY_RESOURCE_GROUP)}")"
+gateway_name="$(require_value AI_GATEWAY_NAME "${AI_GATEWAY_NAME:-$(azd_value AI_GATEWAY_NAME)}")"
 gateway_resource_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/service/${gateway_name}"
 gateway_uri="https://management.azure.com${gateway_resource_id}?api-version=${AI_GATEWAY_API_VERSION}"
 
-gateway_url="$(require_value AZURE_AI_GATEWAY_ENDPOINT "$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv)")"
+gateway_model="${AZURE_AI_GATEWAY_MODEL:-$(azd_value AZURE_AI_GATEWAY_MODEL)}"
+gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)}"
+if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
+  model_names="$(az rest --method get \
+    --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/modelProviders/foundry/models?api-version=${AI_GATEWAY_API_VERSION}" \
+    --query 'value[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
+  first_model="$(printf '%s\n' "$model_names" | sed -n '1p')"
+  mini_model="$(printf '%s\n' "$model_names" | grep -i 'mini' | sed -n '1p' || true)"
+  full_model="$(printf '%s\n' "$model_names" | grep -iv 'mini' | sed -n '1p' || true)"
+  gateway_mini_model="${gateway_mini_model:-${mini_model:-$first_model}}"
+  gateway_model="${gateway_model:-${full_model:-$first_model}}"
+fi
+gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$gateway_model")"
+gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model")"
+
+gateway_url="${AZURE_AI_GATEWAY_ENDPOINT:-$(azd_value AZURE_AI_GATEWAY_ENDPOINT)}"
+if [ -z "$gateway_url" ]; then
+  gateway_url="$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv 2>/dev/null || true)"
+fi
+if [ -z "$gateway_url" ]; then
+  runtime_hostname="$(az rest --method get --uri "$gateway_uri" --query properties.runtimeHostname -o tsv 2>/dev/null || true)"
+  [ -n "$runtime_hostname" ] && gateway_url="https://${runtime_hostname}/"
+fi
+gateway_url="$(require_value AZURE_AI_GATEWAY_ENDPOINT "$gateway_url")"
 gateway_api_key="$(az rest \
   --method post \
   --uri "https://management.azure.com${gateway_resource_id}/apiKeys/default/listSecrets?api-version=${AI_GATEWAY_API_VERSION}" \
@@ -67,10 +91,12 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
-azd env set AZURE_AI_GATEWAY_ENDPOINT "${gateway_url%/}/"
-azd env set AZURE_AI_GATEWAY_MODEL "$gateway_model"
-azd env set AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model"
-azd env set AZURE_AI_GATEWAY_API_KEY "$gateway_api_key" >/dev/null
+if [ -n "$(azd_value AZURE_ENV_NAME)" ]; then
+  azd env set AZURE_AI_GATEWAY_ENDPOINT "${gateway_url%/}/"
+  azd env set AZURE_AI_GATEWAY_MODEL "$gateway_model"
+  azd env set AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model"
+  azd env set AZURE_AI_GATEWAY_API_KEY "$gateway_api_key" >/dev/null
+fi
 
 agent_env="${REPO_ROOT}/src/agent/.env"
 cat > "$agent_env" <<EOF
@@ -83,4 +109,4 @@ EOF
 chmod 600 "$agent_env"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."
-echo "No TOOLBOX_ENDPOINT set, so the agent will run the Hosted Skills in-process from src/skills/."
+echo "No TOOLBOX_ENDPOINT set. Run locally to start each Hosted Skill as a separate Functions MCP service; the agent will bind to those local endpoints."

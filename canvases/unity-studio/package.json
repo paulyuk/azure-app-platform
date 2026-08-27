@@ -1,0 +1,22 @@
+{
+  "name": "unity-studio",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "extension.mjs",
+  "private": true,
+  "description": "Implementation inventory and navigation hub for the nine-tier Unity platform pattern.",
+  "scripts": {
+    "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "latest"
+  },
+  "keywords": [
+    "unity",
+    "unity-studio",
+    "platform-discovery",
+    "app-map",
+    "copilot-canvas",
+    "cloud-foundation"
+  ]
+}
