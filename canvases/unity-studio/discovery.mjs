@@ -531,6 +531,7 @@ export function createCommandEnvironment(source = process.env) {
   for (const key of [
     "client_session",
     "CLIENT_SESSION",
+    "AZURE_CORE_CLIENT_SESSION",
     "SESSION_ID",
     "COPILOT_AGENT_SESSION_ID",
     "AGENCY_SESSION_ID",

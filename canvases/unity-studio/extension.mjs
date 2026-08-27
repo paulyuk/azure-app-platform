@@ -193,8 +193,8 @@ async function resolveGatewayConfigCommand(root) {
     try {
       await access(scriptPath);
       return name.endsWith(".ps1")
-        ? { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] }
-        : { command: "bash", args: [scriptPath] };
+        ? { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], cwd: `${root}/infra-ai-gateway` }
+        : { command: "bash", args: [scriptPath], cwd: `${root}/infra-ai-gateway` };
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -202,8 +202,17 @@ async function resolveGatewayConfigCommand(root) {
   throw new Error("This app has no AI Gateway configuration script.");
 }
 
-async function startAppCommand(root, command, args, state) {
-  const child = spawn(command, args, { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+async function startAppCommand(root, command, args, state, options = {}) {
+  const commandEnvironment = { ...process.env };
+  for (const key of ["client_session", "CLIENT_SESSION", "AZURE_CORE_CLIENT_SESSION", "SESSION_ID", "COPILOT_AGENT_SESSION_ID", "AGENCY_SESSION_ID"]) {
+    delete commandEnvironment[key];
+  }
+  const child = spawn(command, args, {
+    cwd: options.cwd ?? root,
+    env: commandEnvironment,
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const run = { lines: [], startedAt: Date.now() };
   appOutput.set(root, run);
   const appendOutput = (chunk) => {
@@ -459,7 +468,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "configure-gateway") {
         const gatewayConfig = await resolveGatewayConfigCommand(root);
-        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring"));
+        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", { cwd: gatewayConfig.cwd }));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
