@@ -56,9 +56,28 @@ async function probeHttpEntrypoints(root) {
   const candidates = [
     { name: "Web", port: 3000 },
     { name: "Agent", port: 8088 },
-    { name: "Hosted Skill", port: 7071 },
   ];
-  return Promise.all(candidates.map(async (candidate) => {
+  try {
+    const tracked = await readFile(`${root}/.dev-run/processes.posix.tsv`, "utf8");
+    for (const line of tracked.split(/\r?\n/)) {
+      const [name, port] = line.split("\t");
+      if (name && /^\d+$/.test(port)) candidates.push({ name, port: Number(port) });
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  try {
+    const tracked = JSON.parse(await readFile(`${root}/.dev-run/processes.json`, "utf8"));
+    for (const item of Array.isArray(tracked) ? tracked : [tracked]) {
+      if (item?.name && Number.isInteger(Number(item.port))) {
+        candidates.push({ name: item.name, port: Number(item.port) });
+      }
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.port, candidate])).values()];
+  return Promise.all(uniqueCandidates.map(async (candidate) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 500);
     try {

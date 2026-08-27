@@ -125,4 +125,4 @@ MOCK="0"
 Set-Content -Path $agentEnvPath -Value $agentEnvContent -NoNewline
 
 Write-Host 'AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed).'
-Write-Host 'No TOOLBOX_ENDPOINT set, so the agent will run the Hosted Skills in-process from src/skills/.'
+Write-Host 'No TOOLBOX_ENDPOINT set. Run locally to start each Hosted Skill as a separate Functions MCP service; the agent will bind to those local endpoints.'

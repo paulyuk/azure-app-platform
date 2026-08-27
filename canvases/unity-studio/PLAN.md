@@ -128,6 +128,11 @@ gateway/model set or provision one in AI Gateway Studio. `azd provision`
 does not imply that SRE has been obtained; SRE remains a separate tier that
 must be discovered, attached, or provisioned explicitly.
 
+Gateway configuration only establishes governed model access. Local Run then
+starts discovered Hosted Skills as separate Functions MCP services before the
+agent, binds the agent to their localhost endpoints when no cloud Toolbox is
+configured, and derives the displayed entrypoints from lifecycle state.
+
 ## App Map
 
 App Map is a generic source-derived graph, not a fixed narrative. Given an

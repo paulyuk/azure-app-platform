@@ -109,4 +109,4 @@ EOF
 chmod 600 "$agent_env"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."
-echo "No TOOLBOX_ENDPOINT set, so the agent will run the Hosted Skills in-process from src/skills/."
+echo "No TOOLBOX_ENDPOINT set. Run locally to start each Hosted Skill as a separate Functions MCP service; the agent will bind to those local endpoints."
