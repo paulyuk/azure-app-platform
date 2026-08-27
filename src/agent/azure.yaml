@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: ">=0.1.34-preview"
+    microsoft.foundry: ">=1.0.0-beta.1"
+
+name: deal-finder
+
+services:
+  ai-project:
+    host: azure.ai.project
+
+  deal-finder:
+    project: ./
+    host: azure.ai.agent
+    kind: hosted
+    language: docker
+    docker:
+      remoteBuild: true
+    uses:
+      - ai-project
+    config:
+      startupCommand: python main.py
+    description: Deal-finder hosted agent for the Unity car-buying POC.
+    environmentVariables:
+      - name: AZURE_AI_GATEWAY_ENDPOINT
+        value: ${AZURE_AI_GATEWAY_ENDPOINT}
+      - name: AZURE_AI_GATEWAY_API_KEY
+        value: ${AZURE_AI_GATEWAY_API_KEY}
+      - name: AZURE_AI_GATEWAY_MODEL
+        value: ${AZURE_AI_GATEWAY_MODEL}
+      - name: AZURE_AI_GATEWAY_MINI_MODEL
+        value: ${AZURE_AI_GATEWAY_MINI_MODEL}
+      - name: TOOLBOX_ENDPOINT
+        value: ${TOOLBOX_ENDPOINT}
+      - name: TOOLBOX_NAME
+        value: ${TOOLBOX_NAME}
+      - name: MOCK
+        value: ${MOCK}
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi

@@ -1,0 +1,9 @@
+kind: hosted
+name: deal-finder
+description: >
+  Conversational car-buying agent for Unity Demo #1. It helps a shopper find a car,
+  build a quote, and prepare a financing-ready deal package while keeping model and
+  tool access governed through AI Gateway.
+protocols:
+  - protocol: responses
+    version: 2.0.0

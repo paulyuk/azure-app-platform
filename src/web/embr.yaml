@@ -1,0 +1,17 @@
+name: driveline-web
+platform: nodejs
+run: npm run start
+database:
+  type: postgres
+  name: driveline-demo-db
+  plan: starter
+cache:
+  type: redis
+  name: driveline-demo-cache
+  plan: basic
+static:
+  path: public
+healthCheck:
+  path: /api/health
+  intervalSeconds: 30
+

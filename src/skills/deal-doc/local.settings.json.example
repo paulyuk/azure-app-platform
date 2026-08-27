@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+
+    "AZURE_FUNCTIONS_AGENTS_PROVIDER": "openai",
+    "OPENAI_BASE_URL": "<AZURE_AI_GATEWAY_ENDPOINT>/default/models/openai/v1/",
+    "OPENAI_API_KEY": "workload-identity-auth",
+    "OPENAI_CUSTOM_HEADERS": "Api-Key: <AZURE_AI_GATEWAY_API_KEY>",
+    "AZURE_FUNCTIONS_AGENTS_MODEL": "gpt-mini-latest"
+  }
+}

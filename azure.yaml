@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: unity
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=0.1.34-preview'
+    microsoft.foundry: '>=1.0.0-beta.1'
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+services:
+  web:
+    project: ./src/web
+    host: containerapp
+    language: ts
+
+  agent:
+    project: ./src/agent
+    host: azure.ai.agent
+    name: deal-finder
+    language: docker
+    kind: hosted
+    docker:
+      remoteBuild: true
+    config:
+      startupCommand: python main.py
+
+  # Each child of src/skills is expected to become an independently named
+  # Function App when the vertical implementation lands.
+  skills:
+    project: ./src/skills
+    host: function
+    language: python
+
+  sandbox:
+    project: ./src/sandbox/prequal
+    host: containerapp
+    language: python
+
+  workflows:
+    project: ./src/workflows/loan-approval
+    host: function
+    language: python

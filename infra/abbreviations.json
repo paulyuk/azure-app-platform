@@ -1,0 +1,18 @@
+{
+  "resourceGroup": "rg",
+  "apiManagementService": "aigw",
+  "aiFoundryAccount": "aif",
+  "aiFoundryProject": "aip",
+  "containerRegistry": "cr",
+  "storageAccount": "st",
+  "appServicePlan": "plan",
+  "functionApp": "func",
+  "containerAppsEnvironment": "cae",
+  "containerApp": "ca",
+  "sandboxGroup": "sbg",
+  "durableTaskScheduler": "dts",
+  "connectorNamespace": "conn",
+  "sreAgent": "sre",
+  "applicationInsights": "appi",
+  "logAnalyticsWorkspace": "log"
+}
