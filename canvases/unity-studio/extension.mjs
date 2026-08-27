@@ -23,7 +23,7 @@ import {
   traceUnityApp,
   WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
-import { renderStudioHtml } from "./studio-ui.mjs";
+import { renderExpandedAppMapHtml, renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 
 const servers = new Map();
 const appStates = new Map();
@@ -110,6 +110,20 @@ async function openEntrypoint(root, port) {
     canvasId: browser.canvasId,
     instanceId: `unity-endpoint-${port}`,
     input: { url, title: entrypoint.name },
+  });
+}
+
+async function openExpandedAppMap(root, trustedHost, apiToken) {
+  const available = await session.rpc.canvas.list();
+  const browser = available.canvases.find((canvas) => canvas.canvasId === "browser");
+  if (!browser) throw new Error("Browser canvas is unavailable.");
+  const instanceSuffix = Buffer.from(root).toString("hex").slice(-24);
+  const url = `http://${trustedHost}/app-map?root=${encodeURIComponent(root)}&token=${encodeURIComponent(apiToken)}`;
+  return session.rpc.canvas.open({
+    extensionId: browser.extensionId,
+    canvasId: browser.canvasId,
+    instanceId: `unity-app-map-${instanceSuffix}`,
+    input: { url, title: "Unity App Map" },
   });
 }
 
@@ -511,7 +525,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App Map root is not an authorized app workspace.");
       }
-      sendJson(response, 200, await traceUnityApp({ root }));
+      const appMap = await traceUnityApp({ root });
+      sendJson(response, 200, {
+        ...appMap,
+        renderedHtml: renderAppMapMarkup(appMap),
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/open-app-map") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App Map root is not an authorized app workspace.");
+      }
+      sendJson(response, 200, {
+        outcome: "canvas-opened",
+        canvas: await openExpandedAppMap(root, trustedHost, apiToken),
+      });
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/tier-action") {
@@ -625,6 +655,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       appStates.delete(root);
       appOutput.delete(root);
       sendJson(response, 200, result);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/app-map") {
+      if (
+        request.headers.host !== trustedHost
+        || url.searchParams.get("token") !== apiToken
+      ) {
+        const error = new Error("Unauthorized App Map view.");
+        error.statusCode = 403;
+        throw error;
+      }
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App Map root is not an authorized app workspace.");
+      }
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(renderExpandedAppMapHtml(await traceUnityApp({ root })));
       return;
     }
     if (request.method !== "GET" || url.pathname !== "/") {

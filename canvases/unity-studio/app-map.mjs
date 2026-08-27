@@ -356,6 +356,74 @@ function addWorkflowOperations(nodes, files, edges, seen) {
   }
 }
 
+function projectNodeName(candidate, repositoryRoot) {
+  if (candidate.tierId === "gateway") {
+    return "AI Gateway binding";
+  }
+  return basename(candidate.projectPath) || basename(repositoryRoot);
+}
+
+function addGatewayDetails(nodes, files, edges, seen) {
+  const gateways = findNodes(nodes, "gateway");
+  if (gateways.length === 0) return;
+
+  const modelNames = new Map();
+  const toolboxEvidence = [];
+  for (const file of files) {
+    for (const expression of [
+      /\bDEFAULT_[A-Z0-9_]*MODEL\s*=\s*["']([^"']+)["']/g,
+      /\bAZURE_AI_GATEWAY(?:_[A-Z0-9]+)?_MODEL\s*=\s*["']([^"'${}<>\s]+)["']/g,
+    ]) {
+      for (const match of file.content.matchAll(expression)) {
+        modelNames.set(match[1], sourceEvidence(
+          file.path,
+          lineNumberFor(file.content, match.index),
+          "gateway-model-reference",
+          match[0],
+        ));
+      }
+    }
+    const toolbox = firstMatch(file, /\bFoundryToolbox\b|\/runtime\/webhooks\/mcp/);
+    if (toolbox) {
+      toolboxEvidence.push(sourceEvidence(
+        file.path,
+        toolbox.line,
+        "gateway-tool-route-reference",
+        toolbox.match[0],
+      ));
+    }
+  }
+
+  for (const gateway of gateways) {
+    for (const [name, evidence] of modelNames) {
+      const model = {
+        id: `model:${gateway.projectPath}:${name}`,
+        kind: "model",
+        tierId: "gateway",
+        name,
+        projectPath: "Model deployment",
+        confidence: evidence.confidence,
+        evidence: [evidence],
+      };
+      nodes.push(model);
+      addEdge(edges, seen, gateway.id, model.id, "model-route", evidence, "high");
+    }
+    if (toolboxEvidence.length > 0) {
+      const toolRoute = {
+        id: `tool-route:${gateway.projectPath}`,
+        kind: "tool-route",
+        tierId: "gateway",
+        name: "Foundry Toolbox",
+        projectPath: "Governed tool route",
+        confidence: "high",
+        evidence: [toolboxEvidence[0]],
+      };
+      nodes.push(toolRoute);
+      addEdge(edges, seen, gateway.id, toolRoute.id, "tool-route", toolboxEvidence[0], "high");
+    }
+  }
+}
+
 export async function traceApp({ root = process.cwd() } = {}) {
   const scan = await scanRepository(root);
   const files = await loadRepositoryFiles(scan);
@@ -363,13 +431,14 @@ export async function traceApp({ root = process.cwd() } = {}) {
   const nodes = repository.candidates.map((candidate) => ({
     ...candidate,
     kind: "project",
-    name: basename(candidate.projectPath) || basename(repository.root),
+    name: projectNodeName(candidate, repository.root),
   }));
   const edges = [];
   const unresolved = [];
   const seen = new Set();
 
   addCrossTierEdges(nodes, files, edges, seen, unresolved);
+  addGatewayDetails(nodes, files, edges, seen);
   addWorkflowOperations(nodes, files, edges, seen);
 
   return {

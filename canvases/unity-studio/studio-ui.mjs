@@ -9,6 +9,101 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
+  const nodesById = new Map(appMap.nodes.map((node) => [node.id, node]));
+  const outgoing = new Map();
+  for (const edge of appMap.edges) {
+    if (!outgoing.has(edge.from)) outgoing.set(edge.from, []);
+    outgoing.get(edge.from).push(edge);
+  }
+  const unresolved = new Map();
+  for (const item of appMap.unresolved || []) {
+    if (!unresolved.has(item.from)) unresolved.set(item.from, []);
+    unresolved.get(item.from).push(item);
+  }
+  const lanes = PLATFORM_TIERS.map((tier) => {
+    const nodes = appMap.nodes.filter((node) => node.tierId === tier.id);
+    if (nodes.length === 0) return "";
+    return '<section class="map-lane" data-map-tier="' + escapeHtml(tier.id) + '">' +
+      '<div class="map-lane-head"><strong>' + escapeHtml(tier.name) + '</strong><small>' +
+      nodes.length + (nodes.length === 1 ? " node" : " nodes") + '</small></div>' +
+      nodes.map((node) => {
+        const links = (outgoing.get(node.id) || []).map((edge) => {
+          const target = nodesById.get(edge.to);
+          return '<div class="map-link"><span class="arrow">→</span><span>' +
+            escapeHtml(edge.kind.replaceAll("-", " ")) + ' <b>' +
+            escapeHtml(target?.name || edge.to) + '</b></span></div>';
+        });
+        const missing = (unresolved.get(node.id) || []).map((item) =>
+          '<div class="map-link unresolved"><span class="arrow">?</span><span>Unresolved <b>' +
+          escapeHtml(item.reference) + '</b></span></div>');
+        const evidence = node.evidence?.[0];
+        return '<article class="map-node ' + escapeHtml(node.kind || "project") + '">' +
+          '<strong>' + escapeHtml(node.name) + '</strong><code>' +
+          escapeHtml(node.projectPath || node.kind) + '</code>' +
+          (links.length || missing.length
+            ? '<div class="map-links">' + links.join("") + missing.join("") + '</div>'
+            : '') +
+          (evidence
+            ? '<div class="map-evidence">' + escapeHtml(evidence.path + ":" + evidence.line) + '</div>'
+            : '') +
+          '</article>';
+      }).join("") + '</section>';
+  }).filter(Boolean);
+  const empty = lanes.length === 0
+    ? '<div class="map-empty">No source-derived Unity components were found.</div>'
+    : '<div class="map-lanes">' + lanes.join("") + '</div>';
+  return '<div class="app-map-visual' + (expanded ? " expanded" : "") +
+    '" role="region" aria-label="Unity application graph">' + empty + '</div>' +
+    '<div class="map-footer"><span class="map-legend">Solid cards are projects · dashed cards are operations · arrows are source-derived calls</span>' +
+    '<span class="badge">' + appMap.edges.length + ' edges · ' + (appMap.unresolved || []).length +
+    ' unresolved</span></div>';
+}
+
+export function renderExpandedAppMapHtml(appMap) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity App Map</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --panel:#f7f6fb; --raised:#fff; --line:#e6e3f0; --ink:#1b1a24; --muted:#6a6775; --accent:#6b3fd6; --warn:#b45309; }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:24px; background:radial-gradient(1200px 600px at 100% -12%,rgba(107,63,214,.07),transparent),var(--bg); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { max-width:1600px; margin:0 auto; }
+    header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:12px; margin-bottom:18px; }
+    h1 { margin:0; font-size:26px; } p { margin:4px 0 0; color:var(--muted); }
+    button { border:1px solid var(--line); border-radius:9px; padding:8px 12px; background:var(--raised); color:var(--ink); cursor:pointer; }
+    .app-map-visual { overflow:auto; }
+    .map-lanes { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-items:start; }
+    .map-lane { min-width:0; padding:11px; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:10px; background:var(--raised); }
+    .map-lane-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:9px; }
+    .map-lane-head small,.map-evidence,.map-legend { color:var(--muted); }
+    .map-node { padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+    .map-node + .map-node { margin-top:8px; } .map-node.operation { border-style:dashed; }
+    .map-node strong,.map-node code { display:block; } .map-node code { margin-top:3px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+    .map-links { display:grid; gap:5px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
+    .map-link { display:grid; grid-template-columns:auto 1fr; gap:5px; color:var(--muted); font-size:11px; }
+    .map-link .arrow { color:var(--accent); font-weight:700; } .map-link b { color:var(--ink); }
+    .map-link.unresolved { padding:5px; border:1px dashed var(--warn); border-radius:6px; } .map-link.unresolved .arrow { color:var(--warn); }
+    .map-evidence { margin-top:7px; font-size:10px; overflow-wrap:anywhere; }
+    .map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:14px; }
+    .badge { border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; background:var(--panel); }
+    .map-empty { padding:32px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:10px; }
+    @media (prefers-color-scheme:dark) { :root { --bg:#111218; --panel:#1b1c25; --raised:#16171f; --line:#343542; --ink:#f2f2f5; --muted:#aaa8b5; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><h1>Unity App Map</h1><p>${escapeHtml(appMap.root)} · generated ${escapeHtml(appMap.generatedAt)}</p></div>
+      <button type="button" onclick="location.reload()">Refresh map</button></header>
+    ${renderAppMapMarkup(appMap, { expanded: true })}
+  </main>
+</body>
+</html>`;
+}
+
 export function renderStudioHtml(instanceId, apiToken = "") {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
@@ -130,6 +225,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         align-items: center;
         gap: 12px;
       }
+      details.surface > summary { cursor: pointer; list-style: none; }
+      details.surface > summary::-webkit-details-marker { display: none; }
+      details.surface > summary::before { content: "›"; color: var(--studio-accent); font-size: 17px; transition: transform .2s; }
+      details.surface[open] > summary::before { transform: rotate(90deg); }
       .surface-head h2 { margin: 0; font-size: 13px; font-weight: 650; }
       .surface-head small { color: var(--studio-muted); }
       .surface-body { padding: 15px; }
@@ -196,10 +295,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .agent-tester textarea { min-height: 64px; }
       .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font-family: var(--font-mono, monospace); }
       .map-loading { padding: 24px; text-align: center; color: var(--studio-muted); border: 1px dashed var(--studio-line); border-radius: 10px; }
-      .app-map-visual { overflow-x: auto; padding-bottom: 5px; }
-      .map-lanes { display: flex; align-items: stretch; gap: 10px; min-width: max-content; }
+      .app-map-visual { overflow: hidden; padding-bottom: 5px; }
+      .map-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); align-items: start; gap: 10px; }
       .map-lane {
-        width: 218px;
+        min-width: 0;
         padding: 10px;
         border: 1px solid var(--studio-line);
         border-top: 3px solid var(--studio-accent);
@@ -222,6 +321,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .map-link.unresolved { padding: 5px; border: 1px dashed color-mix(in srgb, var(--studio-warn) 55%, var(--studio-line)); border-radius: 6px; }
       .map-link.unresolved .arrow { color: var(--studio-warn); }
       .map-evidence { margin-top: 7px; color: var(--studio-muted); font-size: 9px; overflow-wrap: anywhere; }
+      .map-empty { padding: 24px; text-align: center; color: var(--studio-muted); border: 1px dashed var(--studio-line); border-radius: 10px; }
       .map-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
       .map-legend { color: var(--studio-muted); font-size: 11px; }
       .tier-list { display: grid; gap: 10px; }
@@ -783,46 +883,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         if (!appMap) {
           return '<div class="map-loading">Tracing components and relationships from source…</div>';
         }
-        const nodesById = new Map(appMap.nodes.map((node) => [node.id, node]));
-        const outgoing = new Map();
-        for (const edge of appMap.edges) {
-          if (!outgoing.has(edge.from)) outgoing.set(edge.from, []);
-          outgoing.get(edge.from).push(edge);
-        }
-        const unresolved = new Map();
-        for (const item of appMap.unresolved || []) {
-          if (!unresolved.has(item.from)) unresolved.set(item.from, []);
-          unresolved.get(item.from).push(item);
-        }
-        const lanes = capabilities.map((tier) => {
-          const nodes = appMap.nodes.filter((node) => node.tierId === tier.id);
-          if (nodes.length === 0) return "";
-          return '<section class="map-lane" data-map-tier="' + escape(tier.id) + '">' +
-            '<div class="map-lane-head"><strong>' + escape(tier.name) + '</strong><small>' +
-            nodes.length + (nodes.length === 1 ? " node" : " nodes") + '</small></div>' +
-            nodes.map((node) => {
-              const links = (outgoing.get(node.id) || []).map((edge) => {
-                const target = nodesById.get(edge.to);
-                return '<div class="map-link"><span class="arrow">→</span><span>' +
-                  escape(edge.kind.replaceAll("-", " ")) + ' <b>' +
-                  escape(target?.name || edge.to) + '</b></span></div>';
-              });
-              const missing = (unresolved.get(node.id) || []).map((item) =>
-                '<div class="map-link unresolved"><span class="arrow">?</span><span>Unresolved <b>' +
-                escape(item.reference) + '</b></span></div>');
-              const evidence = node.evidence?.[0];
-              return '<article class="map-node ' + escape(node.kind || "project") + '">' +
-                '<strong>' + escape(node.name) + '</strong><code>' + escape(node.projectPath || node.kind) + '</code>' +
-                (links.length || missing.length ? '<div class="map-links">' + links.join("") + missing.join("") + '</div>' : '') +
-                (evidence ? '<div class="map-evidence">' + escape(evidence.path + ":" + evidence.line) + '</div>' : '') +
-                '</article>';
-            }).join("") + '</section>';
-        }).filter(Boolean);
-        return '<div class="app-map-visual" role="region" aria-label="Unity application graph">' +
-          '<div class="map-lanes">' + lanes.join("") + '</div></div>' +
-          '<div class="map-footer"><span class="map-legend">Solid cards are projects · dashed cards are operations · arrows are source-derived calls</span>' +
-          '<span class="badge">' + appMap.edges.length + ' edges · ' + (appMap.unresolved || []).length +
-          ' unresolved</span></div>';
+        return appMap.renderedHtml || '<div class="map-loading">Map rendering is unavailable. Refresh to retry.</div>';
       }
 
       function renderInventory(result, inventory, appMap) {
@@ -841,8 +902,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           implemented + ' of ' + tiers.length + ' tiers discovered</span><code class="workspace-path">' +
           escape(result.worktreePath || "Unavailable") + '</code></div></header>' +
           '<div class="section-label">Configure</div>' +
-          '<section class="surface configuration-region" aria-labelledby="configuration-title">' +
-          '<div class="surface-head"><h2 id="configuration-title">Azure configuration</h2><small>Optional cloud bindings</small></div>' +
+          '<details class="surface configuration-region" open><summary class="surface-head"><h2 id="configuration-title">Azure configuration</h2><small>Optional cloud bindings</small></summary>' +
           '<div class="surface-body"><div class="subsurface gateway-card"><div class="subsurface-head"><h3>AI Gateway</h3>' +
           '<small id="gateway-summary">Discovering gateways…</small></div>' +
           '<p>Selecting a gateway configures this app automatically with its endpoint, key, and model settings.</p>' +
@@ -850,30 +910,30 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<button type="button" id="configure-gateway">Create / Manage</button></div></div>' +
           '<div class="lifecycle-actions">' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
-          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div></div></section>' +
+          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div></div></details>' +
           '<div class="section-label">Run</div>' +
-          '<section class="surface runtime-region" aria-labelledby="runtime-title">' +
-          '<div class="surface-head"><h2 id="runtime-title">Local runtime</h2>' +
-          '<div class="badges" id="local-status"><span class="badge">Checking</span></div></div>' +
+          '<details class="surface runtime-region" open><summary class="surface-head"><h2 id="runtime-title">Local runtime</h2>' +
+          '<div class="badges" id="local-status"><span class="badge">Checking</span></div></summary>' +
           '<div class="surface-body"><div id="local-guidance"></div>' +
           '<div class="lifecycle-actions"><button type="button" class="primary" id="local-action" data-app-command="run-local">Run locally</button></div>' +
           '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
           '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
           '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
-          '<pre id="local-output">Waiting for local app output.</pre></details></div></section>' +
+          '<pre id="local-output">Waiting for local app output.</pre></details></div></details>' +
           '<div class="section-label">Map</div>' +
-          '<section class="surface app-map-region" aria-labelledby="app-map-title"><div class="surface-head">' +
-          '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></div>' +
+          '<details class="surface app-map-region" open><summary class="surface-head">' +
+          '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
           '<div class="surface-body">' + appMapVisual(appMap) +
           '<div class="configuration-actions"><button type="button" id="trace-app">' +
-          (appMap ? "Refresh map" : "Tracing…") + '</button></div></div></section>' +
+          (appMap ? "Refresh map" : "Tracing…") + '</button><button type="button" id="open-app-map"' +
+          (appMap ? "" : " disabled") + '>Open expanded</button></div></div></details>' +
           '<div class="section-label">Inspect</div>' +
-          '<section class="surface specialist-region" aria-labelledby="specialist-title"><div class="surface-head">' +
-          '<h2 id="specialist-title">Specialist studios</h2></div><div class="surface-body"><p>' +
+          '<details class="surface specialist-region"><summary class="surface-head">' +
+          '<h2 id="specialist-title">Specialist studios</h2></summary><div class="surface-body"><p>' +
           escape((result.specialistCanvases || []).join(", ") || "No specialist studios are registered for this workspace.") +
-          '</p></div></section>' +
-          '<section class="surface inventory-region" aria-labelledby="inventory-title"><div class="surface-head">' +
-          '<h2 id="inventory-title">Components by tier</h2><small>Evidence-derived inventory</small></div>' +
+          '</p></div></details>' +
+          '<details class="surface inventory-region"><summary class="surface-head">' +
+          '<h2 id="inventory-title">Components by tier</h2><small>Evidence-derived inventory</small></summary>' +
           '<div class="surface-body"><div class="tier-list">' +
           tiers.map((tier) => '<div class="tier-card"><div class="mapping-heading"><h3>' + escape(tier.name) +
             '</h3><button type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
@@ -897,7 +957,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     ? '<br><button type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
                     : '')).join("")
               : 'No implementation discovered yet · scaffold available') +
-            '</p></div>').join("") + '</div></div></section>' +
+            '</p></div>').join("") + '</div></div></details>' +
           '<div class="danger-zone"><button type="button" id="delete-app">Delete app</button></div>';
          wireTopBack(async () => {
           if (!sources) await loadSources();
@@ -1165,6 +1225,20 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           }
         }
         document.getElementById("trace-app").addEventListener("click", () => void traceAndRender());
+        document.getElementById("open-app-map")?.addEventListener("click", async () => {
+          setBusy(true, "Opening expanded App Map…");
+          try {
+            await request("/api/open-app-map", {
+              method: "POST",
+              body: JSON.stringify({ root: result.worktreePath })
+            });
+            clearStatus("Expanded App Map opened.");
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        });
         if (!appMap) void traceAndRender(false);
         document.getElementById("delete-app").addEventListener("click", async () => {
           await deleteApp(result.worktreePath, draft.appName);

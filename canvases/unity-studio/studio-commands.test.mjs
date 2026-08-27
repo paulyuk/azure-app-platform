@@ -33,7 +33,7 @@ import {
   parseWorktrees,
   resolveSourcePlan,
 } from "./source-catalog.mjs";
-import { renderStudioHtml } from "./studio-ui.mjs";
+import { renderAppMapMarkup, renderExpandedAppMapHtml, renderStudioHtml } from "./studio-ui.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { buildWorkspaceKickoff } from "./workspace-actions.mjs";
 
@@ -794,16 +794,19 @@ test("workspace renderer uses standard studio regions and collapsible command ou
     'class="surface inventory-region"',
     'id="configuration-title">Azure configuration',
     'id="runtime-title">Local runtime',
-    'class="app-map-visual"',
-    'class="map-lanes"',
+    ".app-map-visual",
+    ".map-lanes",
     'class="command-panel" id="local-command-panel"',
     'id="local-command-summary"',
+    'id="open-app-map"',
+    'request("/api/open-app-map"',
     "Selecting a gateway configures this app automatically",
     'if (!appMap) void traceAndRender(false)',
     "Refresh map",
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }
+  assert.equal((html.match(/<details class="surface /g) ?? []).length, 5);
   assert.equal(html.includes('<details class="command-panel"'), true);
   assert.equal(html.includes('<div class="terminal">'), false);
 });
@@ -932,6 +935,32 @@ test("App Map derives cross-tier and workflow edges with source evidence", async
         && node.evidence[0].confidence === "high"),
       true,
     );
+  });
+});
+
+test("App Map labels gateway bindings by role and derives model and tool routes", async () => {
+  await withFixture({
+    "agent/agent.yaml": "kind: hosted\nname: support-agent\n",
+    "agent/main.py": `
+from agent_framework_foundry_hosting import FoundryToolbox
+DEFAULT_GATEWAY_MODEL = "gpt-primary"
+endpoint = os.environ["AZURE_AI_GATEWAY_ENDPOINT"]
+model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
+`,
+  }, async (root) => {
+    const graph = await traceApp({ root });
+    const gateway = graph.nodes.find((node) => node.kind === "project" && node.tierId === "gateway");
+    assert.equal(gateway?.name, "AI Gateway binding");
+    assert.equal(graph.nodes.some((node) => node.kind === "model" && node.name === "gpt-primary"), true);
+    assert.equal(graph.nodes.some((node) => node.kind === "tool-route" && node.name === "Foundry Toolbox"), true);
+    assert.equal(graph.edges.some((edge) => edge.from === gateway.id && edge.kind === "model-route"), true);
+    assert.equal(graph.edges.some((edge) => edge.from === gateway.id && edge.kind === "tool-route"), true);
+
+    const rendered = renderAppMapMarkup(graph);
+    assert.match(rendered, /model request <b>AI Gateway binding<\/b>/);
+    assert.match(rendered, /gpt-primary/);
+    assert.doesNotMatch(rendered, /model request <b>agent<\/b>/);
+    assert.match(renderExpandedAppMapHtml(graph), /Unity App Map/);
   });
 });
 

@@ -174,6 +174,8 @@ Intelligent Function App studios and the Microsoft Foundry portal:
   restrained purple accent, and a subtle Foundry-style background treatment;
 - organize the app workspace into bordered **surface panels** with a compact
   title/status header and padded body instead of a long undifferentiated page;
+  every primary workspace panel is collapsible, with configuration, runtime,
+  and App Map expanded by default and secondary inspection panels collapsed;
 - use uppercase section labels to separate **Configure**, **Run**, **Map**, and
   **Inspect** tasks without adding heavy navigation;
 - group the active AI Gateway and future Azure bindings inside one **Azure
@@ -205,7 +207,17 @@ running app never depends on the user clicking a first-time Trace button. The
 canvas renders the result as a visual tier-lane graph with component nodes,
 directional relationship labels, source evidence, and visibly unresolved
 references. A secondary **Refresh map** action exists only to pick up source
-changes made after the initial discovery.
+changes made after the initial discovery. The embedded map uses a responsive
+multi-column lane grid to fit the canvas width without horizontal panning. An
+**Open expanded** action opens the same authorized, freshly traced graph in a
+dedicated Browser canvas sized for a wider multi-column view.
+
+Graph labels describe runtime roles rather than source-folder accidents. A
+gateway marker found in an agent project is rendered as an **AI Gateway
+binding**, never as another agent component. Agent relationships therefore read
+as model requests to that gateway boundary and tool calls to Hosted Skills.
+When source evidence identifies model deployment names or a governed toolbox
+route, those appear as model/tool detail nodes inside the Gateway lane.
 
 ## Ongoing spec checks
 
@@ -220,7 +232,7 @@ Future changes should preserve these invariants:
 - create/reopen/assemble flows remain deterministic and workspace-confined;
 - specialist studios remain authoritative for deep tier operations;
 - Azure configuration, local runtime, App Map, and component inventory remain
-  visibly separate surface panels;
+  visibly separate, collapsible surface panels;
 - App Map traces automatically and renders nodes, relationships, and unresolved
   references visually rather than exposing only graph counts;
 - command output remains collapsible and uses the standard output-window
