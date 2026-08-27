@@ -747,6 +747,8 @@ test("guided renderer exposes exactly two journeys without scanning on launch", 
     assert.equal(/\bevidence\b/i.test(html), false);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);
+    assert.match(html, /Dealer-sample-"\s*\+\s*crypto\.randomUUID\(\)\.slice\(0, 8\)/);
+    assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
 });
 
 test("platform discovery preserves repository results when Azure is unavailable", async () => {

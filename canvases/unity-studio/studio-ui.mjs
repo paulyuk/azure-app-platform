@@ -123,6 +123,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       const capabilities = ${JSON.stringify(capabilities)};
       const app = document.getElementById("app");
       const status = document.getElementById("status");
+      const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
       let azureInventory = null;
       const draft = {
@@ -180,6 +181,16 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         status.textContent = message;
       }
 
+      function applyTemplateDefaults(template) {
+        if (template?.kind !== "sample") return;
+        if (!draft.appName) {
+          draft.appName = "Dealer-sample-" + crypto.randomUUID().slice(0, 8);
+        }
+        if (!draft.purpose) {
+          draft.purpose = DEALER_SAMPLE_PURPOSE;
+        }
+      }
+
       function actions({ back, nextLabel, next, nextDisabled = false }) {
         return '<div class="actions">' +
           (back ? '<button type="button" class="link" id="back">Back</button>' : '<span></span>') +
@@ -214,6 +225,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             if (!draft.templateRootId) {
               draft.templateRootId = sources.templates[0]?.id || "";
             }
+            applyTemplateDefaults(sources.templates.find((item) => item.id === draft.templateRootId));
             renderDetails();
           } catch (cause) {
             error(cause.message);
@@ -284,7 +296,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           input.addEventListener("change", () => {
             draft.templateRootId = input.value;
             const template = sources.templates.find((item) => item.id === input.value);
+            applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
+            document.getElementById("app-name").value = draft.appName;
+            document.getElementById("purpose").value = draft.purpose;
           });
         });
         document.getElementById("next").addEventListener("click", async () => {
