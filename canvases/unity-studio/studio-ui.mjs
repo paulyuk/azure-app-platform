@@ -268,7 +268,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--studio-muted); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
-      .template-meta { color: var(--studio-muted); font-size: 12px; }
+      .template > span { display: grid; gap: 3px; }
+      .template-meta { display: block; color: var(--studio-muted); font-size: 12px; }
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 2px 8px; font-size: 11px; background: var(--studio-panel); }
       .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
