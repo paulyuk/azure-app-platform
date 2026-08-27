@@ -96,6 +96,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .terminal { margin-top: 16px; border: 1px solid #202a3b; border-radius: 8px; overflow: hidden; background: #0b1120; }
       .terminal-head { padding: 7px 10px; border-bottom: 1px solid #202a3b; color: #a9b5ca; font: 600 11px ui-monospace, monospace; }
       .terminal pre { margin: 0; min-height: 96px; max-height: 260px; overflow: auto; padding: 10px; color: #dbe5f7; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .lifecycle-actions button { flex: 1 1 180px; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
@@ -691,9 +693,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
           '<div class="badges" id="entrypoints"></div>' +
           '<div id="local-guidance"></div>' +
-          '<button type="button" id="local-action" data-app-command="run-local">Run locally</button> ' +
-          '<button type="button" data-app-command="provision-cloud">Provision with azd</button> ' +
-          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button>' +
+          '<div class="lifecycle-actions">' +
+          '<button type="button" id="local-action" data-app-command="run-local">Run locally</button>' +
+          '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
+          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div>' +
           '<div class="terminal"><div class="terminal-head"><span>Local terminal</span></div><pre id="local-output">Waiting for local app output.</pre></div></section>' +
           '<section><h3>App Map</h3><p>' + escape(graphSummary) +
           '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
@@ -795,7 +798,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             if (button.dataset.appCommand === "run-local") {
               const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
               if (!readiness.ready) {
-                throw new Error(readiness.guidance);
+                await request("/api/tier-action", {
+                  method: "POST",
+                  body: JSON.stringify({ tierId: "gateway", root: result.worktreePath, includeAzure: true })
+                });
+                clearStatus("Local startup needs a gateway and model. AI Gateway Studio opened for setup.");
+                return;
               }
             }
             const commandResult = await request("/api/app-command", {
