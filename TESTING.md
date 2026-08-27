@@ -32,6 +32,18 @@ cd -
 uv run python -m compileall src/agent src/skills
 ```
 
+PowerShell (`cd -` isn't valid; use `Push-Location`/`Pop-Location`):
+
+```powershell
+Push-Location src/sandbox/prequal
+uv run pytest -q
+Pop-Location
+Push-Location src/workflows/loan-approval
+uv run pytest -q
+Pop-Location
+uv run python -m compileall src/agent src/skills
+```
+
 ## 3. Unity Studio canvas (local Copilot extension, no Azure)
 
 Open this repository in GitHub Copilot, reload extensions, then ask Copilot to
@@ -84,7 +96,28 @@ cd src/agent
 uv run main.py
 ```
 
-In another terminal:
+Watch its startup log: it now prints one line per MCP tool source
+(`inventory-search`, `trade-in-value`, `rate-sheet`, `deal-doc`, or the
+Foundry Toolbox if `TOOLBOX_ENDPOINT` is set) — `CONNECTED, discovered N
+tool(s)` or `FAILED to connect/discover tools`. **A model-only smoke test
+(below) succeeds even if every tool failed to connect** — the model call
+doesn't need tools, so a green gateway reply here is not proof the agent's
+tools are wired up. If any tool line says `FAILED`, start the four Hosted
+Skills first (see the next subsection) before trusting a tool-using prompt.
+
+In another terminal (PowerShell — `curl` in PowerShell is an alias for
+`Invoke-WebRequest`, whose parameters differ from real curl, so use
+`curl.exe` explicitly to get actual curl syntax, and `python -m json.tool`
+since `jq` usually isn't installed on Windows):
+
+```powershell
+curl.exe -sS -X POST http://127.0.0.1:8088/responses `
+  -H "Content-Type: application/json" `
+  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' |
+  python -c "import json,sys; d=json.load(sys.stdin); print(next(i for i in d[\"output\"] if i[\"type\"]==\"message\")[\"content\"][0][\"text\"])"
+```
+
+macOS/Linux:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
@@ -95,21 +128,72 @@ curl -sS -X POST http://127.0.0.1:8088/responses \
 
 The raw response also includes a `"type":"reasoning"` item with a long
 `encrypted_content` blob — that's the model's encrypted chain-of-thought
-trace, opaque by design. The `jq` filter above prints just the assistant's
+trace, opaque by design. The commands above print just the assistant's
 reply text.
+
+### Start the 4 Hosted Skills for real tool calls
+
+The smoke test above only proves the AI Gateway model path works. To
+actually exercise `inventory-search`, `trade-in-value`, `rate-sheet`, and
+`deal-doc` (the tools `deal-finder` calls), each one needs to be running
+locally as its own `func start` process — the agent does **not** run them
+in-process or fall back silently, so a tool-using prompt (e.g. "Find me an
+EV under $40,000...") fails with `MCP server failed to initialize` until
+all four are up. Full setup, ports, and credentials are in
+[`src/skills/README.md`](src/skills/README.md) "Run the Hosted Skills
+locally" — the short version, one-time configuration per skill. `uv run`
+creates and syncs `.venv` from each skill's `pyproject.toml` automatically:
+
+```bash
+cd src/skills/inventory-search   # then trade-in-value, rate-sheet, deal-doc
+cp local.settings.json.example local.settings.json
+# edit local.settings.json: copy AZURE_AI_GATEWAY_ENDPOINT / AZURE_AI_GATEWAY_API_KEY
+# in from src/agent/.env (each skill makes its own small model call)
+```
+
+PowerShell equivalent:
+
+```powershell
+cd src/skills/inventory-search   # then trade-in-value, rate-sheet, deal-doc
+Copy-Item local.settings.json.example local.settings.json
+# edit local.settings.json: copy AZURE_AI_GATEWAY_ENDPOINT / AZURE_AI_GATEWAY_API_KEY
+# in from src/agent/.env (each skill makes its own small model call)
+```
+
+Then start all four in separate terminals (same on Windows and macOS/Linux,
+`func` is the Azure Functions Core Tools CLI either way):
+
+```bash
+cd src/skills/inventory-search && uv run func start --port 7071
+cd src/skills/trade-in-value    && uv run func start --port 7072
+cd src/skills/rate-sheet        && uv run func start --port 7073
+cd src/skills/deal-doc          && uv run func start --port 7074
+```
+
+For a normal Windows dev-test loop, `.\scripts\dev-start.ps1` automates
+these README steps: package-index selection, Azurite startup,
+`local.settings.json` creation from `src/agent/.env`, all four
+`uv run func start` commands, readiness checks, then agent and web startup
+in that order. Azurite runs with `--inMemoryPersistence`, so local skill-test
+storage is discarded on stop and nothing is written into the worktree.
+
+macOS/Linux uses the equivalent POSIX scripts:
+
+```bash
+./scripts/dev-start.sh
+# test at http://localhost:3000
+./scripts/dev-stop.sh
+```
+
+Restart `uv run main.py` (or just re-send a tool-using prompt — the agent
+reconnects per-request) once all four show `CONNECTED, discovered N tool(s)`
+in the agent's own startup log.
 
 Verified on August 26, 2026 against
 `https://aigw-unity-d7xjkqcu.azure-api.net/`, using the `gpt-latest`
 deployment. The completed response was:
 
 > Electric vehicles can reduce fuel and maintenance costs.
-
-The agent's tool wiring auto-detects: with no `TOOLBOX_ENDPOINT` set, it
-connects to the four Hosted Skills over real MCP at
-`http://localhost:707{1..4}` (each is a real Azure Functions app started with
-`func start` — see `src/skills/README.md` "Run the Hosted Skills locally").
-Set `TOOLBOX_ENDPOINT` (and `TOOLBOX_NAME`) once a real Foundry Toolbox is
-provisioned to switch to it instead.
 
 To tear down this standalone slice:
 

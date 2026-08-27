@@ -4,3 +4,5 @@
 **/.venv/
 __pycache__/
 *.pyc
+.dev-run/
+**/local.settings.json

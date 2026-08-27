@@ -23,7 +23,9 @@ POC scaffold for Unity Demo #1's **Hosted Skills tier** (plan §5.3 row ④, plu
     <tool_logic>.py          # pure logic + one @tool-decorated wrapper (auto-discovered)
   host.json
   local.settings.json.example
-  requirements.txt            # azurefunctions-agents-runtime
+  pyproject.toml              # uv project + azurefunctions-agents-runtime
+  uv.lock                     # locked local development dependencies
+  requirements.txt            # Azure Functions deployment dependencies
 ```
 
 `tools/*.py` holds the pure business logic functions (unit-test friendly) plus one `@tool`-decorated function per skill; the runtime auto-discovers every `@tool` in `tools/` and wires it into whichever agent(s) declare it. `function_app.py` is just `create_function_app()` — the runtime does the rest: it reads `agents/<skill>.agent.md`, registers the declared `http_trigger`, and (because `builtin_endpoints.mcp: true`) also exposes the skill as a real MCP tool server at `/runtime/webhooks/mcp`.
@@ -56,14 +58,44 @@ Per the platform plan, these Functions apps are exposed as MCP tools through a t
 
 ## Run the Hosted Skills locally
 
-Each skill runs as its own `func start` process on its own port (`inventory-search` → `7071`, `trade-in-value` → `7072`, `rate-sheet` → `7073`, `deal-doc` → `7074` — matches `LOCAL_SKILL_PORTS` in `src/agent/main.py`). One-time per skill:
+Prerequisites:
+
+- Azure Functions Core Tools (`func`)
+- Azurite (`npm install -g azurite`), because each local skill uses
+  `AzureWebJobsStorage=UseDevelopmentStorage=true`
+
+Start Azurite before starting the skills:
+
+```bash
+azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry
+```
+
+The local emulator is intentionally ephemeral. No skill-test storage is
+persisted in the worktree; stopping Azurite discards it.
+`--skipApiVersionCheck` is required when the current Azure Functions Storage
+client requests an API version newer than the installed Azurite release
+recognizes.
+
+Each skill is its own uv project and runs as its own `func start` process on
+its own port (`inventory-search` → `7071`, `trade-in-value` → `7072`,
+`rate-sheet` → `7073`, `deal-doc` → `7074` — matches `LOCAL_SKILL_PORTS` in
+`src/agent/main.py`). Run from inside each skill folder and let uv create and
+sync `.venv` from `pyproject.toml`:
 
 ```bash
 cd src/skills/<skill>
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 cp local.settings.json.example local.settings.json
-func start --port 7071   # 7072 / 7073 / 7074 for the other three skills
+# Fill in the gateway values described below.
+uv run func start --port 7071   # 7072 / 7073 / 7074 for the other three skills
+```
+
+PowerShell:
+
+```powershell
+cd src\skills\<skill>
+Copy-Item local.settings.json.example local.settings.json
+# Fill in the gateway values described below.
+uv run func start --port 7071   # 7072 / 7073 / 7074 for the other three skills
 ```
 
 Each Hosted Skill is itself a tiny chat agent: it makes its own model call (via
@@ -122,3 +154,10 @@ curl -sS -X POST http://localhost:7071/runtime/webhooks/mcp \
 ```
 
 Start all 4 skills (4 terminals or background processes) before starting `src/agent` — see `src/agent/README.md`.
+
+On Windows, `scripts/dev-start.ps1` automates the same sequence: resolve the
+documented uv package index, start Azurite, create each missing
+`local.settings.json` from `src/agent/.env`, run all four skills through
+`uv run func start`, wait for their ports, then start the agent and web app.
+On macOS/Linux, `scripts/dev-start.sh` and `scripts/dev-stop.sh` provide the
+same behavior and command order.

@@ -156,14 +156,18 @@ export default function HomePage() {
                 ? "bg-amber-500 text-white"
                 : lastSource === "agent"
                   ? "bg-emerald-600 text-white"
-                  : "bg-slate-900 text-white"
+                  : lastSource === "agent_error"
+                    ? "bg-red-600 text-white"
+                    : "bg-slate-900 text-white"
             }`}
           >
             {lastSource === "mock"
               ? "⚠ Mock agent (no live agent reachable)"
               : lastSource === "agent"
                 ? "● Live agent"
-                : "Waiting for first reply…"}
+                : lastSource === "agent_error"
+                  ? "✖ Live agent reachable, turn failed (see error)"
+                  : "Waiting for first reply…"}
           </span>
         </div>
       </header>

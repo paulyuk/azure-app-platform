@@ -20,6 +20,12 @@ dependencies automatically — no `--with`/`--with-requirements` flags, and no
 `python` prefix needed to run a script (`uv run main.py`, not
 `uv run python main.py`).
 
+The four Hosted Skills (`inventory-search`, `trade-in-value`, `rate-sheet`,
+`deal-doc`) are also uv projects. Each owns a `pyproject.toml` for local
+development and keeps `requirements.txt` for Azure Functions deployment.
+From inside a skill folder, use `uv run func start --port <port>`; uv creates
+and syncs `.venv` automatically.
+
 ```bash
 # Python checks
 cd src/sandbox/prequal
@@ -28,6 +34,18 @@ cd -
 cd src/workflows/loan-approval
 uv run pytest -q
 cd -
+uv run python -m compileall src/agent src/skills
+```
+
+PowerShell (`cd -` isn't valid; use `Push-Location`/`Pop-Location`):
+
+```powershell
+Push-Location src/sandbox/prequal
+uv run pytest -q
+Pop-Location
+Push-Location src/workflows/loan-approval
+uv run pytest -q
+Pop-Location
 uv run python -m compileall src/agent src/skills
 ```
 
@@ -92,8 +110,11 @@ Watch the badge in the top-right of the page header: it reads the actual
 per-response `source` reported by `/api/chat`, not a guess from env vars —
 **"● Live agent"** (green) means the reply came from the real agent, while
 **"⚠ Mock agent (no live agent reachable)"** (amber) means it silently fell
-back (e.g. the agent process isn't running, or it didn't respond before the
-30s timeout).
+back because nothing is listening on the agent port, and **"✖ Live agent
+reachable, turn failed"** (red) means the agent process itself answered but
+the turn failed server-side — most commonly its MCP tool sources (the
+Hosted Skills below) aren't connected yet. The chat bubble shows the actual
+error message in that case; see "Start the Hosted Skills locally" below.
 
 To force one mode instead of auto-detecting, set `NEXT_PUBLIC_MOCK` in
 `src/web/.env.local` (copy from `.env.example`): `1` always mocks,
@@ -107,15 +128,30 @@ somewhere to land. Unless `TOOLBOX_ENDPOINT` is set in `src/agent/.env` (a
 real Foundry Toolbox has been deployed), the agent expects each of the four
 Hosted Skills to be running **locally as its own `func start` process** on
 its own port — it does **not** run them in-process or fall back silently.
+Watch the agent's own startup log for a `CONNECTED, discovered N tool(s)` or
+`FAILED to connect/discover tools` line per skill; that tells you immediately
+which of the four (if any) aren't up, without needing a tool-using prompt
+first.
 
-One-time setup per skill (repeat for all four: `inventory-search`,
-`trade-in-value`, `rate-sheet`, `deal-doc`):
+One-time configuration per skill (repeat for all four: `inventory-search`,
+`trade-in-value`, `rate-sheet`, `deal-doc`). Dependency setup is automatic:
+`uv run` creates and syncs `.venv` from the skill's `pyproject.toml`.
 
 ```bash
 cd src/skills/<skill>
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 cp local.settings.json.example local.settings.json
+# edit local.settings.json: copy in your AZURE_AI_GATEWAY_ENDPOINT /
+# AZURE_AI_GATEWAY_API_KEY from src/agent/.env — each skill runs its own tiny
+# model call and defaults to routing it through the same AI Gateway the agent
+# uses, no az login or Foundry project needed. See src/skills/README.md for
+# the Foundry-project alternative.
+```
+
+PowerShell:
+
+```powershell
+cd src/skills/<skill>
+Copy-Item local.settings.json.example local.settings.json
 # edit local.settings.json: copy in your AZURE_AI_GATEWAY_ENDPOINT /
 # AZURE_AI_GATEWAY_API_KEY from src/agent/.env — each skill runs its own tiny
 # model call and defaults to routing it through the same AI Gateway the agent
@@ -131,32 +167,48 @@ Terminal A — `inventory-search`:
 
 ```bash
 cd src/skills/inventory-search
-source .venv/bin/activate
-func start --port 7071
+uv run func start --port 7071
+```
+
+```powershell
+cd src/skills/inventory-search
+uv run func start --port 7071
 ```
 
 Terminal B — `trade-in-value`:
 
 ```bash
 cd src/skills/trade-in-value
-source .venv/bin/activate
-func start --port 7072
+uv run func start --port 7072
+```
+
+```powershell
+cd src/skills/trade-in-value
+uv run func start --port 7072
 ```
 
 Terminal C — `rate-sheet`:
 
 ```bash
 cd src/skills/rate-sheet
-source .venv/bin/activate
-func start --port 7073
+uv run func start --port 7073
+```
+
+```powershell
+cd src/skills/rate-sheet
+uv run func start --port 7073
 ```
 
 Terminal D — `deal-doc`:
 
 ```bash
 cd src/skills/deal-doc
-source .venv/bin/activate
-func start --port 7074
+uv run func start --port 7074
+```
+
+```powershell
+cd src/skills/deal-doc
+uv run func start --port 7074
 ```
 
 Each one logs both an HTTP route and a real MCP tool trigger once it's up:
@@ -246,3 +298,17 @@ or hardcode it directly if `pip3 config list` returns nothing:
 export UV_INDEX_URL=https://packagefeedproxy.microsoft.io/pypi/simple/
 export UV_DEFAULT_INDEX=https://packagefeedproxy.microsoft.io/pypi/simple/
 ```
+
+PowerShell:
+
+```powershell
+$env:UV_INDEX_URL = python -m pip config get global.index-url 2>$null
+if (-not $env:UV_INDEX_URL) {
+  $env:UV_INDEX_URL = "https://packagefeedproxy.microsoft.io/pypi/simple/"
+}
+$env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
+```
+
+`scripts/dev-start.ps1` automates this exact resolution before starting any
+component: it respects an existing uv index, otherwise uses pip's configured
+index, otherwise falls back to the Microsoft package feed proxy.

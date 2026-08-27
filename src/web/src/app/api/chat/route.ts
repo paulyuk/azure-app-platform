@@ -1,5 +1,5 @@
 import { buildMockScenario } from "@/lib/mock-agent";
-import { fetchAgentReply } from "@/lib/agent-client";
+import { AgentClientError, fetchAgentReply } from "@/lib/agent-client";
 import type { ChatApiRequest, ChatStreamEvent, MockScenario, ReplySource } from "@/lib/types";
 
 const encoder = new TextEncoder();
@@ -51,12 +51,12 @@ export async function POST(request: Request) {
       scenario = { assistantReply, stage: body.stage ?? "idle" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (forceLive) {
-        source = "agent";
-        agentError = message;
-        scenario = { assistantReply: "", stage: body.stage ?? "idle" };
-      } else {
-        // Default mode: agent not reachable, fall back to mock.
+      const isUnreachable = error instanceof AgentClientError && error.kind === "unreachable";
+
+      if (isUnreachable && !forceLive) {
+        // Default mode, agent process unreachable (nothing listening on the
+        // port): this is the "agent isn't running locally" dev experience —
+        // fall back to mock silently.
         console.warn(`[api/chat] Agent unreachable, falling back to mock: ${message}`);
         source = "mock";
         scenario = buildMockScenario({
@@ -65,6 +65,15 @@ export async function POST(request: Request) {
           command: body.command,
           stage: body.stage
         });
+      } else {
+        // The agent process IS live but the turn itself failed (most
+        // commonly its MCP tool sources didn't initialize), or NEXT_PUBLIC_MOCK=0
+        // forces every failure to surface as-is. Either way, don't silently
+        // swap in mock content — that would misreport "no agent" when the
+        // real problem is a broken dependency of a running agent.
+        source = "agent_error";
+        agentError = message;
+        scenario = { assistantReply: "", stage: body.stage ?? "idle" };
       }
     }
   }

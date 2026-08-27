@@ -9,11 +9,23 @@ infra:
 
 hooks:
   preprovision:
-    shell: sh
-    run: bash ./scripts/manage-ai-gateway-lifecycle.sh prepare
+    posix:
+      shell: sh
+      run: bash ./scripts/manage-ai-gateway-lifecycle.sh prepare
+    windows:
+      shell: pwsh
+      run: ./scripts/manage-ai-gateway-lifecycle.ps1 prepare
   postprovision:
-    shell: sh
-    run: bash ./scripts/configure-ai-gateway.sh
+    posix:
+      shell: sh
+      run: bash ./scripts/configure-ai-gateway.sh
+    windows:
+      shell: pwsh
+      run: ./scripts/configure-ai-gateway.ps1
   postdown:
-    shell: sh
-    run: bash ./scripts/manage-ai-gateway-lifecycle.sh cleanup
+    posix:
+      shell: sh
+      run: bash ./scripts/manage-ai-gateway-lifecycle.sh cleanup
+    windows:
+      shell: pwsh
+      run: ./scripts/manage-ai-gateway-lifecycle.ps1 cleanup

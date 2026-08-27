@@ -21,6 +21,7 @@ services:
   agent:
     project: ./src/agent
     host: azure.ai.agent
+    name: deal-finder
     language: docker
     kind: hosted
     docker:

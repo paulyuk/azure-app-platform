@@ -1,0 +1,11 @@
+[project]
+name = "unity-inventory-search-skill"
+version = "0.1.0"
+description = "Inventory search Hosted Skill for Unity Demo #1"
+requires-python = ">=3.11"
+dependencies = [
+    "azurefunctions-agents-runtime",
+]
+
+[tool.uv]
+package = false
