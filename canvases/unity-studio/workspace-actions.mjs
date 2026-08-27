@@ -1,8 +1,11 @@
 import { basename } from "node:path";
+import { dirname, join } from "node:path";
+import { mkdtemp } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
 import { EMPTY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
+import { materializeTemplate } from "./template-materializer.mjs";
 
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
@@ -342,8 +345,8 @@ export async function requestAppWorkspace({
   sourceCatalog,
   azureCatalog,
 }) {
-  if (!session?.send) {
-    throw new Error("The current Copilot session cannot receive workspace requests.");
+  if (!session?.send && !session?.rpc?.sessions?.open) {
+    throw new Error("The current Copilot session cannot create workspace requests.");
   }
   const request = normalizeWorkspaceRequest(input);
   const branchResult = await commandRunner("git", ["-C", workspaceRoot, "branch", "--show-current"]);
@@ -398,10 +401,19 @@ export async function requestAppWorkspace({
       }
     }
   }
-  const prompt = buildWorkspaceRequestPrompt(request, {
-    baseBranch,
-    workspaceRoot,
-  });
+  if (request.starterKind === "template") {
+    return createTemplateWorkspace({
+      session,
+      workspaceRoot,
+      baseBranch,
+      request,
+      commandRunner,
+    });
+  }
+  if (!session?.send) {
+    throw new Error("The current Copilot session cannot receive assembly requests.");
+  }
+  const prompt = buildWorkspaceRequestPrompt(request, { baseBranch, workspaceRoot });
   const messageId = await session.send({ prompt });
   return {
     outcome: "workspace-requested",
@@ -419,6 +431,84 @@ export async function requestAppWorkspace({
     specialistCanvases: specialistCanvases(request.tierIds),
     openInVsCode: request.openInVsCode,
   };
+}
+
+function appSlug(appName) {
+  return appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+
+async function createTemplateWorkspace({
+  session,
+  workspaceRoot,
+  baseBranch,
+  request,
+  commandRunner,
+}) {
+  if (!session?.rpc?.sessions?.open) {
+    throw new Error("The current Copilot host does not support deterministic child session creation.");
+  }
+  const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
+  const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}`;
+  const worktree = await commandRunner("git", [
+    "-C",
+    workspaceRoot,
+    "worktree",
+    "add",
+    "-b",
+    branch,
+    destination,
+    baseBranch,
+  ]);
+  if (!worktree.ok) {
+    throw new Error(`Could not create the app worktree: ${worktree.stderr || worktree.error || "unknown error"}`);
+  }
+  try {
+    const materialized = await materializeTemplate({
+      appName: request.appName,
+      purpose: request.purpose,
+      tierIds: request.tierIds,
+      templateInputs: request.templateInputs,
+      sourcePlan: request.sourcePlan[0],
+    }, { destination, commandRunner });
+    const opened = await session.rpc.sessions.open({
+      kind: "create",
+      options: {
+        name: `${request.appName} Unity app`,
+        model: "gpt-5.6-sol",
+        reasoningEffort: "max",
+        workingDirectory: destination,
+      },
+    });
+    if (opened.status !== "created" || !opened.sessionId) {
+      throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
+    }
+    if (request.openInVsCode) {
+      const code = await commandRunner("code", ["--new-window", destination], { timeout: 10_000 });
+      if (!code.ok) {
+        throw new Error(`The app was created, but VS Code could not be opened: ${code.stderr || code.error || "unknown error"}`);
+      }
+    }
+    return {
+      outcome: "workspace-created",
+      sessionId: opened.sessionId,
+      worktreePath: destination,
+      branch,
+      app: {
+        name: request.appName,
+        mode: request.mode,
+        tierIds: request.tierIds,
+        journey: request.journey,
+        starterKind: request.starterKind,
+        sourcePlan: request.sourcePlan,
+        materialized,
+      },
+      specialistCanvases: specialistCanvases(request.tierIds),
+      openInVsCode: request.openInVsCode,
+    };
+  } catch (error) {
+    await commandRunner("git", ["-C", workspaceRoot, "worktree", "remove", "--force", destination]);
+    throw error;
+  }
 }
 
 export async function openWorkspaceInVsCode({

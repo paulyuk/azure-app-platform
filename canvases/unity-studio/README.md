@@ -61,17 +61,15 @@ from static metadata.
 - `discover_platform` inventories tier implementations from source projects and
   optional read-only Azure inventory in the active CLI subscription. Results
   include an implementation inventory grouped by tier.
-- `request_app_workspace` validates a blank, template, or assembly request and
-  resolves opaque source IDs immediately before delegation. Templates hydrate
-  from a pinned commit. Assemblies copy selected clean commit snapshots or dirty
-  working-tree snapshots into the destination; they never symlink to or modify
-  the source. The child session creates `unity.app.yaml`, a runnable local
-  vertical slice, focused tests, and concrete production next steps.
+- `request_app_workspace` validates a template or assembly request and resolves
+  opaque source IDs immediately before execution. Template requests create a Git
+  worktree, hydrate the pinned template, open a named child session through the
+  session RPC, and optionally launch VS Code without sending a creation prompt
+  to chat. Assemblies still use a structured model handoff because integrating
+  independently built projects requires semantic decisions.
 
-The extension SDK cannot register an app-native project session/worktree, so
-the foreground agent remains a narrow bridge to `create_session`. The child
-kickoff then runs one exact local materializer command. Model reasoning is
-reserved for semantic domain rewrites, user-defined tool contracts, integrating
+The exact materializer owns known template files. Model reasoning is reserved
+for semantic domain rewrites, user-defined tool contracts, integrating
 independently built source projects, adding non-template capabilities, and
 troubleshooting—not known-file creation.
 - `build_capability` adds or improves one tier in the current app worktree,

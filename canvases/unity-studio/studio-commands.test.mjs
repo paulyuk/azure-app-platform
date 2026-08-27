@@ -27,6 +27,7 @@ import {
   runDoctor,
 } from "./studio-commands.mjs";
 import {
+  EMPTY_TEMPLATE,
   listSourceCatalog,
   parseWorktrees,
   resolveSourcePlan,
@@ -356,35 +357,47 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
     assert.match(prompt, /Never fetch from files\.pythonhosted\.org/);
   });
 
-  test("workspace action delegates once with a trimmed current branch", async () => {
-    const sent = [];
-    const result = await requestAppWorkspace({
-      session: {
-        send: async (input) => {
-          sent.push(input);
-          return "message-1";
+  test("template workspace creation is deterministic and does not send a chat prompt", async () => {
+    await withFixture({}, async (root) => {
+      const commands = [];
+      const result = await requestAppWorkspace({
+        session: {
+          rpc: {
+            sessions: {
+              open: async (params) => {
+                assert.equal(params.kind, "create");
+                assert.equal(params.options.model, "gpt-5.6-sol");
+                assert.equal(params.options.reasoningEffort, "max");
+                return { status: "created", sessionId: "child-session-1" };
+              },
+            },
+          },
         },
-      },
-      workspaceRoot: "/repo",
-      input: {
-        appName: "claims",
-        purpose: "Review claims",
-        tierIds: ["agent", "gateway"],
-        openInVsCode: true,
-      },
-      commandRunner: async (command, args) => {
-        assert.equal(command, "git");
-        assert.deepEqual(args, ["-C", "/repo", "branch", "--show-current"]);
-        return { ok: true, stdout: "feature/unity\n", stderr: "" };
-      },
-    });
+        workspaceRoot: root,
+        input: {
+          appName: "claims",
+          purpose: "Review claims",
+          tierIds: ["agent", "gateway"],
+          openInVsCode: true,
+        },
+        sourceCatalog: { roots: [], templates: [EMPTY_TEMPLATE] },
+        commandRunner: async (command, args) => {
+          commands.push([command, args]);
+          if (args.includes("--show-current")) {
+            return { ok: true, stdout: "feature/unity\n", stderr: "" };
+          }
+          return { ok: true, stdout: "", stderr: "" };
+        },
+      });
 
-    assert.equal(result.outcome, "workspace-requested");
-    assert.equal(result.messageId, "message-1");
-    assert.deepEqual(result.app.tierIds, ["web", "agent", "gateway", "skills"]);
-    assert.equal(sent.length, 1);
-    assert.match(sent[0].prompt, /"baseBranch": "feature\/unity"/);
-    assert.equal(sent[0].prompt.includes("feature/unity\\n"), false);
+      assert.equal(result.outcome, "workspace-created");
+      assert.equal(result.sessionId, "child-session-1");
+      assert.equal(result.app.tierIds.includes("agent"), true);
+      assert.equal(commands.some(([command, args]) =>
+        command === "git" && args.includes("worktree") && args.includes("add")), true);
+      assert.equal(commands.some(([command]) => command === "code"), true);
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
   });
 
 test("source catalog parses worktrees and excludes internal projects", async () => {

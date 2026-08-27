@@ -36,16 +36,14 @@ instance. Each choice shows its repository/worktree, branch, project path, and
 clean or modified state. Compatible Azure resources are an optional mapping
 step after source selection, not the primary source of truth.
 
-Both journeys end with a review and a delegated app-native worktree request.
-The UI reports that the request was sent; it does not claim that a workspace was
-created before the host returns that result.
+Both journeys end with a review. Template creation follows a deterministic
+worktree/materialization/session path; assembly creation remains a structured
+model handoff because source integration requires semantic decisions.
 
 ### Deterministic versus model-driven work
 
-The extension SDK cannot directly register an app-native project session or
-worktree. The foreground model is therefore used only to call the host's
-`create_session` operation. Once the child worktree exists,
-`template-materializer.mjs` performs deterministic local materialization:
+Template creation uses the session RPC to create the child session directly,
+then `template-materializer.mjs` performs deterministic local materialization:
 
 - empty template: copy checked-in files, substitute validated user inputs,
   rename the one Hosted Skill, and set script permissions;
@@ -134,12 +132,10 @@ the source. Absolute local paths are transport data and must not be written to
   projects and Azure resources and returns the combined tier inventory.
 - `list_source_roots` returns source-picker data for current/sibling worktrees
   and session-authorized folders. No source is selected automatically.
-- `request_app_workspace` validates an app workspace request and sends a
-  structured, data-delimited handoff to the foreground Copilot agent. The agent
-  must call the app-native `create_session` operation with a new worktree,
-  selected tier kickoff, Unity Studio, registered specialist canvases, and an
-  optional VS Code launch. The loopback endpoint returns HTTP 202 and
-  `workspace-requested`; this means delegated, not created.
+- `request_app_workspace` creates template worktrees and child sessions directly
+  through session RPC, runs the exact materializer, and optionally launches VS
+  Code. It returns `workspace-created`. Assembly requests use the structured
+  foreground-agent handoff and return `workspace-requested`.
 - `open_in_vscode` resolves an explicit repository path inside the current
   workspace before invoking `code --new-window`, with the macOS application
   launcher as a fallback.
@@ -158,11 +154,11 @@ Canvas buttons invoke the same action implementations as external callers.
 Registration checks and stable instance IDs make studio activation
 deterministic. Validation and RPC failures are surfaced explicitly.
 
-The extension SDK can open canvases in the current session but cannot directly
-create app-native project sessions or worktrees. Workspace creation therefore
-uses `session.send()` to hand the validated request to the foreground agent,
-which owns the native session operation. This boundary preserves the visible
-project/worktree UX instead of creating an SDK-only child process.
+Template creation does not use `session.send()` or a model-generated creation
+prompt. It creates a Git worktree and opens the child session through the
+host-provided session RPC, preserving the visible project/worktree UX while
+keeping known-file creation deterministic. Assembly remains the deliberate
+model boundary.
 
 ## Scaffold recipes
 

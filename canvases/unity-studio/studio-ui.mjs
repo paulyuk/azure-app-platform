@@ -528,7 +528,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               azureResourceIds: draft.azureBindings[tierId] ? [draft.azureBindings[tierId]] : []
             }))
           : [];
-        setBusy(true, "Requesting workspace…");
+        setBusy(true, "Creating workspace…");
         try {
           await request("/api/workspace-request", {
             method: "POST",
@@ -544,9 +544,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               openInVsCode: draft.openInVsCode
             })
           });
-          app.innerHTML = '<div class="eyebrow">Workspace request sent</div><h1>Copilot is creating ' +
-            escape(draft.appName) + '</h1><p>The new project session and worktree will appear in the project UI. ' +
-            'Unity Studio will not claim it is created until the host returns that result.</p>' +
+          app.innerHTML = '<div class="eyebrow">Workspace created</div><h1>' +
+            escape(draft.appName) + ' is ready</h1><p>The deterministic template materializer created the worktree and ' +
+            'child session directly. Registered specialist canvases are preloaded for the selected tiers.</p>' +
             '<button type="button" id="done">Back to start</button>';
           document.getElementById("done").addEventListener("click", renderLanding);
           clearStatus();
