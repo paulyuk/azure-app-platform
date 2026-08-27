@@ -4,6 +4,68 @@ The web app, Python tests, canvas, and IaC build checks work without an Azure
 deployment. The AI Gateway test requires Azure credentials and permission to
 create resources in the target subscription.
 
+## Rapid path: real AI Gateway + full local live stack
+
+Use this path for the normal end-user dev test. It starts every local piece in
+the required order: in-memory Azurite, all four Hosted Skills/MCP servers, the
+deal-finder agent, then the web app. The scripts wait for each layer to be
+ready before starting the next one and print every endpoint and log path.
+
+Prerequisites:
+
+- `az`, `azd`, `uv`, Node.js/npm, Azure Functions Core Tools (`func`), and
+  Azurite (`npm install -g azurite`)
+- Azure access and model quota described in section 4
+
+First provision or select the standalone AI Gateway environment. This creates
+the gitignored `src/agent/.env` consumed by the local stack:
+
+```powershell
+cd infra-ai-gateway
+azd env new unity-poc-aigateway      # first run only
+# azd env select unity-poc-aigateway # later runs
+azd provision
+cd ..
+```
+
+Then start everything from the repository root:
+
+```powershell
+.\scripts\dev-start.ps1
+```
+
+Open <http://localhost:3000> and use:
+
+> Find me an EV under $40,000 with at least 250 miles of range
+
+The startup script includes the standard Azurite compatibility workaround:
+`--skipApiVersionCheck`. This is required when the current Functions Storage
+client requests API version `2026-06-06`, which Azurite may reject even though
+MCP tool discovery succeeds. Azurite also runs with
+`--inMemoryPersistence`, so stopping the stack discards all emulator data.
+
+Logs are under `.dev-run/logs/`. The agent log should report
+`CONNECTED, discovered 1 tool(s)` for each of the four skills. Stop and clean
+up all tracked processes and known ports with:
+
+```powershell
+.\scripts\dev-stop.ps1
+```
+
+macOS/Linux uses the same flow and behavior:
+
+```bash
+cd infra-ai-gateway
+azd env new unity-poc-aigateway      # first run only
+# azd env select unity-poc-aigateway # later runs
+azd provision
+cd ..
+
+./scripts/dev-start.sh
+# test at http://localhost:3000
+./scripts/dev-stop.sh
+```
+
 ## 1. Web app (local, no Azure)
 
 ```bash
