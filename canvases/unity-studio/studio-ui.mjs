@@ -545,7 +545,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           : [];
         setBusy(true, "Creating workspace…");
         try {
-          await request("/api/workspace-request", {
+          const result = await request("/api/workspace-request", {
             method: "POST",
             body: JSON.stringify({
               journey: draft.journey,
@@ -559,9 +559,15 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               openInVsCode: draft.openInVsCode
             })
           });
+          const sessionStatus = result.sessionRegistration === "created"
+            ? "A new child session was registered."
+            : "This host cannot register child sessions, so the worktree was created directly.";
           app.innerHTML = '<div class="eyebrow">Workspace created</div><h1>' +
             escape(draft.appName) + ' is ready</h1><p>The deterministic template materializer created the worktree directly. ' +
-            'The host will show a child session when that capability is available; the worktree is ready to use in VS Code.</p>' +
+            escape(sessionStatus) + '</p><div class="summary"><section><h3>Worktree</h3><code>' +
+            escape(result.worktreePath || "Unavailable") + '</code></section><section><h3>Session</h3><p>' +
+            escape(result.sessionId || "No child session; use the worktree directly") + '</p></section><section><h3>Specialist canvases</h3><p>' +
+            escape((result.specialistCanvases || []).join(", ") || "None registered") + '</p></section></div>' +
             '<button type="button" id="done">Back to start</button>';
           document.getElementById("done").addEventListener("click", renderLanding);
           clearStatus();
