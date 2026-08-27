@@ -1046,7 +1046,7 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     assert.equal(graph.edges.some((edge) => edge.kind === "model-route" || edge.kind === "tool-route"), false);
 
     const rendered = renderAppMapMarkup(graph);
-    assert.match(rendered, /map-lane-head"><strong>Agent \/ Foundry Hosted Agent<\/strong>/);
+    assert.match(rendered, /map-lane-head"><strong>Agent<\/strong>/);
     assert.match(rendered, /model request <b>AI Gateway binding<\/b>/);
     assert.match(rendered, /Foundry Hosted Agent/);
     assert.match(rendered, /Foundry deploy target/);

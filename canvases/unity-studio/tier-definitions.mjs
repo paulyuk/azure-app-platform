@@ -27,7 +27,7 @@ export const PLATFORM_TIERS = Object.freeze([
   {
     id: "agent",
     name: "Agent",
-    mapLabel: "Agent / Foundry Hosted Agent",
+    mapLabel: "Agent",
     role: "Foundry Hosted Agent reasoning and tool orchestration",
     jobToBeDone: "Reason over user intent and select governed skills without fabricating tool results.",
     expectedInterfaces: ["Foundry Hosted Agent", "Responses protocol", "Agent manifest", "Tool registry"],
