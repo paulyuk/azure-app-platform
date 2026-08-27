@@ -751,14 +751,14 @@ test("VS Code launch uses the direct command and macOS fallback", async () => {
 test("guided renderer exposes create, assemble, and reopen journeys", () => {
     const html = renderStudioHtml("unity-studio", "test-token");
     for (const label of [
-      "Build a new app",
-      "Assemble existing pieces",
+      "Create from template",
+      "Assemble from existing components",
       "Empty Unity app",
       "Dealer sample",
       "One empty Hosted Skill",
       "Choose pieces",
       "Map Azure resources",
-      "Open an existing Unity app",
+      "Open existing",
     ]) {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }

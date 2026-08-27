@@ -209,14 +209,14 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         draft.journey = null;
         clearStatus();
         app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
-          '<h1>What do you want to build?</h1>' +
-          '<p>Choose one path. Unity Studio will guide the rest.</p>' +
+          '<h1>Unity apps</h1>' +
+          '<p>Create, assemble, or reopen an app. Unity Studio will guide the rest.</p>' +
           '<div class="journeys">' +
-          '<button type="button" class="journey" id="new-app"><strong>Build a new app</strong>' +
+          '<button type="button" class="journey" id="new-app"><strong>Create from template</strong>' +
           '<span>Start with an editable empty template or a complete sample that is ready to run.</span></button>' +
-          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
+          '<button type="button" class="journey" id="assemble-app"><strong>Assemble from existing components</strong>' +
           '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
-          '<button type="button" class="journey" id="open-app"><strong>Open an existing Unity app</strong>' +
+          '<button type="button" class="journey" id="open-app"><strong>Open existing</strong>' +
           '<span>Return to a previously created app worktree and inspect its live inventory.</span></button>' +
           '</div>';
         document.getElementById("new-app").addEventListener("click", async () => {
