@@ -771,7 +771,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('class="badges"'), true);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
-    assert.equal(html.includes("Local terminal"), true);
+    assert.equal(html.includes("Command output"), true);
     assert.equal(html.includes('request("/api/app-output?root="'), true);
     assert.equal(html.includes("Create / Manage"), true);
     assert.equal(html.includes("Configure app from active gateway"), true);
@@ -783,6 +783,36 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('const apiToken = "test-token"'), true);
     assert.match(html, /Dealer-sample-"\s*\+\s*crypto\.randomUUID\(\)\.slice\(0, 8\)/);
     assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
+});
+
+test("workspace renderer uses standard studio regions and collapsible command output", () => {
+  const html = renderStudioHtml("unity-studio", "test-token");
+  for (const expected of [
+    'class="surface configuration-region"',
+    'class="surface runtime-region"',
+    'class="surface app-map-region"',
+    'class="surface inventory-region"',
+    'id="configuration-title">Azure configuration',
+    'id="runtime-title">Local runtime',
+    'class="app-map-visual"',
+    'class="map-lanes"',
+    'class="command-panel" id="local-command-panel"',
+    'id="local-command-summary"',
+    "Selecting a gateway configures this app automatically",
+    'if (!appMap) void traceAndRender(false)',
+    "Refresh map",
+  ]) {
+    assert.equal(html.includes(expected), true, `expected ${expected}`);
+  }
+  assert.equal(html.includes('<details class="command-panel"'), true);
+  assert.equal(html.includes('<div class="terminal">'), false);
+});
+
+test("workspace renderer emits valid browser JavaScript", () => {
+  const html = renderStudioHtml("unity-studio", "test-token");
+  const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("platform discovery preserves repository results when Azure is unavailable", async () => {

@@ -22,39 +22,66 @@ export function renderStudioHtml(instanceId, apiToken = "") {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Unity Studio</title>
     <style>
-      :root { color-scheme: light dark; }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        padding: 24px 18px 48px;
-        background: var(--background-color-default, #fff);
-        color: var(--text-color-default, #1f2328);
-        font: 14px/1.5 var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+      :root {
+        color-scheme: light dark;
+        --studio-bg: var(--background-color-default, #fff);
+        --studio-panel: color-mix(in srgb, var(--background-color-default, #fff) 94%, var(--true-color-blue-muted, #ddf4ff));
+        --studio-raised: var(--background-color-default, #fff);
+        --studio-line: var(--border-color-default, #d1d9e0);
+        --studio-ink: var(--text-color-default, #1f2328);
+        --studio-muted: var(--text-color-muted, #59636e);
+        --studio-accent: #6b3fd6;
+        --studio-accent-2: #7b52e0;
+        --studio-ok: #0f9d6e;
+        --studio-warn: #b45309;
+        --studio-danger: #cf222e;
       }
-      main { width: min(100%, 680px); margin: 0 auto; }
-      h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
-      h2 { margin: 0 0 8px; font-size: 21px; }
-      h3 { margin: 0; font-size: 15px; }
-      p { margin: 6px 0 16px; color: var(--text-color-muted, #59636e); }
-      code { overflow-wrap: anywhere; font: 12px var(--font-mono, monospace); }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        padding: 28px 24px 48px;
+        background:
+          radial-gradient(1200px 600px at 100% -12%, color-mix(in srgb, var(--studio-accent) 6%, transparent), transparent),
+          var(--studio-bg);
+        color: var(--studio-ink);
+        font: var(--text-body-medium, 14px)/var(--leading-body-medium, 1.5) var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+      }
+      main { width: min(100%, 840px); margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: var(--text-title-large, 28px); line-height: var(--leading-title-large, 1.2); letter-spacing: -.01em; }
+      h2 { margin: 0 0 8px; font-size: 20px; }
+      h3 { font-size: 14px; }
+      p { margin: 6px 0 16px; color: var(--studio-muted); }
+      code { overflow-wrap: anywhere; font: var(--text-code-inline, 12px) var(--font-mono, "SFMono-Regular", Consolas, monospace); }
       button, input, textarea, select { font: inherit; }
       button {
         min-height: 40px;
-        border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 7px;
-        padding: 8px 13px;
+        border: 1px solid var(--studio-line);
+        border-radius: 10px;
+        padding: 9px 14px;
         background: transparent;
         color: inherit;
         cursor: pointer;
       }
-      button.primary { background: var(--true-color-blue, #0969da); border-color: var(--true-color-blue, #0969da); color: var(--color-white, #fff); }
-      button.link { border-color: transparent; padding-inline: 4px; color: var(--true-color-blue, #0969da); }
+      button:hover { border-color: var(--studio-accent-2); }
+      button.primary { background: var(--studio-accent); border-color: var(--studio-accent); color: var(--color-white, #fff); }
+      button.link { min-height: auto; border-color: transparent; padding-inline: 4px; color: var(--studio-accent-2); }
       button:disabled { opacity: .6; cursor: wait; }
       button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
         outline: 2px solid var(--color-focus-outline, #0969da);
         outline-offset: 2px;
       }
-      .eyebrow { color: var(--true-color-blue, #0969da); font-weight: 650; margin-bottom: 5px; }
+      .eyebrow, .section-label {
+        color: var(--studio-accent);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      .eyebrow { margin-bottom: 6px; }
+      .section-label { margin: 22px 0 7px; }
+      .workspace-intro { margin-bottom: 22px; }
+      .workspace-intro p { margin-bottom: 8px; }
+      .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+      .workspace-path { color: var(--studio-muted); }
       .journeys { display: grid; gap: 12px; margin-top: 24px; }
       .journey {
         width: 100%;
@@ -62,25 +89,25 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         padding: 18px;
         text-align: left;
         display: block;
-        background: var(--background-color-default, #fff);
+        background: var(--studio-raised);
       }
       .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
       .journey span { color: var(--text-color-muted, #59636e); }
-      .step { color: var(--text-color-muted, #59636e); font-size: 12px; margin-bottom: 8px; }
+      .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
         width: 100%;
-        border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 7px;
+        border: 1px solid var(--studio-line);
+        border-radius: 9px;
         padding: 9px 10px;
-        background: var(--background-color-default, #fff);
+        background: var(--studio-raised);
         color: inherit;
       }
       textarea { min-height: 84px; resize: vertical; }
       .choice-list, .capability-list, .mapping-list, .review-list { display: grid; gap: 9px; margin: 16px 0; }
       .choice, .capability, .mapping, .review-row {
-        border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 8px;
+        border: 1px solid var(--studio-line);
+        border-radius: 10px;
         padding: 12px;
       }
       .app-row { display: flex; align-items: center; gap: 10px; }
@@ -89,21 +116,55 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .icon-button svg { display: block; width: 16px; height: 16px; fill: currentColor; }
       .icon-button.danger { color: var(--fgColor-danger, #cf222e); }
       .confirm-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(0 0 0 / 45%); z-index: 10; }
-      .confirm-dialog { width: min(100%, 440px); padding: 20px; border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 10px; background: var(--background-color-default, #fff); box-shadow: 0 8px 30px rgb(0 0 0 / 25%); }
+      .confirm-dialog { width: min(100%, 440px); padding: 20px; border: 1px solid var(--studio-line); border-radius: 12px; background: var(--studio-raised); box-shadow: 0 8px 30px rgb(0 0 0 / 25%); }
       .confirm-dialog h2 { margin-top: 0; }
       .confirm-dialog .actions { margin-top: 18px; }
       .confirm-dialog .danger { color: var(--fgColor-danger, #cf222e); border-color: currentColor; }
-      .terminal { margin-top: 16px; border: 1px solid #202a3b; border-radius: 8px; overflow: hidden; background: #0b1120; }
-      .terminal-head { padding: 7px 10px; border-bottom: 1px solid #202a3b; color: #a9b5ca; font: 600 11px ui-monospace, monospace; }
-      .terminal pre { margin: 0; min-height: 96px; max-height: 260px; overflow: auto; padding: 10px; color: #dbe5f7; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-      .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .surface { margin-bottom: 16px; border: 1px solid var(--studio-line); border-radius: 14px; background: var(--studio-panel); overflow: hidden; }
+      .surface-head {
+        min-height: 46px;
+        padding: 11px 15px;
+        border-bottom: 1px solid var(--studio-line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .surface-head h2 { margin: 0; font-size: 13px; font-weight: 650; }
+      .surface-head small { color: var(--studio-muted); }
+      .surface-body { padding: 15px; }
+      .surface-body > p:first-child { margin-top: 0; }
+      .subsurface { padding: 13px; border: 1px solid var(--studio-line); border-radius: 10px; background: var(--studio-raised); }
+      .subsurface + .subsurface { margin-top: 10px; }
+      .subsurface-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .subsurface-head small { color: var(--studio-muted); }
+      .configuration-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .configuration-actions button { min-height: 34px; padding-block: 6px; }
+      .command-panel { margin-top: 14px; border: 1px solid #202a3b; border-radius: 10px; overflow: hidden; background: #0b1120; }
+      .command-panel > summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 9px 11px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #a9b5ca;
+        background: #111a2b;
+        font: 600 11px var(--font-mono, "SFMono-Regular", Consolas, monospace);
+      }
+      .command-panel > summary::-webkit-details-marker { display: none; }
+      .command-panel > summary::before { content: "›"; color: #9b87e8; font-size: 15px; transition: transform .2s; }
+      .command-panel[open] > summary::before { transform: rotate(90deg); }
+      .command-summary { margin-left: auto; color: #7f8ca3; font-weight: 400; }
+      .command-panel pre { margin: 0; min-height: 96px; max-height: 280px; overflow: auto; padding: 11px; color: #dbe5f7; font: 12px/1.55 var(--font-mono, "SFMono-Regular", Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .lifecycle-actions button { flex: 1 1 180px; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
-      .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
+      .choice small, .capability small, .mapping small { display: block; color: var(--studio-muted); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
-      .template-meta { color: var(--text-color-muted, #59636e); font-size: 12px; }
+      .template-meta { color: var(--studio-muted); font-size: 12px; }
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-      .badge { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 999px; padding: 2px 7px; font-size: 11px; }
+      .badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 2px 8px; font-size: 11px; background: var(--studio-panel); }
       .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
       .badge.http, .badge.embr { background: #cffafe; border-color: #22d3ee; color: #155e75; }
       .badge.mcp, .badge.connector { background: #f3e8ff; border-color: #c084fc; color: #6b21a8; }
@@ -115,7 +176,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .topbar button { min-height: 32px; padding: 3px 8px; }
       .topbar h1 { margin: 0; }
       .notice, .error {
-        border-radius: 7px;
+        border-radius: 9px;
         padding: 10px 12px;
         margin: 14px 0;
         background: var(--true-color-blue-muted, #ddf4ff);
@@ -126,21 +187,57 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .source-option { display: block; }
       .local-path { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 16px; }
       .summary { display: grid; gap: 14px; }
-      .summary section { border-bottom: 1px solid var(--border-color-default, #d1d9e0); padding-bottom: 12px; }
+      .summary section { border-bottom: 1px solid var(--studio-line); padding-bottom: 12px; }
       .summary section:last-child { border: 0; }
-      .component-list { display: grid; gap: 8px; margin: 10px 0; }
-      .component-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .component-status button { min-height: 30px; padding: 4px 8px; font-family: var(--font-mono, monospace); font-size: 12px; }
-      .agent-tester { display: grid; gap: 8px; margin-top: 12px; }
+      .component-list { display: grid; gap: 8px; margin: 10px 0 0; }
+      .component-status { display: grid; grid-template-columns: minmax(130px, auto) 1fr; align-items: center; gap: 8px; }
+      .component-status button { min-height: 32px; padding: 5px 9px; text-align: left; font-family: var(--font-mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
+      .agent-tester { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--studio-line); }
       .agent-tester textarea { min-height: 64px; }
-      .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; }
-      #status { min-height: 22px; margin-top: 16px; color: var(--text-color-muted, #59636e); }
+      .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font-family: var(--font-mono, monospace); }
+      .map-loading { padding: 24px; text-align: center; color: var(--studio-muted); border: 1px dashed var(--studio-line); border-radius: 10px; }
+      .app-map-visual { overflow-x: auto; padding-bottom: 5px; }
+      .map-lanes { display: flex; align-items: stretch; gap: 10px; min-width: max-content; }
+      .map-lane {
+        width: 218px;
+        padding: 10px;
+        border: 1px solid var(--studio-line);
+        border-top: 3px solid var(--studio-accent);
+        border-radius: 10px;
+        background: var(--studio-raised);
+      }
+      .map-lane-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 9px; }
+      .map-lane-head strong { font-size: 12px; }
+      .map-lane-head small { color: var(--studio-muted); font-size: 10px; }
+      .map-node { padding: 9px; border: 1px solid var(--studio-line); border-radius: 8px; background: var(--studio-panel); }
+      .map-node + .map-node { margin-top: 8px; }
+      .map-node.operation { border-style: dashed; }
+      .map-node strong, .map-node code { display: block; }
+      .map-node strong { font-size: 12px; }
+      .map-node code { margin-top: 3px; color: var(--studio-muted); font-size: 10px; }
+      .map-links { display: grid; gap: 5px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--studio-line); }
+      .map-link { display: grid; grid-template-columns: auto 1fr; gap: 5px; color: var(--studio-muted); font-size: 10px; line-height: 1.35; }
+      .map-link .arrow { color: var(--studio-accent); font-weight: 700; }
+      .map-link b { color: var(--studio-ink); font-weight: 650; }
+      .map-link.unresolved { padding: 5px; border: 1px dashed color-mix(in srgb, var(--studio-warn) 55%, var(--studio-line)); border-radius: 6px; }
+      .map-link.unresolved .arrow { color: var(--studio-warn); }
+      .map-evidence { margin-top: 7px; color: var(--studio-muted); font-size: 9px; overflow-wrap: anywhere; }
+      .map-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+      .map-legend { color: var(--studio-muted); font-size: 11px; }
+      .tier-list { display: grid; gap: 10px; }
+      .tier-card { padding: 13px; border: 1px solid var(--studio-line); border-radius: 10px; background: var(--studio-raised); }
+      .tier-card p { margin-bottom: 0; }
+      .danger-zone { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--studio-line); }
+      .danger-zone button { color: var(--studio-danger); border-color: color-mix(in srgb, var(--studio-danger) 45%, var(--studio-line)); }
+      #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
       @media (max-width: 480px) {
         body { padding-inline: 14px; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
         .actions-right, .actions button { width: 100%; }
         .actions-right { flex-direction: column-reverse; }
         .local-path { grid-template-columns: 1fr; }
+        .component-status { grid-template-columns: 1fr; }
+        .surface-head { align-items: flex-start; flex-direction: column; }
       }
     </style>
   </head>
@@ -682,6 +779,52 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities));
       }
 
+      function appMapVisual(appMap) {
+        if (!appMap) {
+          return '<div class="map-loading">Tracing components and relationships from source…</div>';
+        }
+        const nodesById = new Map(appMap.nodes.map((node) => [node.id, node]));
+        const outgoing = new Map();
+        for (const edge of appMap.edges) {
+          if (!outgoing.has(edge.from)) outgoing.set(edge.from, []);
+          outgoing.get(edge.from).push(edge);
+        }
+        const unresolved = new Map();
+        for (const item of appMap.unresolved || []) {
+          if (!unresolved.has(item.from)) unresolved.set(item.from, []);
+          unresolved.get(item.from).push(item);
+        }
+        const lanes = capabilities.map((tier) => {
+          const nodes = appMap.nodes.filter((node) => node.tierId === tier.id);
+          if (nodes.length === 0) return "";
+          return '<section class="map-lane" data-map-tier="' + escape(tier.id) + '">' +
+            '<div class="map-lane-head"><strong>' + escape(tier.name) + '</strong><small>' +
+            nodes.length + (nodes.length === 1 ? " node" : " nodes") + '</small></div>' +
+            nodes.map((node) => {
+              const links = (outgoing.get(node.id) || []).map((edge) => {
+                const target = nodesById.get(edge.to);
+                return '<div class="map-link"><span class="arrow">→</span><span>' +
+                  escape(edge.kind.replaceAll("-", " ")) + ' <b>' +
+                  escape(target?.name || edge.to) + '</b></span></div>';
+              });
+              const missing = (unresolved.get(node.id) || []).map((item) =>
+                '<div class="map-link unresolved"><span class="arrow">?</span><span>Unresolved <b>' +
+                escape(item.reference) + '</b></span></div>');
+              const evidence = node.evidence?.[0];
+              return '<article class="map-node ' + escape(node.kind || "project") + '">' +
+                '<strong>' + escape(node.name) + '</strong><code>' + escape(node.projectPath || node.kind) + '</code>' +
+                (links.length || missing.length ? '<div class="map-links">' + links.join("") + missing.join("") + '</div>' : '') +
+                (evidence ? '<div class="map-evidence">' + escape(evidence.path + ":" + evidence.line) + '</div>' : '') +
+                '</article>';
+            }).join("") + '</section>';
+        }).filter(Boolean);
+        return '<div class="app-map-visual" role="region" aria-label="Unity application graph">' +
+          '<div class="map-lanes">' + lanes.join("") + '</div></div>' +
+          '<div class="map-footer"><span class="map-legend">Solid cards are projects · dashed cards are operations · arrows are source-derived calls</span>' +
+          '<span class="badge">' + appMap.edges.length + ' edges · ' + (appMap.unresolved || []).length +
+          ' unresolved</span></div>';
+      }
+
       function renderInventory(result, inventory, appMap) {
          if (outputTimer) {
            clearInterval(outputTimer);
@@ -692,27 +835,47 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         const graphSummary = appMap
           ? appMap.nodes.length + " nodes · " + appMap.edges.length + " edges"
           : "Not traced yet";
-        app.innerHTML = topBack("Existing apps") + '<div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
-          ' inventory</h1><p>' + escape(draft.purpose) + '</p><div class="summary">' +
-          '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
-          '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
-          '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
-          '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
-          '<div id="local-guidance"></div>' +
-          '<section class="gateway-card"><h3>AI Gateway <small>(optional)</small></h3>' +
-          '<p>Select an existing gateway, or create/manage one before running an AI-backed app.</p>' +
-          '<div id="gateway-binding"></div><button type="button" id="configure-gateway">Create / Manage</button></section>' +
+        app.innerHTML = topBack("Existing apps") +
+          '<header class="workspace-intro"><div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
+          '</h1><p>' + escape(draft.purpose) + '</p><div class="workspace-meta"><span class="badge">' +
+          implemented + ' of ' + tiers.length + ' tiers discovered</span><code class="workspace-path">' +
+          escape(result.worktreePath || "Unavailable") + '</code></div></header>' +
+          '<div class="section-label">Configure</div>' +
+          '<section class="surface configuration-region" aria-labelledby="configuration-title">' +
+          '<div class="surface-head"><h2 id="configuration-title">Azure configuration</h2><small>Optional cloud bindings</small></div>' +
+          '<div class="surface-body"><div class="subsurface gateway-card"><div class="subsurface-head"><h3>AI Gateway</h3>' +
+          '<small id="gateway-summary">Discovering gateways…</small></div>' +
+          '<p>Selecting a gateway configures this app automatically with its endpoint, key, and model settings.</p>' +
+          '<div id="gateway-binding"></div><div class="configuration-actions">' +
+          '<button type="button" id="configure-gateway">Create / Manage</button></div></div>' +
           '<div class="lifecycle-actions">' +
-          '<button type="button" id="local-action" data-app-command="run-local">Run locally</button>' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
-          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div>' +
-          '<div class="terminal"><div class="terminal-head"><span>Local terminal</span></div><pre id="local-output">Waiting for local app output.</pre></div></section>' +
-          '<section><h3>App Map</h3><p>' + escape(graphSummary) +
-          '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
-          '<section><h3>Specialist canvases</h3><p>' +
-          escape((result.specialistCanvases || []).join(", ") || "None registered") +
-          '</p></section><section><h3>Components by tier</h3><div class="mapping-list">' +
-          tiers.map((tier) => '<div class="mapping"><div class="mapping-heading"><h3>' + escape(tier.name) +
+          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div></div></section>' +
+          '<div class="section-label">Run</div>' +
+          '<section class="surface runtime-region" aria-labelledby="runtime-title">' +
+          '<div class="surface-head"><h2 id="runtime-title">Local runtime</h2>' +
+          '<div class="badges" id="local-status"><span class="badge">Checking</span></div></div>' +
+          '<div class="surface-body"><div id="local-guidance"></div>' +
+          '<div class="lifecycle-actions"><button type="button" class="primary" id="local-action" data-app-command="run-local">Run locally</button></div>' +
+          '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
+          '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
+          '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
+          '<pre id="local-output">Waiting for local app output.</pre></details></div></section>' +
+          '<div class="section-label">Map</div>' +
+          '<section class="surface app-map-region" aria-labelledby="app-map-title"><div class="surface-head">' +
+          '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></div>' +
+          '<div class="surface-body">' + appMapVisual(appMap) +
+          '<div class="configuration-actions"><button type="button" id="trace-app">' +
+          (appMap ? "Refresh map" : "Tracing…") + '</button></div></div></section>' +
+          '<div class="section-label">Inspect</div>' +
+          '<section class="surface specialist-region" aria-labelledby="specialist-title"><div class="surface-head">' +
+          '<h2 id="specialist-title">Specialist studios</h2></div><div class="surface-body"><p>' +
+          escape((result.specialistCanvases || []).join(", ") || "No specialist studios are registered for this workspace.") +
+          '</p></div></section>' +
+          '<section class="surface inventory-region" aria-labelledby="inventory-title"><div class="surface-head">' +
+          '<h2 id="inventory-title">Components by tier</h2><small>Evidence-derived inventory</small></div>' +
+          '<div class="surface-body"><div class="tier-list">' +
+          tiers.map((tier) => '<div class="tier-card"><div class="mapping-heading"><h3>' + escape(tier.name) +
             '</h3><button type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
             '<small>' + escape(tier.role || "") + '</small><p><strong>' +
             escape(tier.implementationState === "referenced-not-provisioned"
@@ -734,8 +897,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     ? '<br><button type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
                     : '')).join("")
               : 'No implementation discovered yet · scaffold available') +
-            '</p></div>').join("") + '</div></section></div>' +
-          '<button type="button" id="delete-app">Delete app</button>';
+            '</p></div>').join("") + '</div></div></section>' +
+          '<div class="danger-zone"><button type="button" id="delete-app">Delete app</button></div>';
          wireTopBack(async () => {
           if (!sources) await loadSources();
           renderExistingApps();
@@ -760,7 +923,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             const running = state.state === "running";
             const stopping = state.state === "stopping";
             document.getElementById("local-status").innerHTML =
-              '<span class="badge ' + (running ? "http" : "") + '">Local app: ' + escape(state.state || "stopped") + '</span>';
+              '<span class="badge ' + (running ? "http" : "") + '">' + escape(state.state || "stopped") + '</span>';
+            const commandSummary = document.getElementById("local-command-summary");
+            if (commandSummary) commandSummary.textContent = stopping ? "Stopping…" : (running ? "Running" : "Idle");
+            if ((running || stopping) && document.getElementById("local-command-panel")) {
+              document.getElementById("local-command-panel").open = true;
+            }
              document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
               '<div class="component-status"><span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
               escape(entrypoint.name) + ': ' + (entrypoint.ready ? "ready" : "offline") + '</span>' +
@@ -857,6 +1025,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           async function loadGatewayOptions() {
             try {
               const gatewayOptions = await request("/api/gateway-options?root=" + encodeURIComponent(result.worktreePath));
+              const gatewaySummary = document.getElementById("gateway-summary");
+              if (gatewaySummary) {
+                gatewaySummary.textContent = gatewayOptions.active
+                  ? "Active: " + gatewayOptions.active.name
+                  : "No active gateway";
+              }
               async function configureActiveGateway() {
                 setBusy(true, "Configuring app from active gateway…");
                 try {
@@ -903,12 +1077,16 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                 }
               });
             } catch (cause) {
+              const gatewaySummary = document.getElementById("gateway-summary");
+              if (gatewaySummary) gatewaySummary.textContent = "Discovery unavailable";
               document.getElementById("gateway-binding").innerHTML =
                 '<p>AI Gateway discovery unavailable: ' + escape(cause.message) + '</p>';
             }
           }
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Starting " + button.textContent + "…");
+          const commandPanel = document.getElementById("local-command-panel");
+          if (commandPanel) commandPanel.open = true;
           try {
             if (button.dataset.appCommand === "configure-active-gateway") {
               const commandResult = await request("/api/app-command", {
@@ -966,8 +1144,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             setBusy(false, status.textContent);
           }
         }));
-        document.getElementById("trace-app").addEventListener("click", async () => {
-          setBusy(true, "Tracing source call graph…");
+        async function traceAndRender(showProgress = true) {
+          if (showProgress) setBusy(true, "Tracing source call graph…");
+          const traceButton = document.getElementById("trace-app");
+          if (traceButton) traceButton.disabled = true;
           try {
             const traced = await request("/api/app-map", {
               method: "POST",
@@ -976,10 +1156,16 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             renderInventory(result, inventory, traced);
           } catch (cause) {
             error(cause.message);
+            if (traceButton) {
+              traceButton.disabled = false;
+              traceButton.textContent = "Retry map";
+            }
           } finally {
-            setBusy(false, status.textContent);
+            if (showProgress) setBusy(false, status.textContent);
           }
-        });
+        }
+        document.getElementById("trace-app").addEventListener("click", () => void traceAndRender());
+        if (!appMap) void traceAndRender(false);
         document.getElementById("delete-app").addEventListener("click", async () => {
           await deleteApp(result.worktreePath, draft.appName);
         });

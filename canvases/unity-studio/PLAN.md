@@ -136,6 +136,62 @@ Ready component endpoints are actions, not passive text: open the web client,
 inspect a Hosted Skill MCP endpoint, send a prompt to the local agent, or open
 the registered agent specialist studio.
 
+## Guided-success UX
+
+Unity Studio owns the path from selection to a working app. It should not stop
+at reporting that settings are missing when it has enough resource identity to
+retrieve and apply them safely.
+
+- Selecting an AI Gateway persists the selection and immediately configures
+  the app from that gateway. A separate configure action may remain as an
+  explicit retry, but it is not the primary path.
+- Configuration and runtime are distinct regions. **Azure configuration**
+  establishes cloud bindings such as the active AI Gateway; **Local runtime**
+  starts and observes local processes.
+- Optional configuration is clearly labeled without being hidden. The active
+  gateway selector is the primary control, with **Create / Manage** directly
+  beneath it as a secondary route into AI Gateway Studio.
+- Readiness guidance is actionable and located beside the control that fixes
+  it. Errors preserve the actual command output, while successful automation
+  updates the visible state without requiring a manual refresh.
+- Lifecycle state is derived from process and endpoint evidence. Starting,
+  running, stopping, stopped, and failed are visibly distinct; the canvas never
+  infers success from a command merely being launched.
+- Local component endpoints are clickable actions. A ready web surface opens
+  in the Browser canvas, a Hosted Skill opens its MCP endpoint, and a ready
+  agent exposes both prompt and specialist-studio actions.
+- Background status probes are silent. They must not generate application
+  request-log traffic or imply that the user invoked a component.
+- Deterministic canvas actions replace copy/paste prompts and passive
+  instructions wherever the host API can perform the operation directly.
+
+## Visual system
+
+Unity Studio follows the same presentation primitives as the AI Gateway and
+Intelligent Function App studios and the Microsoft Foundry portal:
+
+- use documented canvas theme tokens, the shared sans/mono type ramps, a
+  restrained purple accent, and a subtle Foundry-style background treatment;
+- organize the app workspace into bordered **surface panels** with a compact
+  title/status header and padded body instead of a long undifferentiated page;
+- use uppercase section labels to separate **Configure**, **Run**, **Map**, and
+  **Inspect** tasks without adding heavy navigation;
+- group the active AI Gateway and future Azure bindings inside one **Azure
+  configuration** panel;
+- group lifecycle actions, component readiness, endpoint actions, and agent
+  interaction inside one **Local runtime** panel;
+- render command output in a collapsible `<details>` region with a compact
+  status summary and a dark, monospace output body; opening Run, Stop, or
+  configuration work expands it so progress remains visible;
+- use compact pills only for status or categorical metadata, never as the sole
+  indicator of state; and
+- preserve full-button hit targets, keyboard focus treatment, responsive
+  stacking, and readable wrapping for paths and errors.
+
+The visual hierarchy must not change backend behavior. Presentation tests
+assert the panel regions, Azure grouping, collapsible command output, and
+generated browser-script syntax alongside the existing workflow assertions.
+
 ## App Map
 
 App Map is a generic source-derived graph, not a fixed narrative. Given an
@@ -143,6 +199,13 @@ authorized app root, derive nodes and edges from manifests, runtime/tool
 references, HTTP boundaries, and durable workflow activities. Do not invent
 Cartesian relationships when targets are ambiguous. Show useful graph counts
 and retain enough source provenance to inspect the relationship.
+
+Tracing runs automatically when an app workspace is discovered or opened; a
+running app never depends on the user clicking a first-time Trace button. The
+canvas renders the result as a visual tier-lane graph with component nodes,
+directional relationship labels, source evidence, and visibly unresolved
+references. A secondary **Refresh map** action exists only to pick up source
+changes made after the initial discovery.
 
 ## Ongoing spec checks
 
@@ -156,6 +219,12 @@ Future changes should preserve these invariants:
 - badges stay concise, semantic, color-coded, and rule-derived;
 - create/reopen/assemble flows remain deterministic and workspace-confined;
 - specialist studios remain authoritative for deep tier operations;
+- Azure configuration, local runtime, App Map, and component inventory remain
+  visibly separate surface panels;
+- App Map traces automatically and renders nodes, relationships, and unresolved
+  references visually rather than exposing only graph counts;
+- command output remains collapsible and uses the standard output-window
+  header/body treatment;
 - focused tests cover identity, inventory rendering, navigation, lifecycle
   actions, authorization, and deletion safety.
 
