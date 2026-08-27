@@ -302,6 +302,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .agent-tester textarea { min-height: 64px; }
       .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font-family: var(--font-mono, monospace); }
       .map-loading { padding: 24px; text-align: center; color: var(--studio-muted); border: 1px dashed var(--studio-line); border-radius: 10px; }
+      .map-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+      .map-expand { min-height: 32px; width: 32px; padding: 6px; color: var(--studio-muted); background: var(--studio-raised); }
+      .map-expand:hover { color: var(--studio-accent); }
+      .map-expand svg { display: block; width: 18px; height: 18px; fill: currentColor; }
       .app-map-visual { overflow: hidden; padding-bottom: 5px; }
       .map-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); align-items: start; gap: 10px; }
       .map-lane {
@@ -933,10 +937,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<div class="section-label">Map</div>' +
           '<details class="surface app-map-region" open><summary class="surface-head">' +
           '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
-          '<div class="surface-body">' + appMapVisual(appMap) +
+          '<div class="surface-body"><div class="map-toolbar"><button type="button" class="icon-button map-expand" id="open-app-map"' +
+          (appMap ? "" : " disabled") + ' aria-label="Open expanded App Map" title="Open expanded App Map">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4a1 1 0 1 0 0 2h2.59l-5.3 5.29a1 1 0 0 0 1.42 1.42L18 7.41V10a1 1 0 1 0 2 0V4h-6ZM5 6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3a1 1 0 1 0-2 0v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h3a1 1 0 0 0 0-2H5Z"/></svg></button></div>' +
+          appMapVisual(appMap) +
           '<div class="configuration-actions"><button type="button" id="trace-app">' +
-          (appMap ? "Refresh map" : "Tracing…") + '</button><button type="button" id="open-app-map"' +
-          (appMap ? "" : " disabled") + '>Open expanded</button></div></div></details>' +
+          (appMap ? "Refresh map" : "Tracing…") + '</button></div></div></details>' +
           '<div class="section-label">Inspect</div>' +
           '<details class="surface specialist-region"><summary class="surface-head">' +
           '<h2 id="specialist-title">Specialist studios</h2></summary><div class="surface-body"><p>' +

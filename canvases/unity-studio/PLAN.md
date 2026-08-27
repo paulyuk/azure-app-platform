@@ -210,7 +210,9 @@ references. A secondary **Refresh map** action exists only to pick up source
 changes made after the initial discovery. The embedded map uses a responsive
 multi-column lane grid to fit the canvas width without horizontal panning. An
 **Open expanded** action opens the same authorized, freshly traced graph in a
-dedicated Browser canvas sized for a wider multi-column view.
+dedicated Browser canvas sized for a wider multi-column view. This action is an
+accessible Fluent-style expansion icon in the map's top-right toolbar, with a
+tooltip and screen-reader label rather than another large text button.
 
 Graph labels describe runtime roles rather than source-folder accidents. A
 gateway marker found in an agent project is rendered as an **AI Gateway

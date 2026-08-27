@@ -799,6 +799,8 @@ test("workspace renderer uses standard studio regions and collapsible command ou
     'class="command-panel" id="local-command-panel"',
     'id="local-command-summary"',
     'id="open-app-map"',
+    'class="icon-button map-expand"',
+    'aria-label="Open expanded App Map"',
     'request("/api/open-app-map"',
     "Selecting a gateway configures this app automatically",
     'if (!appMap) void traceAndRender(false)',
