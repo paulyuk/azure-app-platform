@@ -213,7 +213,6 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         if (!draft.purpose) {
           draft.purpose = DEALER_SAMPLE_PURPOSE;
         }
-      }
 
       function actions({ back, nextLabel, next, nextDisabled = false }) {
         return '<div class="actions">' +
@@ -756,6 +755,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           } catch (cause) {
             error(cause.message);
           }
+         }
           async function refreshLocalOutput() {
             try {
               const output = await request("/api/app-output?root=" + encodeURIComponent(result.worktreePath));
@@ -769,7 +769,6 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               error(cause.message);
             }
           }
-        }
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Starting " + button.textContent + "…");
           try {
