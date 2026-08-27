@@ -18,20 +18,10 @@ Prerequisites:
 
 ### Step 1: provision the AI Gateway
 
-Run this before starting any local processes.
+Run this before starting any local processes. These commands are identical in
+PowerShell, macOS, and Linux:
 
-Windows (PowerShell):
-
-```powershell
-cd infra-ai-gateway
-azd env new unity-poc-aigateway
-azd provision
-cd ..
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd infra-ai-gateway
 azd env new unity-poc-aigateway
 azd provision
@@ -86,17 +76,7 @@ macOS/Linux:
 
 ## 1. Web app (local, no Azure)
 
-Windows (PowerShell):
-
-```powershell
-cd src\web
-npm install
-npm run dev
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/web
 npm install
 npm run dev
@@ -155,18 +135,7 @@ Prerequisites:
 The standalone slice is intentionally separate from the future full-platform
 `infra/` deployment. It provisions into `rg-unity-poc-aigateway` in East US 2.
 
-Windows (PowerShell):
-
-```powershell
-cd infra-ai-gateway
-azd env new unity-poc-aigateway
-azd provision
-cd ..
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd infra-ai-gateway
 azd env new unity-poc-aigateway
 azd provision
@@ -212,94 +181,41 @@ Start each long-running process in its own terminal.
 
 #### Terminal 1: Azurite
 
-Windows (PowerShell):
-
-```powershell
-azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry
-```
-
-macOS/Linux:
-
-```bash
+```shell
 azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry
 ```
 
 #### Terminal 2: inventory-search
 
-Windows (PowerShell):
-
-```powershell
-cd src\skills\inventory-search
-uv run func start --port 7071
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/skills/inventory-search
 uv run func start --port 7071
 ```
 
 #### Terminal 3: trade-in-value
 
-Windows (PowerShell):
-
-```powershell
-cd src\skills\trade-in-value
-uv run func start --port 7072
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/skills/trade-in-value
 uv run func start --port 7072
 ```
 
 #### Terminal 4: rate-sheet
 
-Windows (PowerShell):
-
-```powershell
-cd src\skills\rate-sheet
-uv run func start --port 7073
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/skills/rate-sheet
 uv run func start --port 7073
 ```
 
 #### Terminal 5: deal-doc
 
-Windows (PowerShell):
-
-```powershell
-cd src\skills\deal-doc
-uv run func start --port 7074
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/skills/deal-doc
 uv run func start --port 7074
 ```
 
 #### Terminal 6: deal-finder agent
 
-Windows (PowerShell):
-
-```powershell
-cd src\agent
-uv run main.py
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd src/agent
 uv run main.py
 ```
@@ -346,33 +262,14 @@ deployment. The completed response was:
 
 To tear down this standalone slice:
 
-Windows (PowerShell):
-
-```powershell
-cd infra-ai-gateway
-azd down --purge --force
-```
-
-macOS/Linux:
-
-```bash
+```shell
 cd infra-ai-gateway
 azd down --purge --force
 ```
 
 ## 5. IaC sanity checks (local, no deployment)
 
-Windows (PowerShell):
-
-```powershell
-azd show
-az bicep build --file infra\main.bicep
-az bicep build --file infra-ai-gateway\main.bicep
-```
-
-macOS/Linux:
-
-```bash
+```shell
 azd show
 az bicep build --file infra/main.bicep
 az bicep build --file infra-ai-gateway/main.bicep

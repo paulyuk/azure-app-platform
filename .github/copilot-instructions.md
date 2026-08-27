@@ -40,9 +40,9 @@ bash/macOS/Linux. When adding or editing setup/run instructions (READMEs,
   such as `Invoke-RestMethod` or `Invoke-WebRequest` in Windows instructions.
 - `cd -` isn't valid in PowerShell → `Push-Location`/`Pop-Location`
 
-Prefer keeping the existing bash block as-is and adding a PowerShell block
-immediately after it, rather than replacing bash outright — this repo's
-docs target both platforms.
+Use separate PowerShell and macOS/Linux blocks only when the commands differ.
+When the same commands work unchanged in every shell, use one generic
+`shell` block instead of duplicating it.
 
 When instructions require multiple concurrently running terminal windows,
 put each terminal's commands in its own independently copyable fenced shell
