@@ -534,6 +534,46 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         });
       }
 
+      function renderInventory(result, inventory, appMap) {
+        const tiers = inventory?.inventory || [];
+        const implemented = tiers.filter((tier) => tier.implementations.length > 0).length;
+        const graphSummary = appMap
+          ? appMap.nodes.length + " nodes · " + appMap.edges.length + " edges"
+          : "Not traced yet";
+        app.innerHTML = '<div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
+          ' inventory</h1><p>' + escape(draft.purpose) + '</p><div class="summary">' +
+          '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
+          '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p></section>' +
+          '<section><h3>App Map</h3><p>' + escape(graphSummary) +
+          '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
+          '<section><h3>Specialist canvases</h3><p>' +
+          escape((result.specialistCanvases || []).join(", ") || "None registered") +
+          '</p></section><section><h3>Components by tier</h3><div class="mapping-list">' +
+          tiers.map((tier) => '<div class="mapping"><h3>' + escape(tier.name) +
+            '</h3><small>' + escape(tier.role || "") + '</small><p>' +
+            (tier.implementations.length > 0
+              ? escape(tier.implementations.length + " discovered implementation(s)") +
+                '<br><code>' + escape(tier.implementations.map((item) => item.title).join(" · ")) + '</code>'
+              : 'No implementation discovered yet · scaffold available') +
+            '</p></div>').join("") + '</div></section></div>' +
+          '<button type="button" id="done">Back to start</button>';
+        document.getElementById("trace-app").addEventListener("click", async () => {
+          setBusy(true, "Tracing source call graph…");
+          try {
+            const traced = await request("/api/app-map", {
+              method: "POST",
+              body: JSON.stringify({ root: result.worktreePath })
+            });
+            renderInventory(result, inventory, traced);
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        });
+        document.getElementById("done").addEventListener("click", renderLanding);
+      }
+
       async function submit() {
         draft.openInVsCode = document.getElementById("open-vscode").checked;
         const sourceBindings = draft.journey === "assemble"
@@ -562,15 +602,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           const sessionStatus = result.sessionRegistration === "created"
             ? "A new child session was registered."
             : "This host cannot register child sessions, so the worktree was created directly.";
-          app.innerHTML = '<div class="eyebrow">Workspace created</div><h1>' +
-            escape(draft.appName) + ' is ready</h1><p>The deterministic template materializer created the worktree directly. ' +
-            escape(sessionStatus) + '</p><div class="summary"><section><h3>Worktree</h3><code>' +
-            escape(result.worktreePath || "Unavailable") + '</code></section><section><h3>Session</h3><p>' +
-            escape(result.sessionId || "No child session; use the worktree directly") + '</p></section><section><h3>Specialist canvases</h3><p>' +
-            escape((result.specialistCanvases || []).join(", ") || "None registered") + '</p></section></div>' +
-            '<button type="button" id="done">Back to start</button>';
-          document.getElementById("done").addEventListener("click", renderLanding);
-          clearStatus();
+          const inventory = await request("/api/discovery?azure=false&root=" +
+            encodeURIComponent(result.worktreePath));
+          renderInventory(result, inventory, null);
+          clearStatus(sessionStatus);
         } catch (cause) {
           error(cause.message);
           setBusy(false, status.textContent);

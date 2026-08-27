@@ -82,6 +82,14 @@ async function discoveryWithCatalog(workspaceRoot, includeAzure) {
   );
 }
 
+async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoots) {
+  const resolved = await realpath(requestedRoot);
+  if (authorizedRoots.has(resolved)) {
+    return resolved;
+  }
+  return resolveDiscoveryRoot(requestedRoot, workspaceRoot);
+}
+
 function hasAzureMappings(input) {
   return input?.sourceBindings?.some((binding) => binding.azureResourceIds?.length > 0) === true;
 }
@@ -131,7 +139,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "GET" && url.pathname === "/api/discovery") {
       const includeAzure = url.searchParams.get("azure") !== "false";
-      sendJson(response, 200, await discoveryWithCatalog(workspaceRoot, includeAzure));
+      const requestedRoot = url.searchParams.get("root");
+      const root = requestedRoot
+        ? await resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoots)
+        : workspaceRoot;
+      if (requestedRoot && !authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Discovery root is not an authorized app workspace.");
+      }
+      sendJson(response, 200, await discoveryWithCatalog(root, includeAzure));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/sources") {
@@ -158,7 +173,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/app-map") {
-      sendJson(response, 200, await traceUnityApp({ root: workspaceRoot }));
+      const input = await readJsonBody(request);
+      const root = input.root
+        ? await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots)
+        : workspaceRoot;
+      if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App Map root is not an authorized app workspace.");
+      }
+      sendJson(response, 200, await traceUnityApp({ root }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/tier-action") {
@@ -179,13 +201,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           workspaceRoot,
           additionalRoots: [...authorizedRoots],
         }) : undefined;
-      sendJson(response, 202, await requestAppWorkspace({
+      const result = await requestAppWorkspace({
         session,
         workspaceRoot,
         input,
         sourceCatalog,
         azureCatalog: await freshAzureCatalog(workspaceRoot, input),
-      }));
+      });
+      if (result.worktreePath) {
+        authorizedRoots.add(await realpath(result.worktreePath));
+      }
+      sendJson(response, 202, result);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/capability-request") {
