@@ -693,7 +693,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
           '<div class="badges" id="entrypoints"></div>' +
           '<div id="local-guidance"></div>' +
-          '<div id="gateway-binding"></div>' +
+          '<section class="gateway-card"><h3>AI Gateway <small>(optional)</small></h3>' +
+          '<p>Select an existing gateway, or create/manage one before running an AI-backed app.</p>' +
+          '<div id="gateway-binding"></div><button type="button" id="configure-gateway">Create / Manage</button></section>' +
           '<div class="lifecycle-actions">' +
           '<button type="button" id="local-action" data-app-command="run-local">Run locally</button>' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
@@ -757,9 +759,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               escape(entrypoint.name) + ': ' + (entrypoint.ready ? "HTTP ready" : "offline") + '</span>').join("");
              const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
              document.getElementById("local-guidance").innerHTML = readiness.ready ? "" :
-              '<p><strong>Local setup needed:</strong> ' + escape(readiness.guidance) +
-              '</p><button type="button" id="configure-gateway">Create / Manage</button>';
-             document.getElementById("configure-gateway")?.addEventListener("click", async () => {
+              '<p><strong>Local setup needed:</strong> ' + escape(readiness.guidance) + '</p>';
+             const manageGateway = document.getElementById("configure-gateway");
+             if (manageGateway) manageGateway.onclick = async () => {
               setBusy(true, "Opening AI Gateway Studio…");
               try {
                 await request("/api/tier-action", {
@@ -772,7 +774,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               } finally {
                 setBusy(false, status.textContent);
               }
-             });
+             };
             const localAction = document.getElementById("local-action");
             localAction.dataset.appCommand = running ? "stop-local" : "run-local";
             localAction.textContent = running ? "Stop local app" : "Run locally";
@@ -814,13 +816,21 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                        method: "POST",
                        body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
                      });
-                     clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
+                     clearStatus("Gateway selected. Configuring app settings in the embedded terminal…");
                    } catch (cause) {
                      error(cause.message);
                    } finally {
                      setBusy(false);
                    }
                  });
+                 const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
+                 if (!readiness.ready) {
+                   const commandResult = await request("/api/app-command", {
+                     method: "POST",
+                     body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
+                   });
+                   clearStatus("Gateway selected. " + commandResult.command + " started; configuring app settings in the embedded terminal…");
+                 }
              }
               document.getElementById("active-gateway")?.addEventListener("change", async (event) => {
                 if (!event.target.value) return;
@@ -830,7 +840,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     body: JSON.stringify({ root: result.worktreePath, name: event.target.value })
                   });
                   await loadGatewayOptions();
-                  clearStatus("Active AI Gateway selected. Configure its endpoint, key, and model for local startup.");
+                  const commandResult = await request("/api/app-command", {
+                    method: "POST",
+                    body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
+                  });
+                  clearStatus("Gateway selected. " + commandResult.command + " started; watch the embedded terminal for configuration output.");
                 } catch (cause) {
                   error(cause.message);
                 }

@@ -92,7 +92,7 @@ async function localReadiness(root) {
     guidance: gatewayConfigured
       ? "Gateway configuration is present. Run the local stack."
       : activeGateways.has(root)
-        ? "An active gateway is selected, but this app still needs its endpoint, key, and model settings."
+        ? "A gateway is selected. Unity Studio is configuring this app's endpoint, key, and model settings."
         : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
   };
 }
