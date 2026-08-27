@@ -47,8 +47,10 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
             escapeHtml(item.label) + '</span>';
         }).join("");
         return '<article class="map-node ' + escapeHtml(node.kind || "project") + '">' +
-          '<strong>' + escapeHtml(node.name) + '</strong><code>' +
-          escapeHtml(node.projectPath || node.kind) + '</code>' +
+          '<strong>' + escapeHtml(node.name) + '</strong>' +
+          (node.projectPath && node.projectPath !== "."
+            ? '<code>' + escapeHtml(node.projectPath) + '</code>'
+            : '') +
           (badges ? '<div class="map-badges">' + badges + '</div>' : '') +
           (details ? '<div class="map-details">' + details + '</div>' : '') +
           (links.length || missing.length
