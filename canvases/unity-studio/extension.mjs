@@ -94,8 +94,27 @@ async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoo
   return resolveDiscoveryRoot(requestedRoot, workspaceRoot);
 }
 
-async function startAppCommand(root, command, args) {
-  await access(`${root}/scripts/dev-start.sh`);
+async function resolveLifecycleCommand(root, operation) {
+  const scriptNames = operation === "run-local"
+    ? ["dev-start.sh", "dev-start.ps1"]
+    : ["dev-stop.sh", "dev-stop.ps1"];
+  const scriptName = process.platform === "win32" ? scriptNames.reverse() : scriptNames;
+  for (const name of scriptName) {
+    const scriptPath = `${root}/scripts/${name}`;
+    try {
+      await access(scriptPath);
+      if (name.endsWith(".ps1")) {
+        return { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] };
+      }
+      return { command: "bash", args: [scriptPath] };
+    } catch {
+      // Try the other platform-specific script before surfacing a useful error.
+    }
+  }
+  throw new Error(`No ${operation === "run-local" ? "dev-start" : "dev-stop"} script was found.`);
+}
+
+async function startAppCommand(root, command, args, state) {
   const child = spawn(command, args, { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
   const output = [];
   appOutput.set(root, output);
@@ -106,9 +125,8 @@ async function startAppCommand(root, command, args) {
   child.stdout.on("data", appendOutput);
   child.stderr.on("data", appendOutput);
   child.unref();
-  const operation = args[0] === "dev-start.sh" ? "running" : args[0] === "dev-stop.sh" ? "stopped" : args[0];
-  appStates.set(root, { state: operation, pid: child.pid, updatedAt: new Date().toISOString() });
-  return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state: operation };
+  appStates.set(root, { state, pid: child.pid, updatedAt: new Date().toISOString() });
+  return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state };
 }
 
 function hasAzureMappings(input) {
@@ -282,17 +300,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("App command root is not an authorized app workspace.");
       }
       if (input.operation === "run-local") {
-        sendJson(response, 202, await startAppCommand(root, "bash", ["scripts/dev-start.sh"]));
+        const lifecycle = await resolveLifecycleCommand(root, input.operation);
+        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "running"));
         return;
       }
       if (input.operation === "stop-local") {
-        await access(`${root}/scripts/dev-stop.sh`);
-        sendJson(response, 202, await startAppCommand(root, "bash", ["scripts/dev-stop.sh"]));
+        const lifecycle = await resolveLifecycleCommand(root, input.operation);
+        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "stopped"));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
         const command = input.operation === "provision-cloud" ? "provision" : "up";
-        sendJson(response, 202, await startAppCommand(root, "azd", [command]));
+        sendJson(response, 202, await startAppCommand(root, "azd", [command], command === "provision" ? "provisioning" : "deploying"));
         return;
       }
       throw new Error("Unknown app command.");

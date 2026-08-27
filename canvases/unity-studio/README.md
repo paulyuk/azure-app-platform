@@ -26,7 +26,8 @@ specialist studio with the app worktree as context. Missing tiers are labeled as
 scaffoldable rather than inferred from the platform catalog.
 
 The app workspace also exposes deterministic lifecycle actions: **Run locally**
-and **Stop local app** invoke the checked-in lifecycle scripts, while **Provision
+and **Stop local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts
+(or their `.ps1` equivalents on Windows), while **Provision
 with azd** and **Deploy with azd up** run the corresponding commands in the app
 worktree. Cloud actions are explicit and mutate Azure; review the selected
 subscription and `azure.yaml` before using them.

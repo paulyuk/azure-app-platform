@@ -109,7 +109,8 @@ The canvas actions and HTTP routes are the executable boundary for:
 - App Map tracing from source-derived calls and workflow links;
 - specialist-canvas activation with context;
 - source opening in VS Code;
-- local `scripts/dev-start.sh` and `scripts/dev-stop.sh`;
+- local `scripts/dev-start.sh`/`scripts/dev-stop.sh` (or the `.ps1`
+  equivalents on Windows), invoked directly by the lifecycle actions;
 - explicit `azd provision` and `azd up`;
 - confirmed worktree deletion.
 
