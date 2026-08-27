@@ -758,7 +758,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
              const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
              document.getElementById("local-guidance").innerHTML = readiness.ready ? "" :
               '<p><strong>Local setup needed:</strong> ' + escape(readiness.guidance) +
-              '</p><button type="button" id="configure-gateway">Choose or provision gateway and models</button>';
+              '</p><button type="button" id="configure-gateway">Create / Manage</button>';
              document.getElementById("configure-gateway")?.addEventListener("click", async () => {
               setBusy(true, "Opening AI Gateway Studio…");
               try {
@@ -804,6 +804,24 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                   (gatewayOptions.active?.name === gateway.name ? " selected" : "") + '>' +
                   escape(gateway.name + (gateway.resourceGroup ? " · " + gateway.resourceGroup : "")) +
                   '</option>').join("") + '</select></label>';
+             if (gatewayOptions.active) {
+                  document.getElementById("gateway-binding").innerHTML +=
+                    '<button type="button" data-app-command="configure-active-gateway">Configure app from active gateway</button>';
+                 document.querySelector('[data-app-command="configure-active-gateway"]').addEventListener("click", async () => {
+                   setBusy(true, "Configuring app from active gateway…");
+                   try {
+                     const commandResult = await request("/api/app-command", {
+                       method: "POST",
+                       body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
+                     });
+                     clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
+                   } catch (cause) {
+                     error(cause.message);
+                   } finally {
+                     setBusy(false);
+                   }
+                 });
+             }
               document.getElementById("active-gateway")?.addEventListener("change", async (event) => {
                 if (!event.target.value) return;
                 try {
@@ -811,6 +829,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     method: "POST",
                     body: JSON.stringify({ root: result.worktreePath, name: event.target.value })
                   });
+                  await loadGatewayOptions();
                   clearStatus("Active AI Gateway selected. Configure its endpoint, key, and model for local startup.");
                 } catch (cause) {
                   error(cause.message);
@@ -824,6 +843,14 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Starting " + button.textContent + "…");
           try {
+            if (button.dataset.appCommand === "configure-active-gateway") {
+              const commandResult = await request("/api/app-command", {
+                method: "POST",
+                body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
+              });
+              clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
+              return;
+            }
             if (button.dataset.appCommand === "run-local") {
               const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
               if (!readiness.ready) {

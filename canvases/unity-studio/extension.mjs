@@ -175,12 +175,31 @@ async function resolveLifecycleCommand(root, operation) {
       if (name.endsWith(".ps1")) {
         return { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] };
       }
+
       return { command: "bash", args: [scriptPath] };
     } catch {
       // Try the other platform-specific script before surfacing a useful error.
     }
   }
   throw new Error(`No ${operation === "run-local" ? "dev-start" : "dev-stop"} script was found.`);
+}
+
+async function resolveGatewayConfigCommand(root) {
+  const names = process.platform === "win32"
+    ? ["configure-ai-gateway.ps1", "configure-ai-gateway.sh"]
+    : ["configure-ai-gateway.sh", "configure-ai-gateway.ps1"];
+  for (const name of names) {
+    const scriptPath = `${root}/infra-ai-gateway/scripts/${name}`;
+    try {
+      await access(scriptPath);
+      return name.endsWith(".ps1")
+        ? { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] }
+        : { command: "bash", args: [scriptPath] };
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  throw new Error("This app has no AI Gateway configuration script.");
 }
 
 async function startAppCommand(root, command, args, state) {
@@ -436,6 +455,11 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (input.operation === "stop-local") {
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
         sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "stopped"));
+        return;
+      }
+      if (input.operation === "configure-gateway") {
+        const gatewayConfig = await resolveGatewayConfigCommand(root);
+        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring"));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
