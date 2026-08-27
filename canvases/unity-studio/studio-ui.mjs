@@ -100,10 +100,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 999px; padding: 2px 7px; font-size: 11px; }
       .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
-      .badge.http, .badge.embr { background: #dafbe1; border-color: #4ac26b; color: #116329; }
-      .badge.mcp, .badge.connector { background: #fff8c5; border-color: #d4a72c; color: #7a4f01; }
-      .badge.docker, .badge.sandbox, .badge.durable { background: #fbefff; border-color: #d8b9ff; color: #6639ba; }
-      .badge.data, .badge.gateway { background: #ffebe9; border-color: #ff8182; color: #a40e26; }
+      .badge.http, .badge.embr { background: #cffafe; border-color: #22d3ee; color: #155e75; }
+      .badge.mcp, .badge.connector { background: #f3e8ff; border-color: #c084fc; color: #6b21a8; }
+      .badge.docker, .badge.sandbox, .badge.durable { background: #e0e7ff; border-color: #818cf8; color: #3730a3; }
+      .badge.data, .badge.gateway { background: #f1f5f9; border-color: #94a3b8; color: #334155; }
       .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
       .actions-right { display: flex; gap: 8px; margin-left: auto; }
       .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }

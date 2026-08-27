@@ -87,6 +87,10 @@ sentences. Badge vocabulary is rule-derived and may include:
 - Docker, Sandbox, Durable Functions
 - Connector, Gateway reference, Direct data
 
+Badge colors are categorical rather than health-oriented: use blue, cyan,
+purple, indigo, and neutral gray. Do not use green, yellow, or red for
+component badges because those colors imply health or severity.
+
 Missing tiers must say they were not discovered and offer the tier's
 non-mutating scaffold path. A gateway referenced by source is not presented as
 provisioned. Connector stubs, infrastructure-only files, and Unity Studio's
