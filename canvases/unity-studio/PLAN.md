@@ -217,7 +217,8 @@ gateway marker found in an agent project is rendered as an **AI Gateway
 binding**, never as another agent component. Agent relationships therefore read
 as model requests to that gateway boundary and tool calls to Hosted Skills.
 When source evidence identifies model deployment names or a governed toolbox
-route, those appear as model/tool detail nodes inside the Gateway lane.
+route, those appear as compact metadata inside the single gateway binding card,
+not as duplicate graph nodes or synthetic gateway-internal edges.
 
 ## Ongoing spec checks
 

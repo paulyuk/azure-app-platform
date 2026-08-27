@@ -38,9 +38,13 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
           '<div class="map-link unresolved"><span class="arrow">?</span><span>Unresolved <b>' +
           escapeHtml(item.reference) + '</b></span></div>');
         const evidence = node.evidence?.[0];
+        const details = (node.details || []).map((detail) =>
+          '<div class="map-detail"><span>' + escapeHtml(detail.label) + '</span><b>' +
+          escapeHtml(detail.value) + '</b></div>').join("");
         return '<article class="map-node ' + escapeHtml(node.kind || "project") + '">' +
           '<strong>' + escapeHtml(node.name) + '</strong><code>' +
           escapeHtml(node.projectPath || node.kind) + '</code>' +
+          (details ? '<div class="map-details">' + details + '</div>' : '') +
           (links.length || missing.length
             ? '<div class="map-links">' + links.join("") + missing.join("") + '</div>'
             : '') +
@@ -84,6 +88,9 @@ export function renderExpandedAppMapHtml(appMap) {
     .map-node + .map-node { margin-top:8px; } .map-node.operation { border-style:dashed; }
     .map-node strong,.map-node code { display:block; } .map-node code { margin-top:3px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
     .map-links { display:grid; gap:5px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
+    .map-details { display:grid; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
+    .map-detail { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
+    .map-detail b { color:var(--ink); font-weight:650; text-align:right; overflow-wrap:anywhere; }
     .map-link { display:grid; grid-template-columns:auto 1fr; gap:5px; color:var(--muted); font-size:11px; }
     .map-link .arrow { color:var(--accent); font-weight:700; } .map-link b { color:var(--ink); }
     .map-link.unresolved { padding:5px; border:1px dashed var(--warn); border-radius:6px; } .map-link.unresolved .arrow { color:var(--warn); }
@@ -315,6 +322,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .map-node strong { font-size: 12px; }
       .map-node code { margin-top: 3px; color: var(--studio-muted); font-size: 10px; }
       .map-links { display: grid; gap: 5px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--studio-line); }
+      .map-details { display: grid; gap: 4px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--studio-line); }
+      .map-detail { display: flex; justify-content: space-between; gap: 8px; color: var(--studio-muted); font-size: 10px; }
+      .map-detail b { color: var(--studio-ink); font-weight: 650; text-align: right; overflow-wrap: anywhere; }
       .map-link { display: grid; grid-template-columns: auto 1fr; gap: 5px; color: var(--studio-muted); font-size: 10px; line-height: 1.35; }
       .map-link .arrow { color: var(--studio-accent); font-weight: 700; }
       .map-link b { color: var(--studio-ink); font-weight: 650; }

@@ -938,7 +938,7 @@ test("App Map derives cross-tier and workflow edges with source evidence", async
   });
 });
 
-test("App Map labels gateway bindings by role and derives model and tool routes", async () => {
+test("App Map labels one gateway binding and folds model and tool details into it", async () => {
   await withFixture({
     "agent/agent.yaml": "kind: hosted\nname: support-agent\n",
     "agent/main.py": `
@@ -951,14 +951,17 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     const graph = await traceApp({ root });
     const gateway = graph.nodes.find((node) => node.kind === "project" && node.tierId === "gateway");
     assert.equal(gateway?.name, "AI Gateway binding");
-    assert.equal(graph.nodes.some((node) => node.kind === "model" && node.name === "gpt-primary"), true);
-    assert.equal(graph.nodes.some((node) => node.kind === "tool-route" && node.name === "Foundry Toolbox"), true);
-    assert.equal(graph.edges.some((edge) => edge.from === gateway.id && edge.kind === "model-route"), true);
-    assert.equal(graph.edges.some((edge) => edge.from === gateway.id && edge.kind === "tool-route"), true);
+    assert.equal(graph.nodes.filter((node) => node.tierId === "gateway").length, 1);
+    assert.deepEqual(
+      gateway.details.map((detail) => [detail.label, detail.value]),
+      [["Model", "gpt-primary"], ["Tools", "Foundry Toolbox"]],
+    );
+    assert.equal(graph.edges.some((edge) => edge.kind === "model-route" || edge.kind === "tool-route"), false);
 
     const rendered = renderAppMapMarkup(graph);
     assert.match(rendered, /model request <b>AI Gateway binding<\/b>/);
     assert.match(rendered, /gpt-primary/);
+    assert.match(rendered, /Foundry Toolbox/);
     assert.doesNotMatch(rendered, /model request <b>agent<\/b>/);
     assert.match(renderExpandedAppMapHtml(graph), /Unity App Map/);
   });
