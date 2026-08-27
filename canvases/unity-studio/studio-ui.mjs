@@ -549,14 +549,56 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<section><h3>Specialist canvases</h3><p>' +
           escape((result.specialistCanvases || []).join(", ") || "None registered") +
           '</p></section><section><h3>Components by tier</h3><div class="mapping-list">' +
-          tiers.map((tier) => '<div class="mapping"><h3>' + escape(tier.name) +
-            '</h3><small>' + escape(tier.role || "") + '</small><p>' +
+          tiers.map((tier) => '<div class="mapping"><div class="mapping-heading"><h3>' + escape(tier.name) +
+            '</h3><button type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
+            '<small>' + escape(tier.role || "") + '</small><p>' +
             (tier.implementations.length > 0
               ? escape(tier.implementations.length + " discovered implementation(s)") +
-                '<br><code>' + escape(tier.implementations.map((item) => item.title).join(" · ")) + '</code>'
+                tier.implementations.map((item) =>
+                  '<br><strong>' + escape(item.title) + '</strong> · ' + escape(item.kind) +
+                  '<br><code>' + escape(item.subtitle || item.projectPath || item.resourceId || "") + '</code>' +
+                  (item.matchedFiles?.length
+                    ? '<br><small>Evidence: ' + escape(item.matchedFiles.map((evidence) =>
+                      evidence.path + ":" + evidence.line + " (" + evidence.detail + ")").join(" · ")) + '</small>'
+                    : '') +
+                  (item.kind === "source-project"
+                    ? '<br><button type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
+                    : '')).join("")
               : 'No implementation discovered yet · scaffold available') +
             '</p></div>').join("") + '</div></section></div>' +
           '<button type="button" id="done">Back to start</button>';
+        document.querySelectorAll("[data-open-source]").forEach((button) => button.addEventListener("click", async () => {
+          setBusy(true, "Opening component source in VS Code…");
+          try {
+            await request("/api/open-vscode", {
+              method: "POST",
+              body: JSON.stringify({ root: result.worktreePath + "/" + button.dataset.openSource })
+            });
+            clearStatus("Source opened in VS Code.");
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        }));
+        document.querySelectorAll("[data-tier-action]").forEach((button) => button.addEventListener("click", async () => {
+          setBusy(true, "Opening the tier studio…");
+          try {
+            const action = await request("/api/tier-action", {
+              method: "POST",
+              body: JSON.stringify({ tierId: button.dataset.tierAction, root: result.worktreePath, includeAzure: true })
+            });
+            if (action.outcome === "candidates-discovered") {
+              clearStatus("Tier evidence is ready in the response.");
+            } else {
+              clearStatus("No implementation found; scaffold guidance is ready.");
+            }
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        }));
         document.getElementById("trace-app").addEventListener("click", async () => {
           setBusy(true, "Tracing source call graph…");
           try {

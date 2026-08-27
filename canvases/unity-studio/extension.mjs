@@ -185,9 +185,15 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/tier-action") {
       const input = await readJsonBody(request);
+      const root = input.root
+        ? await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots)
+        : workspaceRoot;
+      if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Tier action root is not an authorized app workspace.");
+      }
       sendJson(response, 200, await activateTier({
         tierId: input.tierId,
-        root: workspaceRoot,
+        root,
         includeAzure: input.includeAzure !== false,
         session,
       }));
@@ -221,7 +227,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/open-vscode") {
       const input = await readJsonBody(request);
-      const root = await resolveDiscoveryRoot(input.root, workspaceRoot);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("VS Code root is not an authorized app workspace.");
+      }
       sendJson(response, 200, await openWorkspaceInVsCode({ root }));
       return;
     }

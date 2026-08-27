@@ -235,6 +235,14 @@ function collectFileEvidence(file, projectRoots) {
   const content = file.content;
   const lowerName = file.name.toLowerCase();
   const normalizedPath = `/${file.path.toLowerCase()}`;
+  if (
+    normalizedPath.includes("/canvases/unity-studio/")
+    || normalizedPath.startsWith("/.github/")
+    || normalizedPath.includes("/infra/")
+    || normalizedPath.startsWith("/infra/")
+  ) {
+    return results;
+  }
   const isDocumentation = extname(file.name).toLowerCase() === ".md";
   const addMarker = (tierId, rule, confidence, detail) => {
     results.push(evidence(tierId, file, projectRoots, rule, confidence, detail));

@@ -545,6 +545,8 @@ export function buildImplementationInventory(discovery) {
         title: candidate.name || basename(candidate.projectPath),
         subtitle: candidate.projectPath,
         projectPath: candidate.projectPath,
+        confidence: candidate.confidence,
+        evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
       })),
       ...tier.candidates.azure.map((candidate) => ({
@@ -553,6 +555,8 @@ export function buildImplementationInventory(discovery) {
         title: candidate.name,
         subtitle: [candidate.resourceType, candidate.resourceGroup, candidate.location].filter(Boolean).join(" · "),
         resourceId: candidate.resourceId,
+        confidence: candidate.confidence,
+        evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
       })),
     ],

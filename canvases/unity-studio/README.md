@@ -14,6 +14,13 @@ The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
 
+After creation, Unity Studio immediately scans the new worktree and stays useful:
+the app workspace view shows observed components by tier, source paths, evidence
+files and confidence, plus counts and App Map statistics. Each source component
+can be opened directly in VS Code, and each tier can be handed to its registered
+specialist studio with the app worktree as context. Missing tiers are labeled as
+scaffoldable rather than inferred from the platform catalog.
+
 ## First-class templates
 
 - **Empty Unity app** is a versioned local template with web, agent, gateway,

@@ -764,9 +764,9 @@ test("guided renderer exposes exactly two journeys without scanning on launch", 
     assert.equal((html.match(/class="journey"/g) ?? []).length, 2);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
-    assert.equal(html.includes("Current app inventory"), false);
-    assert.equal(html.includes("Matched files"), false);
-    assert.equal(/\bevidence\b/i.test(html), false);
+    assert.equal(html.includes("inventory"), true);
+    assert.equal(html.includes("Evidence:"), true);
+    assert.equal(html.includes("Open source"), true);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);
     assert.match(html, /Dealer-sample-"\s*\+\s*crypto\.randomUUID\(\)\.slice\(0, 8\)/);
