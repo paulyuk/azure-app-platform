@@ -756,7 +756,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             try {
               const output = await request("/api/app-output?root=" + encodeURIComponent(result.worktreePath));
               const terminal = document.getElementById("local-output");
-              const text = output.lines.join("\n") || "Waiting for local app output.";
+              const text = output.lines.join("\\n") || "Waiting for local app output.";
               if (terminal && terminal.textContent !== text) {
                 terminal.textContent = text;
                 terminal.scrollTop = terminal.scrollHeight;
