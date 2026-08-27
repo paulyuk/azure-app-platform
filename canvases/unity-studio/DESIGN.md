@@ -8,11 +8,24 @@ offers exactly two actions and performs no automatic discovery.
 
 ### Build a new app
 
-The user names the app, describes its purpose, and starts either blank or from a
-template/sample. A blank app generates editable, runnable implementations for
-the selected capabilities. A template is advertised only when a Git worktree
-contains at least three detected capabilities and has a commit to pin. Template
-hydration uses that commit, even when the source worktree has local changes.
+Templates lead this journey:
+
+1. **Empty Unity app** is a checked-in, versioned template. It creates a local
+   web-agent vertical slice, an explicit gateway seam, editable domain and prompt
+   files, and exactly one empty Hosted Skill. It includes POSIX and PowerShell
+   whole-app start/stop scripts. The user names the skill; Unity Studio does not
+   guess its tools or business behavior.
+2. **Dealer sample** is the complete reference app from the newest eligible
+   pinned commit. Eligibility requires the agent manifest, web package, and
+   `scripts/dev-start.sh` / `scripts/dev-stop.sh`. Hydration extracts the whole
+   commit so tests, infrastructure, docs, shared contracts, and lifecycle scripts
+   stay coherent. The canvas advertises the credential-free mock startup command;
+   the full startup command remains visible but requires the settings documented
+   by the sample.
+
+The empty template can be extended after creation. The finished sample preserves
+its domain and is immediately useful for experiencing Unity Studio over a
+working app.
 
 ### Assemble existing pieces
 
@@ -26,6 +39,24 @@ step after source selection, not the primary source of truth.
 Both journeys end with a review and a delegated app-native worktree request.
 The UI reports that the request was sent; it does not claim that a workspace was
 created before the host returns that result.
+
+### Deterministic versus model-driven work
+
+The extension SDK cannot directly register an app-native project session or
+worktree. The foreground model is therefore used only to call the host's
+`create_session` operation. Once the child worktree exists,
+`template-materializer.mjs` performs deterministic local materialization:
+
+- empty template: copy checked-in files, substitute validated user inputs,
+  rename the one Hosted Skill, and set script permissions;
+- complete sample: archive the pinned Git commit and extract it at the worktree
+  root.
+
+The child model verifies the result and reports it. It must not synthesize,
+summarize, or manually recopy template files. Model reasoning remains appropriate
+for domain-language refactors, prompt authoring beyond supplied instructions,
+tool contracts the user has actually specified, compatibility/wiring decisions
+while assembling independent projects, and diagnosis of runtime failures.
 
 ## Nine-tier catalog
 

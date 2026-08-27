@@ -264,7 +264,7 @@ const workspaceInputSchema = {
   properties: {
     mode: { type: "string", enum: ["create", "extend"], default: "create" },
     journey: { type: "string", enum: ["new", "assemble"], default: "new" },
-    starterKind: { type: "string", enum: ["blank", "template", "assembly"], default: "blank" },
+    starterKind: { type: "string", enum: ["template", "assembly"], default: "template" },
     appName: { type: "string", minLength: 1, maxLength: 80 },
     purpose: { type: "string", minLength: 1, maxLength: 500 },
     tierIds: {
@@ -275,6 +275,14 @@ const workspaceInputSchema = {
     },
     sourceProjectPath: { type: "string" },
     templateRootId: { type: "string", maxLength: 80 },
+    templateInputs: {
+      type: "object",
+      properties: {
+        hostedSkillName: { type: "string", minLength: 1, maxLength: 40 },
+        agentInstructions: { type: "string", minLength: 1, maxLength: 2000 },
+      },
+      additionalProperties: false,
+    },
     sourceBindings: {
       type: "array",
       items: {

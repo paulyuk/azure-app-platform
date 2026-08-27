@@ -1,0 +1,30 @@
+# __APP_NAME__
+
+__PURPOSE__
+
+This is the editable Unity empty template. It includes:
+
+- a local web surface;
+- an agent boundary with its prompt in `src/agent/prompts/system.md`;
+- an AI Gateway configuration seam;
+- exactly one intentionally empty Hosted Skill at `src/skills/__SKILL_NAME__/`;
+- whole-app `dev-start` and `dev-stop` scripts.
+
+The template does not invent domain tools. Implement the Hosted Skill directly in
+source or open it in Intelligent Function App Studio.
+
+## Run
+
+```bash
+./scripts/dev-start.sh
+```
+
+Open <http://localhost:3000>. Stop everything with:
+
+```bash
+./scripts/dev-stop.sh
+```
+
+The startup script uses the Microsoft Python package mirror and starts the local
+mock agent and web surface. If Azure Functions Core Tools is installed, it also
+starts the Hosted Skill.

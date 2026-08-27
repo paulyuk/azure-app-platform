@@ -1,0 +1,7 @@
+# __APP_NAME__ agent
+
+__AGENT_INSTRUCTIONS__
+
+Use only registered tools. Never fabricate tool results. The `__SKILL_NAME__`
+Hosted Skill is intentionally empty until its contract and implementation are
+defined by the app builder.

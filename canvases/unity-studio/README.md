@@ -3,9 +3,9 @@
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
 pattern. Its landing page has two journeys:
 
-1. **Build a new app** — start blank or from a hydrateable template, choose
-   capabilities, review the generated implementation plan, and create the app in
-   an isolated worktree.
+1. **Build a new app** — choose the editable **Empty Unity app** or the complete
+   **Dealer sample**, customize the supported inputs, review the deterministic
+   materialization plan, and create the app in an isolated worktree.
 2. **Assemble existing pieces** — add capabilities, explicitly map each one to a
    source project from a Git worktree or authorized local folder, optionally map
    compatible Azure resources, and create a portable assembled app.
@@ -13,6 +13,23 @@ pattern. Its landing page has two journeys:
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
+
+## First-class templates
+
+- **Empty Unity app** is a versioned local template with web, agent, gateway,
+  editable domain configuration, editable agent instructions, and exactly one
+  intentionally empty Hosted Skill. It includes whole-app `dev-start` and
+  `dev-stop` scripts and never asks a model to invent tools.
+- **Dealer sample** is the complete nine-capability reference application. Unity
+  Studio selects the newest eligible pinned commit containing the web app,
+  agent manifest, and whole-app lifecycle scripts, then extracts that entire
+  commit into the destination instead of copying scanner matches piecemeal. Its
+  credential-free experience starts with
+  `./scripts/dev-start.sh --skip-skills --skip-agent`; the full stack uses
+  `./scripts/dev-start.sh` after worktree-local Azure settings are supplied.
+
+`template-materializer.mjs` owns initial files for both templates. The model is
+not allowed to synthesize or manually copy them.
 
 See [DESIGN.md](./DESIGN.md) for the tier catalog, implementation inventory, action
 semantics, safety boundaries, and tracing limitations.
@@ -50,6 +67,13 @@ from static metadata.
   working-tree snapshots into the destination; they never symlink to or modify
   the source. The child session creates `unity.app.yaml`, a runnable local
   vertical slice, focused tests, and concrete production next steps.
+
+The extension SDK cannot register an app-native project session/worktree, so
+the foreground agent remains a narrow bridge to `create_session`. The child
+kickoff then runs one exact local materializer command. Model reasoning is
+reserved for semantic domain rewrites, user-defined tool contracts, integrating
+independently built source projects, adding non-template capabilities, and
+troubleshooting—not known-file creation.
 - `build_capability` adds or improves one tier in the current app worktree,
   updates `unity.app.yaml`, wires it to adjacent tiers, and runs focused tests.
 - `open_in_vscode` opens an explicitly selected, workspace-confined repository

@@ -1,0 +1,43 @@
+param([switch]$SkipSkill)
+
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $PSScriptRoot
+$RunDir = Join-Path $Root ".dev-run"
+& (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
+New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
+$env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
+$env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
+$env:PIP_INDEX_URL = if ($env:PIP_INDEX_URL) { $env:PIP_INDEX_URL } else { $env:UV_INDEX_URL }
+
+function Wait-Port($Name, $Port, $Process) {
+  for ($i = 0; $i -lt 120; $i++) {
+    if ($Process.HasExited) { throw "$Name exited before opening port $Port" }
+    if (Test-NetConnection 127.0.0.1 -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue) {
+      Write-Host "[$Name] READY on port $Port"
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "$Name timed out opening port $Port"
+}
+
+$processes = @()
+try {
+  $agent = Start-Process python3 -ArgumentList "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -PassThru
+  $processes += @{ name = "agent"; pid = $agent.Id }
+  $web = Start-Process npm.cmd -ArgumentList "run", "dev" -WorkingDirectory (Join-Path $Root "src/web") -PassThru
+  $processes += @{ name = "web"; pid = $web.Id }
+  Wait-Port "agent" 8088 $agent
+  Wait-Port "web" 3000 $web
+  if (-not $SkipSkill -and (Get-Command uv -ErrorAction SilentlyContinue) -and (Get-Command func -ErrorAction SilentlyContinue)) {
+    $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "7071" -WorkingDirectory (Join-Path $Root "src/skills/__SKILL_NAME__") -PassThru
+    $processes += @{ name = "skill"; pid = $skill.Id }
+    Wait-Port "skill" 7071 $skill
+  }
+  $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
+  Write-Host "__APP_NAME__ started: web http://localhost:3000, agent http://localhost:8088"
+} catch {
+  $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
+  & (Join-Path $PSScriptRoot "dev-stop.ps1")
+  throw
+}

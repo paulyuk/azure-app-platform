@@ -18,6 +18,11 @@
   files** for concrete inventory.
 - Prefer deterministic actions that create, select, map, or modify artifacts
   over instructions that require users to copy prompts between tools.
+- Materialize known Unity templates with
+  `canvases/unity-studio/template-materializer.mjs`; do not ask a model to
+  recreate, summarize, or manually copy template files.
+- Use model reasoning only for semantic customization, user-defined tool
+  contracts, cross-project integration, and troubleshooting.
 
 ## Python package policy
 

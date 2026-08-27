@@ -1,0 +1,6 @@
+name: __APP_SLUG__-agent
+description: "__PURPOSE_JSON__"
+instructions_file: prompts/system.md
+tools:
+  - name: __SKILL_NAME__
+    endpoint: http://localhost:7071

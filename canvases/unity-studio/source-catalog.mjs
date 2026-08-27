@@ -14,6 +14,43 @@ const EXCLUDED_PROJECT_PREFIXES = [
   "tests",
 ];
 
+export const EMPTY_TEMPLATE = Object.freeze({
+  id: "builtin-empty-unity-v1",
+  kind: "empty",
+  name: "Empty Unity app",
+  description: "Editable web, agent, gateway, and one empty Hosted Skill with whole-app start/stop scripts.",
+  capabilityIds: ["web", "agent", "gateway", "skills"],
+  customization: ["App purpose", "Agent instructions", "Hosted Skill name"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh --skip-skill",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+  },
+});
+
+const RUNNABLE_SAMPLE_PATHS = Object.freeze([
+  "scripts/dev-start.sh",
+  "scripts/dev-stop.sh",
+  "scripts/dev-start.ps1",
+  "scripts/dev-stop.ps1",
+  "src/agent/agent.yaml",
+  "src/web/package.json",
+]);
+const DEALER_REPOSITORY = "https://github.com/coreai-microsoft/unity.git";
+const DEALER_BASE_COMMIT = "2830d882941163f833b9a893dcc62d507dc98bb6";
+const TEMPLATE_TIER_ORDER = Object.freeze([
+  "web",
+  "agent",
+  "gateway",
+  "skills",
+  "sandbox",
+  "connectors",
+  "workflows",
+  "sre",
+  "data",
+]);
+
 function sourceId(...values) {
   return createHash("sha256").update(values.join("\0")).digest("hex").slice(0, 20);
 }
@@ -112,10 +149,19 @@ async function worktreeTitle(root, branch) {
 
 async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
   const root = await realpath(worktree.path);
-  const [status, remote, repository] = await Promise.all([
+  const [status, remote, repository, commitTimestamp, approvedAncestry, ...sampleFiles] = await Promise.all([
     commandRunner("git", ["-C", root, "status", "--porcelain"]),
     commandRunner("git", ["-C", root, "config", "--get", "remote.origin.url"]),
     discoverRepository(root),
+    worktree.commit
+      ? commandRunner("git", ["-C", root, "show", "-s", "--format=%ct", worktree.commit])
+      : Promise.resolve({ ok: false, stdout: "" }),
+    worktree.commit
+      ? commandRunner("git", ["-C", root, "merge-base", "--is-ancestor", DEALER_BASE_COMMIT, worktree.commit])
+      : Promise.resolve({ ok: false }),
+    ...RUNNABLE_SAMPLE_PATHS.map((path) => worktree.commit
+      ? commandRunner("git", ["-C", root, "cat-file", "-e", `${worktree.commit}:${path}`])
+      : Promise.resolve({ ok: false })),
   ]);
   const candidates = repository.candidates
     .filter((candidate) => isUsefulProject(candidate.projectPath));
@@ -151,6 +197,9 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     implementations,
     pinnedImplementations,
     capabilityIds: [...new Set(implementations.map((item) => item.tierId))],
+    runnableSample: sampleFiles.every((result) => result.ok),
+    approvedSampleAncestry: approvedAncestry.ok,
+    commitTimestamp: commitTimestamp.ok ? Number(commitTimestamp.stdout.trim()) || 0 : 0,
   };
 }
 
@@ -201,18 +250,35 @@ export async function listSourceCatalog({
       level: "warning",
       message: result.reason instanceof Error ? result.reason.message : String(result.reason),
     }));
-  const templates = roots
+  const sampleRoots = roots
     .filter((root) => root.commit
-      && new Set(root.pinnedImplementations.map((item) => item.tierId)).size >= 3)
-    .map((root) => ({
+      && root.repository === DEALER_REPOSITORY
+      && root.approvedSampleAncestry
+      && root.runnableSample
+      && TEMPLATE_TIER_ORDER.every((tierId) =>
+        root.pinnedImplementations.some((item) => item.tierId === tierId)))
+    .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
+  const templates = [
+    EMPTY_TEMPLATE,
+    ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
-      name: root.name,
-      description: `${new Set(root.pinnedImplementations.map((item) => item.tierId)).size} Unity capabilities · pinned commit`,
-      capabilityIds: [...new Set(root.pinnedImplementations.map((item) => item.tierId))],
+      kind: "sample",
+      name: "Dealer sample",
+      description: "Complete nine-capability reference app, ready to run with dev-start and dev-stop.",
+      capabilityIds: TEMPLATE_TIER_ORDER.filter((tierId) =>
+        root.pinnedImplementations.some((item) => item.tierId === tierId)),
       sourceRootId: root.id,
       commit: root.commit,
       dirty: root.dirty,
-    }));
+      readyToRun: true,
+      preservesDomain: true,
+      startup: {
+        start: "./scripts/dev-start.sh --skip-skills --skip-agent",
+        fullStart: "./scripts/dev-start.sh",
+        stop: "./scripts/dev-stop.sh",
+      },
+    })),
+  ];
   return {
     generatedAt: new Date().toISOString(),
     roots,
@@ -231,25 +297,55 @@ export function resolveSourcePlan(catalog, input) {
 
   let bindings = [];
   if (input?.starterKind === "template") {
-    const template = catalog.templates.find((item) => item.id === input.templateRootId);
+    const template = input.templateRootId === EMPTY_TEMPLATE.id
+      ? EMPTY_TEMPLATE
+      : catalog.templates.find((item) => item.id === input.templateRootId);
+    if (template?.kind === "empty") {
+      return [{
+        kind: "empty-template",
+        templateId: template.id,
+        templateVersion: 1,
+        snapshotMode: "blueprint",
+        capabilityIds: template.capabilityIds,
+        requiredPaths: [
+          "README.md",
+          "unity.app.yaml",
+          "config/domain.json",
+          "scripts/dev-start.sh",
+          "scripts/dev-stop.sh",
+          "scripts/dev-start.ps1",
+          "scripts/dev-stop.ps1",
+          "src/web",
+          "src/agent/agent.yaml",
+          "src/agent/prompts/system.md",
+          "src/skills/<hosted-skill>",
+          "src/skills/<hosted-skill>/tests/test_contract.py",
+        ],
+        constraints: {
+          hostedSkillCount: 1,
+          inventDomainTools: false,
+          editableDomainConfiguration: true,
+          wholeAppScriptsRequired: true,
+        },
+      }];
+    }
     const root = template ? roots.get(template.sourceRootId) : null;
     if (!template || !root?.commit) {
       throw new Error("The selected template is no longer available.");
     }
-    const selected = new Set(input.tierIds);
-    bindings = root.pinnedImplementations
-      .filter((implementation) => selected.has(implementation.tierId))
-      .map((implementation) => ({
-        tierId: implementation.tierId,
-        source: implementation,
-        root,
-        snapshotMode: "commit",
-      }));
-    for (const tierId of selected) {
-      if (!bindings.some((binding) => binding.tierId === tierId)) {
-        throw new Error(`The selected template no longer provides ${tierId}.`);
-      }
-    }
+    return [{
+      kind: "complete-sample",
+      templateId: template.id,
+      rootId: root.id,
+      rootPath: root.path,
+      projectPath: ".",
+      repository: root.repository,
+      branch: root.branch,
+      commit: root.commit,
+      snapshotMode: "commit",
+      capabilityIds: template.capabilityIds,
+      startup: template.startup,
+    }];
   } else if (input?.journey === "assemble") {
     for (const binding of input.sourceBindings ?? []) {
       const sourceIds = [...new Set(binding.sourceIds ?? [])];

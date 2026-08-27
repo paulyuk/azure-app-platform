@@ -1,0 +1,17 @@
+import azure.functions as func
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+@app.route(route="health", methods=["GET"])
+def health(_: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse('{"status":"ok","skill":"__SKILL_NAME__"}', mimetype="application/json")
+
+
+@app.route(route="invoke", methods=["POST"])
+def invoke(_: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(
+        '{"status":"not_implemented","message":"Define the __SKILL_NAME__ tool contract and implementation."}',
+        status_code=501,
+        mimetype="application/json",
+    )

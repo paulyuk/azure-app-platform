@@ -130,8 +130,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         step: 0,
         appName: "",
         purpose: "",
-        starterKind: "blank",
+        starterKind: "template",
         templateRootId: "",
+        templateInputs: {
+          hostedSkillName: "starter-skill",
+          agentInstructions: ""
+        },
         tierIds: [],
         sourceBindings: {},
         azureBindings: {},
@@ -160,7 +164,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
 
       function setBusy(busy, message = "") {
-        app.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
+        app.querySelectorAll("button, input, textarea, select").forEach((control) => {
+          control.disabled = busy;
+        });
         status.textContent = message;
       }
 
@@ -194,14 +200,24 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<p>Choose one path. Unity Studio will guide the rest.</p>' +
           '<div class="journeys">' +
           '<button type="button" class="journey" id="new-app"><strong>Build a new app</strong>' +
-          '<span>Start blank or from a template, choose capabilities, and generate editable implementations.</span></button>' +
+          '<span>Start with an editable empty template or a complete sample that is ready to run.</span></button>' +
           '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
           '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
           '</div>';
-        document.getElementById("new-app").addEventListener("click", () => {
+        document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
+          draft.starterKind = "template";
           draft.step = 1;
           renderDetails();
+          try {
+            await loadSources();
+            if (!draft.templateRootId) {
+              draft.templateRootId = sources.templates[0]?.id || "";
+            }
+            renderDetails();
+          } catch (cause) {
+            error(cause.message);
+          }
         });
         document.getElementById("assemble-app").addEventListener("click", () => {
           draft.journey = "assemble";
@@ -215,13 +231,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         draft.appName = document.getElementById("app-name").value.trim();
         draft.purpose = document.getElementById("purpose").value.trim();
         if (draft.journey === "new") {
-          draft.starterKind = document.querySelector('input[name="starter"]:checked')?.value || "blank";
           draft.templateRootId = document.querySelector('input[name="template"]:checked')?.value || "";
         }
       }
 
       function templateHtml() {
-        if (draft.starterKind !== "template") return "";
         if (!sources) {
           return '<div class="notice">Loading available templates…</div>';
         }
@@ -234,6 +248,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '</strong><span class="template-meta">' + escape(template.description) +
           (template.dirty ? " · local changes excluded" : "") + '</span><small>' +
           template.capabilityIds.map((id) => capabilities.find((item) => item.id === id)?.name || id).join(", ") +
+          (template.startup
+            ? '<br><code>' + escape(template.startup.start) + '</code> · <code>' + escape(template.startup.stop) + '</code>'
+            : '') +
+          (template.kind === "empty" ? '<br>One empty Hosted Skill · editable domain config and agent prompt' : '') +
+          (template.preservesDomain ? '<br>Preserves the finished dealer domain; app name labels the workspace.' : '') +
           '</small></span></label>').join("") + '</div>';
       }
 
@@ -253,33 +272,19 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         const isNew = draft.journey === "new";
         app.innerHTML = '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
           '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
+          (isNew ? '<h2>Choose a template</h2><p>Start with the editable Empty Unity app or the complete Dealer sample.</p><div id="templates">' + templateHtml() + '</div>' : '') +
           '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
           escape(draft.appName) + '" placeholder="claims-assistant"></label>' +
           '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
           escape(draft.purpose) + '</textarea></label>' +
-          (isNew
-            ? '<h2>Start from</h2><div class="choice-list">' +
-              '<label class="choice"><input type="radio" name="starter" value="blank"' +
-              (draft.starterKind === "blank" ? " checked" : "") +
-              '><span><strong>Blank app</strong><small>Choose capabilities and generate generic, editable implementations.</small></span></label>' +
-              '<label class="choice"><input type="radio" name="starter" value="template"' +
-              (draft.starterKind === "template" ? " checked" : "") +
-              '><span><strong>Template or sample</strong><small>Hydrate selected capabilities from a pinned source snapshot.</small></span></label></div>' +
-              '<div id="templates">' + templateHtml() + '</div>'
-            : '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>') +
+          (!isNew ? '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>' : '') +
           actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" });
         document.getElementById("back").addEventListener("click", renderLanding);
-        document.querySelectorAll('input[name="starter"]').forEach((input) => {
-          input.addEventListener("change", async () => {
-            captureDetails();
-            if (draft.starterKind === "template") {
-              try {
-                await loadSources();
-              } catch (cause) {
-                error(cause.message);
-              }
-            }
-            renderDetails();
+        document.querySelectorAll('input[name="template"]').forEach((input) => {
+          input.addEventListener("change", () => {
+            draft.templateRootId = input.value;
+            const template = sources.templates.find((item) => item.id === input.value);
+            draft.tierIds = [...template.capabilityIds];
           });
         });
         document.getElementById("next").addEventListener("click", async () => {
@@ -288,7 +293,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             error("Enter an app name and purpose.");
             return;
           }
-          if (isNew && draft.starterKind === "template") {
+          if (isNew) {
             try {
               await loadSources();
             } catch (cause) {
@@ -311,25 +316,37 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             }
           }
           draft.step = 2;
-          isNew ? renderCapabilities() : renderPieces();
+          if (isNew) {
+            const template = sources.templates.find((item) => item.id === draft.templateRootId);
+            template.kind === "sample" ? renderReview() : renderCapabilities();
+          } else {
+            renderPieces();
+          }
         });
       }
 
       function renderCapabilities() {
         clearStatus();
-        app.innerHTML = '<div class="step">Step 2 of 3</div><h1>Choose capabilities</h1>' +
-          '<p>Select only what this app needs now. Each selection creates an editable implementation with a local test path.</p>' +
-          '<div class="capability-list">' + capabilities.map((tier) =>
-            '<div class="capability"><label><input type="checkbox" data-tier="' + tier.id + '"' +
-            (draft.tierIds.includes(tier.id) ? " checked" : "") + '><span><strong>' + escape(tier.name) +
-            '</strong><small>' + escape(tier.role) + '</small></span></label></div>').join("") + '</div>' +
+        app.innerHTML = '<div class="step">Step 2 of 3</div><h1>Customize the empty template</h1>' +
+          '<p>The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.</p>' +
+          '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
+          escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
+          '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
+          escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>' +
+          '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Unity Studio after creation.</p>' +
+          '<div class="capability-list">' + draft.tierIds.map((tierId) => {
+            const tier = capabilities.find((item) => item.id === tierId);
+            return '<div class="capability"><strong>' + escape(tier.name) +
+              '</strong><small>' + escape(tier.role) + '</small></div>';
+          }).join("") + '</div>' +
           actions({ back: true, nextLabel: "Review app" });
         wireActions({
           back: renderDetails,
           next: () => {
-            draft.tierIds = [...document.querySelectorAll("[data-tier]:checked")].map((input) => input.dataset.tier);
-            if (draft.tierIds.length === 0) {
-              error("Choose at least one capability.");
+            draft.templateInputs.agentInstructions = document.getElementById("agent-instructions").value.trim();
+            draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
+            if (!draft.templateInputs.agentInstructions || !/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
+              error("Enter agent instructions and a lowercase Hosted Skill name using letters, numbers, or hyphens.");
               return;
             }
             draft.step = 3;
@@ -464,25 +481,26 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function capabilityReview(tierId) {
         const tier = capabilities.find((item) => item.id === tierId);
-        if (draft.journey === "new" && draft.starterKind === "blank") {
-          return '<div class="review-row"><strong>' + escape(tier.name) + '</strong><small>Editable generic implementation</small></div>';
-        }
         const sourceId = draft.journey === "assemble" ? draft.sourceBindings[tierId] : null;
         const selected = sourceId
           ? sources.roots.flatMap((root) => root.implementations.map((implementation) => ({ root, implementation })))
               .find((item) => item.implementation.id === sourceId)
           : null;
         return '<div class="review-row"><strong>' + escape(tier.name) + '</strong><small>' +
-          escape(selected ? selected.root.name + " · " + selected.implementation.projectPath : "Hydrated from selected template") +
+          escape(selected ? selected.root.name + " · " + selected.implementation.projectPath :
+            (sources.templates.find((item) => item.id === draft.templateRootId)?.kind === "sample"
+              ? "Included in the complete runnable sample"
+              : (tierId === "skills" ? "One empty Hosted Skill" : "Editable template implementation"))) +
           (draft.azureBindings[tierId] ? "<br>Azure resource mapped" : "") + '</small></div>';
       }
 
       function renderReview() {
         clearStatus();
-        const total = draft.journey === "new" ? 3 : 4;
+        const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
+        const total = draft.journey === "new" ? (selectedTemplate?.kind === "sample" ? 2 : 3) : 4;
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
-          : (draft.starterKind === "blank" ? "Blank app" : sources.templates.find((item) => item.id === draft.templateRootId)?.name);
+          : selectedTemplate?.name;
         app.innerHTML = '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong><br>' +
           escape(draft.purpose) + '</p></section><section><h3>Starter</h3><p>' + escape(starter) +
@@ -493,9 +511,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '> Open the new worktree in VS Code</label></section></div>' +
           '<div class="notice">No Azure resources will be created or changed.</div>' +
           actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
-            (draft.starterKind === "template" ? "Create from template" : "Create app") });
+            (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") });
         wireActions({
-          back: draft.journey === "assemble" ? renderAzure : renderCapabilities,
+          back: draft.journey === "assemble" ? renderAzure :
+            (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities),
           next: submit
         });
       }
@@ -520,6 +539,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               purpose: draft.purpose,
               tierIds: draft.tierIds,
               templateRootId: draft.templateRootId || undefined,
+              templateInputs: draft.templateInputs,
               sourceBindings,
               openInVsCode: draft.openInVsCode
             })
