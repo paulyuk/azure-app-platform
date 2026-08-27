@@ -21,15 +21,27 @@ require_value() {
   printf '%s' "$value"
 }
 
-subscription_id="$(require_value AZURE_SUBSCRIPTION_ID "$(azd_value AZURE_SUBSCRIPTION_ID)")"
-resource_group="$(require_value AI_GATEWAY_RESOURCE_GROUP "$(azd_value AI_GATEWAY_RESOURCE_GROUP)")"
-gateway_name="$(require_value AI_GATEWAY_NAME "$(azd_value AI_GATEWAY_NAME)")"
-gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$(azd_value AZURE_AI_GATEWAY_MODEL)")"
-gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)")"
+subscription_id="$(require_value AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID:-$(azd_value AZURE_SUBSCRIPTION_ID)}")"
+resource_group="$(require_value AI_GATEWAY_RESOURCE_GROUP "${AI_GATEWAY_RESOURCE_GROUP:-$(azd_value AI_GATEWAY_RESOURCE_GROUP)}")"
+gateway_name="$(require_value AI_GATEWAY_NAME "${AI_GATEWAY_NAME:-$(azd_value AI_GATEWAY_NAME)}")"
 gateway_resource_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/service/${gateway_name}"
 gateway_uri="https://management.azure.com${gateway_resource_id}?api-version=${AI_GATEWAY_API_VERSION}"
 
-gateway_url="$(azd_value AZURE_AI_GATEWAY_ENDPOINT)"
+gateway_model="${AZURE_AI_GATEWAY_MODEL:-$(azd_value AZURE_AI_GATEWAY_MODEL)}"
+gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)}"
+if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
+  model_names="$(az rest --method get \
+    --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/modelProviders/foundry/models?api-version=${AI_GATEWAY_API_VERSION}" \
+    --query 'value[].name' -o tsv 2>/dev/null || true)"
+  first_model="$(printf '%s\n' "$model_names" | sed -n '1p')"
+  second_model="$(printf '%s\n' "$model_names" | sed -n '2p')"
+  gateway_mini_model="${gateway_mini_model:-$first_model}"
+  gateway_model="${gateway_model:-${second_model:-$first_model}}"
+fi
+gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$gateway_model")"
+gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model")"
+
+gateway_url="${AZURE_AI_GATEWAY_ENDPOINT:-$(azd_value AZURE_AI_GATEWAY_ENDPOINT)}"
 if [ -z "$gateway_url" ]; then
   gateway_url="$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv 2>/dev/null || true)"
 fi

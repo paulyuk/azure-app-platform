@@ -207,6 +207,7 @@ async function startAppCommand(root, command, args, state, options = {}) {
   for (const key of ["client_session", "CLIENT_SESSION", "AZURE_CORE_CLIENT_SESSION", "SESSION_ID", "COPILOT_AGENT_SESSION_ID", "AGENCY_SESSION_ID"]) {
     delete commandEnvironment[key];
   }
+  Object.assign(commandEnvironment, options.env ?? {});
   const child = spawn(command, args, {
     cwd: options.cwd ?? root,
     env: commandEnvironment,
@@ -331,12 +332,25 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       } catch {
         throw new Error("Azure CLI returned invalid AI Gateway data.");
       }
+      const active = activeGateways.get(root);
+      const activeResource = active && gateways.find((gateway) => gateway.name === active.name);
+      if (activeResource) {
+        activeGateways.set(root, {
+          ...active,
+          resourceGroup: activeResource.resourceGroup || activeResource.resourceGroupName || active.resourceGroup || "",
+          location: activeResource.location || active.location || "",
+          subscriptionId: activeResource.id?.split("/")[2] || active.subscriptionId || "",
+          endpoint: activeResource.properties?.gatewayUrl || active.endpoint || "",
+        });
+      }
       sendJson(response, 200, {
         active: activeGateways.get(root) ?? null,
         gateways: gateways.map((gateway) => ({
           name: gateway.name,
           resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
           location: gateway.location || "",
+          subscriptionId: gateway.id?.split("/")[2] || "",
+          endpoint: gateway.properties?.gatewayUrl || "",
         })),
       });
       return;
@@ -355,6 +369,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         name: gateway.name,
         resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
         location: gateway.location || "",
+        subscriptionId: gateway.id?.split("/")[2] || "",
+        endpoint: gateway.properties?.gatewayUrl || "",
       };
       activeGateways.set(root, active);
       await mkdir(`${root}/.unity-studio`, { recursive: true });
@@ -468,7 +484,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "configure-gateway") {
         const gatewayConfig = await resolveGatewayConfigCommand(root);
-        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", { cwd: gatewayConfig.cwd }));
+        const active = activeGateways.get(root);
+        const gatewayEnv = active ? {
+          AZURE_SUBSCRIPTION_ID: active.subscriptionId,
+          AI_GATEWAY_RESOURCE_GROUP: active.resourceGroup,
+          AI_GATEWAY_NAME: active.name,
+          AZURE_AI_GATEWAY_ENDPOINT: active.endpoint,
+        } : {};
+        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", {
+          cwd: gatewayConfig.cwd,
+          env: gatewayEnv,
+        }));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {

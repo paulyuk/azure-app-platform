@@ -31,16 +31,27 @@ function Assert-Value {
     return $Value
 }
 
-$subscriptionId = Assert-Value 'AZURE_SUBSCRIPTION_ID' (Get-AzdValue 'AZURE_SUBSCRIPTION_ID')
-$resourceGroup = Assert-Value 'AI_GATEWAY_RESOURCE_GROUP' (Get-AzdValue 'AI_GATEWAY_RESOURCE_GROUP')
-$gatewayName = Assert-Value 'AI_GATEWAY_NAME' (Get-AzdValue 'AI_GATEWAY_NAME')
-$gatewayModel = Assert-Value 'AZURE_AI_GATEWAY_MODEL' (Get-AzdValue 'AZURE_AI_GATEWAY_MODEL')
-$gatewayMiniModel = Assert-Value 'AZURE_AI_GATEWAY_MINI_MODEL' (Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL')
+$subscriptionId = Assert-Value 'AZURE_SUBSCRIPTION_ID' $(if ($env:AZURE_SUBSCRIPTION_ID) { $env:AZURE_SUBSCRIPTION_ID } else { Get-AzdValue 'AZURE_SUBSCRIPTION_ID' })
+$resourceGroup = Assert-Value 'AI_GATEWAY_RESOURCE_GROUP' $(if ($env:AI_GATEWAY_RESOURCE_GROUP) { $env:AI_GATEWAY_RESOURCE_GROUP } else { Get-AzdValue 'AI_GATEWAY_RESOURCE_GROUP' })
+$gatewayName = Assert-Value 'AI_GATEWAY_NAME' $(if ($env:AI_GATEWAY_NAME) { $env:AI_GATEWAY_NAME } else { Get-AzdValue 'AI_GATEWAY_NAME' })
 
 $gatewayResourceId = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.ApiManagement/service/$gatewayName"
 $gatewayUri = "https://management.azure.com$gatewayResourceId`?api-version=$AiGatewayApiVersion"
 
-$gatewayUrl = Get-AzdValue 'AZURE_AI_GATEWAY_ENDPOINT'
+$gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL } else { Get-AzdValue 'AZURE_AI_GATEWAY_MODEL' }
+$gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } else { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' }
+if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
+    $modelNames = @(az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/modelProviders/foundry/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv)
+    if ([string]::IsNullOrEmpty($gatewayMiniModel) -and $modelNames.Count -gt 0) { $gatewayMiniModel = $modelNames[0] }
+    if ([string]::IsNullOrEmpty($gatewayModel)) {
+        $gatewayModel = if ($modelNames.Count -gt 1) { $modelNames[1] } elseif ($modelNames.Count -gt 0) { $modelNames[0] } else { '' }
+    }
+}
+$gatewayModel = Assert-Value 'AZURE_AI_GATEWAY_MODEL' $gatewayModel
+$gatewayMiniModel = Assert-Value 'AZURE_AI_GATEWAY_MINI_MODEL' $gatewayMiniModel
+
+$gatewayUrl = $env:AZURE_AI_GATEWAY_ENDPOINT
+if ([string]::IsNullOrEmpty($gatewayUrl)) { $gatewayUrl = Get-AzdValue 'AZURE_AI_GATEWAY_ENDPOINT' }
 if ([string]::IsNullOrEmpty($gatewayUrl)) {
     $gatewayUrl = (az rest --method get --uri $gatewayUri --query properties.gatewayUrl -o tsv)
 }
