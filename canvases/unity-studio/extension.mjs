@@ -29,13 +29,21 @@ const appOutput = new Map();
 let session;
 
 async function readRuntimeOutput(root) {
-  const lines = [...(appOutput.get(root) ?? [])];
+  const run = appOutput.get(root);
+  const lines = [...(run?.lines ?? [])];
   try {
-    const names = (await readdir(`${root}/.dev-run`)).filter((name) => name.endsWith(".log")).sort();
-    for (const name of names) {
-      const contents = await readFile(`${root}/.dev-run/${name}`, "utf8");
-      lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${name}] ${line}`));
+    async function readLogs(directory, prefix = "") {
+      for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+        const path = `${directory}/${entry.name}`;
+        if (entry.isDirectory()) {
+          await readLogs(path, `${prefix}${entry.name}/`);
+        } else if (entry.name.endsWith(".log") && (!run || (await stat(path)).mtimeMs >= run.startedAt)) {
+          const contents = await readFile(path, "utf8");
+          lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${prefix}${entry.name}] ${line}`));
+        }
+      }
     }
+    await readLogs(`${root}/.dev-run`);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
@@ -150,11 +158,11 @@ async function resolveLifecycleCommand(root, operation) {
 
 async function startAppCommand(root, command, args, state) {
   const child = spawn(command, args, { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
-  const output = [];
-  appOutput.set(root, output);
+  const run = { lines: [], startedAt: Date.now() };
+  appOutput.set(root, run);
   const appendOutput = (chunk) => {
-    output.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
-    if (output.length > 400) output.splice(0, output.length - 400);
+    run.lines.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
+    if (run.lines.length > 400) run.lines.splice(0, run.lines.length - 400);
   };
   child.stdout.on("data", appendOutput);
   child.stderr.on("data", appendOutput);
