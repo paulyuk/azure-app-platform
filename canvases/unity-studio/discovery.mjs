@@ -464,7 +464,17 @@ function confidenceRank(confidence) {
   return { low: 1, medium: 2, high: 3 }[confidence] ?? 0;
 }
 
-function groupRepoCandidates(allEvidence) {
+function projectDisplayName(files, projectPath, tierId) {
+  if (tierId === "agent") {
+    const manifest = files.find((file) =>
+      file.name === "agent.yaml" && projectRootFor(file, projectRootsFor(files)) === projectPath);
+    const name = manifest?.content.match(/^\s*name\s*:\s*["']?([^"'#\s]+)["']?\s*$/m)?.[1];
+    if (name) return name;
+  }
+  return basename(projectPath) || basename(process.cwd());
+}
+
+function groupRepoCandidates(allEvidence, files = []) {
   const grouped = new Map();
   for (const item of allEvidence) {
     const key = `${item.tierId}:${item.projectPath}`;
@@ -474,7 +484,7 @@ function groupRepoCandidates(allEvidence) {
         id: key,
         source: "repository",
         tierId: item.tierId,
-        name: basename(item.projectPath) || basename(process.cwd()),
+        name: projectDisplayName(files, item.projectPath, item.tierId),
         projectPath: item.projectPath,
         confidence: item.confidence,
         evidence: [],
@@ -508,7 +518,7 @@ export async function discoverRepository(root, options = {}) {
   return {
     source: "repository",
     root: scan.root,
-    candidates: groupRepoCandidates(allEvidence),
+    candidates: groupRepoCandidates(allEvidence, files),
     diagnostics: [...scan.diagnostics, ...manifest.diagnostics],
     scannedFiles: scan.files.length,
   };

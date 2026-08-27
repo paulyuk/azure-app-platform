@@ -52,7 +52,7 @@ export const PLATFORM_TIERS = Object.freeze([
   },
   {
     id: "skills",
-    name: "Skills",
+    name: "Hosted Skills",
     role: "Deterministic, callable business capabilities",
     jobToBeDone: "Expose bounded operations as independently deployable tools with explicit contracts.",
     expectedInterfaces: ["MCP", "HTTP", "Function trigger"],
@@ -117,7 +117,7 @@ export const PLATFORM_TIERS = Object.freeze([
   },
   {
     id: "data",
-    name: "Data",
+    name: "Direct data primitive",
     role: "Durable application state and retrieval",
     jobToBeDone: "Store, query, and govern operational, analytical, and grounding data.",
     expectedInterfaces: ["Data API", "Schema", "Backup and retention policy"],

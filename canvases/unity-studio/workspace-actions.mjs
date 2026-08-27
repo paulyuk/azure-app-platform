@@ -536,7 +536,9 @@ export function buildImplementationInventory(discovery) {
     expectedInterfaces: tier.expectedInterfaces,
     scaffoldAvailable: tier.scaffoldAvailable,
     scaffold: tier.scaffold,
-    implementationState: tier.candidates.repository.length > 0 ? "observed" : "missing",
+    implementationState: tier.candidates.repository.length > 0
+      ? (tier.id === "gateway" ? "referenced-not-provisioned" : "observed")
+      : "missing",
     resourceState: tier.candidates.azure.length > 0 ? "available" : "none",
     implementations: [
       ...tier.candidates.repository.map((candidate) => ({
@@ -548,6 +550,7 @@ export function buildImplementationInventory(discovery) {
         confidence: candidate.confidence,
         evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
+        insights: candidate.evidence.map((item) => item.detail),
       })),
       ...tier.candidates.azure.map((candidate) => ({
         id: candidate.id,
@@ -558,6 +561,7 @@ export function buildImplementationInventory(discovery) {
         confidence: candidate.confidence,
         evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
+        insights: candidate.evidence.map((item) => item.detail),
       })),
     ],
   }));

@@ -543,7 +543,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         app.innerHTML = '<div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
           ' inventory</h1><p>' + escape(draft.purpose) + '</p><div class="summary">' +
           '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
-          '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p></section>' +
+          '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
+          '<p><strong>Run locally:</strong> start the app with its lifecycle script after configuring the gateway endpoint and local model access.</p>' +
+          '<p><strong>Prepare for cloud:</strong> provision the gateway, bind hosted skills, then attach SRE and telemetry.</p></section>' +
           '<section><h3>App Map</h3><p>' + escape(graphSummary) +
           '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
           '<section><h3>Specialist canvases</h3><p>' +
@@ -551,15 +553,22 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '</p></section><section><h3>Components by tier</h3><div class="mapping-list">' +
           tiers.map((tier) => '<div class="mapping"><div class="mapping-heading"><h3>' + escape(tier.name) +
             '</h3><button type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
-            '<small>' + escape(tier.role || "") + '</small><p>' +
+            '<small>' + escape(tier.role || "") + '</small><p><strong>' +
+            escape(tier.implementationState === "referenced-not-provisioned"
+              ? "Referenced by source; not provisioned"
+              : tier.implementationState === "missing" ? "Not discovered" : "Observed") +
+            '</strong><br>' +
             (tier.implementations.length > 0
               ? escape(tier.implementations.length + " discovered implementation(s)") +
                 tier.implementations.map((item) =>
                   '<br><strong>' + escape(item.title) + '</strong> · ' + escape(item.kind) +
                   '<br><code>' + escape(item.subtitle || item.projectPath || item.resourceId || "") + '</code>' +
+                  (item.insights?.length
+                    ? '<br><small>Insights: ' + escape(item.insights.join(" · ")) + '</small>'
+                    : '') +
                   (item.matchedFiles?.length
-                    ? '<br><small>Evidence: ' + escape(item.matchedFiles.map((evidence) =>
-                      evidence.path + ":" + evidence.line + " (" + evidence.detail + ")").join(" · ")) + '</small>'
+                    ? '<br><small>Source files: ' + escape(item.matchedFiles.map((evidence) =>
+                      evidence.path + ":" + evidence.line).join(" · ")) + '</small>'
                     : '') +
                   (item.kind === "source-project"
                     ? '<br><button type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
