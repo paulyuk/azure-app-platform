@@ -25,7 +25,7 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     const nodes = appMap.nodes.filter((node) => node.tierId === tier.id);
     if (nodes.length === 0) return "";
     return '<section class="map-lane" data-map-tier="' + escapeHtml(tier.id) + '">' +
-      '<div class="map-lane-head"><strong>' + escapeHtml(tier.name) + '</strong><small>' +
+      '<div class="map-lane-head"><strong>' + escapeHtml(tier.mapLabel || tier.name) + '</strong><small>' +
       nodes.length + (nodes.length === 1 ? " node" : " nodes") + '</small></div>' +
       nodes.map((node) => {
         const links = (outgoing.get(node.id) || []).map((edge) => {
@@ -41,9 +41,15 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
         const details = (node.details || []).map((detail) =>
           '<div class="map-detail"><span>' + escapeHtml(detail.label) + '</span><b>' +
           escapeHtml(detail.value) + '</b></div>').join("");
+        const badges = (node.badges || []).map((badge) => {
+          const item = typeof badge === "string" ? { label: badge, kind: "default" } : badge;
+          return '<span class="map-badge ' + escapeHtml(item.kind || "default") + '">' +
+            escapeHtml(item.label) + '</span>';
+        }).join("");
         return '<article class="map-node ' + escapeHtml(node.kind || "project") + '">' +
           '<strong>' + escapeHtml(node.name) + '</strong><code>' +
           escapeHtml(node.projectPath || node.kind) + '</code>' +
+          (badges ? '<div class="map-badges">' + badges + '</div>' : '') +
           (details ? '<div class="map-details">' + details + '</div>' : '') +
           (links.length || missing.length
             ? '<div class="map-links">' + links.join("") + missing.join("") + '</div>'
@@ -87,6 +93,13 @@ export function renderExpandedAppMapHtml(appMap) {
     .map-node { padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
     .map-node + .map-node { margin-top:8px; } .map-node.operation { border-style:dashed; }
     .map-node strong,.map-node code { display:block; } .map-node code { margin-top:3px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+    .map-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+    .map-badge { border:1px solid var(--line); border-radius:999px; padding:1px 6px; background:var(--raised); color:var(--muted); font-size:10px; line-height:1.45; }
+    .map-badge.hosted-agent,.map-badge.model { border-color:#54aeff; background:#ddf4ff; color:#0550ae; }
+    .map-badge.framework,.map-badge.sdk { border-color:#c084fc; background:#f3e8ff; color:#6b21a8; }
+    .map-badge.target { border-color:#8b5cf6; background:#ede9fe; color:#5b21b6; }
+    .map-badge.bound { border-color:#4ac26b; background:#dafbe1; color:#116329; }
+    .map-badge.embr { border-color:#22d3ee; background:#cffafe; color:#155e75; }
     .map-links { display:grid; gap:5px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
     .map-details { display:grid; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
     .map-detail { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
@@ -330,6 +343,13 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .map-node strong, .map-node code { display: block; }
       .map-node strong { font-size: 12px; }
       .map-node code { margin-top: 3px; color: var(--studio-muted); font-size: 10px; }
+      .map-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+      .map-badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 1px 6px; background: var(--studio-raised); color: var(--studio-muted); font-size: 9px; line-height: 1.45; }
+      .map-badge.hosted-agent, .map-badge.model { border-color: #54aeff; background: #ddf4ff; color: #0550ae; }
+      .map-badge.framework, .map-badge.sdk { border-color: #c084fc; background: #f3e8ff; color: #6b21a8; }
+      .map-badge.target { border-color: #8b5cf6; background: #ede9fe; color: #5b21b6; }
+      .map-badge.bound { border-color: #4ac26b; background: #dafbe1; color: #116329; }
+      .map-badge.embr { border-color: #22d3ee; background: #cffafe; color: #155e75; }
       .map-links { display: grid; gap: 5px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--studio-line); }
       .map-details { display: grid; gap: 4px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--studio-line); }
       .map-detail { display: flex; justify-content: space-between; gap: 8px; color: var(--studio-muted); font-size: 10px; }

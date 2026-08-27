@@ -999,12 +999,21 @@ test("App Map derives cross-tier and workflow edges with source evidence", async
   });
 });
 
-test("App Map labels one gateway binding and folds model and tool details into it", async () => {
+test("App Map exposes Foundry targets and concrete Azure bindings as evidence-backed badges", async () => {
   await withFixture({
+    ".unity-studio/active-gateway.json": JSON.stringify({
+      name: "aigw-support",
+      resourceGroup: "rg-support",
+      location: "eastus2",
+    }),
+    "web/embr.yaml": "name: support-web\nplatform: nodejs\n",
     "agent/agent.yaml": "kind: hosted\nname: support-agent\n",
+    "agent/azure.yaml": "services:\n  support-agent:\n    host: azure.ai.agent\n    kind: hosted\n",
     "agent/main.py": `
+from agent_framework import Agent
 from agent_framework_foundry_hosting import FoundryToolbox
 DEFAULT_GATEWAY_MODEL = "gpt-primary"
+DEFAULT_CHAT_MODEL = "not-a-gateway-binding"
 endpoint = os.environ["AZURE_AI_GATEWAY_ENDPOINT"]
 model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
 `,
@@ -1015,13 +1024,36 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     assert.equal(graph.nodes.filter((node) => node.tierId === "gateway").length, 1);
     assert.deepEqual(
       gateway.details.map((detail) => [detail.label, detail.value]),
-      [["Model", "gpt-primary"], ["Tools", "Foundry Toolbox"]],
+      [
+        ["AI Gateway", "aigw-support"],
+        ["Resource group", "rg-support"],
+        ["Foundry model", "gpt-primary"],
+        ["Tools", "Foundry Toolbox"],
+      ],
     );
+    assert.deepEqual(gateway.badges.map((badge) => badge.label), ["Azure bound", "1 Foundry model binding"]);
+    const agent = graph.nodes.find((node) => node.tierId === "agent");
+    assert.equal(agent.name, "support-agent");
+    assert.deepEqual(agent.badges.map((badge) => badge.label), [
+      "Foundry Hosted Agent",
+      "MAF",
+      "Foundry SDK",
+      "Foundry deploy target",
+    ]);
+    const web = graph.nodes.find((node) => node.tierId === "web");
+    assert.equal(web.name, "support-web");
+    assert.deepEqual(web.badges.map((badge) => badge.label), ["Embr target"]);
     assert.equal(graph.edges.some((edge) => edge.kind === "model-route" || edge.kind === "tool-route"), false);
 
     const rendered = renderAppMapMarkup(graph);
+    assert.match(rendered, /map-lane-head"><strong>Agent \/ Foundry Hosted Agent<\/strong>/);
     assert.match(rendered, /model request <b>AI Gateway binding<\/b>/);
+    assert.match(rendered, /Foundry Hosted Agent/);
+    assert.match(rendered, /Foundry deploy target/);
+    assert.match(rendered, /Azure bound/);
+    assert.match(rendered, /Embr target/);
     assert.match(rendered, /gpt-primary/);
+    assert.doesNotMatch(rendered, /not-a-gateway-binding/);
     assert.match(rendered, /Foundry Toolbox/);
     assert.doesNotMatch(rendered, /model request <b>agent<\/b>/);
     assert.match(renderExpandedAppMapHtml(graph), /Unity App Map/);

@@ -363,15 +363,124 @@ function projectNodeName(candidate, repositoryRoot) {
   return basename(candidate.projectPath) || basename(repositoryRoot);
 }
 
+function uniqueEvidence(items) {
+  return [...new Map(items.map((item) => [
+    `${item.path}:${item.line}:${item.rule}:${item.detail}`,
+    item,
+  ])).values()];
+}
+
+function consolidateGatewayNodes(nodes) {
+  const gateways = findNodes(nodes, "gateway");
+  if (gateways.length <= 1) return;
+
+  const primary = gateways.find((node) =>
+    node.evidence.some((item) => item.path === ".unity-studio/active-gateway.json")) ?? gateways[0];
+  primary.evidence = uniqueEvidence(gateways.flatMap((node) => node.evidence));
+  primary.confidence = gateways.some((node) =>
+    node.evidence.some((item) => item.path === ".unity-studio/active-gateway.json"))
+    ? "high"
+    : primary.confidence;
+
+  const duplicateIds = new Set(gateways.filter((node) => node !== primary).map((node) => node.id));
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    if (duplicateIds.has(nodes[index].id)) nodes.splice(index, 1);
+  }
+}
+
+function namedManifestValue(files, fileName, key) {
+  const expression = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:\\s*["']?([^"'\\n#]+)`, "m");
+  for (const file of files.filter((item) => item.name === fileName)) {
+    const found = firstMatch(file, expression);
+    if (found) {
+      return {
+        value: found.match[1].trim(),
+        evidence: sourceEvidence(file.path, found.line, `${fileName}-${key}`, found.match[0]),
+      };
+    }
+  }
+  return null;
+}
+
+function platformBadge(label, kind, evidence) {
+  return { label, kind, evidence };
+}
+
+function addPlatformMetadata(nodes, files) {
+  for (const node of findNodes(nodes, "agent")) {
+    const owned = candidateFiles(node, files);
+    const manifestName = namedManifestValue(owned, "agent.yaml", "name");
+    if (manifestName) node.name = manifestName.value;
+
+    const hostedManifest = owned.map((file) => ({
+      file,
+      found: file.name === "agent.yaml" ? firstMatch(file, /^\s*kind\s*:\s*hosted\s*$/m) : null,
+    })).find((entry) => entry.found);
+    const foundryTarget = owned.map((file) => ({
+      file,
+      found: file.name === "azure.yaml" ? firstMatch(file, /\bhost\s*:\s*azure\.ai\.agent\b/) : null,
+    })).find((entry) => entry.found);
+    const maf = owned.map((file) => ({
+      file,
+      found: firstMatch(file, /\b(?:from|import)\s+agent_framework\b|["']agent-framework(?:[<>=])/),
+    })).find((entry) => entry.found);
+    const foundrySdk = owned.map((file) => ({
+      file,
+      found: firstMatch(file, /\bagent_framework_foundry_hosting\b|["']agent-framework-foundry-hosting(?:[<>=])/),
+    })).find((entry) => entry.found);
+
+    node.badges = [
+      hostedManifest && (foundrySdk || foundryTarget) && platformBadge(
+        "Foundry Hosted Agent",
+        "hosted-agent",
+        sourceEvidence(hostedManifest.file.path, hostedManifest.found.line, "foundry-hosted-agent", hostedManifest.found.match[0]),
+      ),
+      maf && platformBadge(
+        "MAF",
+        "framework",
+        sourceEvidence(maf.file.path, maf.found.line, "agent-framework", maf.found.match[0]),
+      ),
+      foundrySdk && platformBadge(
+        "Foundry SDK",
+        "sdk",
+        sourceEvidence(foundrySdk.file.path, foundrySdk.found.line, "foundry-hosting-sdk", foundrySdk.found.match[0]),
+      ),
+      foundryTarget && platformBadge(
+        "Foundry deploy target",
+        "target",
+        sourceEvidence(foundryTarget.file.path, foundryTarget.found.line, "foundry-deploy-target", foundryTarget.found.match[0]),
+      ),
+    ].filter(Boolean);
+  }
+
+  for (const node of findNodes(nodes, "web")) {
+    const owned = candidateFiles(node, files);
+    const manifestName = namedManifestValue(owned, "embr.yaml", "name");
+    if (manifestName) node.name = manifestName.value;
+    const manifest = owned.find((file) => file.name === "embr.yaml");
+    if (manifest) {
+      node.badges = [
+        platformBadge("Embr target", "embr", sourceEvidence(
+          manifest.path,
+          1,
+          "embr-target",
+          "embr.yaml",
+        )),
+      ];
+    }
+  }
+}
+
 function addGatewayDetails(nodes, files) {
   const gateways = findNodes(nodes, "gateway");
   if (gateways.length === 0) return;
 
+  const agentFiles = findNodes(nodes, "agent").flatMap((agent) => candidateFiles(agent, files));
   const modelNames = new Map();
   const toolboxEvidence = [];
-  for (const file of files) {
+  for (const file of agentFiles) {
     for (const expression of [
-      /\bDEFAULT_[A-Z0-9_]*MODEL\s*=\s*["']([^"']+)["']/g,
+      /\bDEFAULT_GATEWAY(?:_[A-Z0-9]+)*_MODEL\s*=\s*["']([^"']+)["']/g,
       /\bAZURE_AI_GATEWAY(?:_[A-Z0-9]+)?_MODEL\s*=\s*["']([^"'${}<>\s]+)["']/g,
     ]) {
       for (const match of file.content.matchAll(expression)) {
@@ -394,13 +503,58 @@ function addGatewayDetails(nodes, files) {
     }
   }
 
+  let activeGateway = null;
+  const activeGatewayFile = files.find((file) => file.path === ".unity-studio/active-gateway.json");
+  if (activeGatewayFile) {
+    try {
+      const parsed = JSON.parse(activeGatewayFile.content);
+      if (typeof parsed?.name === "string" && parsed.name.trim()) activeGateway = parsed;
+    } catch {
+      // Discovery diagnostics own malformed source; App Map simply omits the binding metadata.
+    }
+  }
+
   for (const gateway of gateways) {
-    gateway.details = [...modelNames].map(([name, evidence]) => ({
+    gateway.badges = [];
+    gateway.details = [];
+    if (activeGateway) {
+      const bindingEvidence = sourceEvidence(
+        activeGatewayFile.path,
+        1,
+        "active-gateway-binding",
+        activeGateway.name,
+      );
+      gateway.badges.push(platformBadge("Azure bound", "bound", bindingEvidence));
+      gateway.details.push({
+        kind: "azure-resource",
+        label: "AI Gateway",
+        value: activeGateway.name,
+        evidence: bindingEvidence,
+      });
+      if (activeGateway.resourceGroup) {
+        gateway.details.push({
+          kind: "azure-resource-group",
+          label: "Resource group",
+          value: activeGateway.resourceGroup,
+          evidence: bindingEvidence,
+        });
+      }
+    }
+    gateway.details.push(...[...modelNames].map(([name, evidence]) => ({
       kind: "model",
-      label: "Model",
+      label: activeGateway ? "Foundry model" : "Model route",
       value: name,
       evidence,
-    }));
+    })));
+    if (modelNames.size > 0) {
+      gateway.badges.push(platformBadge(
+        activeGateway
+          ? `${modelNames.size} Foundry model ${modelNames.size === 1 ? "binding" : "bindings"}`
+          : `${modelNames.size} model ${modelNames.size === 1 ? "route" : "routes"}`,
+        "model",
+        [...modelNames.values()][0],
+      ));
+    }
     if (toolboxEvidence.length > 0) {
       gateway.details.push({
         kind: "tool-route",
@@ -425,6 +579,8 @@ export async function traceApp({ root = process.cwd() } = {}) {
   const unresolved = [];
   const seen = new Set();
 
+  consolidateGatewayNodes(nodes);
+  addPlatformMetadata(nodes, files);
   addCrossTierEdges(nodes, files, edges, seen, unresolved);
   addGatewayDetails(nodes, files);
   addWorkflowOperations(nodes, files, edges, seen);

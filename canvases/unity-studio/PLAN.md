@@ -236,6 +236,17 @@ When source evidence identifies model deployment names or a governed toolbox
 route, those appear as compact metadata inside the single gateway binding card,
 not as duplicate graph nodes or synthetic gateway-internal edges.
 
+App Map also distinguishes platform intent from concrete bindings with compact,
+evidence-backed badges. The Agent lane is explicitly labeled **Agent / Foundry
+Hosted Agent** to state Unity's opinionated runtime target. Agent projects identify
+**Foundry Hosted Agent** as the
+opinionated runtime and show observed **MAF**, **Foundry SDK**, and **Foundry
+deploy target** evidence. Web projects with `embr.yaml` show **Embr target**.
+Persisted gateway selection produces one consolidated **Azure bound** gateway
+card with its concrete resource name, resource group, and source-referenced
+Foundry model bindings. Target badges must not imply a deployment already
+exists; bound badges require persisted resource evidence.
+
 ## Ongoing spec checks
 
 Future changes should preserve these invariants:

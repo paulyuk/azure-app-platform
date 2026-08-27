@@ -27,14 +27,15 @@ export const PLATFORM_TIERS = Object.freeze([
   {
     id: "agent",
     name: "Agent",
-    role: "Intent interpretation and tool orchestration",
+    mapLabel: "Agent / Foundry Hosted Agent",
+    role: "Foundry Hosted Agent reasoning and tool orchestration",
     jobToBeDone: "Reason over user intent and select governed skills without fabricating tool results.",
-    expectedInterfaces: ["Responses protocol", "Agent manifest", "Tool registry"],
+    expectedInterfaces: ["Foundry Hosted Agent", "Responses protocol", "Agent manifest", "Tool registry"],
     preferredCanvases: ["ai-gateway-studio", "agent-builder"],
     scaffold: {
-      summary: "Create a hosted agent project with an agent manifest and explicit tool registrations.",
+      summary: "Create a Foundry Hosted Agent project with an agent manifest and explicit tool registrations.",
       markers: ["agent.yaml", "main.py"],
-      nextActions: ["Choose a hosted-agent runtime", "Define agent instructions", "Register tools and model routing"],
+      nextActions: ["Configure Foundry hosting", "Define agent instructions", "Register tools and model routing"],
     },
   },
   {
