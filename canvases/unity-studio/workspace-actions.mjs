@@ -527,6 +527,26 @@ export async function openWorkspaceInVsCode({
   throw new Error(`Could not open VS Code: ${codeResult.stderr || codeResult.error || "the code command is unavailable"}`);
 }
 
+function evidenceBadges(evidence) {
+  const badges = [];
+  if (evidence.rule === "embr-manifest") badges.push("Embr");
+  if (evidence.rule === "web-package") badges.push("Web framework");
+  if (evidence.rule === "agent-client") badges.push("HTTP API");
+  if (evidence.rule === "agent-manifest") badges.push("HostedAgent");
+  if (evidence.rule === "agent-runtime") badges.push("MAF");
+  if (evidence.rule === "gateway-reference") badges.push("Gateway reference");
+  if (evidence.rule === "skill-config") badges.push("HostedSkill");
+  if (evidence.rule === "hosted-skill-entrypoint") badges.push("Azure Functions");
+  if (evidence.rule === "tool-declaration") badges.push("MCP tool");
+  if (evidence.rule === "container-image") badges.push("Docker");
+  if (evidence.rule === "sandbox-boundary") badges.push("Sandbox");
+  if (evidence.rule === "durable-orchestration") badges.push("Durable Functions");
+  if (evidence.rule === "workflow-resource") badges.push("Workflow resource");
+  if (evidence.rule === "data-definition") badges.push("Direct data");
+  if (evidence.rule === "connector-reference") badges.push("Connector");
+  return badges;
+}
+
 export function buildImplementationInventory(discovery) {
   return discovery.tiers.map((tier) => ({
     id: tier.id,
@@ -551,6 +571,7 @@ export function buildImplementationInventory(discovery) {
         evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
         insights: candidate.evidence.map((item) => item.detail),
+        badges: [...new Set(candidate.evidence.flatMap((item) => evidenceBadges(item)))],
       })),
       ...tier.candidates.azure.map((candidate) => ({
         id: candidate.id,
@@ -562,6 +583,7 @@ export function buildImplementationInventory(discovery) {
         evidenceCount: candidate.evidence.length,
         matchedFiles: candidate.evidence,
         insights: candidate.evidence.map((item) => item.detail),
+        badges: [...new Set(candidate.evidence.flatMap((item) => evidenceBadges(item)))],
       })),
     ],
   }));

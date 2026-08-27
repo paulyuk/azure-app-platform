@@ -465,11 +465,13 @@ function confidenceRank(confidence) {
 }
 
 function projectDisplayName(files, projectPath, tierId) {
+  const agentManifest = files.find((file) => file.name === "agent.yaml");
+  const agentName = agentManifest?.content.match(/^\s*name\s*:\s*["']?([^"'#\s]+)["']?\s*$/m)?.[1];
   if (tierId === "agent") {
-    const manifest = files.find((file) =>
-      file.name === "agent.yaml" && projectRootFor(file, projectRootsFor(files)) === projectPath);
-    const name = manifest?.content.match(/^\s*name\s*:\s*["']?([^"'#\s]+)["']?\s*$/m)?.[1];
-    if (name) return name;
+    if (agentName) return `${agentName}-agent`;
+  }
+  if (tierId === "web" && agentName) {
+    return `${agentName}-web`;
   }
   return basename(projectPath) || basename(process.cwd());
 }

@@ -281,6 +281,8 @@ export async function listSourceCatalog({
   return {
     generatedAt: new Date().toISOString(),
     roots,
+    apps: roots.filter((root) =>
+      root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")),
     templates,
     diagnostics,
   };

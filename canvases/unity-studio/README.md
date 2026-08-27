@@ -1,7 +1,7 @@
 # Unity Studio
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page has two journeys:
+pattern. Its landing page has three journeys:
 
 1. **Build a new app** — choose the editable **Empty Unity app** or the complete
    **Dealer sample**, customize the supported inputs, review the deterministic
@@ -9,6 +9,10 @@ pattern. Its landing page has two journeys:
 2. **Assemble existing pieces** — add capabilities, explicitly map each one to a
    source project from a Git worktree or authorized local folder, optionally map
    compatible Azure resources, and create a portable assembled app.
+3. **Open an existing Unity app** — rediscover apps persisted as repository/worktree
+   pairs, reopen one, inspect its inventory, open component source, or enter a
+   specialist studio. This is the local persistence mechanism until Unity apps
+   register with a control plane.
 
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist

@@ -748,7 +748,7 @@ test("VS Code launch uses the direct command and macOS fallback", async () => {
     }
   });
 
-test("guided renderer exposes exactly two journeys without scanning on launch", () => {
+test("guided renderer exposes create, assemble, and reopen journeys", () => {
     const html = renderStudioHtml("unity-studio", "test-token");
     for (const label of [
       "Build a new app",
@@ -758,10 +758,11 @@ test("guided renderer exposes exactly two journeys without scanning on launch", 
       "One empty Hosted Skill",
       "Choose pieces",
       "Map Azure resources",
+      "Open an existing Unity app",
     ]) {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }
-    assert.equal((html.match(/class="journey"/g) ?? []).length, 2);
+    assert.equal((html.match(/class="journey"/g) ?? []).length, 3);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);

@@ -87,6 +87,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
       .template-meta { color: var(--text-color-muted, #59636e); font-size: 12px; }
+      .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+      .badge { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 999px; padding: 2px 7px; font-size: 11px; }
       .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
       .actions-right { display: flex; gap: 8px; margin-left: auto; }
       .notice, .error {
@@ -214,6 +216,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<span>Start with an editable empty template or a complete sample that is ready to run.</span></button>' +
           '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
           '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
+          '<button type="button" class="journey" id="open-app"><strong>Open an existing Unity app</strong>' +
+          '<span>Return to a previously created app worktree and inspect its live inventory.</span></button>' +
           '</div>';
         document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
@@ -237,6 +241,41 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           draft.step = 1;
           renderDetails();
         });
+        document.getElementById("open-app").addEventListener("click", async () => {
+          try {
+            await loadSources();
+            renderExistingApps();
+          } catch (cause) {
+            error(cause.message);
+          }
+        });
+      }
+
+      function renderExistingApps() {
+        const apps = sources?.apps || [];
+        app.innerHTML = '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
+          (apps.length ? '<div class="choice-list">' + apps.map((item) =>
+            '<button type="button" class="choice source-option" data-existing-app="' + escape(item.path) + '">' +
+            '<strong>' + escape(item.name) + '</strong><small>' + escape(item.branch || "detached") +
+            ' · ' + escape(item.path) + '<br>' + item.capabilityIds.length + ' discovered tier(s)</small></button>').join("") +
+            '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
+          '<button type="button" class="link" id="existing-back">Back to start</button>';
+        document.getElementById("existing-back").addEventListener("click", renderLanding);
+        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", async () => {
+          setBusy(true, "Rediscovering app components…");
+          try {
+            const root = button.dataset.existingApp;
+            const inventory = await request("/api/discovery?azure=false&root=" + encodeURIComponent(root));
+            draft.appName = button.querySelector("strong").textContent;
+            draft.purpose = "Existing Unity app";
+            renderInventory({ worktreePath: root, specialistCanvases: [] }, inventory, null);
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        }));
       }
 
       function captureDetails() {
@@ -562,6 +601,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               ? escape(tier.implementations.length + " discovered implementation(s)") +
                 tier.implementations.map((item) =>
                   '<br><strong>' + escape(item.title) + '</strong> · ' + escape(item.kind) +
+                  (item.badges?.length ? '<div class="badges">' + item.badges.map((badge) =>
+                    '<span class="badge">' + escape(badge) + '</span>').join("") + '</div>' : '') +
                   '<br><code>' + escape(item.subtitle || item.projectPath || item.resourceId || "") + '</code>' +
                   (item.insights?.length
                     ? '<br><small>Insights: ' + escape(item.insights.join(" · ")) + '</small>'
