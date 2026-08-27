@@ -156,7 +156,10 @@ Future changes should preserve these invariants:
 1. Extract richer Hosted Skill metadata: tool names, endpoints, function
    names, runtime/provider configuration, and source evidence.
 2. Deep-dive provisioned gateway resources: model deployments, routes, and
-   tool mappings, then hand off that context to AI Gateway Studio.
+   tool mappings, then hand off that context to AI Gateway Studio. The active
+   gateway card now automatically runs the checked-in configuration hook after
+   selection or provisioning, including a runtime-hostname fallback for
+   preview gateway resources that do not expose `properties.gatewayUrl`.
 3. Add SRE attach/provision guidance and integrate SRE Agent Studio when it is
    registered.
 4. Add lifecycle command logs, process status, and detected local endpoint or

@@ -44,6 +44,12 @@ $gatewayUrl = Get-AzdValue 'AZURE_AI_GATEWAY_ENDPOINT'
 if ([string]::IsNullOrEmpty($gatewayUrl)) {
     $gatewayUrl = (az rest --method get --uri $gatewayUri --query properties.gatewayUrl -o tsv)
 }
+if ([string]::IsNullOrEmpty($gatewayUrl)) {
+    $runtimeHostname = (az rest --method get --uri $gatewayUri --query properties.runtimeHostname -o tsv)
+    if (-not [string]::IsNullOrEmpty($runtimeHostname)) {
+        $gatewayUrl = "https://$runtimeHostname/"
+    }
+}
 $gatewayUrl = Assert-Value 'AZURE_AI_GATEWAY_ENDPOINT' $gatewayUrl
 
 $gatewayApiKey = (az rest --method post --uri "https://management.azure.com$gatewayResourceId/apiKeys/default/listSecrets?api-version=$AiGatewayApiVersion" --body '{}' --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' -o tsv 2>$null)

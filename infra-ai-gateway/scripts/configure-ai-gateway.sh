@@ -29,7 +29,15 @@ gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$(azd_value AZU
 gateway_resource_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/service/${gateway_name}"
 gateway_uri="https://management.azure.com${gateway_resource_id}?api-version=${AI_GATEWAY_API_VERSION}"
 
-gateway_url="$(require_value AZURE_AI_GATEWAY_ENDPOINT "$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv)")"
+gateway_url="$(azd_value AZURE_AI_GATEWAY_ENDPOINT)"
+if [ -z "$gateway_url" ]; then
+  gateway_url="$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv 2>/dev/null || true)"
+fi
+if [ -z "$gateway_url" ]; then
+  runtime_hostname="$(az rest --method get --uri "$gateway_uri" --query properties.runtimeHostname -o tsv 2>/dev/null || true)"
+  [ -n "$runtime_hostname" ] && gateway_url="https://${runtime_hostname}/"
+fi
+gateway_url="$(require_value AZURE_AI_GATEWAY_ENDPOINT "$gateway_url")"
 gateway_api_key="$(az rest \
   --method post \
   --uri "https://management.azure.com${gateway_resource_id}/apiKeys/default/listSecrets?api-version=${AI_GATEWAY_API_VERSION}" \
