@@ -771,6 +771,9 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('class="badges"'), true);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
+    assert.equal(html.includes("Yes, delete worktree"), true);
+    assert.equal(html.includes("No, keep app"), true);
+    assert.equal(html.includes("No Azure resources, repositories, or cloud deployments will be deleted."), true);
     assert.equal(html.includes("Open source"), true);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);

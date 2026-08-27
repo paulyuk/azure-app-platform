@@ -88,6 +88,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
       .icon-button svg { display: block; width: 16px; height: 16px; fill: currentColor; }
       .icon-button.danger { color: var(--fgColor-danger, #cf222e); }
+      .confirm-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(0 0 0 / 45%); z-index: 10; }
+      .confirm-dialog { width: min(100%, 440px); padding: 20px; border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 10px; background: var(--background-color-default, #fff); box-shadow: 0 8px 30px rgb(0 0 0 / 25%); }
+      .confirm-dialog h2 { margin-top: 0; }
+      .confirm-dialog .actions { margin-top: 18px; }
+      .confirm-dialog .danger { color: var(--fgColor-danger, #cf222e); border-color: currentColor; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
@@ -239,6 +244,45 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         return "";
       }
 
+      function askDeleteConfirmation(appName) {
+        return new Promise((resolve) => {
+          const dialog = document.createElement("div");
+          dialog.className = "confirm-backdrop";
+          dialog.innerHTML = '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
+            '<h2 id="confirm-delete-title">Delete ' + escape(appName) + '?</h2>' +
+            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree and its local files. This cannot be undone.</p>' +
+            '<p>No Azure resources, repositories, or cloud deployments will be deleted.</p>' +
+            '<div class="actions"><button type="button" id="cancel-delete">No, keep app</button>' +
+            '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>';
+          document.body.append(dialog);
+          const close = (confirmed) => {
+            dialog.remove();
+            resolve(confirmed);
+          };
+          dialog.querySelector("#cancel-delete").addEventListener("click", () => close(false));
+          dialog.querySelector("#confirm-delete").addEventListener("click", () => close(true));
+          dialog.querySelector("#cancel-delete").focus();
+        });
+      }
+
+      async function deleteApp(root, appName) {
+        if (!await askDeleteConfirmation(appName)) return;
+        setBusy(true, "Deleting app worktree…");
+        try {
+          await request("/api/delete-app", {
+            method: "POST",
+            body: JSON.stringify({ root, confirmed: true })
+          });
+          sources = null;
+          await loadSources();
+          renderExistingApps();
+          clearStatus("App worktree deleted. Azure resources were not changed.");
+        } catch (cause) {
+          error(cause.message);
+          setBusy(false, status.textContent);
+        }
+      }
+
       function wireActions({ back, next }) {
         document.getElementById("back")?.addEventListener("click", back);
         document.getElementById("next")?.addEventListener("click", next);
@@ -321,21 +365,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           event.stopPropagation();
           const appRow = button.closest(".choice");
           const appName = appRow?.querySelector("strong")?.textContent || "this app";
-          if (!window.confirm("Delete " + appName + " permanently? This removes its worktree and cannot be undone.")) return;
-          setBusy(true, "Deleting app…");
-          try {
-            await request("/api/delete-app", {
-              method: "POST",
-              body: JSON.stringify({ root: button.dataset.deleteExistingApp, confirmed: true })
-            });
-            sources = null;
-            await loadSources();
-            renderExistingApps();
-            clearStatus("App deleted.");
-          } catch (cause) {
-            error(cause.message);
-            setBusy(false, status.textContent);
-          }
+          await deleteApp(button.dataset.deleteExistingApp, appName);
         }));
       }
 
@@ -750,21 +780,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           }
         });
         document.getElementById("delete-app").addEventListener("click", async () => {
-          if (!window.confirm("Delete " + draft.appName + " permanently? This removes its worktree and cannot be undone.")) return;
-          setBusy(true, "Deleting app…");
-          try {
-            await request("/api/delete-app", {
-              method: "POST",
-              body: JSON.stringify({ root: result.worktreePath, confirmed: true })
-            });
-            sources = null;
-            await loadSources();
-            renderExistingApps();
-            clearStatus("App deleted.");
-          } catch (cause) {
-            error(cause.message);
-            setBusy(false, status.textContent);
-          }
+          await deleteApp(result.worktreePath, draft.appName);
         });
       }
 
