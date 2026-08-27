@@ -96,6 +96,44 @@ async function probeHttpEntrypoints(root) {
   }));
 }
 
+async function openEntrypoint(root, port) {
+  const entrypoint = (await probeHttpEntrypoints(root)).find((candidate) => candidate.port === port);
+  if (!entrypoint) throw new Error("The selected endpoint is not part of this app.");
+  if (!entrypoint.ready) throw new Error(`${entrypoint.name} is not listening on port ${port}.`);
+  const available = await session.rpc.canvas.list();
+  const browser = available.canvases.find((canvas) => canvas.canvasId === "browser");
+  if (!browser) throw new Error("Browser canvas is unavailable.");
+  const isSkill = port >= 7071 && port <= 7079;
+  const url = isSkill ? `${entrypoint.url}/runtime/webhooks/mcp` : entrypoint.url;
+  return session.rpc.canvas.open({
+    extensionId: browser.extensionId,
+    canvasId: browser.canvasId,
+    instanceId: `unity-endpoint-${port}`,
+    input: { url, title: entrypoint.name },
+  });
+}
+
+async function promptLocalAgent(root, prompt) {
+  if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 2_000) {
+    throw new Error("Enter a prompt up to 2,000 characters.");
+  }
+  const agent = (await probeHttpEntrypoints(root)).find((candidate) => candidate.port === 8088);
+  if (!agent?.ready) throw new Error("The local agent is not running.");
+  const response = await fetch(`${agent.url}/responses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input: prompt.trim(), stream: false }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Agent returned HTTP ${response.status}: ${body.slice(0, 500)}`);
+  try {
+    return { response: JSON.parse(body) };
+  } catch {
+    return { response: body };
+  }
+}
+
 async function localReadiness(root) {
   const agentEnv = `${root}/src/agent/.env`;
   let agentConfiguration = "";
@@ -430,6 +468,21 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("App output root is not an authorized app workspace.");
       }
       sendJson(response, 200, { lines: await readRuntimeOutput(root) });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/open-entrypoint") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Entrypoint root is not an authorized app workspace.");
+      if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) throw new Error("Choose a valid app endpoint.");
+      sendJson(response, 200, { outcome: "canvas-opened", canvas: await openEntrypoint(root, input.port) });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/agent-prompt") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Agent root is not an authorized app workspace.");
+      sendJson(response, 200, await promptLocalAgent(root, input.prompt));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {

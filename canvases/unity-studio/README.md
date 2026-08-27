@@ -103,6 +103,11 @@ troubleshooting—not known-file creation.
   reports repository and Azure discovery health rather than simulated platform
   status.
 
+After local startup, the app workspace derives component status from the
+lifecycle state. Ready endpoint URLs are actionable: the web surface opens in
+the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
+agent offers an inline Responses API prompt plus a specialist-studio handoff.
+
 Discovery and scaffold results are informational. Workspace creation and
 implementation happen in the child session, not in the source worktree. No
 canvas action provisions Azure resources or retrieves secrets.

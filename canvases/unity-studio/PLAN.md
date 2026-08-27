@@ -132,6 +132,9 @@ Gateway configuration only establishes governed model access. Local Run then
 starts discovered Hosted Skills as separate Functions MCP services before the
 agent, binds the agent to their localhost endpoints when no cloud Toolbox is
 configured, and derives the displayed entrypoints from lifecycle state.
+Ready component endpoints are actions, not passive text: open the web client,
+inspect a Hosted Skill MCP endpoint, send a prompt to the local agent, or open
+the registered agent specialist studio.
 
 ## App Map
 

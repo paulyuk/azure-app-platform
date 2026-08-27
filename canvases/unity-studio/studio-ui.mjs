@@ -128,6 +128,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .summary { display: grid; gap: 14px; }
       .summary section { border-bottom: 1px solid var(--border-color-default, #d1d9e0); padding-bottom: 12px; }
       .summary section:last-child { border: 0; }
+      .component-list { display: grid; gap: 8px; margin: 10px 0; }
+      .component-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .component-status button { min-height: 30px; padding: 4px 8px; font-family: var(--font-mono, monospace); font-size: 12px; }
+      .agent-tester { display: grid; gap: 8px; margin-top: 12px; }
+      .agent-tester textarea { min-height: 64px; }
+      .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; }
       #status { min-height: 22px; margin-top: 16px; color: var(--text-color-muted, #59636e); }
       @media (max-width: 480px) {
         body { padding-inline: 14px; }
@@ -691,7 +697,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
           '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
-          '<div class="badges" id="entrypoints"></div>' +
+          '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
           '<div id="local-guidance"></div>' +
           '<section class="gateway-card"><h3>AI Gateway <small>(optional)</small></h3>' +
           '<p>Select an existing gateway, or create/manage one before running an AI-backed app.</p>' +
@@ -756,8 +762,59 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             document.getElementById("local-status").innerHTML =
               '<span class="badge ' + (running ? "http" : "") + '">Local app: ' + escape(state.state || "stopped") + '</span>';
              document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
-              '<span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
-              escape(entrypoint.name) + ': ' + (entrypoint.ready ? "HTTP ready" : "offline") + '</span>').join("");
+              '<div class="component-status"><span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
+              escape(entrypoint.name) + ': ' + (entrypoint.ready ? "ready" : "offline") + '</span>' +
+              '<button type="button" data-entrypoint-port="' + entrypoint.port + '"' +
+              (entrypoint.ready ? "" : " disabled") + '>' + escape(entrypoint.url) + '</button></div>').join("");
+             document.querySelectorAll("[data-entrypoint-port]").forEach((button) => button.addEventListener("click", async () => {
+               try {
+                 await request("/api/open-entrypoint", {
+                   method: "POST",
+                   body: JSON.stringify({ root: result.worktreePath, port: Number(button.dataset.entrypointPort) })
+                 });
+               } catch (cause) {
+                 error(cause.message);
+               }
+             }));
+             const agentReady = (state.entrypoints || []).some((entrypoint) => entrypoint.port === 8088 && entrypoint.ready);
+             const componentActions = document.getElementById("component-actions");
+             if (agentReady && !componentActions.querySelector(".agent-tester")) {
+               componentActions.innerHTML = '<div class="agent-tester"><strong>Try the local agent</strong>' +
+                 '<textarea id="agent-prompt" maxlength="2000" placeholder="Send a prompt to the running agent"></textarea>' +
+                 '<div><button type="button" id="send-agent-prompt">Send prompt</button> ' +
+                 '<button type="button" id="open-agent-studio">Open agent studio</button></div>' +
+                 '<pre class="agent-response" id="agent-response"></pre></div>';
+               document.getElementById("send-agent-prompt").addEventListener("click", async () => {
+                 const prompt = document.getElementById("agent-prompt").value.trim();
+                 if (!prompt) return error("Enter a prompt for the local agent.");
+                 setBusy(true, "Waiting for the local agent…");
+                 try {
+                   const reply = await request("/api/agent-prompt", {
+                     method: "POST",
+                     body: JSON.stringify({ root: result.worktreePath, prompt })
+                   });
+                   document.getElementById("agent-response").textContent =
+                     typeof reply.response === "string" ? reply.response : JSON.stringify(reply.response, null, 2);
+                   clearStatus("Agent response received.");
+                 } catch (cause) {
+                   error(cause.message);
+                 } finally {
+                   setBusy(false);
+                 }
+               });
+               document.getElementById("open-agent-studio").addEventListener("click", async () => {
+                 try {
+                   await request("/api/tier-action", {
+                     method: "POST",
+                     body: JSON.stringify({ tierId: "agent", root: result.worktreePath, includeAzure: true })
+                   });
+                 } catch (cause) {
+                   error(cause.message);
+                 }
+               });
+             } else if (!agentReady) {
+               componentActions.innerHTML = "";
+             }
              const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
              document.getElementById("local-guidance").innerHTML = readiness.ready ? "" :
               '<p><strong>Local setup needed:</strong> ' + escape(readiness.guidance) + '</p>';
