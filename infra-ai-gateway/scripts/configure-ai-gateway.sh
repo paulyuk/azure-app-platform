@@ -8,7 +8,10 @@ SLICE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${SLICE_ROOT}/.." && pwd)"
 
 azd_value() {
-  azd env get-value "$1" 2>/dev/null || true
+  local value
+  if value="$(azd env get-value "$1" 2>/dev/null)"; then
+    printf '%s' "$value"
+  fi
 }
 
 require_value() {
@@ -32,11 +35,12 @@ gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_
 if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
   model_names="$(az rest --method get \
     --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/modelProviders/foundry/models?api-version=${AI_GATEWAY_API_VERSION}" \
-    --query 'value[].name' -o tsv 2>/dev/null || true)"
+    --query 'value[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
   first_model="$(printf '%s\n' "$model_names" | sed -n '1p')"
-  second_model="$(printf '%s\n' "$model_names" | sed -n '2p')"
-  gateway_mini_model="${gateway_mini_model:-$first_model}"
-  gateway_model="${gateway_model:-${second_model:-$first_model}}"
+  mini_model="$(printf '%s\n' "$model_names" | grep -i 'mini' | sed -n '1p' || true)"
+  full_model="$(printf '%s\n' "$model_names" | grep -iv 'mini' | sed -n '1p' || true)"
+  gateway_mini_model="${gateway_mini_model:-${mini_model:-$first_model}}"
+  gateway_model="${gateway_model:-${full_model:-$first_model}}"
 fi
 gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$gateway_model")"
 gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model")"
@@ -87,10 +91,12 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
-azd env set AZURE_AI_GATEWAY_ENDPOINT "${gateway_url%/}/"
-azd env set AZURE_AI_GATEWAY_MODEL "$gateway_model"
-azd env set AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model"
-azd env set AZURE_AI_GATEWAY_API_KEY "$gateway_api_key" >/dev/null
+if [ -n "$(azd_value AZURE_ENV_NAME)" ]; then
+  azd env set AZURE_AI_GATEWAY_ENDPOINT "${gateway_url%/}/"
+  azd env set AZURE_AI_GATEWAY_MODEL "$gateway_model"
+  azd env set AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model"
+  azd env set AZURE_AI_GATEWAY_API_KEY "$gateway_api_key" >/dev/null
+fi
 
 agent_env="${REPO_ROOT}/src/agent/.env"
 cat > "$agent_env" <<EOF

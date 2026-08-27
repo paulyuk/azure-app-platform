@@ -198,17 +198,17 @@ async function resolveGatewayConfigCommand(root) {
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
-
-    async function syncGatewayConfigScript(root, workspaceRoot) {
-      const sourceName = process.platform === "win32" ? "configure-ai-gateway.ps1" : "configure-ai-gateway.sh";
-      const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
-      const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
-      await access(sourcePath);
-      await access(`${root}/infra-ai-gateway/scripts`);
-      await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
-    }
   }
   throw new Error("This app has no AI Gateway configuration script.");
+}
+
+async function syncGatewayConfigScript(root, workspaceRoot) {
+  const sourceName = process.platform === "win32" ? "configure-ai-gateway.ps1" : "configure-ai-gateway.sh";
+  const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
+  const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
+  await access(sourcePath);
+  await access(`${root}/infra-ai-gateway/scripts`);
+  await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
 }
 
 async function startAppCommand(root, command, args, state, options = {}) {

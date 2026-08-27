@@ -41,10 +41,14 @@ $gatewayUri = "https://management.azure.com$gatewayResourceId`?api-version=$AiGa
 $gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL } else { Get-AzdValue 'AZURE_AI_GATEWAY_MODEL' }
 $gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } else { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' }
 if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
-    $modelNames = @(az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/modelProviders/foundry/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv)
-    if ([string]::IsNullOrEmpty($gatewayMiniModel) -and $modelNames.Count -gt 0) { $gatewayMiniModel = $modelNames[0] }
+    $modelNames = @((az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/modelProviders/foundry/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv) -split '\s+' | Where-Object { $_ })
+    $miniModel = $modelNames | Where-Object { $_ -match 'mini' } | Select-Object -First 1
+    $fullModel = $modelNames | Where-Object { $_ -notmatch 'mini' } | Select-Object -First 1
+    if ([string]::IsNullOrEmpty($gatewayMiniModel) -and $modelNames.Count -gt 0) {
+        $gatewayMiniModel = if ($miniModel) { $miniModel } else { $modelNames[0] }
+    }
     if ([string]::IsNullOrEmpty($gatewayModel)) {
-        $gatewayModel = if ($modelNames.Count -gt 1) { $modelNames[1] } elseif ($modelNames.Count -gt 0) { $modelNames[0] } else { '' }
+        $gatewayModel = if ($fullModel) { $fullModel } elseif ($modelNames.Count -gt 0) { $modelNames[0] } else { '' }
     }
 }
 $gatewayModel = Assert-Value 'AZURE_AI_GATEWAY_MODEL' $gatewayModel
@@ -103,10 +107,12 @@ if (-not $ready) {
     exit 1
 }
 
-azd env set AZURE_AI_GATEWAY_ENDPOINT "$gatewayUrlTrimmed/"
-azd env set AZURE_AI_GATEWAY_MODEL $gatewayModel
-azd env set AZURE_AI_GATEWAY_MINI_MODEL $gatewayMiniModel
-azd env set AZURE_AI_GATEWAY_API_KEY $gatewayApiKey | Out-Null
+if (-not [string]::IsNullOrEmpty((Get-AzdValue 'AZURE_ENV_NAME'))) {
+    azd env set AZURE_AI_GATEWAY_ENDPOINT "$gatewayUrlTrimmed/"
+    azd env set AZURE_AI_GATEWAY_MODEL $gatewayModel
+    azd env set AZURE_AI_GATEWAY_MINI_MODEL $gatewayMiniModel
+    azd env set AZURE_AI_GATEWAY_API_KEY $gatewayApiKey | Out-Null
+}
 
 $agentEnvPath = Join-Path $RepoRoot 'src\agent\.env'
 $agentEnvContent = @"

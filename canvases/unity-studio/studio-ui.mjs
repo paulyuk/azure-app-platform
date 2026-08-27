@@ -798,6 +798,20 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           async function loadGatewayOptions() {
             try {
               const gatewayOptions = await request("/api/gateway-options?root=" + encodeURIComponent(result.worktreePath));
+              async function configureActiveGateway() {
+                setBusy(true, "Configuring app from active gateway…");
+                try {
+                  await request("/api/app-command", {
+                    method: "POST",
+                    body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
+                  });
+                  clearStatus("Gateway selected. Configuring app settings in the embedded terminal…");
+                } catch (cause) {
+                  error("Gateway configuration failed: " + cause.message);
+                } finally {
+                  setBusy(false);
+                }
+              }
               document.getElementById("gateway-binding").innerHTML =
                 '<label class="field">Active AI Gateway<select id="active-gateway">' +
                 '<option value="">Choose a gateway</option>' +
@@ -810,26 +824,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                   document.getElementById("gateway-binding").innerHTML +=
                     '<button type="button" data-app-command="configure-active-gateway">Configure app from active gateway</button>';
                  document.querySelector('[data-app-command="configure-active-gateway"]').addEventListener("click", async () => {
-                   setBusy(true, "Configuring app from active gateway…");
-                   try {
-                     const commandResult = await request("/api/app-command", {
-                       method: "POST",
-                       body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
-                     });
-                     clearStatus("Gateway selected. Configuring app settings in the embedded terminal…");
-                   } catch (cause) {
-                     error(cause.message);
-                   } finally {
-                     setBusy(false);
-                   }
+                   await configureActiveGateway();
                  });
                  const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
                  if (!readiness.ready) {
-                   const commandResult = await request("/api/app-command", {
-                     method: "POST",
-                     body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
-                   });
-                   clearStatus("Gateway selected. " + commandResult.command + " started; configuring app settings in the embedded terminal…");
+                   await configureActiveGateway();
                  }
              }
               document.getElementById("active-gateway")?.addEventListener("change", async (event) => {
@@ -840,11 +839,6 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     body: JSON.stringify({ root: result.worktreePath, name: event.target.value })
                   });
                   await loadGatewayOptions();
-                  const commandResult = await request("/api/app-command", {
-                    method: "POST",
-                    body: JSON.stringify({ operation: "configure-gateway", root: result.worktreePath })
-                  });
-                  clearStatus("Gateway selected. " + commandResult.command + " started; watch the embedded terminal for configuration output.");
                 } catch (cause) {
                   error(cause.message);
                 }
