@@ -690,6 +690,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
           '<div class="badges" id="entrypoints"></div>' +
+          '<div id="local-guidance"></div>' +
           '<button type="button" id="local-action" data-app-command="run-local">Run locally</button> ' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button> ' +
           '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button>' +
@@ -750,6 +751,24 @@ export function renderStudioHtml(instanceId, apiToken = "") {
              document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
               '<span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
               escape(entrypoint.name) + ': ' + (entrypoint.ready ? "HTTP ready" : "offline") + '</span>').join("");
+             const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
+             document.getElementById("local-guidance").innerHTML = readiness.ready ? "" :
+              '<p><strong>Local setup needed:</strong> ' + escape(readiness.guidance) +
+              '</p><button type="button" id="configure-gateway">Choose or provision gateway and models</button>';
+             document.getElementById("configure-gateway")?.addEventListener("click", async () => {
+              setBusy(true, "Opening AI Gateway Studio…");
+              try {
+                await request("/api/tier-action", {
+                  method: "POST",
+                  body: JSON.stringify({ tierId: "gateway", root: result.worktreePath, includeAzure: true })
+                });
+                clearStatus("AI Gateway Studio opened for gateway and model selection.");
+              } catch (cause) {
+                error(cause.message);
+              } finally {
+                setBusy(false, status.textContent);
+              }
+             });
             const localAction = document.getElementById("local-action");
             localAction.dataset.appCommand = running ? "stop-local" : "run-local";
             localAction.textContent = running ? "Stop local app" : "Run locally";
@@ -773,6 +792,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Starting " + button.textContent + "…");
           try {
+            if (button.dataset.appCommand === "run-local") {
+              const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
+              if (!readiness.ready) {
+                throw new Error(readiness.guidance);
+              }
+            }
             const commandResult = await request("/api/app-command", {
               method: "POST",
               body: JSON.stringify({ operation: button.dataset.appCommand, root: result.worktreePath })

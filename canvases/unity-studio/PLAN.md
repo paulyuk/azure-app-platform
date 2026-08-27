@@ -122,7 +122,9 @@ Local lifecycle controls are stateful: the app reports running or stopped and
 offers the corresponding action (`Run locally` or `Stop local app`) rather
 than presenting competing run/stop buttons at the same time. Running locally
 also exposes a live embedded terminal showing the actual lifecycle command
-output. `azd provision`
+output. Before running, Unity checks for the local gateway endpoint and model
+credentials; if they are missing, it directs the user to choose an existing
+gateway/model set or provision one in AI Gateway Studio. `azd provision`
 does not imply that SRE has been obtained; SRE remains a separate tier that
 must be discovered, attached, or provisioned explicitly.
 
