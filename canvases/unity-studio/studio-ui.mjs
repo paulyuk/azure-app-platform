@@ -91,6 +91,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .badge { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 999px; padding: 2px 7px; font-size: 11px; }
       .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
       .actions-right { display: flex; gap: 8px; margin-left: auto; }
+      .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+      .topbar button { min-height: 32px; padding: 3px 8px; }
+      .topbar h1 { margin: 0; }
       .notice, .error {
         border-radius: 7px;
         padding: 10px 12px;
@@ -200,6 +203,15 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           (nextDisabled ? " disabled" : "") + '>' + escape(nextLabel) + '</button></div></div>';
       }
 
+      function topBack(label = "Back") {
+        return '<div class="topbar"><button type="button" class="link" id="top-back" aria-label="' +
+          escape(label) + '">&#8592; ' + escape(label) + '</button></div>';
+      }
+
+      function wireTopBack(back) {
+        document.getElementById("top-back")?.addEventListener("click", back);
+      }
+
       function wireActions({ back, next }) {
         document.getElementById("back")?.addEventListener("click", back);
         document.getElementById("next")?.addEventListener("click", next);
@@ -253,15 +265,15 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function renderExistingApps() {
         const apps = sources?.apps || [];
-        app.innerHTML = '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
+        app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<button type="button" class="choice source-option" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + escape(item.branch || "detached") +
             ' · ' + escape(item.path) + '<br>' + item.capabilityIds.length + ' discovered tier(s)</small></button>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
-          '<button type="button" class="link" id="existing-back">Back to start</button>';
-        document.getElementById("existing-back").addEventListener("click", renderLanding);
+          '';
+        wireTopBack(renderLanding);
         document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Rediscovering app components…");
           try {
@@ -321,7 +333,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderDetails() {
         clearStatus();
         const isNew = draft.journey === "new";
-        app.innerHTML = '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
+        app.innerHTML = topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
           '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
           (isNew ? '<h2>Choose a template</h2><p>Start with the editable Empty Unity app or the complete Dealer sample.</p><div id="templates">' + templateHtml() + '</div>' : '') +
           '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
@@ -331,6 +343,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           (!isNew ? '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>' : '') +
           actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" });
         document.getElementById("back").addEventListener("click", renderLanding);
+        wireTopBack(renderLanding);
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
             draft.templateRootId = input.value;
@@ -381,7 +394,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function renderCapabilities() {
         clearStatus();
-        app.innerHTML = '<div class="step">Step 2 of 3</div><h1>Customize the empty template</h1>' +
+        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>Customize the empty template</h1>' +
           '<p>The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.</p>' +
           '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
           escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
@@ -407,6 +420,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             renderReview();
           }
         });
+        wireTopBack(renderDetails);
       }
 
       function availableForTier(tierId) {
@@ -419,7 +433,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderPieces() {
         clearStatus();
         const unused = capabilities.filter((tier) => !draft.tierIds.includes(tier.id));
-        app.innerHTML = '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
+        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
           '<p>Add a capability, then choose the source project that should implement it.</p>' +
           '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
             const tier = capabilities.find((item) => item.id === tierId);
@@ -498,6 +512,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             }
           }
         });
+        wireTopBack(renderDetails);
       }
 
       function azureForTier(tierId) {
@@ -508,7 +523,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function renderAzure(warning = "") {
         clearStatus();
-        app.innerHTML = '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
+        app.innerHTML = topBack("Back") + '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
           '<p>These mappings are references only. Unity Studio will not read keys, deploy, or change resources.</p>' +
           (warning ? '<div class="notice">' + escape(warning) + ' You can continue without Azure mappings.</div>' : "") +
           '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
@@ -531,6 +546,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             renderReview();
           }
         });
+        wireTopBack(renderPieces);
       }
 
       function capabilityReview(tierId) {
@@ -555,7 +571,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
           : selectedTemplate?.name;
-        app.innerHTML = '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
+        app.innerHTML = topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong><br>' +
           escape(draft.purpose) + '</p></section><section><h3>Starter</h3><p>' + escape(starter) +
           '</p></section><section><h3>Capabilities</h3><div class="review-list">' +
@@ -571,6 +587,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities),
           next: submit
         });
+        wireTopBack(draft.journey === "assemble" ? renderAzure :
+          (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities));
       }
 
       function renderInventory(result, inventory, appMap) {
@@ -579,7 +597,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         const graphSummary = appMap
           ? appMap.nodes.length + " nodes · " + appMap.edges.length + " edges"
           : "Not traced yet";
-        app.innerHTML = '<div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
+        app.innerHTML = topBack("Existing apps") + '<div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
           ' inventory</h1><p>' + escape(draft.purpose) + '</p><div class="summary">' +
           '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
           '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
@@ -608,9 +626,6 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                   (item.badges?.length ? '<div class="badges">' + item.badges.map((badge) =>
                     '<span class="badge">' + escape(badge) + '</span>').join("") + '</div>' : '') +
                   '<br><code>' + escape(item.subtitle || item.projectPath || item.resourceId || "") + '</code>' +
-                  (item.insights?.length
-                    ? '<br><small>Insights: ' + escape(item.insights.join(" · ")) + '</small>'
-                    : '') +
                   (item.matchedFiles?.length
                     ? '<br><small>Source files: ' + escape(item.matchedFiles.map((evidence) =>
                       evidence.path + ":" + evidence.line).join(" · ")) + '</small>'
@@ -620,7 +635,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                     : '')).join("")
               : 'No implementation discovered yet · scaffold available') +
             '</p></div>').join("") + '</div></section></div>' +
-          '<button type="button" id="done">Back to start</button>';
+          '<button type="button" id="delete-app">Delete app</button>';
+         wireTopBack(async () => {
+          if (!sources) await loadSources();
+          renderExistingApps();
+         });
         document.querySelectorAll("[data-open-source]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Opening component source in VS Code…");
           try {
@@ -681,7 +700,23 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             setBusy(false, status.textContent);
           }
         });
-        document.getElementById("done").addEventListener("click", renderLanding);
+        document.getElementById("delete-app").addEventListener("click", async () => {
+          if (!window.confirm("Delete " + draft.appName + " permanently? This removes its worktree and cannot be undone.")) return;
+          setBusy(true, "Deleting app…");
+          try {
+            await request("/api/delete-app", {
+              method: "POST",
+              body: JSON.stringify({ root: result.worktreePath, confirmed: true })
+            });
+            sources = null;
+            await loadSources();
+            renderExistingApps();
+            clearStatus("App deleted.");
+          } catch (cause) {
+            error(cause.message);
+            setBusy(false, status.textContent);
+          }
+        });
       }
 
       async function submit() {

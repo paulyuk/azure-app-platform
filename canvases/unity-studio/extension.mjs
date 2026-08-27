@@ -12,6 +12,7 @@ import {
   activateTier,
   buildImplementationInventory,
   discoverUnityPlatform,
+  deleteAppWorkspace,
   getPlatformOverview,
   openWorkspaceInVsCode,
   requestAppWorkspace,
@@ -267,6 +268,25 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         return;
       }
       throw new Error("Unknown app command.");
+    }
+    if (request.method === "POST" && url.pathname === "/api/delete-app") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) || root === workspaceRoot) {
+        throw new Error("Only an authorized app worktree can be deleted.");
+      }
+      const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
+      if (!catalog.apps.some((app) => app.path === root)) {
+        throw new Error("The selected path is not a discovered Unity app.");
+      }
+      const result = await deleteAppWorkspace({
+        workspaceRoot,
+        root,
+        confirmed: input.confirmed === true,
+      });
+      authorizedRoots.delete(root);
+      sendJson(response, 200, result);
+      return;
     }
     if (request.method !== "GET" || url.pathname !== "/") {
       sendJson(response, 404, { error: "Not found." });

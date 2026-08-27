@@ -18,6 +18,7 @@ import {
   buildImplementationInventory,
   buildCapabilityRequestPrompt,
   buildWorkspaceRequestPrompt,
+  deleteAppWorkspace,
   discoverUnityPlatform,
   normalizeCapabilityRequest,
   normalizeWorkspaceRequest,
@@ -766,7 +767,10 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
-    assert.equal(html.includes("Insights:"), true);
+    assert.equal(html.includes("Insights:"), false);
+    assert.equal(html.includes('class="badges"'), true);
+    assert.equal(html.includes('id="top-back"'), true);
+    assert.equal(html.includes("Delete app"), true);
     assert.equal(html.includes("Open source"), true);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);
@@ -784,6 +788,33 @@ test("platform discovery preserves repository results when Azure is unavailable"
     assert.equal(result.azure.available, false);
     assert.equal(result.diagnostics.some((diagnostic) => diagnostic.source === "azure"), true);
   });
+});
+
+test("app deletion requires confirmation and removes only a registered worktree", async () => {
+  const calls = [];
+  const commandRunner = async (command, args) => {
+    calls.push([command, args]);
+    if (args.at(-1) === "--porcelain") {
+      return { ok: true, stdout: "worktree /repo\nHEAD abc\n\nworktree /repo/app\nHEAD def\n", stderr: "" };
+    }
+    return { ok: true, stdout: "", stderr: "" };
+  };
+  await assert.rejects(
+    deleteAppWorkspace({ workspaceRoot: "/repo", root: "/repo", confirmed: true, commandRunner }),
+    /cannot be deleted/,
+  );
+  await assert.rejects(
+    deleteAppWorkspace({ workspaceRoot: "/repo", root: "/repo/app", confirmed: false, commandRunner }),
+    /explicit confirmation/,
+  );
+  const result = await deleteAppWorkspace({
+    workspaceRoot: "/repo",
+    root: "/repo/app",
+    confirmed: true,
+    commandRunner,
+  });
+  assert.equal(result.outcome, "workspace-deleted");
+  assert.deepEqual(calls.at(-1), ["git", ["-C", "/repo", "worktree", "remove", "--force", "/repo/app"]]);
 });
 
 test("doctor readiness reflects requested probe health rather than candidate presence", async () => {

@@ -136,15 +136,18 @@ function isUsefulProject(projectPath) {
 
 async function worktreeTitle(root, branch) {
   try {
-    const readme = await readFile(`${root}/README.md`, "utf8");
-    const heading = readme.match(/^#\s+(.+)$/m)?.[1]?.trim();
-    if (heading) {
-      return heading;
+    const identity = JSON.parse(await readFile(`${root}/.unity-studio/app.json`, "utf8"));
+    if (typeof identity.name === "string" && identity.name.trim()) {
+      return identity.name.trim();
     }
   } catch {
-    // A README is optional; branch/folder names remain deterministic labels.
+    // Identity metadata was added after the first generated apps.
   }
-  return branch || basename(root);
+  const folderName = basename(root);
+  const generatedName = folderName.match(/^(dealer-sample|unity-app)-[a-z0-9]+/i)?.[0];
+  if (generatedName) return generatedName;
+  if (branch && /^(dealer-sample|unity-app)-/i.test(branch)) return branch;
+  return folderName;
 }
 
 async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {

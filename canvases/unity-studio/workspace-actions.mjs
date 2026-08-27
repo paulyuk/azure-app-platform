@@ -1,6 +1,6 @@
 import { basename } from "node:path";
-import { dirname, join } from "node:path";
-import { mkdtemp } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
 import { EMPTY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
@@ -464,6 +464,12 @@ async function createTemplateWorkspace({
       templateInputs: request.templateInputs,
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
+    await mkdir(join(destination, ".unity-studio"), { recursive: true });
+    await writeFile(
+      join(destination, ".unity-studio", "app.json"),
+      `${JSON.stringify({ name: request.appName, purpose: request.purpose }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
     let opened = null;
     if (session?.rpc?.sessions?.open) {
       opened = await session.rpc.sessions.open({
@@ -479,11 +485,13 @@ async function createTemplateWorkspace({
         throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
       }
     }
+
     if (request.openInVsCode) {
       const code = await commandRunner("code", ["--new-window", destination], { timeout: 10_000 });
       if (!code.ok) {
         throw new Error(`The app was created, but VS Code could not be opened: ${code.stderr || code.error || "unknown error"}`);
       }
+
     }
     return {
       outcome: "workspace-created",
@@ -509,6 +517,26 @@ async function createTemplateWorkspace({
   }
 }
 
+export async function deleteAppWorkspace({
+  workspaceRoot,
+  root,
+  confirmed = false,
+  commandRunner = runCommand,
+}) {
+  if (!confirmed) throw new Error("Deletion requires explicit confirmation.");
+  const resolvedWorkspace = resolve(workspaceRoot);
+  const resolvedRoot = resolve(root);
+  if (resolvedRoot === resolvedWorkspace) throw new Error("The Unity Studio workspace cannot be deleted.");
+  const listed = await commandRunner("git", ["-C", resolvedWorkspace, "worktree", "list", "--porcelain"]);
+  if (!listed.ok) throw new Error(`Could not list Git worktrees: ${listed.stderr || listed.error || "unknown error"}`);
+  if (!listed.stdout.split(/\r?\n/).some((line) => line === `worktree ${resolvedRoot}`)) {
+    throw new Error("Only a registered Unity app worktree can be deleted.");
+  }
+  const removed = await commandRunner("git", ["-C", resolvedWorkspace, "worktree", "remove", "--force", resolvedRoot]);
+  if (!removed.ok) throw new Error(`Could not delete the app worktree: ${removed.stderr || removed.error || "unknown error"}`);
+  return { outcome: "workspace-deleted", worktreePath: resolvedRoot };
+}
+
 export async function openWorkspaceInVsCode({
   root,
   commandRunner = runCommand,
@@ -531,8 +559,9 @@ function evidenceBadges(evidence) {
   const badges = [];
   if (evidence.rule === "embr-manifest") badges.push("Embr");
   if (evidence.rule === "web-package") badges.push("Web framework");
-  if (evidence.rule === "agent-client") badges.push("HTTP API");
+  if (evidence.rule === "agent-client") badges.push("HTTP");
   if (evidence.rule === "agent-manifest") badges.push("HostedAgent");
+  if (evidence.rule === "agent-manifest" || evidence.rule === "agent-runtime") badges.push("Foundry");
   if (evidence.rule === "agent-runtime") badges.push("MAF");
   if (evidence.rule === "gateway-reference") badges.push("Gateway reference");
   if (evidence.rule === "skill-config") badges.push("HostedSkill");

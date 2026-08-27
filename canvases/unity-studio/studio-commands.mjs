@@ -5,6 +5,7 @@ export {
   buildImplementationInventory,
   buildCapabilityRequestPrompt,
   buildWorkspaceRequestPrompt,
+  deleteAppWorkspace,
   normalizeCapabilityRequest,
   normalizeWorkspaceRequest,
   openWorkspaceInVsCode,
