@@ -6,26 +6,9 @@ create resources in the target subscription.
 
 ## Rapid path: real AI Gateway + full local live stack
 
-Use the scripts first. They start every local piece in the required order:
-in-memory Azurite, all four Hosted Skills/MCP servers, the deal-finder agent,
-then the web app. They wait for each layer to be ready before starting the next
-one and print every endpoint and log path.
-
-### Windows (PowerShell)
-
-From the repository root:
-
-```powershell
-.\scripts\dev-start.ps1
-```
-
-### macOS/Linux
-
-From the repository root:
-
-```bash
-./scripts/dev-start.sh
-```
+Use this path in order: provision the AI Gateway first, then run the local
+start script once. Provisioning creates the gitignored `src/agent/.env` that
+the agent and Hosted Skills require.
 
 Prerequisites:
 
@@ -33,9 +16,9 @@ Prerequisites:
   Azurite (`npm install -g azurite`)
 - Azure access and model quota described in section 4
 
-If the script reports that `src/agent/.env` is missing, provision or select
-the standalone AI Gateway environment. This is a one-time prerequisite, not
-the normal start command.
+### Step 1: provision the AI Gateway
+
+Run this before starting any local processes.
 
 Windows (PowerShell):
 
@@ -55,7 +38,13 @@ azd provision
 cd ..
 ```
 
-After provisioning, rerun the start script in its own terminal.
+### Step 2: start the full local stack
+
+The script starts in-memory Azurite, all four Hosted Skills/MCP servers, the
+deal-finder agent, then the web app. It waits for each layer before starting
+the next one and prints every endpoint and log path.
+
+From the repository root, use one terminal for the long-running stack.
 
 Windows (PowerShell):
 
