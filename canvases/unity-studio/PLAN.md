@@ -96,6 +96,11 @@ non-mutating scaffold path. A gateway referenced by source is not presented as
 provisioned. Connector stubs, infrastructure-only files, and Unity Studio's
 own source must not become false application implementations.
 
+Static JSON fixtures nested inside a Hosted Skill are implementation data for
+that skill, not a direct data primitive. The Data tier requires independent
+evidence such as a schema (`.sql` or Prisma), an Azure data resource definition,
+or a discovered Azure data service.
+
 ## Deterministic actions
 
 Known template creation is deterministic: create a Git worktree, materialize

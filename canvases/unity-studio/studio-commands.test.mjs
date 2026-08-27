@@ -127,6 +127,27 @@ test("repository evidence is grouped by the nearest project root with line prove
   });
 });
 
+test("Hosted Skill JSON fixtures do not become direct data primitives", async () => {
+  await withFixture({
+    "skills/inventory-search/agents.config.yaml": "timeout: 60\n",
+    "skills/inventory-search/function_app.py": "from azure_functions_agents import create_function_app\napp = create_function_app()\n",
+    "skills/inventory-search/data/inventory.json": JSON.stringify([{ id: "sample" }]),
+    "skills/inventory-search/tools/search.py": "DATA_PATH = 'data/inventory.json'\n",
+  }, async (root) => {
+    const discovery = await discoverRepository(root);
+    assert.equal(
+      discovery.candidates.some((candidate) =>
+        candidate.tierId === "skills" && candidate.projectPath === "skills/inventory-search"),
+      true,
+    );
+    assert.equal(
+      discovery.candidates.some((candidate) =>
+        candidate.tierId === "data" && candidate.projectPath === "skills/inventory-search"),
+      false,
+    );
+  });
+});
+
 test("unity app manifest contributes declared tiers to the implementation inventory", async () => {
     await withFixture({
       "src/sample/unity.app.yaml": `

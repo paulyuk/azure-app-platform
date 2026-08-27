@@ -329,8 +329,6 @@ function collectFileEvidence(file, projectRoots) {
     addMarker("data", "data-definition", "high", "Data schema or Azure data resource definition");
   } else if (/Microsoft\.(DocumentDB|Storage|Sql|DBforPostgreSQL|DBforMySQL)\//i.test(content)) {
     addMatch("data", "data-definition", "high", /Microsoft\.(DocumentDB|Storage|Sql|DBforPostgreSQL|DBforMySQL)\//i, "Data schema or Azure data resource definition");
-  } else if (normalizedPath.includes("/data/") && extname(file.name).toLowerCase() === ".json") {
-    addMarker("data", "application-data", "low", "Repository application data file");
   }
 
   return results;
