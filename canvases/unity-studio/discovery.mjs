@@ -240,6 +240,7 @@ function collectFileEvidence(file, projectRoots) {
     || normalizedPath.startsWith("/.github/")
     || normalizedPath.includes("/infra/")
     || normalizedPath.startsWith("/infra/")
+    || /\/infra-[^/]+\//.test(normalizedPath)
   ) {
     return results;
   }
@@ -309,7 +310,7 @@ function collectFileEvidence(file, projectRoots) {
   }
 
   if (!isDocumentation) {
-    addMatch("connectors", "connector-reference", "medium", /Microsoft\.Web\/connections|GraphServiceClient|Connector Namespace|teams.*adaptive.*card|outlook/i, "External connector API reference");
+    addMatch("connectors", "connector-reference", "medium", /Microsoft\.Web\/connections|GraphServiceClient|Connector Namespace/i, "External connector API reference");
   }
 
   if (!isDocumentation) {

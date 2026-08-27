@@ -103,7 +103,7 @@ test("repository discovery classifies candidates from evidence and skips secrets
   await withFixture(GENERIC_APP, async (root) => {
     const discovery = await discoverRepository(root);
     const tiers = new Set(discovery.candidates.map((candidate) => candidate.tierId));
-    for (const tierId of ["web", "agent", "gateway", "skills", "sandbox", "connectors", "workflows", "data"]) {
+    for (const tierId of ["web", "agent", "gateway", "skills", "sandbox", "workflows", "data"]) {
       assert.equal(tiers.has(tierId), true, `expected ${tierId} candidate`);
     }
     assert.equal(
