@@ -1,11 +1,12 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { realpath, stat, access, readdir, readFile } from "node:fs/promises";
+import { realpath, stat, access, readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
+import { runCommand } from "./discovery.mjs";
 import { listSourceCatalog } from "./source-catalog.mjs";
 import {
   PLATFORM_TIERS,
@@ -26,6 +27,7 @@ import { renderStudioHtml } from "./studio-ui.mjs";
 const servers = new Map();
 const appStates = new Map();
 const appOutput = new Map();
+const activeGateways = new Map();
 let session;
 
 async function readRuntimeOutput(root) {
@@ -81,13 +83,17 @@ async function localReadiness(root) {
   }
   const gatewayConfigured = /AZURE_AI_GATEWAY_ENDPOINT\s*=\s*\S+/.test(agentConfiguration)
     && /AZURE_AI_GATEWAY_API_KEY\s*=\s*\S+/.test(agentConfiguration);
+  const active = activeGateways.get(root);
   return {
     ready: gatewayConfigured,
     gatewayConfigured,
+    activeGateway: active ?? null,
     missing: gatewayConfigured ? [] : ["AI Gateway endpoint and model credentials"],
     guidance: gatewayConfigured
       ? "Gateway configuration is present. Run the local stack."
-      : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
+      : activeGateways.has(root)
+        ? "An active gateway is selected, but this app still needs its endpoint, key, and model settings."
+        : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
   };
 }
 
@@ -277,6 +283,55 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("Local readiness root is not an authorized app workspace.");
       }
       sendJson(response, 200, await localReadiness(root));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/gateway-options") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
+      if (!activeGateways.has(root)) {
+        try {
+          activeGateways.set(root, JSON.parse(await readFile(`${root}/.unity-studio/active-gateway.json`, "utf8")));
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+        }
+      }
+      const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
+      if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
+      let gateways;
+      try {
+        gateways = JSON.parse(result.stdout);
+      } catch {
+        throw new Error("Azure CLI returned invalid AI Gateway data.");
+      }
+      sendJson(response, 200, {
+        active: activeGateways.get(root) ?? null,
+        gateways: gateways.map((gateway) => ({
+          name: gateway.name,
+          resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
+          location: gateway.location || "",
+        })),
+      });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/active-gateway") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
+      if (typeof input.name !== "string" || !input.name.trim()) throw new Error("Choose an AI Gateway.");
+      const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
+      if (!result.ok) throw new Error(result.stderr || result.error || "Unable to verify AI Gateways.");
+      const gateways = JSON.parse(result.stdout);
+      const gateway = gateways.find((candidate) => candidate.name === input.name);
+      if (!gateway) throw new Error("The selected AI Gateway is no longer available.");
+      const active = {
+        name: gateway.name,
+        resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
+        location: gateway.location || "",
+      };
+      activeGateways.set(root, active);
+      await mkdir(`${root}/.unity-studio`, { recursive: true });
+      await writeFile(`${root}/.unity-studio/active-gateway.json`, JSON.stringify(active, null, 2) + "\n", "utf8");
+      sendJson(response, 200, { active });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/app-output") {

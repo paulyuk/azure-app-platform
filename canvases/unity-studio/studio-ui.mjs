@@ -693,6 +693,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
           '<div class="badges" id="entrypoints"></div>' +
           '<div id="local-guidance"></div>' +
+          '<div id="gateway-binding"></div>' +
           '<div class="lifecycle-actions">' +
           '<button type="button" id="local-action" data-app-command="run-local">Run locally</button>' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
@@ -765,7 +766,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
                   method: "POST",
                   body: JSON.stringify({ tierId: "gateway", root: result.worktreePath, includeAzure: true })
                 });
-                clearStatus("AI Gateway Studio opened for gateway and model selection.");
+               clearStatus("AI Gateway Studio opened for gateway and model selection.");
               } catch (cause) {
                 error(cause.message);
               } finally {
@@ -790,6 +791,34 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               }
             } catch (cause) {
               error(cause.message);
+            }
+          }
+          async function loadGatewayOptions() {
+            try {
+              const gatewayOptions = await request("/api/gateway-options?root=" + encodeURIComponent(result.worktreePath));
+              document.getElementById("gateway-binding").innerHTML =
+                '<label class="field">Active AI Gateway<select id="active-gateway">' +
+                '<option value="">Choose a gateway</option>' +
+                gatewayOptions.gateways.map((gateway) =>
+                  '<option value="' + escape(gateway.name) + '"' +
+                  (gatewayOptions.active?.name === gateway.name ? " selected" : "") + '>' +
+                  escape(gateway.name + (gateway.resourceGroup ? " · " + gateway.resourceGroup : "")) +
+                  '</option>').join("") + '</select></label>';
+              document.getElementById("active-gateway")?.addEventListener("change", async (event) => {
+                if (!event.target.value) return;
+                try {
+                  await request("/api/active-gateway", {
+                    method: "POST",
+                    body: JSON.stringify({ root: result.worktreePath, name: event.target.value })
+                  });
+                  clearStatus("Active AI Gateway selected. Configure its endpoint, key, and model for local startup.");
+                } catch (cause) {
+                  error(cause.message);
+                }
+              });
+            } catch (cause) {
+              document.getElementById("gateway-binding").innerHTML =
+                '<p>AI Gateway discovery unavailable: ' + escape(cause.message) + '</p>';
             }
           }
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
@@ -820,6 +849,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         }));
         void refreshLocalStatus();
         void refreshLocalOutput();
+        void loadGatewayOptions();
         outputTimer = setInterval(() => {
           void refreshLocalStatus();
           void refreshLocalOutput();
