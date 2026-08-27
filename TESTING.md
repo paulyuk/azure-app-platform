@@ -6,10 +6,26 @@ create resources in the target subscription.
 
 ## Rapid path: real AI Gateway + full local live stack
 
-Use this path for the normal end-user dev test. It starts every local piece in
-the required order: in-memory Azurite, all four Hosted Skills/MCP servers, the
-deal-finder agent, then the web app. The scripts wait for each layer to be
-ready before starting the next one and print every endpoint and log path.
+Use the scripts first. They start every local piece in the required order:
+in-memory Azurite, all four Hosted Skills/MCP servers, the deal-finder agent,
+then the web app. They wait for each layer to be ready before starting the next
+one and print every endpoint and log path.
+
+### Windows (PowerShell)
+
+From the repository root:
+
+```powershell
+.\scripts\dev-start.ps1
+```
+
+### macOS/Linux
+
+From the repository root:
+
+```bash
+./scripts/dev-start.sh
+```
 
 Prerequisites:
 
@@ -17,21 +33,40 @@ Prerequisites:
   Azurite (`npm install -g azurite`)
 - Azure access and model quota described in section 4
 
-First provision or select the standalone AI Gateway environment. This creates
-the gitignored `src/agent/.env` consumed by the local stack:
+If the script reports that `src/agent/.env` is missing, provision or select
+the standalone AI Gateway environment. This is a one-time prerequisite, not
+the normal start command.
+
+Windows (PowerShell):
 
 ```powershell
 cd infra-ai-gateway
-azd env new unity-poc-aigateway      # first run only
-# azd env select unity-poc-aigateway # later runs
+azd env new unity-poc-aigateway
 azd provision
 cd ..
 ```
 
-Then start everything from the repository root:
+macOS/Linux:
+
+```bash
+cd infra-ai-gateway
+azd env new unity-poc-aigateway
+azd provision
+cd ..
+```
+
+After provisioning, rerun the start script in its own terminal.
+
+Windows (PowerShell):
 
 ```powershell
 .\scripts\dev-start.ps1
+```
+
+macOS/Linux:
+
+```bash
+./scripts/dev-start.sh
 ```
 
 Open <http://localhost:3000> and use:
@@ -46,27 +81,31 @@ MCP tool discovery succeeds. Azurite also runs with
 
 Logs are under `.dev-run/logs/`. The agent log should report
 `CONNECTED, discovered 1 tool(s)` for each of the four skills. Stop and clean
-up all tracked processes and known ports with:
+up all tracked processes and known ports from another terminal.
+
+Windows (PowerShell):
 
 ```powershell
 .\scripts\dev-stop.ps1
 ```
 
-macOS/Linux uses the same flow and behavior:
+macOS/Linux:
 
 ```bash
-cd infra-ai-gateway
-azd env new unity-poc-aigateway      # first run only
-# azd env select unity-poc-aigateway # later runs
-azd provision
-cd ..
-
-./scripts/dev-start.sh
-# test at http://localhost:3000
 ./scripts/dev-stop.sh
 ```
 
 ## 1. Web app (local, no Azure)
+
+Windows (PowerShell):
+
+```powershell
+cd src\web
+npm install
+npm run dev
+```
+
+macOS/Linux:
 
 ```bash
 cd src/web
@@ -127,6 +166,17 @@ Prerequisites:
 The standalone slice is intentionally separate from the future full-platform
 `infra/` deployment. It provisions into `rg-unity-poc-aigateway` in East US 2.
 
+Windows (PowerShell):
+
+```powershell
+cd infra-ai-gateway
+azd env new unity-poc-aigateway
+azd provision
+cd ..
+```
+
+macOS/Linux:
+
 ```bash
 cd infra-ai-gateway
 azd env new unity-poc-aigateway
@@ -138,45 +188,153 @@ cd ..
 **East US 2** (preview region requirement; see `docs/unity-platform-plan.md`
 section 5.1).
 
-If the environment already exists, replace `azd env new` with:
-
-```bash
-cd infra-ai-gateway
-azd env select unity-poc-aigateway
-```
-
 The preprovision/postdown lifecycle hook deletes only an environment-owned,
 terminal-failed Gateway, purges its APIM soft-delete record, and waits for
 managed-identity cleanup. The postprovision hook verifies a real model call,
 stores the secret in the gitignored azd environment, and writes a mode-`0600`
 `src/agent/.env`. It never prints the key.
 
-Run the hosted-agent protocol server locally with `uv` (no manual venv needed):
+### Manual multi-terminal path
+
+Use this only when diagnosing an individual layer. The rapid-path scripts
+above automate the same commands and are the normal test path.
+
+Each Hosted Skill needs a gitignored `local.settings.json`. Repeat this
+one-time configuration in each of the four skill folders. `uv run` creates
+and syncs `.venv` from each skill's `pyproject.toml` automatically.
+
+Windows (PowerShell):
+
+```powershell
+cd src\skills\inventory-search
+Copy-Item local.settings.json.example local.settings.json
+# Copy AZURE_AI_GATEWAY_ENDPOINT and AZURE_AI_GATEWAY_API_KEY from src\agent\.env.
+```
+
+macOS/Linux:
+
+```bash
+cd src/skills/inventory-search
+cp local.settings.json.example local.settings.json
+# Copy AZURE_AI_GATEWAY_ENDPOINT and AZURE_AI_GATEWAY_API_KEY from src/agent/.env.
+```
+
+Start each long-running process in its own terminal.
+
+#### Terminal 1: Azurite
+
+Windows (PowerShell):
+
+```powershell
+azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry
+```
+
+macOS/Linux:
+
+```bash
+azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry
+```
+
+#### Terminal 2: inventory-search
+
+Windows (PowerShell):
+
+```powershell
+cd src\skills\inventory-search
+uv run func start --port 7071
+```
+
+macOS/Linux:
+
+```bash
+cd src/skills/inventory-search
+uv run func start --port 7071
+```
+
+#### Terminal 3: trade-in-value
+
+Windows (PowerShell):
+
+```powershell
+cd src\skills\trade-in-value
+uv run func start --port 7072
+```
+
+macOS/Linux:
+
+```bash
+cd src/skills/trade-in-value
+uv run func start --port 7072
+```
+
+#### Terminal 4: rate-sheet
+
+Windows (PowerShell):
+
+```powershell
+cd src\skills\rate-sheet
+uv run func start --port 7073
+```
+
+macOS/Linux:
+
+```bash
+cd src/skills/rate-sheet
+uv run func start --port 7073
+```
+
+#### Terminal 5: deal-doc
+
+Windows (PowerShell):
+
+```powershell
+cd src\skills\deal-doc
+uv run func start --port 7074
+```
+
+macOS/Linux:
+
+```bash
+cd src/skills/deal-doc
+uv run func start --port 7074
+```
+
+#### Terminal 6: deal-finder agent
+
+Windows (PowerShell):
+
+```powershell
+cd src\agent
+uv run main.py
+```
+
+macOS/Linux:
 
 ```bash
 cd src/agent
 uv run main.py
 ```
 
-Watch its startup log: it now prints one line per MCP tool source
-(`inventory-search`, `trade-in-value`, `rate-sheet`, `deal-doc`, or the
-Foundry Toolbox if `TOOLBOX_ENDPOINT` is set) — `CONNECTED, discovered N
-tool(s)` or `FAILED to connect/discover tools`. **A model-only smoke test
-(below) succeeds even if every tool failed to connect** — the model call
-doesn't need tools, so a green gateway reply here is not proof the agent's
-tools are wired up. If any tool line says `FAILED`, start the four Hosted
-Skills first (see the next subsection) before trusting a tool-using prompt.
+The agent log should print `CONNECTED, discovered 1 tool(s)` for each skill
+before reporting that the Responses server is listening on port `8088`.
 
-In another terminal (PowerShell — `curl` in PowerShell is an alias for
-`Invoke-WebRequest`, whose parameters differ from real curl, so use
-`curl.exe` explicitly to get actual curl syntax, and `python -m json.tool`
-since `jq` usually isn't installed on Windows):
+#### Terminal 7: direct agent smoke test
+
+Windows (PowerShell):
 
 ```powershell
-curl.exe -sS -X POST http://127.0.0.1:8088/responses `
-  -H "Content-Type: application/json" `
-  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' |
-  python -c "import json,sys; d=json.load(sys.stdin); print(next(i for i in d[\"output\"] if i[\"type\"]==\"message\")[\"content\"][0][\"text\"])"
+$body = @{
+  input = "Find me an EV under `$40,000 with at least 250 miles of range"
+  stream = $false
+} | ConvertTo-Json
+
+$response = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8088/responses" `
+  -ContentType "application/json" `
+  -Body $body
+
+($response.output | Where-Object type -eq "message").content[0].text
 ```
 
 macOS/Linux:
@@ -184,72 +342,12 @@ macOS/Linux:
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \
   -H "Content-Type: application/json" \
-  -d '{"input":"Reply in one short sentence: what is one benefit of an electric vehicle?","stream":false}' \
+  -d '{"input":"Find me an EV under $40,000 with at least 250 miles of range","stream":false}' \
   | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
 
-The raw response also includes a `"type":"reasoning"` item with a long
-`encrypted_content` blob — that's the model's encrypted chain-of-thought
-trace, opaque by design. The commands above print just the assistant's
-reply text.
-
-### Start the 4 Hosted Skills for real tool calls
-
-The smoke test above only proves the AI Gateway model path works. To
-actually exercise `inventory-search`, `trade-in-value`, `rate-sheet`, and
-`deal-doc` (the tools `deal-finder` calls), each one needs to be running
-locally as its own `func start` process — the agent does **not** run them
-in-process or fall back silently, so a tool-using prompt (e.g. "Find me an
-EV under $40,000...") fails with `MCP server failed to initialize` until
-all four are up. Full setup, ports, and credentials are in
-[`src/skills/README.md`](src/skills/README.md) "Run the Hosted Skills
-locally" — the short version, one-time configuration per skill. `uv run`
-creates and syncs `.venv` from each skill's `pyproject.toml` automatically:
-
-```bash
-cd src/skills/inventory-search   # then trade-in-value, rate-sheet, deal-doc
-cp local.settings.json.example local.settings.json
-# edit local.settings.json: copy AZURE_AI_GATEWAY_ENDPOINT / AZURE_AI_GATEWAY_API_KEY
-# in from src/agent/.env (each skill makes its own small model call)
-```
-
-PowerShell equivalent:
-
-```powershell
-cd src/skills/inventory-search   # then trade-in-value, rate-sheet, deal-doc
-Copy-Item local.settings.json.example local.settings.json
-# edit local.settings.json: copy AZURE_AI_GATEWAY_ENDPOINT / AZURE_AI_GATEWAY_API_KEY
-# in from src/agent/.env (each skill makes its own small model call)
-```
-
-Then start all four in separate terminals (same on Windows and macOS/Linux,
-`func` is the Azure Functions Core Tools CLI either way):
-
-```bash
-cd src/skills/inventory-search && uv run func start --port 7071
-cd src/skills/trade-in-value    && uv run func start --port 7072
-cd src/skills/rate-sheet        && uv run func start --port 7073
-cd src/skills/deal-doc          && uv run func start --port 7074
-```
-
-For a normal Windows dev-test loop, `.\scripts\dev-start.ps1` automates
-these README steps: package-index selection, Azurite startup,
-`local.settings.json` creation from `src/agent/.env`, all four
-`uv run func start` commands, readiness checks, then agent and web startup
-in that order. Azurite runs with `--inMemoryPersistence`, so local skill-test
-storage is discarded on stop and nothing is written into the worktree.
-
-macOS/Linux uses the equivalent POSIX scripts:
-
-```bash
-./scripts/dev-start.sh
-# test at http://localhost:3000
-./scripts/dev-stop.sh
-```
-
-Restart `uv run main.py` (or just re-send a tool-using prompt — the agent
-reconnects per-request) once all four show `CONNECTED, discovered N tool(s)`
-in the agent's own startup log.
+The raw response also includes a `"type":"reasoning"` item with encrypted
+content. The commands above print only the assistant reply.
 
 Verified on August 26, 2026 against
 `https://aigw-unity-d7xjkqcu.azure-api.net/`, using the `gpt-latest`
@@ -259,12 +357,31 @@ deployment. The completed response was:
 
 To tear down this standalone slice:
 
+Windows (PowerShell):
+
+```powershell
+cd infra-ai-gateway
+azd down --purge --force
+```
+
+macOS/Linux:
+
 ```bash
 cd infra-ai-gateway
 azd down --purge --force
 ```
 
 ## 5. IaC sanity checks (local, no deployment)
+
+Windows (PowerShell):
+
+```powershell
+azd show
+az bicep build --file infra\main.bicep
+az bicep build --file infra-ai-gateway\main.bicep
+```
+
+macOS/Linux:
 
 ```bash
 azd show

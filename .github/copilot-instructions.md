@@ -35,14 +35,20 @@ bash/macOS/Linux. When adding or editing setup/run instructions (READMEs,
 - `cp a b` → `Copy-Item a b`
 - `unset VAR` → `Remove-Item Env:VAR`
 - bash `\` line continuation → PowerShell `` ` `` line continuation (or a
-  single line) — and note `curl` on Windows here resolves to a real
-  `curl.exe`, not a `PowerShell` alias, so flags behave the same either way,
-  only the continuation syntax differs
+  single line)
+- Do not assume `curl` works on Windows. Use native PowerShell HTTP commands
+  such as `Invoke-RestMethod` or `Invoke-WebRequest` in Windows instructions.
 - `cd -` isn't valid in PowerShell → `Push-Location`/`Pop-Location`
 
 Prefer keeping the existing bash block as-is and adding a PowerShell block
 immediately after it, rather than replacing bash outright — this repo's
 docs target both platforms.
+
+When instructions require multiple concurrently running terminal windows,
+put each terminal's commands in its own independently copyable fenced shell
+block. Never combine Terminal A/B/C/D commands into one enclosure. Label each
+terminal and provide separate PowerShell and macOS/Linux blocks wherever the
+commands differ.
 
 ## Dev-test orchestration scripts
 
