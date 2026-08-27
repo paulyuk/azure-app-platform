@@ -255,7 +255,7 @@ export async function listSourceCatalog({
       && root.repository === DEALER_REPOSITORY
       && root.approvedSampleAncestry
       && root.runnableSample
-      && TEMPLATE_TIER_ORDER.every((tierId) =>
+      && ["web", "agent", "skills", "sandbox", "workflows"].every((tierId) =>
         root.pinnedImplementations.some((item) => item.tierId === tierId)))
     .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
   const templates = [
@@ -265,8 +265,7 @@ export async function listSourceCatalog({
       kind: "sample",
       name: "Dealer sample",
       description: "Complete nine-capability reference app, ready to run with dev-start and dev-stop.",
-      capabilityIds: TEMPLATE_TIER_ORDER.filter((tierId) =>
-        root.pinnedImplementations.some((item) => item.tierId === tierId)),
+      capabilityIds: [...TEMPLATE_TIER_ORDER],
       sourceRootId: root.id,
       commit: root.commit,
       dirty: root.dirty,
