@@ -10,172 +10,133 @@ function escapeHtml(value) {
 }
 
 export function renderStudioHtml(instanceId, apiToken = "") {
-  const tierOptions = PLATFORM_TIERS.map((tier) => `
-    <label class="tier-option">
-      <input type="checkbox" name="tierIds" value="${escapeHtml(tier.id)}">
-      <span><strong>${escapeHtml(tier.name)}</strong><small>${escapeHtml(tier.role)}</small></span>
-    </label>`).join("");
-
-  const tierCards = PLATFORM_TIERS.map((tier) => `
-    <article class="card" data-tier-card="${escapeHtml(tier.id)}">
-      <div class="card-heading">
-        <div>
-          <div class="tier-label">${escapeHtml(tier.name)}</div>
-          <h3>${escapeHtml(tier.role)}</h3>
-        </div>
-        <span class="state state--checking" data-state="${escapeHtml(tier.id)}">Scanning</span>
-      </div>
-      <p>${escapeHtml(tier.jobToBeDone)}</p>
-      <div class="tier-body" data-tier-body="${escapeHtml(tier.id)}">
-        <p class="empty">Scanning the current worktree for source projects and configuration.</p>
-      </div>
-      <div class="card-actions" data-tier-actions="${escapeHtml(tier.id)}"></div>
-      <details>
-        <summary>Contract and production path</summary>
-        <p><strong>Expected interfaces:</strong> ${tier.expectedInterfaces.map(escapeHtml).join(", ")}</p>
-        <p>${escapeHtml(tier.scaffold.summary)}</p>
-        <ol>${tier.scaffold.nextActions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ol>
-      </details>
-    </article>`).join("");
-
+  const capabilities = PLATFORM_TIERS.map((tier) => ({
+    id: tier.id,
+    name: tier.name,
+    role: tier.role,
+  }));
   return `<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Unity Studio</title>
     <style>
       :root { color-scheme: light dark; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 24px;
+        padding: 24px 18px 48px;
         background: var(--background-color-default, #fff);
         color: var(--text-color-default, #1f2328);
-        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-        font-size: 14px;
-        line-height: 1.45;
+        font: 14px/1.5 var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
       }
-      header, main, footer { max-width: 1120px; margin-inline: auto; }
-      header { margin-bottom: 24px; }
-      h1 { margin: 0 0 8px; font-size: 28px; }
-      h2 { margin: 0 0 6px; font-size: 20px; }
-      h3 { margin: 2px 0 0; font-size: 15px; }
-      p { color: var(--text-color-muted, #59636e); }
-      .eyebrow, .tier-label { color: var(--true-color-blue, #0969da); font-weight: 650; }
-      .tier-label { font-size: 12px; }
-      .toolbar, .card-actions, .candidate-actions, .form-actions, .summary-strip { display: flex; flex-wrap: wrap; gap: 8px; }
-      .toolbar { margin: 16px 0 10px; }
+      main { width: min(100%, 680px); margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; }
+      h2 { margin: 0 0 8px; font-size: 21px; }
+      h3 { margin: 0; font-size: 15px; }
+      p { margin: 6px 0 16px; color: var(--text-color-muted, #59636e); }
+      code { overflow-wrap: anywhere; font: 12px var(--font-mono, monospace); }
+      button, input, textarea, select { font: inherit; }
       button {
-        min-height: 36px;
+        min-height: 40px;
         border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 6px;
-        padding: 7px 11px;
+        border-radius: 7px;
+        padding: 8px 13px;
         background: transparent;
         color: inherit;
         cursor: pointer;
       }
       button.primary { background: var(--true-color-blue, #0969da); border-color: var(--true-color-blue, #0969da); color: var(--color-white, #fff); }
-      button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--color-focus-outline, #0969da); outline-offset: 2px; }
-      button:disabled { cursor: wait; opacity: 0.65; }
-      #status { min-height: 20px; }
-      .summary-strip { margin: 16px 0; }
-      .summary-item { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 8px; padding: 9px 12px; min-width: 130px; }
-      .summary-item strong { display: block; font-size: 18px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(315px, 1fr)); gap: 14px; }
-      .card { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 10px; padding: 16px; min-width: 0; }
-      .card-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
-      .state { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 650; white-space: nowrap; }
-      .state--observed { background: #dafbe1; color: #116329; }
-      .state--available { background: var(--true-color-blue-muted, #ddf4ff); color: #0550ae; }
-      .state--missing, .state--checking { background: #fff8c5; color: #633c01; }
-      .tier-body { display: grid; gap: 8px; margin: 12px 0; }
-      .candidate { border-left: 3px solid var(--border-color-default, #d1d9e0); padding: 3px 0 3px 10px; min-width: 0; }
-      .candidate-heading { display: flex; justify-content: space-between; gap: 8px; }
-      .candidate code { display: block; overflow-wrap: anywhere; color: var(--text-color-muted, #59636e); margin: 3px 0; }
-      .badge, .meta { color: var(--text-color-muted, #59636e); font-size: 11px; }
-      .empty { margin: 0; font-size: 12px; }
-      details { margin-top: 12px; }
-      details > summary { cursor: pointer; font-weight: 600; }
-      details ol, details ul { margin-block: 7px; padding-left: 20px; }
-      .create-panel { margin-top: 28px; border-top: 1px solid var(--border-color-default, #d1d9e0); padding-top: 18px; }
-      .create-box { border: 1px solid var(--border-color-default, #d1d9e0); border-radius: 10px; padding: 14px; }
-      .create-box > summary { font-size: 16px; }
-      .form-grid { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 12px; margin-top: 14px; }
-      label.field { display: flex; flex-direction: column; gap: 5px; font-weight: 600; }
-      input[type="text"], textarea {
+      button.link { border-color: transparent; padding-inline: 4px; color: var(--true-color-blue, #0969da); }
+      button:disabled { opacity: .6; cursor: wait; }
+      button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+        outline: 2px solid var(--color-focus-outline, #0969da);
+        outline-offset: 2px;
+      }
+      .eyebrow { color: var(--true-color-blue, #0969da); font-weight: 650; margin-bottom: 5px; }
+      .journeys { display: grid; gap: 12px; margin-top: 24px; }
+      .journey {
+        width: 100%;
+        min-height: 112px;
+        padding: 18px;
+        text-align: left;
+        display: block;
+        background: var(--background-color-default, #fff);
+      }
+      .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
+      .journey span { color: var(--text-color-muted, #59636e); }
+      .step { color: var(--text-color-muted, #59636e); font-size: 12px; margin-bottom: 8px; }
+      .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
+      input[type="text"], textarea, select {
         width: 100%;
         border: 1px solid var(--border-color-default, #d1d9e0);
-        border-radius: 6px;
-        padding: 8px;
+        border-radius: 7px;
+        padding: 9px 10px;
         background: var(--background-color-default, #fff);
-        color: var(--text-color-default, #1f2328);
-        font: inherit;
+        color: inherit;
       }
-      textarea { min-height: 72px; resize: vertical; }
-      .tier-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 14px 0; }
-      .tier-option { display: flex; gap: 8px; align-items: start; padding: 8px; border-radius: 7px; background: var(--true-color-blue-muted, #ddf4ff); }
-      .tier-option span { display: flex; flex-direction: column; }
-      .tier-option small { color: var(--text-color-muted, #59636e); font-size: 11px; }
-      .panel { margin-top: 24px; border-top: 1px solid var(--border-color-default, #d1d9e0); padding-top: 16px; }
-      pre { max-height: 360px; overflow: auto; padding: 12px; border-radius: 8px; background: var(--true-color-blue-muted, #ddf4ff); font-family: var(--font-mono, monospace); font-size: 12px; white-space: pre-wrap; }
-      footer { margin-top: 24px; color: var(--text-color-muted, #59636e); font-family: var(--font-mono, monospace); font-size: 12px; }
-      @media (max-width: 680px) { .form-grid { grid-template-columns: 1fr; } body { padding: 16px; } }
+      textarea { min-height: 84px; resize: vertical; }
+      .choice-list, .capability-list, .mapping-list, .review-list { display: grid; gap: 9px; margin: 16px 0; }
+      .choice, .capability, .mapping, .review-row {
+        border: 1px solid var(--border-color-default, #d1d9e0);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
+      .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
+      .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
+      .template-meta { color: var(--text-color-muted, #59636e); font-size: 12px; }
+      .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
+      .actions-right { display: flex; gap: 8px; margin-left: auto; }
+      .notice, .error {
+        border-radius: 7px;
+        padding: 10px 12px;
+        margin: 14px 0;
+        background: var(--true-color-blue-muted, #ddf4ff);
+      }
+      .error { background: #ffebe9; color: #82071e; }
+      .mapping-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+      .mapping select { margin-top: 8px; }
+      .source-option { display: block; }
+      .local-path { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 16px; }
+      .summary { display: grid; gap: 14px; }
+      .summary section { border-bottom: 1px solid var(--border-color-default, #d1d9e0); padding-bottom: 12px; }
+      .summary section:last-child { border: 0; }
+      #status { min-height: 22px; margin-top: 16px; color: var(--text-color-muted, #59636e); }
+      @media (max-width: 480px) {
+        body { padding-inline: 14px; }
+        .actions { align-items: stretch; flex-direction: column-reverse; }
+        .actions-right, .actions button { width: 100%; }
+        .actions-right { flex-direction: column-reverse; }
+        .local-path { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
-    <header>
-      <div class="eyebrow">Unity app workspace</div>
-      <h1>Unity Studio</h1>
-      <p>See the source projects and Azure resources that implement this app, then build, improve, bind, or inspect each capability.</p>
-      <div class="toolbar">
-        <button id="refresh" class="primary" type="button">Refresh app inventory</button>
-        <button id="refresh-azure" type="button">Include Azure resources</button>
-        <button id="trace" type="button">Trace app flow</button>
-      </div>
-      <p id="status" role="status" aria-live="polite">Inspecting the current worktree.</p>
-    </header>
     <main>
-      <section aria-labelledby="inventory-heading">
-        <h2 id="inventory-heading">Current app inventory</h2>
-        <p>Implemented means a source project or configuration was detected in this worktree. Resource available means Azure has an option that is not yet wired into the app.</p>
-        <div class="summary-strip" id="inventory-summary" aria-label="Capability summary"></div>
-        <div class="grid">${tierCards}</div>
-      </section>
-
-      <section class="panel" aria-labelledby="map-heading">
-        <h2 id="map-heading">App Map</h2>
-        <pre id="app-map">Trace the app to see source-derived links between implemented tiers.</pre>
-      </section>
-
-      <section class="create-panel" aria-label="New app">
-        <details class="create-box">
-          <summary>Create another Unity app in a new worktree</summary>
-          <p>Use this only when you want a separate app. To change the current app, use its capability cards above.</p>
-          <form id="workspace-form">
-            <div class="form-grid">
-              <label class="field">App name
-                <input id="app-name" type="text" maxlength="80" required placeholder="claims-assistant">
-              </label>
-              <label class="field">What should this app do?
-                <textarea id="app-purpose" maxlength="500" required placeholder="Help claims specialists review submissions and coordinate approvals."></textarea>
-              </label>
-            </div>
-            <div class="tier-options">${tierOptions}</div>
-            <div class="form-actions">
-              <button class="primary" type="submit">Create app worktree</button>
-              <label><input id="open-vscode" type="checkbox" checked> Open the new worktree in VS Code</label>
-            </div>
-          </form>
-        </details>
-      </section>
+      <div id="app"></div>
+      <div id="status" role="status" aria-live="polite"></div>
     </main>
-    <footer>Instance: ${escapeHtml(instanceId)} · Not added means no matching implementation was found in this worktree.</footer>
     <script>
-      const status = document.getElementById("status");
-      const form = document.getElementById("workspace-form");
       const apiToken = ${JSON.stringify(apiToken)};
-      let inventory;
+      const capabilities = ${JSON.stringify(capabilities)};
+      const app = document.getElementById("app");
+      const status = document.getElementById("status");
+      let sources = null;
+      let azureInventory = null;
+      const draft = {
+        journey: null,
+        step: 0,
+        appName: "",
+        purpose: "",
+        starterKind: "blank",
+        templateRootId: "",
+        tierIds: [],
+        sourceBindings: {},
+        azureBindings: {},
+        openInVsCode: true
+      };
 
       function escape(value) {
         return String(value ?? "")
@@ -186,15 +147,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           .replaceAll("'", "&#039;");
       }
 
-      function setBusy(busy, message) {
-        document.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
-        status.textContent = message;
-      }
-
       async function request(path, options) {
         const requestOptions = { ...(options || {}) };
         requestOptions.headers = { ...(requestOptions.headers || {}), "X-Unity-Studio-Token": apiToken };
-        if (requestOptions.method === "POST" && !requestOptions.headers["Content-Type"]) {
+        if (requestOptions.method === "POST") {
           requestOptions.headers["Content-Type"] = "application/json";
         }
         const response = await fetch(path, requestOptions);
@@ -203,190 +159,384 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         return payload;
       }
 
-      function sourceMatchesHtml(implementation) {
-        const items = implementation.matchedFiles.map((item) =>
-          "<li><code>" + escape(item.path || item.detail) + (item.line ? ":" + item.line : "") +
-          "</code> " + escape(item.detail) + "</li>").join("");
-        return "<details><summary>Matched files (" + implementation.matchedFiles.length +
-          ")</summary><ul>" + items + "</ul></details>";
+      function setBusy(busy, message = "") {
+        app.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
+        status.textContent = message;
       }
 
-      function implementationHtml(implementation) {
-        const identity = implementation.kind === "source-project" ? implementation.projectPath : implementation.resourceId;
-        return '<div class="candidate">' +
-          '<div class="candidate-heading"><strong>' + escape(implementation.title) + '</strong>' +
-          '<span class="badge">' + (implementation.kind === "source-project" ? "source project" : "Azure resource") + '</span></div>' +
-          '<code>' + escape(identity) + '</code>' +
-          (implementation.subtitle ? '<div class="meta">' + escape(implementation.subtitle) + '</div>' : '') +
-          sourceMatchesHtml(implementation) + '</div>';
+      function error(message) {
+        status.textContent = message;
+        status.className = "error";
       }
 
-      function actionButton(label, attributes, primary = false) {
-        return '<button type="button"' + (primary ? ' class="primary"' : '') + ' ' + attributes + '>' + label + '</button>';
+      function clearStatus(message = "") {
+        status.className = "";
+        status.textContent = message;
       }
 
-      function renderInventory(payload) {
-        inventory = payload;
-        let observed = 0;
-        let available = 0;
-        payload.inventory.forEach((tier) => {
-          const repositories = tier.implementations.filter((item) => item.kind === "source-project");
-          const resources = tier.implementations.filter((item) => item.kind === "azure-resource");
-          if (repositories.length) observed += 1;
-          else if (resources.length) available += 1;
+      function actions({ back, nextLabel, next, nextDisabled = false }) {
+        return '<div class="actions">' +
+          (back ? '<button type="button" class="link" id="back">Back</button>' : '<span></span>') +
+          '<div class="actions-right"><button type="button" class="primary" id="next"' +
+          (nextDisabled ? " disabled" : "") + '>' + escape(nextLabel) + '</button></div></div>';
+      }
 
-          const state = document.querySelector('[data-state="' + tier.id + '"]');
-          state.className = "state";
-          if (repositories.length) {
-            state.classList.add("state--observed");
-            state.textContent = "Implemented";
-          } else if (resources.length) {
-            state.classList.add("state--available");
-            state.textContent = "Resource available";
-          } else {
-            state.classList.add("state--missing");
-            state.textContent = "Not added";
-          }
+      function wireActions({ back, next }) {
+        document.getElementById("back")?.addEventListener("click", back);
+        document.getElementById("next")?.addEventListener("click", next);
+      }
 
-          const body = document.querySelector('[data-tier-body="' + tier.id + '"]');
-          body.innerHTML = tier.implementations.length
-            ? tier.implementations.map(implementationHtml).join("")
-            : '<p class="empty">No source project or configured resource was found. The contract below is the build path for this tier.</p>';
-
-          const actions = [];
-          const primaryRepo = repositories[0];
-          const primaryResource = resources[0];
-          actions.push(actionButton(
-            repositories.length ? "Improve capability" : "Build capability",
-            'data-build-tier="' + escape(tier.id) + '" data-intent="' + (repositories.length ? "improve" : "add") + '"' +
-              (primaryRepo ? ' data-path="' + escape(primaryRepo.projectPath) + '"' : '') +
-              (primaryResource ? ' data-resource="' + escape(primaryResource.resourceId) + '"' : ''),
-            true
-          ));
-          if (primaryRepo) {
-            actions.push(actionButton("Open source in VS Code", 'data-vscode data-path="' + escape(primaryRepo.projectPath) + '"'));
-          }
-          if (${JSON.stringify(PLATFORM_TIERS.reduce((result, tier) => ({ ...result, [tier.id]: tier.preferredCanvases.length > 0 }), {}))}[tier.id]) {
-            actions.push(actionButton("Open specialist studio", 'data-open-studio="' + escape(tier.id) + '"'));
-          }
-          document.querySelector('[data-tier-actions="' + tier.id + '"]').innerHTML = actions.join("");
+      function renderLanding() {
+        draft.journey = null;
+        clearStatus();
+        app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
+          '<h1>What do you want to build?</h1>' +
+          '<p>Choose one path. Unity Studio will guide the rest.</p>' +
+          '<div class="journeys">' +
+          '<button type="button" class="journey" id="new-app"><strong>Build a new app</strong>' +
+          '<span>Start blank or from a template, choose capabilities, and generate editable implementations.</span></button>' +
+          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
+          '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
+          '</div>';
+        document.getElementById("new-app").addEventListener("click", () => {
+          draft.journey = "new";
+          draft.step = 1;
+          renderDetails();
         });
-        const missing = payload.inventory.length - observed;
-        document.getElementById("inventory-summary").innerHTML =
-          '<div class="summary-item"><strong>' + observed + '/9</strong>tiers implemented</div>' +
-          '<div class="summary-item"><strong>' + missing + '</strong>tiers to build</div>' +
-          '<div class="summary-item"><strong>' + available + '</strong>Azure-only options</div>' +
-          '<div class="summary-item"><strong>' + payload.repository.scannedFiles + '</strong>files scanned</div>';
-        wireInventoryActions();
-      }
-
-      function wireInventoryActions() {
-        document.querySelectorAll("[data-build-tier]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            setBusy(true, (button.dataset.intent === "improve" ? "Requesting capability improvement…" : "Requesting capability build…"));
-            try {
-              await request("/api/capability-request", {
-                method: "POST",
-                body: JSON.stringify({
-                  tierId: button.dataset.buildTier,
-                  intent: button.dataset.intent,
-                  sourceProjectPath: button.dataset.path || undefined,
-                  azureResourceId: button.dataset.resource || undefined
-                })
-              });
-              status.textContent = "Capability work requested in this app session.";
-            } catch (error) {
-              status.textContent = error.message;
-            } finally {
-              setBusy(false, status.textContent);
-            }
-          });
-        });
-        document.querySelectorAll("[data-vscode]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            setBusy(true, "Opening source in VS Code…");
-            try {
-              await request("/api/open-vscode", { method: "POST", body: JSON.stringify({ root: button.dataset.path }) });
-              status.textContent = "Opened capability source in VS Code.";
-            } catch (error) {
-              status.textContent = error.message;
-            } finally {
-              setBusy(false, status.textContent);
-            }
-          });
-        });
-        document.querySelectorAll("[data-open-studio]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            setBusy(true, "Opening specialist studio…");
-            try {
-              const payload = await request("/api/tier-action", {
-                method: "POST",
-                body: JSON.stringify({ tierId: button.dataset.openStudio, includeAzure: false })
-              });
-              status.textContent = payload.outcome === "canvas-opened"
-                ? "Opened the specialist studio."
-                : "No specialist studio is registered for this session.";
-            } catch (error) {
-              status.textContent = error.message;
-            } finally {
-              setBusy(false, status.textContent);
-            }
-          });
+        document.getElementById("assemble-app").addEventListener("click", () => {
+          draft.journey = "assemble";
+          draft.starterKind = "assembly";
+          draft.step = 1;
+          renderDetails();
         });
       }
 
-      async function discover(includeAzure) {
-        setBusy(true, includeAzure ? "Refreshing app and Azure inventory…" : "Refreshing current app inventory…");
+      function captureDetails() {
+        draft.appName = document.getElementById("app-name").value.trim();
+        draft.purpose = document.getElementById("purpose").value.trim();
+        if (draft.journey === "new") {
+          draft.starterKind = document.querySelector('input[name="starter"]:checked')?.value || "blank";
+          draft.templateRootId = document.querySelector('input[name="template"]:checked')?.value || "";
+        }
+      }
+
+      function templateHtml() {
+        if (draft.starterKind !== "template") return "";
+        if (!sources) {
+          return '<div class="notice">Loading available templates…</div>';
+        }
+        if (sources.templates.length === 0) {
+          return '<div class="notice">No hydrateable samples were found in the available worktrees.</div>';
+        }
+        return '<div class="choice-list">' + sources.templates.map((template) =>
+          '<label class="choice template"><input type="radio" name="template" value="' + escape(template.id) + '"' +
+          (draft.templateRootId === template.id ? " checked" : "") + '><span><strong>' + escape(template.name) +
+          '</strong><span class="template-meta">' + escape(template.description) +
+          (template.dirty ? " · local changes excluded" : "") + '</span><small>' +
+          template.capabilityIds.map((id) => capabilities.find((item) => item.id === id)?.name || id).join(", ") +
+          '</small></span></label>').join("") + '</div>';
+      }
+
+      async function loadSources() {
+        if (sources) return;
+        setBusy(true, "Finding source projects in Git worktrees…");
         try {
-          const payload = await request("/api/discovery?azure=" + includeAzure);
-          renderInventory(payload);
-          status.textContent = "Current app inventory refreshed from source projects and configuration.";
-        } catch (error) {
-          status.textContent = error.message;
+          sources = await request("/api/sources");
+          clearStatus();
         } finally {
           setBusy(false, status.textContent);
         }
       }
 
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const tierIds = Array.from(document.querySelectorAll('input[name="tierIds"]:checked')).map((input) => input.value);
-        setBusy(true, "Requesting a separate Unity app worktree…");
+      function renderDetails() {
+        clearStatus();
+        const isNew = draft.journey === "new";
+        app.innerHTML = '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
+          '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
+          '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
+          escape(draft.appName) + '" placeholder="claims-assistant"></label>' +
+          '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
+          escape(draft.purpose) + '</textarea></label>' +
+          (isNew
+            ? '<h2>Start from</h2><div class="choice-list">' +
+              '<label class="choice"><input type="radio" name="starter" value="blank"' +
+              (draft.starterKind === "blank" ? " checked" : "") +
+              '><span><strong>Blank app</strong><small>Choose capabilities and generate generic, editable implementations.</small></span></label>' +
+              '<label class="choice"><input type="radio" name="starter" value="template"' +
+              (draft.starterKind === "template" ? " checked" : "") +
+              '><span><strong>Template or sample</strong><small>Hydrate selected capabilities from a pinned source snapshot.</small></span></label></div>' +
+              '<div id="templates">' + templateHtml() + '</div>'
+            : '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>') +
+          actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" });
+        document.getElementById("back").addEventListener("click", renderLanding);
+        document.querySelectorAll('input[name="starter"]').forEach((input) => {
+          input.addEventListener("change", async () => {
+            captureDetails();
+            if (draft.starterKind === "template") {
+              try {
+                await loadSources();
+              } catch (cause) {
+                error(cause.message);
+              }
+            }
+            renderDetails();
+          });
+        });
+        document.getElementById("next").addEventListener("click", async () => {
+          captureDetails();
+          if (!draft.appName || !draft.purpose) {
+            error("Enter an app name and purpose.");
+            return;
+          }
+          if (isNew && draft.starterKind === "template") {
+            try {
+              await loadSources();
+            } catch (cause) {
+              error(cause.message);
+              return;
+            }
+            if (!draft.templateRootId) {
+              error("Choose a template or sample.");
+              return;
+            }
+            const template = sources.templates.find((item) => item.id === draft.templateRootId);
+            draft.tierIds = [...template.capabilityIds];
+          }
+          if (!isNew) {
+            try {
+              await loadSources();
+            } catch (cause) {
+              error(cause.message);
+              return;
+            }
+          }
+          draft.step = 2;
+          isNew ? renderCapabilities() : renderPieces();
+        });
+      }
+
+      function renderCapabilities() {
+        clearStatus();
+        app.innerHTML = '<div class="step">Step 2 of 3</div><h1>Choose capabilities</h1>' +
+          '<p>Select only what this app needs now. Each selection creates an editable implementation with a local test path.</p>' +
+          '<div class="capability-list">' + capabilities.map((tier) =>
+            '<div class="capability"><label><input type="checkbox" data-tier="' + tier.id + '"' +
+            (draft.tierIds.includes(tier.id) ? " checked" : "") + '><span><strong>' + escape(tier.name) +
+            '</strong><small>' + escape(tier.role) + '</small></span></label></div>').join("") + '</div>' +
+          actions({ back: true, nextLabel: "Review app" });
+        wireActions({
+          back: renderDetails,
+          next: () => {
+            draft.tierIds = [...document.querySelectorAll("[data-tier]:checked")].map((input) => input.dataset.tier);
+            if (draft.tierIds.length === 0) {
+              error("Choose at least one capability.");
+              return;
+            }
+            draft.step = 3;
+            renderReview();
+          }
+        });
+      }
+
+      function availableForTier(tierId) {
+        return (sources?.roots ?? []).flatMap((root) =>
+          root.implementations
+            .filter((implementation) => implementation.tierId === tierId)
+            .map((implementation) => ({ root, implementation })));
+      }
+
+      function renderPieces() {
+        clearStatus();
+        const unused = capabilities.filter((tier) => !draft.tierIds.includes(tier.id));
+        app.innerHTML = '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
+          '<p>Add a capability, then choose the source project that should implement it.</p>' +
+          '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
+            const tier = capabilities.find((item) => item.id === tierId);
+            const options = availableForTier(tierId);
+            const selected = draft.sourceBindings[tierId] || "";
+            return '<div class="mapping"><div class="mapping-heading"><div><h3>' + escape(tier.name) +
+              '</h3><small>' + escape(tier.role) + '</small></div><button type="button" class="link" data-remove="' +
+              tierId + '">Remove</button></div><select data-source-tier="' + tierId + '">' +
+              '<option value="">Choose source project…</option>' + options.map(({ root, implementation }) =>
+                '<option value="' + implementation.id + '"' + (selected === implementation.id ? " selected" : "") + '>' +
+                escape(root.name + " · " + (root.branch || "detached") + " · " + root.path + " · " + implementation.projectPath +
+                  (root.dirty ? " · Modified" : " · Clean")) + '</option>').join("") +
+              '</select>' + (options.length === 0 ? '<small>No matching project found. Add a local folder below.</small>' : '') +
+              '</div>';
+          }).join("") + '</div>' +
+          (unused.length
+            ? '<label class="field">Add capability<select id="add-tier"><option value="">Choose capability…</option>' +
+              unused.map((tier) => '<option value="' + tier.id + '">' + escape(tier.name) + '</option>').join("") +
+              '</select></label>'
+            : "") +
+          '<div class="local-path"><input id="local-path" type="text" placeholder="/path/to/repository-or-folder">' +
+          '<button type="button" id="add-path">Add local path</button></div>' +
+          actions({ back: true, nextLabel: "Continue to Azure resources" });
+        document.getElementById("add-tier")?.addEventListener("change", (event) => {
+          if (event.target.value) {
+            draft.tierIds.push(event.target.value);
+            renderPieces();
+          }
+        });
+        document.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
+          draft.tierIds = draft.tierIds.filter((id) => id !== button.dataset.remove);
+          delete draft.sourceBindings[button.dataset.remove];
+          renderPieces();
+        }));
+        document.querySelectorAll("[data-source-tier]").forEach((select) => select.addEventListener("change", () => {
+          draft.sourceBindings[select.dataset.sourceTier] = select.value;
+        }));
+        document.getElementById("add-path").addEventListener("click", async () => {
+          const path = document.getElementById("local-path").value.trim();
+          if (!path) {
+            error("Enter a local repository or folder path.");
+            return;
+          }
+          setBusy(true, "Scanning the selected folder…");
+          try {
+            sources = await request("/api/sources", { method: "POST", body: JSON.stringify({ path }) });
+            clearStatus("Local folder added.");
+            renderPieces();
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        });
+        wireActions({
+          back: renderDetails,
+          next: async () => {
+            if (draft.tierIds.length === 0) {
+              error("Add at least one capability.");
+              return;
+            }
+            const missing = draft.tierIds.find((tierId) => !draft.sourceBindings[tierId]);
+            if (missing) {
+              error("Choose a source project for " + capabilities.find((item) => item.id === missing).name + ".");
+              return;
+            }
+            setBusy(true, "Loading compatible Azure resources…");
+            try {
+              azureInventory = await request("/api/discovery?azure=true");
+              draft.step = 3;
+              renderAzure();
+            } catch (cause) {
+              azureInventory = null;
+              draft.step = 3;
+              renderAzure(cause.message);
+            }
+          }
+        });
+      }
+
+      function azureForTier(tierId) {
+        return azureInventory?.inventory
+          ?.find((tier) => tier.id === tierId)
+          ?.implementations.filter((item) => item.kind === "azure-resource") ?? [];
+      }
+
+      function renderAzure(warning = "") {
+        clearStatus();
+        app.innerHTML = '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
+          '<p>These mappings are references only. Unity Studio will not read keys, deploy, or change resources.</p>' +
+          (warning ? '<div class="notice">' + escape(warning) + ' You can continue without Azure mappings.</div>' : "") +
+          '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
+            const tier = capabilities.find((item) => item.id === tierId);
+            const resources = azureForTier(tierId);
+            return '<div class="mapping"><h3>' + escape(tier.name) + '</h3><select data-azure-tier="' + tierId + '">' +
+              '<option value="">No resource mapped</option>' + resources.map((resource) =>
+                '<option value="' + escape(resource.resourceId) + '"' +
+                (draft.azureBindings[tierId] === resource.resourceId ? " selected" : "") + '>' +
+                escape(resource.title + " · " + resource.subtitle) + '</option>').join("") + '</select></div>';
+          }).join("") + '</div>' +
+          actions({ back: true, nextLabel: "Review app" });
+        document.querySelectorAll("[data-azure-tier]").forEach((select) => select.addEventListener("change", () => {
+          draft.azureBindings[select.dataset.azureTier] = select.value;
+        }));
+        wireActions({
+          back: renderPieces,
+          next: () => {
+            draft.step = 4;
+            renderReview();
+          }
+        });
+      }
+
+      function capabilityReview(tierId) {
+        const tier = capabilities.find((item) => item.id === tierId);
+        if (draft.journey === "new" && draft.starterKind === "blank") {
+          return '<div class="review-row"><strong>' + escape(tier.name) + '</strong><small>Editable generic implementation</small></div>';
+        }
+        const sourceId = draft.journey === "assemble" ? draft.sourceBindings[tierId] : null;
+        const selected = sourceId
+          ? sources.roots.flatMap((root) => root.implementations.map((implementation) => ({ root, implementation })))
+              .find((item) => item.implementation.id === sourceId)
+          : null;
+        return '<div class="review-row"><strong>' + escape(tier.name) + '</strong><small>' +
+          escape(selected ? selected.root.name + " · " + selected.implementation.projectPath : "Hydrated from selected template") +
+          (draft.azureBindings[tierId] ? "<br>Azure resource mapped" : "") + '</small></div>';
+      }
+
+      function renderReview() {
+        clearStatus();
+        const total = draft.journey === "new" ? 3 : 4;
+        const starter = draft.journey === "assemble"
+          ? "Assembled from selected source projects"
+          : (draft.starterKind === "blank" ? "Blank app" : sources.templates.find((item) => item.id === draft.templateRootId)?.name);
+        app.innerHTML = '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
+          '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong><br>' +
+          escape(draft.purpose) + '</p></section><section><h3>Starter</h3><p>' + escape(starter) +
+          '</p></section><section><h3>Capabilities</h3><div class="review-list">' +
+          draft.tierIds.map(capabilityReview).join("") + '</div></section><section><h3>Workspace</h3>' +
+          '<p>New isolated Git worktree. Selected sources are copied or hydrated; source locations are never modified.</p>' +
+          '<label><input id="open-vscode" type="checkbox"' + (draft.openInVsCode ? " checked" : "") +
+          '> Open the new worktree in VS Code</label></section></div>' +
+          '<div class="notice">No Azure resources will be created or changed.</div>' +
+          actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
+            (draft.starterKind === "template" ? "Create from template" : "Create app") });
+        wireActions({
+          back: draft.journey === "assemble" ? renderAzure : renderCapabilities,
+          next: submit
+        });
+      }
+
+      async function submit() {
+        draft.openInVsCode = document.getElementById("open-vscode").checked;
+        const sourceBindings = draft.journey === "assemble"
+          ? draft.tierIds.map((tierId) => ({
+              tierId,
+              sourceIds: [draft.sourceBindings[tierId]],
+              azureResourceIds: draft.azureBindings[tierId] ? [draft.azureBindings[tierId]] : []
+            }))
+          : [];
+        setBusy(true, "Requesting workspace…");
         try {
           await request("/api/workspace-request", {
             method: "POST",
             body: JSON.stringify({
-              mode: "create",
-              appName: document.getElementById("app-name").value,
-              purpose: document.getElementById("app-purpose").value,
-              tierIds,
-              openInVsCode: document.getElementById("open-vscode").checked
+              journey: draft.journey,
+              starterKind: draft.journey === "assemble" ? "assembly" : draft.starterKind,
+              appName: draft.appName,
+              purpose: draft.purpose,
+              tierIds: draft.tierIds,
+              templateRootId: draft.templateRootId || undefined,
+              sourceBindings,
+              openInVsCode: draft.openInVsCode
             })
           });
-          status.textContent = "New app workspace requested.";
-        } catch (error) {
-          status.textContent = error.message;
-        } finally {
+          app.innerHTML = '<div class="eyebrow">Workspace request sent</div><h1>Copilot is creating ' +
+            escape(draft.appName) + '</h1><p>The new project session and worktree will appear in the project UI. ' +
+            'Unity Studio will not claim it is created until the host returns that result.</p>' +
+            '<button type="button" id="done">Back to start</button>';
+          document.getElementById("done").addEventListener("click", renderLanding);
+          clearStatus();
+        } catch (cause) {
+          error(cause.message);
           setBusy(false, status.textContent);
         }
-      });
+      }
 
-      document.getElementById("refresh").addEventListener("click", () => discover(false));
-      document.getElementById("refresh-azure").addEventListener("click", () => discover(true));
-      document.getElementById("trace").addEventListener("click", async () => {
-        setBusy(true, "Tracing source relationships…");
-        try {
-          const payload = await request("/api/app-map", { method: "POST" });
-          document.getElementById("app-map").textContent = JSON.stringify(payload, null, 2);
-          status.textContent = "App flow derived from matched source files.";
-        } catch (error) {
-          status.textContent = error.message;
-        } finally {
-          setBusy(false, status.textContent);
-        }
-      });
-
-      discover(false);
+      renderLanding();
     </script>
   </body>
 </html>`;

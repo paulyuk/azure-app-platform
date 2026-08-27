@@ -1,12 +1,31 @@
 # Unity Studio redesign
 
-## Purpose
+## Product model
 
-Unity Studio is a generic app-workspace and navigation hub for applications
-built with the Unity platform pattern. It creates or extends apps in isolated
-worktrees, describes platform capabilities, inventories implementations,
-opens registered specialist studios, and traces application relationships. It
-does not claim that a component is deployed, healthy, or production-ready.
+Unity Studio is a guided builder for applications that use the Unity platform
+pattern. It deliberately avoids a dashboard or platform cockpit. The first view
+offers exactly two actions and performs no automatic discovery.
+
+### Build a new app
+
+The user names the app, describes its purpose, and starts either blank or from a
+template/sample. A blank app generates editable, runnable implementations for
+the selected capabilities. A template is advertised only when a Git worktree
+contains at least three detected capabilities and has a commit to pin. Template
+hydration uses that commit, even when the source worktree has local changes.
+
+### Assemble existing pieces
+
+The user adds capabilities one at a time and explicitly selects the source
+project that fulfills each one. Choices include the current and sibling Git
+worktrees plus local folders the user authorizes for the current canvas
+instance. Each choice shows its repository/worktree, branch, project path, and
+clean or modified state. Compatible Azure resources are an optional mapping
+step after source selection, not the primary source of truth.
+
+Both journeys end with a review and a delegated app-native worktree request.
+The UI reports that the request was sent; it does not claim that a workspace was
+created before the host returns that result.
 
 ## Nine-tier catalog
 
@@ -29,7 +48,7 @@ Each definition may include expected interfaces, source-project and Azure matchi
 rules, preferred dedicated canvas IDs, and a non-mutating scaffold recipe. It
 never includes a canned deployment status.
 
-## Implementation inventory
+## Source catalog and discovery
 
 ### Source projects
 
@@ -70,10 +89,20 @@ Discovery returns per-tier implementations, source matches, diagnostics, and
 whether a build path is available. Unsupported or conflicting matches are
 reported rather than converted into invented links or statuses.
 
+`list_source_roots` builds a separate picker-oriented catalog. Source and root
+IDs are opaque hashes, and selections are resolved against a fresh session-local
+catalog before delegation. Clean projects use commit snapshots. Modified or
+plain-folder projects use explicit working-tree snapshots. The destination
+copies selected projects under its own app root; it never symlinks to or mutates
+the source. Absolute local paths are transport data and must not be written to
+`unity.app.yaml`.
+
 ## Deterministic actions
 
 - `discover_platform` gathers repository and optional active-subscription Azure
   projects and Azure resources and returns the combined tier inventory.
+- `list_source_roots` returns source-picker data for current/sibling worktrees
+  and session-authorized folders. No source is selected automatically.
 - `request_app_workspace` validates an app workspace request and sends a
   structured, data-delimited handoff to the foreground Copilot agent. The agent
   must call the app-native `create_session` operation with a new worktree,
@@ -133,6 +162,9 @@ proof that a request path succeeds.
 - Discovered values are treated as untrusted input and escaped before rendering.
 - Workspace names use a constrained character set, prompt values are serialized
   as data, and source project paths are canonicalized within the current workspace.
+- Additional local folders are canonicalized with `realpath`, remain authorized
+  only for that canvas server instance, and are referenced through opaque IDs.
+- Template and assembly requests reject stale or tier-incompatible source IDs.
 - Loopback JSON and action endpoints remain loopback-only.
 - No discovery or scaffold action mutates files, resources, or configuration.
 - Static analysis can miss dynamic registration, generated configuration,

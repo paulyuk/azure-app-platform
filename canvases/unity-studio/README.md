@@ -1,18 +1,18 @@
 # Unity Studio
 
-Unity Studio is the hub canvas for creating, extending, and inspecting
-applications built with the generic nine-tier Unity platform pattern. It helps
-builders:
+Unity Studio is the guided app builder for the generic nine-tier Unity platform
+pattern. Its landing page has two journeys:
 
-- understand each tier's role and job to be done;
-- inventory source projects and read-only active-subscription Azure resources;
-- see implementations as tier cards with matched files and configuration;
-- create a child project session in an isolated worktree with selected
-  capabilities and relevant studios preloaded;
-- add a discovered repository project or Azure resource to an app workspace;
-- open a workspace-confined source project in VS Code;
-- open registered dedicated studios directly; and
-- trace a source-derived App Map without changing files or resources.
+1. **Build a new app** — start blank or from a hydrateable template, choose
+   capabilities, review the generated implementation plan, and create the app in
+   an isolated worktree.
+2. **Assemble existing pieces** — add capabilities, explicitly map each one to a
+   source project from a Git worktree or authorized local folder, optionally map
+   compatible Azure resources, and create a portable assembled app.
+
+The canvas does not scan on launch. Source and Azure discovery happen only when
+the selected journey needs them. Workspace requests preload relevant specialist
+studios and may open the resulting worktree in VS Code.
 
 See [DESIGN.md](./DESIGN.md) for the tier catalog, implementation inventory, action
 semantics, safety boundaries, and tracing limitations.
@@ -38,16 +38,18 @@ from static metadata.
 
 ## Actions
 
+- `list_source_roots` inventories source projects across the current and sibling
+  Git worktrees. The guided assembler can authorize an additional local folder
+  for the current canvas instance.
 - `discover_platform` inventories tier implementations from source projects and
   optional read-only Azure inventory in the active CLI subscription. Results
   include an implementation inventory grouped by tier.
-- `request_app_workspace` validates an app name, purpose, selected tiers, and
-  optional discovered source project, then asks the foreground Copilot agent to use
-  the app-native session API. The requested child session uses a new worktree,
-  creates a `unity.app.yaml` capability inventory, implements a runnable local
-  vertical slice with tests, and opens Unity Studio plus registered specialist
-  canvases. The action reports a pending request; it does not claim that the
-  worktree already exists.
+- `request_app_workspace` validates a blank, template, or assembly request and
+  resolves opaque source IDs immediately before delegation. Templates hydrate
+  from a pinned commit. Assemblies copy selected clean commit snapshots or dirty
+  working-tree snapshots into the destination; they never symlink to or modify
+  the source. The child session creates `unity.app.yaml`, a runnable local
+  vertical slice, focused tests, and concrete production next steps.
 - `build_capability` adds or improves one tier in the current app worktree,
   updates `unity.app.yaml`, wires it to adjacent tiers, and runs focused tests.
 - `open_in_vscode` opens an explicitly selected, workspace-confined repository

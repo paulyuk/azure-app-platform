@@ -1,9 +1,11 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { realpath, stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
+import { listSourceCatalog } from "./source-catalog.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
@@ -80,6 +82,21 @@ async function discoveryWithCatalog(workspaceRoot, includeAzure) {
   );
 }
 
+function hasAzureMappings(input) {
+  return input?.sourceBindings?.some((binding) => binding.azureResourceIds?.length > 0) === true;
+}
+
+async function freshAzureCatalog(workspaceRoot, input) {
+  if (!hasAzureMappings(input)) {
+    return undefined;
+  }
+  const discovery = await discoverUnityPlatform({ root: workspaceRoot, includeAzure: true });
+  return discovery.tiers.flatMap((tier) => tier.candidates.azure.map((candidate) => ({
+    ...candidate,
+    tierId: tier.id,
+  })));
+}
+
 function authorizeApiRequest(request, url, apiToken, trustedHost) {
   if (!url.pathname.startsWith("/api/")) {
     return;
@@ -104,7 +121,7 @@ function authorizeApiRequest(request, url, apiToken, trustedHost) {
   }
 }
 
-async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost) {
+async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   try {
     authorizeApiRequest(request, url, apiToken, trustedHost);
@@ -115,6 +132,29 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "GET" && url.pathname === "/api/discovery") {
       const includeAzure = url.searchParams.get("azure") !== "false";
       sendJson(response, 200, await discoveryWithCatalog(workspaceRoot, includeAzure));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/sources") {
+      sendJson(response, 200, await listSourceCatalog({
+        workspaceRoot,
+        additionalRoots: [...authorizedRoots],
+      }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/sources") {
+      const input = await readJsonBody(request);
+      if (typeof input.path !== "string" || !input.path.trim() || input.path.length > 2048) {
+        throw new Error("Enter a local folder path.");
+      }
+      const root = await realpath(input.path.trim());
+      if (!(await stat(root)).isDirectory()) {
+        throw new Error("The selected local path is not a folder.");
+      }
+      authorizedRoots.add(root);
+      sendJson(response, 200, await listSourceCatalog({
+        workspaceRoot,
+        additionalRoots: [...authorizedRoots],
+      }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/app-map") {
@@ -133,10 +173,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/workspace-request") {
       const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
+      const sourceCatalog = (
+        input.starterKind === "template" || input.journey === "assemble"
+      ) ? await listSourceCatalog({
+          workspaceRoot,
+          additionalRoots: [...authorizedRoots],
+        }) : undefined;
       sendJson(response, 202, await requestAppWorkspace({
         session,
         workspaceRoot,
         input,
+        sourceCatalog,
+        azureCatalog: await freshAzureCatalog(workspaceRoot, input),
       }));
       return;
     }
@@ -166,9 +214,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
 
 async function startServer(instanceId, workspaceRoot) {
   const apiToken = randomUUID();
+  const authorizedRoots = new Set();
   let trustedHost;
   const server = createServer((request, response) => {
-    void handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost);
+    void handleRequest(
+      request,
+      response,
+      instanceId,
+      workspaceRoot,
+      apiToken,
+      trustedHost,
+      authorizedRoots,
+    );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -206,6 +263,8 @@ const workspaceInputSchema = {
   type: "object",
   properties: {
     mode: { type: "string", enum: ["create", "extend"], default: "create" },
+    journey: { type: "string", enum: ["new", "assemble"], default: "new" },
+    starterKind: { type: "string", enum: ["blank", "template", "assembly"], default: "blank" },
     appName: { type: "string", minLength: 1, maxLength: 80 },
     purpose: { type: "string", minLength: 1, maxLength: 500 },
     tierIds: {
@@ -215,7 +274,30 @@ const workspaceInputSchema = {
       items: { type: "string", enum: WORKSPACE_TIER_IDS },
     },
     sourceProjectPath: { type: "string" },
-    azureResourceId: { type: "string", maxLength: 512 },
+    templateRootId: { type: "string", maxLength: 80 },
+    sourceBindings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          tierId: { type: "string", enum: WORKSPACE_TIER_IDS },
+          sourceIds: {
+            type: "array",
+            minItems: 1,
+            maxItems: 1,
+            uniqueItems: true,
+            items: { type: "string", maxLength: 80 },
+          },
+          azureResourceIds: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "string", maxLength: 512 },
+          },
+        },
+        required: ["tierId", "sourceIds"],
+        additionalProperties: false,
+      },
+    },
     openInVsCode: { type: "boolean", default: true },
   },
   required: ["appName", "purpose", "tierIds"],
@@ -264,6 +346,18 @@ const canvas = createCanvas({
       },
     },
     {
+      name: "list_source_roots",
+      description: "List source projects in the current and sibling Git worktrees for guided app assembly.",
+      inputSchema: { type: "object", additionalProperties: false },
+      handler: async (ctx) => {
+        try {
+          return await listSourceCatalog({ workspaceRoot: actionWorkspaceRoot(ctx) });
+        } catch (error) {
+          throw canvasError(error);
+        }
+      },
+    },
+    {
       name: "request_app_workspace",
       description: "Request a child project session with an isolated worktree, selected Unity capabilities, preloaded studios, and optional VS Code launch.",
       inputSchema: workspaceInputSchema,
@@ -271,7 +365,12 @@ const canvas = createCanvas({
         try {
           const workspaceRoot = actionWorkspaceRoot(ctx);
           const input = await validateSourceProjectPath(ctx.input, workspaceRoot);
-          return await requestAppWorkspace({ session, workspaceRoot, input });
+          return await requestAppWorkspace({
+            session,
+            workspaceRoot,
+            input,
+            azureCatalog: await freshAzureCatalog(workspaceRoot, input),
+          });
         } catch (error) {
           throw canvasError(error);
         }
