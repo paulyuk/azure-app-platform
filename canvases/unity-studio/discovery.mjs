@@ -310,7 +310,7 @@ function collectFileEvidence(file, projectRoots) {
   }
 
   if (!isDocumentation) {
-    addMatch("connectors", "connector-reference", "medium", /Microsoft\.Web\/connections|GraphServiceClient|Connector Namespace/i, "External connector API reference");
+    addMatch("connectors", "connector-reference", "medium", /Microsoft\.Web\/connections|GraphServiceClient\s*\(|Connector Namespace(?:\.|\()/i, "External connector API reference");
   }
 
   if (!isDocumentation) {
