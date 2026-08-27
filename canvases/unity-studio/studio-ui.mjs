@@ -213,6 +213,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         if (!draft.purpose) {
           draft.purpose = DEALER_SAMPLE_PURPOSE;
         }
+      }
 
       function actions({ back, nextLabel, next, nextDisabled = false }) {
         return '<div class="actions">' +
