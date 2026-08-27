@@ -771,6 +771,8 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('class="badges"'), true);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
+    assert.equal(html.includes("Local terminal"), true);
+    assert.equal(html.includes('request("/api/app-output?root="'), true);
     assert.equal(html.includes("Yes, delete worktree"), true);
     assert.equal(html.includes("No, keep app"), true);
     assert.equal(html.includes("No Azure resources, repositories, or cloud deployments will be deleted."), true);

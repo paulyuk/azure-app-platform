@@ -25,6 +25,7 @@ import { renderStudioHtml } from "./studio-ui.mjs";
 
 const servers = new Map();
 const appStates = new Map();
+const appOutput = new Map();
 let session;
 
 function sendJson(response, statusCode, payload) {
@@ -95,7 +96,15 @@ async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoo
 
 async function startAppCommand(root, command, args) {
   await access(`${root}/scripts/dev-start.sh`);
-  const child = spawn(command, args, { cwd: root, detached: true, stdio: "ignore" });
+  const child = spawn(command, args, { cwd: root, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+  const output = [];
+  appOutput.set(root, output);
+  const appendOutput = (chunk) => {
+    output.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
+    if (output.length > 400) output.splice(0, output.length - 400);
+  };
+  child.stdout.on("data", appendOutput);
+  child.stderr.on("data", appendOutput);
   child.unref();
   const operation = args[0] === "dev-start.sh" ? "running" : args[0] === "dev-stop.sh" ? "stopped" : args[0];
   appStates.set(root, { state: operation, pid: child.pid, updatedAt: new Date().toISOString() });
@@ -176,6 +185,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("App status root is not an authorized app workspace.");
       }
       sendJson(response, 200, appStates.get(root) ?? { state: "stopped" });
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/app-output") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App output root is not an authorized app workspace.");
+      }
+      sendJson(response, 200, { lines: appOutput.get(root) ?? [] });
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
@@ -296,6 +313,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         confirmed: input.confirmed === true,
       });
       authorizedRoots.delete(root);
+      appStates.delete(root);
+      appOutput.delete(root);
       sendJson(response, 200, result);
       return;
     }

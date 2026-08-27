@@ -93,6 +93,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .confirm-dialog h2 { margin-top: 0; }
       .confirm-dialog .actions { margin-top: 18px; }
       .confirm-dialog .danger { color: var(--fgColor-danger, #cf222e); border-color: currentColor; }
+      .terminal { margin-top: 16px; border: 1px solid #202a3b; border-radius: 8px; overflow: hidden; background: #0b1120; }
+      .terminal-head { padding: 7px 10px; border-bottom: 1px solid #202a3b; color: #a9b5ca; font: 600 11px ui-monospace, monospace; }
+      .terminal pre { margin: 0; min-height: 96px; max-height: 260px; overflow: auto; padding: 10px; color: #dbe5f7; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
@@ -146,6 +149,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
       let azureInventory = null;
+      let outputTimer = null;
       const draft = {
         journey: null,
         step: 0,
@@ -671,6 +675,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
 
       function renderInventory(result, inventory, appMap) {
+         if (outputTimer) {
+           clearInterval(outputTimer);
+           outputTimer = null;
+         }
         const tiers = inventory?.inventory || [];
         const implemented = tiers.filter((tier) => tier.implementations.length > 0).length;
         const graphSummary = appMap
@@ -683,7 +691,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
           '<button type="button" id="local-action" data-app-command="run-local">Run locally</button> ' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button> ' +
-          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></section>' +
+          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button>' +
+          '<div class="terminal"><div class="terminal-head"><span>Local terminal</span></div><pre id="local-output">Waiting for local app output.</pre></div></section>' +
           '<section><h3>App Map</h3><p>' + escape(graphSummary) +
           '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
           '<section><h3>Specialist canvases</h3><p>' +
@@ -743,6 +752,19 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           } catch (cause) {
             error(cause.message);
           }
+          async function refreshLocalOutput() {
+            try {
+              const output = await request("/api/app-output?root=" + encodeURIComponent(result.worktreePath));
+              const terminal = document.getElementById("local-output");
+              const text = output.lines.join("\n") || "Waiting for local app output.";
+              if (terminal && terminal.textContent !== text) {
+                terminal.textContent = text;
+                terminal.scrollTop = terminal.scrollHeight;
+              }
+            } catch (cause) {
+              error(cause.message);
+            }
+          }
         }
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Starting " + button.textContent + "…");
@@ -760,6 +782,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           }
         }));
         void refreshLocalStatus();
+        void refreshLocalOutput();
+        outputTimer = setInterval(() => {
+          void refreshLocalStatus();
+          void refreshLocalOutput();
+        }, 1000);
         document.querySelectorAll("[data-tier-action]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Opening the tier studio…");
           try {

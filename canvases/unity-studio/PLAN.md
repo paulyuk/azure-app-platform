@@ -119,7 +119,9 @@ success without command evidence.
 
 Local lifecycle controls are stateful: the app reports running or stopped and
 offers the corresponding action (`Run locally` or `Stop local app`) rather
-than presenting competing run/stop buttons at the same time. `azd provision`
+than presenting competing run/stop buttons at the same time. Running locally
+also exposes a live embedded terminal showing the actual lifecycle command
+output. `azd provision`
 does not imply that SRE has been obtained; SRE remains a separate tier that
 must be discovered, attached, or provisioned explicitly.
 
