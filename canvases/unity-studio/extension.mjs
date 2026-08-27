@@ -24,6 +24,7 @@ import {
 import { renderStudioHtml } from "./studio-ui.mjs";
 
 const servers = new Map();
+const appStates = new Map();
 let session;
 
 function sendJson(response, statusCode, payload) {
@@ -96,7 +97,9 @@ async function startAppCommand(root, command, args) {
   await access(`${root}/scripts/dev-start.sh`);
   const child = spawn(command, args, { cwd: root, detached: true, stdio: "ignore" });
   child.unref();
-  return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid };
+  const operation = args[0] === "dev-start.sh" ? "running" : args[0] === "dev-stop.sh" ? "stopped" : args[0];
+  appStates.set(root, { state: operation, pid: child.pid, updatedAt: new Date().toISOString() });
+  return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state: operation };
 }
 
 function hasAzureMappings(input) {
@@ -165,6 +168,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       });
       for (const root of catalog.roots) authorizedRoots.add(root.path);
       sendJson(response, 200, catalog);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/app-status") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App status root is not an authorized app workspace.");
+      }
+      sendJson(response, 200, appStates.get(root) ?? { state: "stopped" });
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {

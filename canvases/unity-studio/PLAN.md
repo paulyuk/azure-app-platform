@@ -113,6 +113,12 @@ Cloud actions are explicit because they can mutate Azure. The canvas should
 surface command start/failure information and avoid claiming deployment
 success without command evidence.
 
+Local lifecycle controls are stateful: the app reports running or stopped and
+offers the corresponding action (`Run locally` or `Stop local app`) rather
+than presenting competing run/stop buttons at the same time. `azd provision`
+does not imply that SRE has been obtained; SRE remains a separate tier that
+must be discovered, attached, or provisioned explicitly.
+
 ## App Map
 
 App Map is a generic source-derived graph, not a fixed narrative. Given an
