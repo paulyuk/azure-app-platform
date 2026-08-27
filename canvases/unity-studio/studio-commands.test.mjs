@@ -36,6 +36,7 @@ import {
 import { renderAppMapMarkup, renderExpandedAppMapHtml, renderStudioHtml } from "./studio-ui.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { buildWorkspaceKickoff } from "./workspace-actions.mjs";
+import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 
 async function fixture(files) {
   const root = await mkdtemp(join(tmpdir(), "unity-studio-"));
@@ -55,6 +56,40 @@ async function withFixture(files, callback) {
     await rm(root, { recursive: true, force: true });
   }
 }
+
+test("runtime status recovers from the persisted POSIX process registry", async () => {
+  await withFixture({
+    ".dev-run/processes.posix.tsv": "agent\t8088\t123\nweb\t3000\t456\n",
+  }, async (root) => {
+    const registry = await readProcessRegistry(root);
+    assert.deepEqual(registry, [
+      { name: "agent", port: 8088, pid: 123 },
+      { name: "web", port: 3000, pid: 456 },
+    ]);
+    assert.deepEqual(
+      deriveRuntimeState(undefined, registry, [
+        { port: 8088, ready: true },
+        { port: 3000, ready: true },
+      ]),
+      { state: "running", recovered: true },
+    );
+  });
+});
+
+test("runtime status does not report a stale process registry as running", () => {
+  const registry = [{ name: "agent", port: 8088, pid: 123 }];
+  assert.deepEqual(
+    deriveRuntimeState({ state: "running" }, registry, [{ port: 8088, ready: false }]),
+    { state: "stopped", recovered: true },
+  );
+});
+
+test("runtime status preserves lifecycle transitions while commands are active", () => {
+  const stopping = { state: "stopping", pid: 123 };
+  assert.equal(deriveRuntimeState(stopping, [], []).state, "stopping");
+  const starting = { state: "running", pid: 456 };
+  assert.equal(deriveRuntimeState(starting, [], []).state, "running");
+});
 
 const GENERIC_APP = {
   "surface/package.json": JSON.stringify({ dependencies: { next: "1.0.0", react: "1.0.0" } }),

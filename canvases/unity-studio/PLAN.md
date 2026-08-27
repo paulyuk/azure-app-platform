@@ -167,6 +167,10 @@ retrieve and apply them safely.
   agent exposes both prompt and specialist-studio actions.
 - Background status probes are silent. They must not generate application
   request-log traffic or imply that the user invoked a component.
+- Runtime status survives Unity Studio reloads. Rehydrate it from the app's
+  persisted process registry and silent TCP readiness evidence so a live stack
+  is not mislabeled as stopped and stale registry files are not mislabeled as
+  running.
 - Deterministic canvas actions replace copy/paste prompts and passive
   instructions wherever the host API can perform the operation directly.
 

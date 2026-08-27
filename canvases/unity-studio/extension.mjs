@@ -24,6 +24,7 @@ import {
   WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
 import { renderExpandedAppMapHtml, renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
+import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 
 const servers = new Map();
 const appStates = new Map();
@@ -398,9 +399,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App status root is not an authorized app workspace.");
       }
+      const entrypoints = await probeHttpEntrypoints(root);
+      const runtimeState = deriveRuntimeState(
+        appStates.get(root),
+        await readProcessRegistry(root),
+        entrypoints,
+      );
+      appStates.set(root, runtimeState);
       sendJson(response, 200, {
-        ...(appStates.get(root) ?? { state: "stopped" }),
-        entrypoints: await probeHttpEntrypoints(root),
+        ...runtimeState,
+        entrypoints,
       });
       return;
     }
