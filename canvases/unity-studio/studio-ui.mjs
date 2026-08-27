@@ -204,6 +204,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         padding: 9px 10px;
         background: var(--studio-raised);
         color: inherit;
+        font: inherit;
+        font-weight: 400;
       }
       textarea { min-height: 84px; resize: vertical; }
       .choice-list, .capability-list, .mapping-list, .review-list { display: grid; gap: 9px; margin: 16px 0; }
