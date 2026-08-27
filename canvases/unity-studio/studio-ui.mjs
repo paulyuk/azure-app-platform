@@ -611,14 +611,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<label class="choice template"><input type="radio" name="template" value="' + escape(template.id) + '"' +
           (draft.templateRootId === template.id ? " checked" : "") + '><span><strong>' + escape(template.name) +
           '</strong><span class="template-meta">' + escape(template.description) +
-          (template.dirty ? " · local changes excluded" : "") + '</span><small>' +
-          template.capabilityIds.map((id) => capabilities.find((item) => item.id === id)?.name || id).join(", ") +
-          (template.startup
-            ? '<br><code>' + escape(template.startup.start) + '</code> · <code>' + escape(template.startup.stop) + '</code>'
-            : '') +
-          (template.kind === "empty" ? '<br>One empty Hosted Skill · editable domain config and agent prompt' : '') +
-          (template.preservesDomain ? '<br>Preserves the finished dealer domain; app name labels the workspace.' : '') +
-          '</small></span></label>').join("") + '</div>';
+          '</span></span></label>').join("") + '</div>';
       }
 
       async function loadSources() {

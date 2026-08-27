@@ -42,6 +42,11 @@ The landing context is **Unity apps** and has three actions:
 3. **Open existing** — rediscover apps persisted as Git repository/worktree
    pairs.
 
+Template choice cards show only a clear title and one outcome-focused
+description. Capability lists, lifecycle commands, file paths, and source
+provenance belong in the app workspace and inventory views, not in this
+decision surface.
+
 Every non-landing screen has a visible back arrow near the top. Bottom action
 buttons may remain for keyboard/mobile flow, but navigation must not depend on
 them.

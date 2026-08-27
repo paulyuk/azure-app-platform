@@ -812,7 +812,6 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
       "Assemble from existing components",
       "Empty Unity app",
       "Dealer sample",
-      "One empty Hosted Skill",
       "Choose pieces",
       "Map Azure resources",
       "Open existing",
@@ -828,6 +827,10 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
     assert.equal(html.includes("Command output"), true);
+    assert.equal(html.includes("local changes excluded"), false);
+    assert.equal(html.includes("Preserves the finished dealer domain"), false);
+    assert.equal(html.includes("./scripts/dev-start.sh --skip-skills"), false);
+    assert.equal(EMPTY_TEMPLATE.description, "Start with an editable app shell and shape it around your own scenario.");
     assert.equal(html.includes('request("/api/app-output?root="'), true);
     assert.equal(html.includes("Create / Manage"), true);
     assert.equal(html.includes("Configure app from active gateway"), true);
