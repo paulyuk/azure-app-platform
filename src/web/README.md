@@ -46,6 +46,8 @@ Then `npm run dev` (in another terminal) and chat — replies come from the
 real model/agent. `AGENT_URL` in `.env.example` defaults to
 `http://127.0.0.1:8088`, matching the agent's default port; override it in
 `.env.local` if your agent runs elsewhere.
+Live turns allow 120 seconds by default because they may include multiple
+Hosted Skills/model calls. Override the deadline with `AGENT_TIMEOUT_MS`.
 
 Once both terminals are running, use this prompt to verify the live agent
 path end-to-end — the chat panel shows it above the input with a **"Copy &
@@ -84,4 +86,3 @@ the real deal-finder agent. Covers the chat flow, vehicle shortlisting, the
 apply-and-approve workflow, the mock/live reply-source badge, and — as a
 regression test — that the full message history (not just the latest turn)
 is sent to `/api/chat` on every request.
-

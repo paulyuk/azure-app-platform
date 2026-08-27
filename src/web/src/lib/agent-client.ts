@@ -8,12 +8,7 @@
 import type { ChatMessage } from "@/lib/types";
 
 const DEFAULT_AGENT_URL = "http://127.0.0.1:8088";
-// A closed/unreachable port fails via connection refusal almost instantly,
-// so this timeout only matters for a *reachable* agent that's slow to
-// respond (e.g. reasoning-heavy turns can take several seconds) — keep it
-// generous so real replies aren't mistaken for an unreachable agent and
-// silently swapped for a mock reply mid-conversation.
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 interface AgentResponseOutputItem {
   type: string;
@@ -31,6 +26,8 @@ interface AgentResponsePayload {
  * show ground truth instead of a single generic "mock fallback" state:
  * - "unreachable": nothing is listening on the agent port at all (process not
  *   started, wrong port/URL, crashed).
+ * - "timeout": the agent is reachable, but the turn exceeded the configured
+ *   response deadline.
  * - "agent_failed": the agent process answered (HTTP 200), but the turn
  *   itself failed server-side — most commonly its MCP tool sources (Hosted
  *   Skills / Foundry Toolbox) didn't initialize. The agent is live; its tools
@@ -39,7 +36,12 @@ interface AgentResponsePayload {
  * - "empty_reply": the agent responded successfully but had no readable
  *   message content to extract.
  */
-export type AgentErrorKind = "unreachable" | "agent_failed" | "http_error" | "empty_reply";
+export type AgentErrorKind =
+  | "unreachable"
+  | "timeout"
+  | "agent_failed"
+  | "http_error"
+  | "empty_reply";
 
 export class AgentClientError extends Error {
   readonly kind: AgentErrorKind;
@@ -55,6 +57,22 @@ function agentBaseUrl(): string {
   return (process.env.AGENT_URL ?? DEFAULT_AGENT_URL).replace(/\/+$/, "");
 }
 
+function agentTimeoutMs(): number {
+  const configured = process.env.AGENT_TIMEOUT_MS;
+  if (!configured) {
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  const timeoutMs = Number(configured);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new AgentClientError(
+      "timeout",
+      `AGENT_TIMEOUT_MS must be a positive integer; received "${configured}".`
+    );
+  }
+  return timeoutMs;
+}
+
 /**
  * Calls the agent's `/responses` endpoint with the full conversation history
  * (as Responses-protocol `input` message items, not just the latest turn —
@@ -63,15 +81,15 @@ function agentBaseUrl(): string {
  * extracts the assistant's plain-text reply, discarding the encrypted
  * reasoning trace item.
  *
- * Uses a short timeout so callers that fall back to mock mode when the
- * agent isn't running (the default dev experience) fail fast instead of
- * hanging the request. Throws `AgentClientError` with a `kind` so callers
+ * Closed ports fail immediately; the longer response timeout is for a live
+ * agent completing reasoning and Hosted Skills/model calls. Throws
+ * `AgentClientError` with a `kind` so callers
  * (and ultimately the UI) can tell "no agent process" apart from "agent is
  * live but a turn failed" (e.g. MCP tools not connected).
  */
 export async function fetchAgentReply(
   messages: ChatMessage[],
-  timeoutMs = DEFAULT_TIMEOUT_MS
+  timeoutMs = agentTimeoutMs()
 ): Promise<string> {
   const input = messages.map((message) => ({
     role: message.role,
@@ -88,6 +106,12 @@ export async function fetchAgentReply(
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new AgentClientError(
+        "timeout",
+        `Agent at ${agentBaseUrl()} did not respond within ${timeoutMs}ms.`
+      );
+    }
     throw new AgentClientError("unreachable", `Could not reach agent at ${agentBaseUrl()}: ${reason}`);
   }
 

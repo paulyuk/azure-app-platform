@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   // Which path actually produced this reply — reported to the client via a
   // "source" stream event so the UI can show ground truth instead of
   // guessing from the client-side NEXT_PUBLIC_MOCK env var (which cannot
-  // reflect a same-request fallback, e.g. the agent timing out mid-turn).
+  // reflect a same-request fallback when the agent is unreachable).
   let source: ReplySource;
 
   if (forceMock) {
@@ -121,4 +121,3 @@ export async function POST(request: Request) {
     }
   });
 }
-
