@@ -689,6 +689,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
           '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
           '<div class="badges" id="local-status"><span class="badge">Local app: checking</span></div>' +
+          '<div class="badges" id="entrypoints"></div>' +
           '<button type="button" id="local-action" data-app-command="run-local">Run locally</button> ' +
           '<button type="button" data-app-command="provision-cloud">Provision with azd</button> ' +
           '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button>' +
@@ -746,6 +747,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             const running = state.state === "running";
             document.getElementById("local-status").innerHTML =
               '<span class="badge ' + (running ? "http" : "") + '">Local app: ' + (running ? "running" : "stopped") + '</span>';
+             document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
+              '<span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
+              escape(entrypoint.name) + ': ' + (entrypoint.ready ? "HTTP ready" : "offline") + '</span>').join("");
             const localAction = document.getElementById("local-action");
             localAction.dataset.appCommand = running ? "stop-local" : "run-local";
             localAction.textContent = running ? "Stop local app" : "Run locally";

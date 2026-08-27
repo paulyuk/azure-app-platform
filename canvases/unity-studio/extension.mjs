@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { realpath, stat, access } from "node:fs/promises";
+import { realpath, stat, access, readdir, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
@@ -27,6 +27,40 @@ const servers = new Map();
 const appStates = new Map();
 const appOutput = new Map();
 let session;
+
+async function readRuntimeOutput(root) {
+  const lines = [...(appOutput.get(root) ?? [])];
+  try {
+    const names = (await readdir(`${root}/.dev-run`)).filter((name) => name.endsWith(".log")).sort();
+    for (const name of names) {
+      const contents = await readFile(`${root}/.dev-run/${name}`, "utf8");
+      lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${name}] ${line}`));
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  return lines.slice(-400);
+}
+
+async function probeHttpEntrypoints(root) {
+  const candidates = [
+    { name: "Web", port: 3000 },
+    { name: "Agent", port: 8088 },
+    { name: "Hosted Skill", port: 7071 },
+  ];
+  return Promise.all(candidates.map(async (candidate) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 500);
+    try {
+      const response = await fetch(`http://127.0.0.1:${candidate.port}/`, { signal: controller.signal });
+      return { ...candidate, url: `http://localhost:${candidate.port}`, ready: response.status < 500 };
+    } catch {
+      return { ...candidate, url: `http://localhost:${candidate.port}`, ready: false };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }));
+}
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -202,7 +236,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App status root is not an authorized app workspace.");
       }
-      sendJson(response, 200, appStates.get(root) ?? { state: "stopped" });
+      sendJson(response, 200, {
+        ...(appStates.get(root) ?? { state: "stopped" }),
+        entrypoints: await probeHttpEntrypoints(root),
+      });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/app-output") {
@@ -210,7 +247,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App output root is not an authorized app workspace.");
       }
-      sendJson(response, 200, { lines: appOutput.get(root) ?? [] });
+      sendJson(response, 200, { lines: await readRuntimeOutput(root) });
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
