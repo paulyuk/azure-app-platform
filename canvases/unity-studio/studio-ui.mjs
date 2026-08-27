@@ -83,6 +83,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         border-radius: 8px;
         padding: 12px;
       }
+      .app-row { display: flex; align-items: center; gap: 10px; }
+      .app-row > [data-existing-app] { flex: 1; min-width: 0; text-align: left; }
+      .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
+      .icon-button svg { display: block; width: 16px; height: 16px; fill: currentColor; }
+      .icon-button.danger { color: var(--fgColor-danger, #cf222e); }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--text-color-muted, #59636e); }
       .template { display: grid; grid-template-columns: auto 1fr; gap: 9px; }
@@ -290,10 +295,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
-            '<div class="choice source-option"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
+            '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
-            ' discovered tier(s)</small></button><button type="button" class="link" data-delete-existing-app="' +
-            escape(item.path) + '">Delete</button></div>').join("") +
+            ' discovered tier(s)</small></button><button type="button" class="icon-button danger" data-delete-existing-app="' +
+            escape(item.path) + '" aria-label="Delete ' + escape(item.name) + '" title="Delete app">' +
+            '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1.5h6l.6 1.5H14v1H2V3h2.4L5 1.5Zm-2 4h10l-.6 9H3.6l-.6-9Zm3 1v6h1V6.5H6Zm3 0v6h1V6.5H9Z"/></svg></button></div>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
           '';
         wireTopBack(renderLanding);
