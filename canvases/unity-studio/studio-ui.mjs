@@ -752,8 +752,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           try {
             const state = await request("/api/app-status?root=" + encodeURIComponent(result.worktreePath));
             const running = state.state === "running";
+            const stopping = state.state === "stopping";
             document.getElementById("local-status").innerHTML =
-              '<span class="badge ' + (running ? "http" : "") + '">Local app: ' + (running ? "running" : "stopped") + '</span>';
+              '<span class="badge ' + (running ? "http" : "") + '">Local app: ' + escape(state.state || "stopped") + '</span>';
              document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
               '<span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
               escape(entrypoint.name) + ': ' + (entrypoint.ready ? "HTTP ready" : "offline") + '</span>').join("");
@@ -777,7 +778,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
              };
             const localAction = document.getElementById("local-action");
             localAction.dataset.appCommand = running ? "stop-local" : "run-local";
-            localAction.textContent = running ? "Stop local app" : "Run locally";
+            localAction.textContent = stopping ? "Stopping local app…" : (running ? "Stop local app" : "Run locally");
+            localAction.disabled = stopping;
           } catch (cause) {
             error(cause.message);
           }

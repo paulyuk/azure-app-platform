@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { realpath, stat, access, readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { createConnection } from "node:net";
 import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
@@ -32,7 +33,7 @@ let session;
 
 async function readRuntimeOutput(root) {
   const run = appOutput.get(root);
-  const lines = [...(run?.lines ?? [])];
+  const lines = [];
   try {
     async function readLogs(directory, prefix = "") {
       for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -45,10 +46,13 @@ async function readRuntimeOutput(root) {
         }
       }
     }
-    await readLogs(`${root}/.dev-run`);
+    if (run?.state !== "stopping") {
+      await readLogs(`${root}/.dev-run`);
+    }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
+  lines.push(...(run?.lines ?? []));
   return lines.slice(-400);
 }
 
@@ -78,17 +82,17 @@ async function probeHttpEntrypoints(root) {
   }
   const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.port, candidate])).values()];
   return Promise.all(uniqueCandidates.map(async (candidate) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 500);
-    try {
-      const response = await fetch(`http://127.0.0.1:${candidate.port}/`, { signal: controller.signal });
-      return { ...candidate, url: `http://localhost:${candidate.port}`, ready: response.status < 500 };
-    } catch {
-      return { ...candidate, url: `http://localhost:${candidate.port}`, ready: false };
-    } finally {
-      clearTimeout(timeout);
-    }
-
+    const ready = await new Promise((resolve) => {
+      const socket = createConnection({ host: "127.0.0.1", port: candidate.port });
+      const finish = (value) => {
+        socket.destroy();
+        resolve(value);
+      };
+      socket.setTimeout(500, () => finish(false));
+      socket.once("connect", () => finish(true));
+      socket.once("error", () => finish(false));
+    });
+    return { ...candidate, url: `http://localhost:${candidate.port}`, ready };
   }));
 }
 
@@ -242,7 +246,7 @@ async function startAppCommand(root, command, args, state, options = {}) {
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const run = { lines: [], startedAt: Date.now() };
+  const run = { lines: [], startedAt: Date.now(), state };
   appOutput.set(root, run);
   const appendOutput = (chunk) => {
     run.lines.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
@@ -250,6 +254,20 @@ async function startAppCommand(root, command, args, state, options = {}) {
   };
   child.stdout.on("data", appendOutput);
   child.stderr.on("data", appendOutput);
+  child.once("error", (error) => {
+    appendOutput(`Command failed to start: ${error.message}`);
+    appStates.set(root, { state: "failed", updatedAt: new Date().toISOString() });
+  });
+  child.once("close", (exitCode, signal) => {
+    if (options.completedState) {
+      appStates.set(root, {
+        state: exitCode === 0 ? options.completedState : "failed",
+        exitCode,
+        signal,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  });
   child.unref();
   appStates.set(root, { state, pid: child.pid, updatedAt: new Date().toISOString() });
   return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state };
@@ -507,7 +525,9 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "stop-local") {
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
-        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "stopped"));
+        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "stopping", {
+          completedState: "stopped",
+        }));
         return;
       }
       if (input.operation === "configure-gateway") {
