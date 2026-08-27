@@ -57,6 +57,7 @@ const ALWAYS_READ_FILES = new Set([
   "package.json",
   "pyproject.toml",
   "schema.prisma",
+  "unity.app.yaml",
 ]);
 
 const PROJECT_MARKERS = new Set([
@@ -70,6 +71,7 @@ const PROJECT_MARKERS = new Set([
   "package.json",
   "pyproject.toml",
   "schema.prisma",
+  "unity.app.yaml",
 ]);
 
 const MAX_FILE_BYTES = 512 * 1024;
@@ -325,6 +327,130 @@ function collectFileEvidence(file, projectRoots) {
   return results;
 }
 
+function yamlScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+    const quote = trimmed[0];
+    const end = trimmed.indexOf(quote, 1);
+    if (end > 0) {
+      return trimmed.slice(1, end);
+    }
+  }
+  return trimmed.split(/\s+#/, 1)[0].trim();
+}
+
+function parseUnityManifest(file) {
+  const components = [];
+  const lines = file.content.split(/\r?\n/);
+  let componentsIndent = null;
+  let current = null;
+  const finish = () => {
+    if (current) {
+      components.push(current);
+      current = null;
+    }
+  };
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const indent = line.length - line.trimStart().length;
+    if (componentsIndent === null) {
+      if (/^components\s*:\s*(?:#.*)?$/i.test(trimmed)) {
+        componentsIndent = indent;
+      }
+      continue;
+    }
+    if (indent <= componentsIndent) {
+      finish();
+      break;
+    }
+    const item = /^-\s*tier\s*:\s*(.+)$/i.exec(trimmed);
+    if (item) {
+      finish();
+      current = { tierId: yamlScalar(item[1]), path: null, line: index + 1 };
+      continue;
+    }
+    const property = /^(tier|path)\s*:\s*(.+)$/i.exec(trimmed);
+    if (!property) {
+      continue;
+    }
+    current ??= { tierId: null, path: null, line: index + 1 };
+    if (property[1].toLowerCase() === "tier") {
+      current.tierId = yamlScalar(property[2]);
+      current.line = index + 1;
+    } else {
+      current.path = yamlScalar(property[2]);
+    }
+  }
+  finish();
+  return components;
+}
+
+function collectUnityManifestResults(files) {
+  const matches = [];
+  const diagnostics = [];
+  for (const file of files.filter((candidate) => candidate.name === "unity.app.yaml")) {
+    for (const component of parseUnityManifest(file)) {
+      const tier = getTierDefinition(component.tierId);
+      if (!tier) {
+        diagnostics.push({
+          code: "invalid-unity-tier",
+          source: "repository",
+          path: file.path,
+          line: component.line,
+          message: `Unity app inventory contains unknown tier "${component.tierId ?? ""}".`,
+        });
+        continue;
+      }
+      if (
+        !component.path
+        || isAbsolute(component.path)
+        || component.path.split(/[\\/]/).includes("..")
+      ) {
+        diagnostics.push({
+          code: "invalid-component-path",
+          source: "repository",
+          path: file.path,
+          line: component.line,
+          message: `${tier.name} must declare a workspace-relative component path.`,
+        });
+        continue;
+      }
+      const manifestRoot = toPosix(dirname(file.path));
+      const componentPath = component.path === "."
+        ? manifestRoot
+        : toPosix(join(manifestRoot, component.path));
+      const prefix = componentPath === "." ? "" : `${componentPath}/`;
+      const exists = files.some((candidate) =>
+        candidate.path !== file.path
+        && (candidate.path === componentPath || candidate.path.startsWith(prefix)));
+      if (!exists) {
+        diagnostics.push({
+          code: "missing-component-path",
+          source: "repository",
+          path: file.path,
+          line: component.line,
+          message: `${tier.name} declares "${component.path}", but that project path was not found.`,
+        });
+        continue;
+      }
+      matches.push({
+        tierId: tier.id,
+        projectPath: componentPath,
+        path: file.path,
+        line: component.line,
+        rule: "unity-app-inventory",
+        confidence: "medium",
+        detail: `Unity app inventory maps ${tier.name} to ${component.path}`,
+      });
+    }
+  }
+  return { matches, diagnostics };
+}
+
 function confidenceRank(confidence) {
   return { low: 1, medium: 2, high: 3 }[confidence] ?? 0;
 }
@@ -365,12 +491,16 @@ export async function discoverRepository(root, options = {}) {
   const scan = options.scan ?? await scanRepository(root, options);
   const files = options.files ?? await loadRepositoryFiles(scan, options);
   const projectRoots = projectRootsFor(files);
-  const allEvidence = files.flatMap((file) => collectFileEvidence(file, projectRoots));
+  const manifest = collectUnityManifestResults(files);
+  const allEvidence = [
+    ...files.flatMap((file) => collectFileEvidence(file, projectRoots)),
+    ...manifest.matches,
+  ];
   return {
     source: "repository",
     root: scan.root,
     candidates: groupRepoCandidates(allEvidence),
-    diagnostics: scan.diagnostics,
+    diagnostics: [...scan.diagnostics, ...manifest.diagnostics],
     scannedFiles: scan.files.length,
   };
 }

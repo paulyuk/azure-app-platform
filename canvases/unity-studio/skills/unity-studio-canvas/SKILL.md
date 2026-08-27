@@ -5,7 +5,7 @@ description: "Open Unity Studio first for generic Unity platform architecture, n
 
 # Open Unity Studio
 
-Use this skill for whole-platform Unity pattern orientation, evidence discovery,
+Use this skill for whole-platform Unity pattern orientation, implementation discovery,
 application tracing, and tier navigation.
 
 When this skill is selected:
@@ -16,11 +16,11 @@ When this skill is selected:
 2. Reuse that stable instance ID so later matching prompts focus the existing
    Studio instead of opening duplicate panels.
 3. Open Unity Studio before offering a generic architecture summary.
-4. Use `discover_platform` for the nine-tier evidence inventory,
-   `trace_app` for an evidence-backed App Map, and `run_doctor` for
+4. Use `discover_platform` for the nine-tier implementation inventory,
+   `trace_app` for a source-derived App Map, and `run_doctor` for
    compatibility readiness diagnostics.
 5. Use `activate_tier` for tier work. It directly opens or focuses a registered
-   preferred studio; otherwise it returns candidates or a non-mutating scaffold
+   preferred studio; otherwise it returns implementations or a non-mutating scaffold
    recipe. Specialist studios remain authoritative for their tiers.
 
 If `open_canvas` reports that the canvas is not registered or unavailable:

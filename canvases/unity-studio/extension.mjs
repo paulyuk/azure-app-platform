@@ -7,11 +7,12 @@ import { resolveDiscoveryRoot } from "./discovery.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
-  buildCandidateCatalog,
+  buildImplementationInventory,
   discoverUnityPlatform,
   getPlatformOverview,
   openWorkspaceInVsCode,
   requestAppWorkspace,
+  requestCapabilityWork,
   runDoctor,
   traceUnityApp,
   WORKSPACE_TIER_IDS,
@@ -43,23 +44,40 @@ async function readJsonBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-async function validateCandidatePath(input, workspaceRoot) {
-  if (!input?.candidatePath) {
+async function validateSourceProjectPath(input, workspaceRoot) {
+  const requestedPath = input?.sourceProjectPath ?? input?.candidatePath;
+  if (!requestedPath) {
     return input;
   }
-  const resolved = await resolveDiscoveryRoot(input.candidatePath, workspaceRoot);
+  const resolved = await resolveDiscoveryRoot(requestedPath, workspaceRoot);
   return {
     ...input,
-    candidatePath: relative(workspaceRoot, resolved) || ".",
+    sourceProjectPath: relative(workspaceRoot, resolved) || ".",
+  };
+}
+
+function implementationInventoryResult(discovery) {
+  return {
+    generatedAt: discovery.generatedAt,
+    root: discovery.root,
+    diagnostics: discovery.diagnostics,
+    repository: {
+      scannedFiles: discovery.repository.scannedFiles,
+      projectCount: discovery.repository.candidateCount,
+    },
+    azure: {
+      available: discovery.azure.available,
+      subscription: discovery.azure.subscription,
+      resourceCount: discovery.azure.candidateCount,
+    },
+    inventory: buildImplementationInventory(discovery),
   };
 }
 
 async function discoveryWithCatalog(workspaceRoot, includeAzure) {
-  const discovery = await discoverUnityPlatform({ root: workspaceRoot, includeAzure });
-  return {
-    ...discovery,
-    catalog: buildCandidateCatalog(discovery),
-  };
+  return implementationInventoryResult(
+    await discoverUnityPlatform({ root: workspaceRoot, includeAzure }),
+  );
 }
 
 function authorizeApiRequest(request, url, apiToken, trustedHost) {
@@ -114,12 +132,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/workspace-request") {
-      const input = await validateCandidatePath(await readJsonBody(request), workspaceRoot);
+      const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
       sendJson(response, 202, await requestAppWorkspace({
         session,
         workspaceRoot,
         input,
       }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/capability-request") {
+      const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
+      sendJson(response, 202, await requestCapabilityWork({ session, input }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/open-vscode") {
@@ -191,7 +214,7 @@ const workspaceInputSchema = {
       uniqueItems: true,
       items: { type: "string", enum: WORKSPACE_TIER_IDS },
     },
-    candidatePath: { type: "string" },
+    sourceProjectPath: { type: "string" },
     azureResourceId: { type: "string", maxLength: 512 },
     openInVsCode: { type: "boolean", default: true },
   },
@@ -202,7 +225,7 @@ const workspaceInputSchema = {
 const canvas = createCanvas({
   id: "unity-studio",
   displayName: "Unity Studio",
-  description: "Create or extend a Unity-pattern app in a worktree, inspect candidates, open tier studios, and trace its App Map.",
+  description: "Create or extend a Unity-pattern app in a worktree, inventory implementations, open tier studios, and trace its App Map.",
   inputSchema: {
     type: "object",
     properties: {
@@ -219,7 +242,7 @@ const canvas = createCanvas({
     },
     {
       name: "discover_platform",
-      description: "Scan the current repository and, optionally, the active Azure subscription for visible tier candidates.",
+      description: "Inventory source projects and, optionally, active-subscription Azure resources that can implement Unity tiers.",
       inputSchema: {
         type: "object",
         properties: {
@@ -234,7 +257,7 @@ const canvas = createCanvas({
             root: await actionRoot(ctx),
             includeAzure: ctx.input?.includeAzure !== false,
           });
-          return { ...discovery, catalog: buildCandidateCatalog(discovery) };
+          return implementationInventoryResult(discovery);
         } catch (error) {
           throw canvasError(error);
         }
@@ -247,8 +270,32 @@ const canvas = createCanvas({
       handler: async (ctx) => {
         try {
           const workspaceRoot = actionWorkspaceRoot(ctx);
-          const input = await validateCandidatePath(ctx.input, workspaceRoot);
+          const input = await validateSourceProjectPath(ctx.input, workspaceRoot);
           return await requestAppWorkspace({ session, workspaceRoot, input });
+        } catch (error) {
+          throw canvasError(error);
+        }
+      },
+    },
+    {
+      name: "build_capability",
+      description: "Build or improve one Unity capability in the current app worktree, update its inventory, wire adjacent tiers, and test it.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          tierId: { type: "string", enum: WORKSPACE_TIER_IDS },
+          intent: { type: "string", enum: ["add", "improve"], default: "add" },
+          sourceProjectPath: { type: "string" },
+          azureResourceId: { type: "string", maxLength: 512 },
+        },
+        required: ["tierId"],
+        additionalProperties: false,
+      },
+      handler: async (ctx) => {
+        try {
+          const workspaceRoot = actionWorkspaceRoot(ctx);
+          const input = await validateSourceProjectPath(ctx.input, workspaceRoot);
+          return await requestCapabilityWork({ session, input });
         } catch (error) {
           throw canvasError(error);
         }
@@ -299,7 +346,7 @@ const canvas = createCanvas({
     },
     {
       name: "trace_app",
-      description: "Derive an evidence-backed application graph across Unity tiers from source files.",
+      description: "Derive an application graph across Unity tiers from matched source files.",
       inputSchema: {
         type: "object",
         properties: rootInputProperties,

@@ -4,7 +4,7 @@
 
 Unity Studio is a generic app-workspace and navigation hub for applications
 built with the Unity platform pattern. It creates or extends apps in isolated
-worktrees, describes platform capabilities, discovers implementation evidence,
+worktrees, describes platform capabilities, inventories implementations,
 opens registered specialist studios, and traces application relationships. It
 does not claim that a component is deployed, healthy, or production-ready.
 
@@ -25,13 +25,13 @@ Runtime state comes only from discovery.
 | Self-awareness / SRE | Operational intelligence | Observe the platform, diagnose failures, manage incidents, and support recovery. |
 | Data | Durable application state | Store and retrieve operational, knowledge, trace, and analytical data. |
 
-Each definition may include expected interfaces, repository and Azure evidence
+Each definition may include expected interfaces, source-project and Azure matching
 rules, preferred dedicated canvas IDs, and a non-mutating scaffold recipe. It
 never includes a canned deployment status.
 
-## Discovery
+## Implementation inventory
 
-### Repository evidence
+### Source projects
 
 `discover_platform` resolves an explicit repository root or uses the canvas
 session working directory. A bounded, recursive scan excludes source-control
@@ -41,11 +41,11 @@ and function manifests, web configuration, orchestration APIs, sandbox
 manifests, connector registrations, observability configuration, and data
 resource declarations.
 
-Classification requires supporting evidence rather than relying on directory
-names. Results identify paths and matched rules. Ambiguous and unmatched
-evidence remains visible for inspection.
+Classification uses recognizable files and source matches rather than relying
+on directory names. Results identify project paths and matched files. Ambiguous
+and unmatched items remain visible for inspection.
 
-### Active-subscription Azure evidence
+### Active-subscription Azure resources
 
 Azure discovery is optional and read-only. It uses the subscription currently
 selected by Azure CLI and executes bounded `az account show` and resource
@@ -57,23 +57,23 @@ settings, or resource payload data. Azure CLI unavailable, signed-out,
 permission-denied, timeout, and malformed-output conditions are reported as
 diagnostics without discarding repository results.
 
-## Evidence, confidence, and diagnostics
+## Matching, confidence, and diagnostics
 
-Every candidate records its tier, source (`repository` or `azure`), provenance,
-matched rules, and confidence. Confidence communicates the strength and
-agreement of evidence; it is not a health or readiness score. Resource types,
+Every implementation records its tier, kind (`source project` or `Azure
+resource`), matched files or resource metadata, and confidence. Confidence
+communicates the strength and agreement of scanner matches; it is not a health
+or readiness score. Resource types,
 file markers, names, and source references are signals, not proof that a system
 is configured correctly or running.
 
-Discovery returns per-tier candidates, evidence, confidence, diagnostics, and
-whether a scaffold recipe is available. Unsupported or conflicting signals are
+Discovery returns per-tier implementations, source matches, diagnostics, and
+whether a build path is available. Unsupported or conflicting matches are
 reported rather than converted into invented links or statuses.
 
 ## Deterministic actions
 
 - `discover_platform` gathers repository and optional active-subscription Azure
-  evidence and returns the combined tier inventory plus visible candidate-card
-  view models.
+  projects and Azure resources and returns the combined tier inventory.
 - `request_app_workspace` validates an app workspace request and sends a
   structured, data-delimited handoff to the foreground Copilot agent. The agent
   must call the app-native `create_session` operation with a new worktree,
@@ -87,9 +87,9 @@ reported rather than converted into invented links or statuses.
   `session.rpc.canvas.list()`. If a preferred specialist canvas is registered,
   it calls `session.rpc.canvas.open()` with a stable instance ID and tier
   context, directly opening or focusing that studio. If none is registered, it
-  returns discovered candidates or the tier's scaffold recipe.
-- `trace_app` builds an evidence-backed App Map for an application root or
-  discovered candidate.
+  returns discovered implementations or the tier's scaffold recipe.
+- `trace_app` builds a source-derived App Map for an application root or
+  discovered implementation.
 - `run_doctor` is a compatibility action. It reports readiness metadata from
   the same probes used by discovery and is not a separate simulated status
   source.
@@ -112,17 +112,17 @@ project markers, and concrete next actions. Recipes are guidance only: Unity
 Studio does not create files, provision resources, run deployments, or modify
 the repository or subscription.
 
-## Evidence-backed App Map
+## Source-derived App Map
 
 `trace_app` reuses repository discovery to create tier and project nodes, then
-derives edges from source evidence. Supported signals can include HTTP clients
+derives edges from matched source files. Supported matches can include HTTP clients
 and endpoint references, model or gateway construction, MCP and tool
 registrations, Function routes, durable orchestrator/activity/event
 relationships, and connector or data references.
 
 Every node and edge includes source path, line, rule, and confidence where
 available. Unresolved references and parser diagnostics are first-class output.
-The map is a source-evidence view, not a runtime topology, distributed trace, or
+The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
 ## Safety and limitations
@@ -132,10 +132,10 @@ proof that a request path succeeds.
   subscription; it does not enumerate other subscriptions implicitly.
 - Discovered values are treated as untrusted input and escaped before rendering.
 - Workspace names use a constrained character set, prompt values are serialized
-  as data, and candidate paths are canonicalized within the current workspace.
+  as data, and source project paths are canonicalized within the current workspace.
 - Loopback JSON and action endpoints remain loopback-only.
 - No discovery or scaffold action mutates files, resources, or configuration.
 - Static analysis can miss dynamic registration, generated configuration,
   indirect dependencies, and runtime-only relationships.
-- Missing evidence means “not observed,” not “absent.” High confidence means
-  “well supported by observed evidence,” not “healthy” or “ready.”
+- **Not added** means no matching implementation was found in the current
+  worktree; it does not mean the capability is unavailable.

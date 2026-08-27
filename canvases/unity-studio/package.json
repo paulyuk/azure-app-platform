@@ -4,7 +4,7 @@
   "type": "module",
   "main": "extension.mjs",
   "private": true,
-  "description": "Evidence-backed discovery and navigation hub for the nine-tier Unity platform pattern.",
+  "description": "Implementation inventory and navigation hub for the nine-tier Unity platform pattern.",
   "scripts": {
     "test": "node --test *.test.mjs"
   },
