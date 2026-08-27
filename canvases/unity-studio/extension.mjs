@@ -68,26 +68,27 @@ async function probeHttpEntrypoints(root) {
       clearTimeout(timeout);
     }
 
-    async function localReadiness(root) {
-      const agentEnv = `${root}/src/agent/.env`;
-      let agentConfiguration = "";
-      try {
-        agentConfiguration = await readFile(agentEnv, "utf8");
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
-      const gatewayConfigured = /AZURE_AI_GATEWAY_ENDPOINT\s*=\s*\S+/.test(agentConfiguration)
-        && /AZURE_AI_GATEWAY_API_KEY\s*=\s*\S+/.test(agentConfiguration);
-      return {
-        ready: gatewayConfigured,
-        gatewayConfigured,
-        missing: gatewayConfigured ? [] : ["AI Gateway endpoint and model credentials"],
-        guidance: gatewayConfigured
-          ? "Gateway configuration is present. Run the local stack."
-          : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
-      };
-    }
   }));
+}
+
+async function localReadiness(root) {
+  const agentEnv = `${root}/src/agent/.env`;
+  let agentConfiguration = "";
+  try {
+    agentConfiguration = await readFile(agentEnv, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const gatewayConfigured = /AZURE_AI_GATEWAY_ENDPOINT\s*=\s*\S+/.test(agentConfiguration)
+    && /AZURE_AI_GATEWAY_API_KEY\s*=\s*\S+/.test(agentConfiguration);
+  return {
+    ready: gatewayConfigured,
+    gatewayConfigured,
+    missing: gatewayConfigured ? [] : ["AI Gateway endpoint and model credentials"],
+    guidance: gatewayConfigured
+      ? "Gateway configuration is present. Run the local stack."
+      : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
+  };
 }
 
 function sendJson(response, statusCode, payload) {
