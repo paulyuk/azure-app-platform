@@ -560,8 +560,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             })
           });
           app.innerHTML = '<div class="eyebrow">Workspace created</div><h1>' +
-            escape(draft.appName) + ' is ready</h1><p>The deterministic template materializer created the worktree and ' +
-            'child session directly. Registered specialist canvases are preloaded for the selected tiers.</p>' +
+            escape(draft.appName) + ' is ready</h1><p>The deterministic template materializer created the worktree directly. ' +
+            'The host will show a child session when that capability is available; the worktree is ready to use in VS Code.</p>' +
             '<button type="button" id="done">Back to start</button>';
           document.getElementById("done").addEventListener("click", renderLanding);
           clearStatus();

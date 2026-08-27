@@ -42,8 +42,10 @@ model handoff because source integration requires semantic decisions.
 
 ### Deterministic versus model-driven work
 
-Template creation uses the session RPC to create the child session directly,
-then `template-materializer.mjs` performs deterministic local materialization:
+Template creation uses session RPC to create the child session directly when the
+host supports it, then `template-materializer.mjs` performs deterministic local
+materialization. Older hosts get the materialized worktree without a chat
+handoff:
 
 - empty template: copy checked-in files, substitute validated user inputs,
   rename the one Hosted Skill, and set script permissions;

@@ -400,6 +400,28 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
     });
   });
 
+  test("template creation remains usable when child session RPC is unavailable", async () => {
+    await withFixture({}, async (root) => {
+      const result = await requestAppWorkspace({
+        session: {},
+        workspaceRoot: root,
+        input: {
+          appName: "claims",
+          purpose: "Review claims",
+          tierIds: ["agent"],
+        },
+        sourceCatalog: { roots: [], templates: [EMPTY_TEMPLATE] },
+        commandRunner: async (command, args) => args.includes("--show-current")
+          ? { ok: true, stdout: "main", stderr: "" }
+          : { ok: true, stdout: "", stderr: "" },
+      });
+      assert.equal(result.outcome, "workspace-created");
+      assert.equal(result.sessionRegistration, "unsupported-by-host");
+      assert.equal(result.sessionId, null);
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
+  });
+
 test("source catalog parses worktrees and excludes internal projects", async () => {
   assert.deepEqual(parseWorktrees([
     "worktree /repo/main",

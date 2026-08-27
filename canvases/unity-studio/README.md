@@ -63,10 +63,11 @@ from static metadata.
   include an implementation inventory grouped by tier.
 - `request_app_workspace` validates a template or assembly request and resolves
   opaque source IDs immediately before execution. Template requests create a Git
-  worktree, hydrate the pinned template, open a named child session through the
-  session RPC, and optionally launch VS Code without sending a creation prompt
-  to chat. Assemblies still use a structured model handoff because integrating
-  independently built projects requires semantic decisions.
+  worktree, hydrate the pinned template, and optionally open a named child
+  session through session RPC and launch VS Code—without sending a creation
+  prompt to chat. Older hosts without child-session RPC still receive the
+  usable materialized worktree. Assemblies still use a structured model handoff
+  because integrating independently built projects requires semantic decisions.
 
 The exact materializer owns known template files. Model reasoning is reserved
 for semantic domain rewrites, user-defined tool contracts, integrating

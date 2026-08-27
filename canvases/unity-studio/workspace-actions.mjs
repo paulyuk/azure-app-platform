@@ -345,9 +345,6 @@ export async function requestAppWorkspace({
   sourceCatalog,
   azureCatalog,
 }) {
-  if (!session?.send && !session?.rpc?.sessions?.open) {
-    throw new Error("The current Copilot session cannot create workspace requests.");
-  }
   const request = normalizeWorkspaceRequest(input);
   const branchResult = await commandRunner("git", ["-C", workspaceRoot, "branch", "--show-current"]);
   const baseBranch = branchResult.stdout?.trim();
@@ -444,9 +441,6 @@ async function createTemplateWorkspace({
   request,
   commandRunner,
 }) {
-  if (!session?.rpc?.sessions?.open) {
-    throw new Error("The current Copilot host does not support deterministic child session creation.");
-  }
   const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
   const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}`;
   const worktree = await commandRunner("git", [
@@ -470,17 +464,20 @@ async function createTemplateWorkspace({
       templateInputs: request.templateInputs,
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
-    const opened = await session.rpc.sessions.open({
-      kind: "create",
-      options: {
-        name: `${request.appName} Unity app`,
-        model: "gpt-5.6-sol",
-        reasoningEffort: "max",
-        workingDirectory: destination,
-      },
-    });
-    if (opened.status !== "created" || !opened.sessionId) {
-      throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
+    let opened = null;
+    if (session?.rpc?.sessions?.open) {
+      opened = await session.rpc.sessions.open({
+        kind: "create",
+        options: {
+          name: `${request.appName} Unity app`,
+          model: "gpt-5.6-sol",
+          reasoningEffort: "max",
+          workingDirectory: destination,
+        },
+      });
+      if (opened.status !== "created" || !opened.sessionId) {
+        throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
+      }
     }
     if (request.openInVsCode) {
       const code = await commandRunner("code", ["--new-window", destination], { timeout: 10_000 });
@@ -490,9 +487,10 @@ async function createTemplateWorkspace({
     }
     return {
       outcome: "workspace-created",
-      sessionId: opened.sessionId,
+      sessionId: opened?.sessionId ?? null,
       worktreePath: destination,
       branch,
+      sessionRegistration: opened ? "created" : "unsupported-by-host",
       app: {
         name: request.appName,
         mode: request.mode,
