@@ -2,7 +2,7 @@
 name = "unity-trade-in-value-skill"
 version = "0.1.0"
 description = "Trade-in value Hosted Skill for Unity Demo #1"
-requires-python = ">=3.11"
+requires-python = "==3.13.*"
 dependencies = [
     "azurefunctions-agents-runtime",
 ]

@@ -2,7 +2,7 @@
 name = "unity-deal-finder-agent"
 version = "0.1.0"
 description = "Foundry Hosted Agent (deal-finder) for Unity Demo #1 (car buying)"
-requires-python = ">=3.11"
+requires-python = "==3.13.*"
 dependencies = [
     "agent-framework>=0.1.0",
     "agent-framework-foundry-hosting>=0.1.0",

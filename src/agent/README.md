@@ -96,7 +96,8 @@ The Copilot CLI sets `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` for its own
 telemetry. The `azure-ai-agentserver` observability layer only accepts
 `http/protobuf` or `grpc` and raises `ValueError: Unsupported OTLP protocol
 'http/json'` at startup if any `OTEL_EXPORTER_OTLP_*` var is set to `http/json`.
-Unset those vars before running the agent:
+Unset those vars before running the agent directly. The repository
+`dev-start.sh` and `dev-start.ps1` scripts do this automatically:
 
 ```bash
 unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL \

@@ -12,7 +12,7 @@ the agent and Hosted Skills require.
 
 Prerequisites:
 
-- `az`, `azd`, `uv`, Node.js/npm, Azure Functions Core Tools (`func`), and
+- Python 3.13, `az`, `azd`, `uv`, Node.js/npm, Azure Functions Core Tools (`func`), and
   Azurite (`npm install -g azurite`)
 - Azure access and model quota described in section 4
 

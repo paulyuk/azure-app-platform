@@ -88,11 +88,17 @@ tail_logs() {
 
 wait_port() {
   local name="$1" port="$2" timeout="${3:-120}"
-  local deadline=$((SECONDS + timeout))
+  local deadline=$((SECONDS + timeout)) pid
+  pid="$(awk -F '\t' -v target="$name" '$1 == target { value = $3 } END { print value }' "$STATE_FILE")"
   while ((SECONDS < deadline)); do
     if port_listening "$port"; then
       echo "[$name] READY on port $port"
       return 0
+    fi
+    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+      echo "[$name] process exited before opening port $port" >&2
+      tail_logs "$name"
+      return 1
     fi
     sleep 0.5
   done
@@ -127,6 +133,15 @@ fail_and_stop() {
   "$SCRIPT_DIR/dev-stop.sh"
   exit 1
 }
+
+interrupt_and_stop() {
+  echo
+  echo "Startup interrupted; stopping the partial local stack..." >&2
+  "$SCRIPT_DIR/dev-stop.sh"
+  exit 130
+}
+
+trap interrupt_and_stop INT TERM
 
 declare -a skill_names=(
   inventory-search
@@ -165,7 +180,7 @@ if ((SKIP_SKILLS == 0)); then
 
     if [[ ! -f "$settings" ]]; then
       if [[ -z "$gateway_endpoint" || -z "$gateway_key" ]]; then
-        fail_and_stop "[$name] no local.settings.json and src/agent/.env is missing gateway settings. Run 'azd provision' in infra-ai-gateway first."
+        fail_and_stop "[$name] missing worktree-local gateway configuration. New git worktrees do not inherit gitignored .azure, src/agent/.env, or skill local.settings.json files. Copy them from an already-provisioned sibling worktree, or run 'azd provision' in infra-ai-gateway for this worktree."
       fi
       echo "[$name] no local.settings.json yet - creating it from src/agent/.env..."
       GATEWAY_ENDPOINT="$gateway_endpoint" GATEWAY_KEY="$gateway_key" \
@@ -195,8 +210,13 @@ fi
 if ((SKIP_AGENT == 0)); then
   agent_dir="$REPO_ROOT/src/agent"
   [[ -f "$agent_dir/.env" ]] ||
-    fail_and_stop "src/agent/.env is missing. Run 'azd provision' in infra-ai-gateway first."
-  start_tracked agent 8088 "$agent_dir" uv run main.py
+    fail_and_stop "src/agent/.env is missing. New git worktrees do not inherit gitignored Azure state or environment files. Copy .azure and the .env/local.settings.json files from an already-provisioned sibling worktree, or run 'azd provision' in infra-ai-gateway for this worktree."
+  start_tracked agent 8088 "$agent_dir" env \
+    -u OTEL_EXPORTER_OTLP_ENDPOINT \
+    -u OTEL_EXPORTER_OTLP_PROTOCOL \
+    -u OTEL_EXPORTER_OTLP_TRACES_PROTOCOL \
+    -u OTEL_EXPORTER_OTLP_METRICS_PROTOCOL \
+    uv run main.py
   wait_port agent 8088 ||
     fail_and_stop "The deal-finder agent failed to start. The web app was not started."
 fi
@@ -205,7 +225,13 @@ if ((SKIP_WEB == 0)); then
   command -v npm >/dev/null || {
     fail_and_stop "npm was not found on PATH. Install Node.js/npm, then rerun this script."
   }
-  start_tracked web 3000 "$REPO_ROOT/src/web" npm run dev
+  web_dir="$REPO_ROOT/src/web"
+  echo "[web] installing/syncing npm dependencies..."
+  (
+    cd "$web_dir"
+    npm install --no-audit --no-fund
+  ) || fail_and_stop "The web app's npm dependencies failed to install. The local stack was stopped."
+  start_tracked web 3000 "$web_dir" npm run dev
   wait_port web 3000 || fail_and_stop "The web app failed to start."
 fi
 

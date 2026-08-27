@@ -134,6 +134,17 @@ function Wait-PortListening {
             Write-Host ("[{0}] READY on port {1}" -f $Name, $Port) -ForegroundColor Green
             return $true
         }
+        $entry = $processes | Where-Object name -EQ $Name | Select-Object -First 1
+        if ($entry.pid -and -not (Get-Process -Id $entry.pid -ErrorAction SilentlyContinue)) {
+            Write-Host ("[{0}] process exited before opening port {1}" -f $Name, $Port) -ForegroundColor Red
+            foreach ($logPath in @($entry.log, $entry.errlog)) {
+                if ($logPath -and (Test-Path $logPath)) {
+                    Write-Host "--- tail: $logPath ---" -ForegroundColor Red
+                    Get-Content $logPath -Tail 40 | Write-Host
+                }
+            }
+            return $false
+        }
         Start-Sleep -Milliseconds 500
     }
 
@@ -241,7 +252,7 @@ if (-not $SkipSkills) {
 
         if (-not (Test-Path $localSettings)) {
             if (-not $gatewayEndpoint -or -not $gatewayKey) {
-                Write-Host ("[{0}] SKIPPED - no local.settings.json and can't auto-create one: src/agent/.env is missing or doesn't have AZURE_AI_GATEWAY_ENDPOINT/AZURE_AI_GATEWAY_API_KEY yet. Run 'azd provision' in infra-ai-gateway first (see TESTING.md)." -f $name) -ForegroundColor Red
+                Write-Host ("[{0}] SKIPPED - missing worktree-local gateway configuration. New git worktrees do not inherit gitignored .azure, src/agent/.env, or skill local.settings.json files. Copy them from an already-provisioned sibling worktree, or run 'azd provision' in infra-ai-gateway for this worktree (see TESTING.md)." -f $name) -ForegroundColor Red
                 $processes.Add([pscustomobject]@{ name = $name; port = $port; pid = $null; log = $null; started = $false; preexisting = $false; skipped = 'no src/agent/.env' })
                 continue
             }
@@ -274,11 +285,28 @@ if (-not $SkipSkills) {
 if (-not $SkipAgent) {
     $agentDir = Join-Path $RepoRoot 'src\agent'
     if (-not (Test-Path (Join-Path $agentDir '.env'))) {
-        Write-Host "[agent] SKIPPED - no src/agent/.env found. Run 'azd provision' in infra-ai-gateway first (see TESTING.md)." -ForegroundColor Red
+        Write-Host "[agent] SKIPPED - no src/agent/.env found. New git worktrees do not inherit gitignored Azure state or environment files. Copy .azure and the .env/local.settings.json files from an already-provisioned sibling worktree, or run 'azd provision' in infra-ai-gateway for this worktree (see TESTING.md)." -ForegroundColor Red
         $processes.Add([pscustomobject]@{ name = 'agent'; port = $AgentPort; pid = $null; log = $null; started = $false; preexisting = $false; skipped = 'no .env' })
     } else {
-        Start-Tracked -Name 'agent' -WorkingDirectory $agentDir -FilePath 'uv' `
-            -ArgumentList @('run', 'main.py') -Port $AgentPort
+        $otelVariables = @(
+            'OTEL_EXPORTER_OTLP_ENDPOINT',
+            'OTEL_EXPORTER_OTLP_PROTOCOL',
+            'OTEL_EXPORTER_OTLP_TRACES_PROTOCOL',
+            'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL'
+        )
+        $otelValues = @{}
+        foreach ($variable in $otelVariables) {
+            $otelValues[$variable] = [Environment]::GetEnvironmentVariable($variable, 'Process')
+            [Environment]::SetEnvironmentVariable($variable, $null, 'Process')
+        }
+        try {
+            Start-Tracked -Name 'agent' -WorkingDirectory $agentDir -FilePath 'uv' `
+                -ArgumentList @('run', 'main.py') -Port $AgentPort
+        } finally {
+            foreach ($variable in $otelVariables) {
+                [Environment]::SetEnvironmentVariable($variable, $otelValues[$variable], 'Process')
+            }
+        }
         if (-not (Wait-PortListening -Name 'agent' -Port $AgentPort)) {
             $processes | ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile
             & (Join-Path $PSScriptRoot 'dev-stop.ps1')
@@ -292,6 +320,19 @@ if (-not $SkipWeb) {
     $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
     if (-not $npmCommand) {
         throw "npm.cmd was not found on PATH. Install Node.js/npm, then rerun this script."
+    }
+    Write-Host "[web] installing/syncing npm dependencies..." -ForegroundColor DarkCyan
+    Push-Location $webDir
+    try {
+        & $npmCommand.Source install --no-audit --no-fund
+        $npmExitCode = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    if ($npmExitCode -ne 0) {
+        $processes | ConvertTo-Json -Depth 4 | Set-Content -Path $StateFile
+        & (Join-Path $PSScriptRoot 'dev-stop.ps1')
+        throw "The web app's npm dependencies failed to install. The local stack was stopped."
     }
     Start-Tracked -Name 'web' -WorkingDirectory $webDir -FilePath $npmCommand.Source `
         -ArgumentList @('run', 'dev') -Port $WebPort

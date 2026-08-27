@@ -76,7 +76,7 @@ persisted in the worktree; stopping Azurite discards it.
 client requests an API version newer than the installed Azurite release
 recognizes.
 
-Each skill is its own uv project and runs as its own `func start` process on
+Each skill requires Python 3.13, is its own uv project, and runs as its own `func start` process on
 its own port (`inventory-search` → `7071`, `trade-in-value` → `7072`,
 `rate-sheet` → `7073`, `deal-doc` → `7074` — matches `LOCAL_SKILL_PORTS` in
 `src/agent/main.py`). Run from inside each skill folder and let uv create and
