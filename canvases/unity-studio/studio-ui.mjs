@@ -584,7 +584,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<section><h3>Workspace</h3><code>' + escape(result.worktreePath || "Unavailable") +
           '</code><p>' + implemented + ' of ' + tiers.length + ' tiers have discovered implementations.</p>' +
           '<p><strong>Run locally:</strong> start the app with its lifecycle script after configuring the gateway endpoint and local model access.</p>' +
-          '<p><strong>Prepare for cloud:</strong> provision the gateway, bind hosted skills, then attach SRE and telemetry.</p></section>' +
+          '<p><strong>Prepare for cloud:</strong> provision the gateway, bind hosted skills, then attach SRE and telemetry.</p>' +
+          '<button type="button" data-app-command="run-local">Run locally</button> ' +
+          '<button type="button" data-app-command="stop-local">Stop local app</button> ' +
+          '<button type="button" data-app-command="provision-cloud">Provision with azd</button> ' +
+          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></section>' +
           '<section><h3>App Map</h3><p>' + escape(graphSummary) +
           '</p><button type="button" id="trace-app">Trace App Map</button></section>' +
           '<section><h3>Specialist canvases</h3><p>' +
@@ -625,6 +629,20 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               body: JSON.stringify({ root: result.worktreePath + "/" + button.dataset.openSource })
             });
             clearStatus("Source opened in VS Code.");
+          } catch (cause) {
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        }));
+        document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
+          setBusy(true, "Starting " + button.textContent + "…");
+          try {
+            const commandResult = await request("/api/app-command", {
+              method: "POST",
+              body: JSON.stringify({ operation: button.dataset.appCommand, root: result.worktreePath })
+            });
+            clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
           } catch (cause) {
             error(cause.message);
           } finally {

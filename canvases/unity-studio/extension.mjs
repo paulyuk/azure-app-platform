@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { realpath, stat } from "node:fs/promises";
+import { realpath, stat, access } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
@@ -90,6 +91,13 @@ async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoo
   return resolveDiscoveryRoot(requestedRoot, workspaceRoot);
 }
 
+async function startAppCommand(root, command, args) {
+  await access(`${root}/scripts/dev-start.sh`);
+  const child = spawn(command, args, { cwd: root, detached: true, stdio: "ignore" });
+  child.unref();
+  return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid };
+}
+
 function hasAzureMappings(input) {
   return input?.sourceBindings?.some((binding) => binding.azureResourceIds?.length > 0) === true;
 }
@@ -150,10 +158,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/sources") {
-      sendJson(response, 200, await listSourceCatalog({
+      const catalog = await listSourceCatalog({
         workspaceRoot,
         additionalRoots: [...authorizedRoots],
-      }));
+      });
+      for (const root of catalog.roots) authorizedRoots.add(root.path);
+      sendJson(response, 200, catalog);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
@@ -166,10 +176,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("The selected local path is not a folder.");
       }
       authorizedRoots.add(root);
-      sendJson(response, 200, await listSourceCatalog({
+      const catalog = await listSourceCatalog({
         workspaceRoot,
         additionalRoots: [...authorizedRoots],
-      }));
+      });
+      for (const candidate of catalog.roots) authorizedRoots.add(candidate.path);
+      sendJson(response, 200, catalog);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/app-map") {
@@ -233,6 +245,28 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       sendJson(response, 200, await openWorkspaceInVsCode({ root }));
       return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/app-command") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App command root is not an authorized app workspace.");
+      }
+      if (input.operation === "run-local") {
+        sendJson(response, 202, await startAppCommand(root, "bash", ["scripts/dev-start.sh"]));
+        return;
+      }
+      if (input.operation === "stop-local") {
+        await access(`${root}/scripts/dev-stop.sh`);
+        sendJson(response, 202, await startAppCommand(root, "bash", ["scripts/dev-stop.sh"]));
+        return;
+      }
+      if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
+        const command = input.operation === "provision-cloud" ? "provision" : "up";
+        sendJson(response, 202, await startAppCommand(root, "azd", [command]));
+        return;
+      }
+      throw new Error("Unknown app command.");
     }
     if (request.method !== "GET" || url.pathname !== "/") {
       sendJson(response, 404, { error: "Not found." });
