@@ -6,6 +6,7 @@ Unity brings together Azure's modern serverless and AI-native building blocks in
 
 The defining trait of a Unity app is that **it watches itself**. Observability, diagnosis, and safe self-healing are wired into the platform from day one via **SRE Agent**, attached across every tier. Alongside self-awareness sits **environment safety** (identity, isolation, and egress control enforced outside the agent's reach) and a **uniform interface** (every capability reachable as an API, SDK, spec, MCP server, and CLI). Car buying is Demo #1: a real, non-contrived job that exercises every tier of the platform.
 
+See [Unity Overview](https://microsoft-my.sharepoint.com/:p:/p/nimashkowski/cQqDdkpwM7BrQr0GBXmwLjDrEgUCXlixIAEsKcBJJPJUXajf0Q) PPT.
 See [`docs/unity-platform-plan.md`](docs/unity-platform-plan.md) for the full plan: architecture, identity and safety model, JTBD table, and phased POC scope.
 
 ## Structure
