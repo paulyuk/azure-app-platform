@@ -1,6 +1,6 @@
 # Unity: The Self-Aware App Platform
 
-![Agentic Cloud Application: reference architecture for an agent application over hosted skills, connectors, and human approval](docs/images/agentic-architecture.svg)
+<img src="docs/images/agentic-architecture.svg" alt="Agentic Cloud Application: reference architecture for an agent application over hosted skills, connectors, and human approval" width="720" />
 
 Unity brings together Azure's modern serverless and AI-native building blocks into one coherent, end-to-end application platform: a fast web front end, a reasoning agent, governed model access, callable skills, isolated compute for sensitive work, durable workflows, and integration into Microsoft 365. It's opinionated about how these pieces fit together so a team can ship a real, production-shaped app quickly, instead of re-deriving the architecture each time.
 
