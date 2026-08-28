@@ -257,6 +257,7 @@ export function normalizeCapabilityRequest(input) {
       1024,
     ),
     azureResourceId: optionalText(input?.azureResourceId, "Azure resource ID", 512),
+    targetRoot: optionalText(input?.targetRoot, "Target app root", 2048),
   };
 }
 
@@ -272,6 +273,7 @@ export function buildCapabilityRequestPrompt(request) {
       expectedInterfaces: tier.expectedInterfaces,
       scaffold: tier.scaffold,
     },
+    targetAppRoot: request.targetRoot,
     sourceProjectPath: request.sourceProjectPath,
     azureResourceId: request.azureResourceId,
   };
@@ -279,6 +281,7 @@ export function buildCapabilityRequestPrompt(request) {
     `Unity Studio requested ${request.intent === "improve" ? "an improvement to" : "a new"} capability in the current app worktree. Execute it now; do not only explain it and do not create another session.`,
     "Inspect the current app and its `unity.app.yaml` inventory first.",
     "Implement or improve the requested tier with a real runtime entry point or configuration artifact, an explicit interface, and a wired relationship to the nearest existing tier.",
+    "When targetAppRoot is present in the request data, confine all inspection and edits to that exact authorized app worktree.",
     "Update `unity.app.yaml` with the component path, interface, and tier links.",
     "Add or update focused tests and the app README's run commands and production next steps.",
     "Use a local/mock fallback for cloud dependencies. Do not deploy or mutate Azure resources.",

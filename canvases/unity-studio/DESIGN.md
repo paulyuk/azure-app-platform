@@ -183,6 +183,29 @@ available. Unresolved references and parser diagnostics are first-class output.
 The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
+The embedded App Map remains a compact static summary. Its expanded Browser
+canvas is an interactive SVG graph with all nine Unity tiers as swimlanes,
+directional evidence-backed edges, pan and zoom controls, search, tier filters,
+and draggable nodes. Dragging changes vertical ordering inside the evidence-
+derived tier only; a component cannot be moved into a different tier by
+presentation state. Node positions are browser-local and versioned by the
+authorized app root plus a stable topology fingerprint; changing the graph
+automatically starts a fresh layout without modifying the repository.
+
+Selecting a node highlights only its immediate graph neighborhood.
+Double-clicking it, or pressing Enter while it has focus, opens a read-only
+details panel with source evidence, bindings, incoming and outgoing
+relationships, and safe navigation actions. Source, specialist-studio, and
+ready local-endpoint actions continue through the existing authorized loopback
+APIs. The graph renderer introduces no CDN or other external network
+dependency.
+
+Each tier lane exposes an **Add** handoff. A specialist studio can manage
+existing or provisioned resources. Requesting a new source capability requires
+an explicit second confirmation, delegates to the existing capability workflow,
+and does not provision or deploy Azure resources. The new card appears only
+after refreshed source discovery produces evidence for it.
+
 ## Safety and limitations
 
 - Repository scanning is bounded, local, and excludes common sensitive paths.

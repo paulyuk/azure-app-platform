@@ -98,7 +98,12 @@ troubleshooting—not known-file creation.
 - `activate_tier` opens a registered preferred studio, returns implementations to
   inspect, or returns a scaffold recipe when no implementation is observed.
 - `trace_app` derives a generic App Map whose nodes and edges retain matched
-  source locations, unresolved references, and diagnostics.
+  source locations, unresolved references, and diagnostics. Open its expanded
+  Browser canvas to pan and zoom across tier swimlanes, search or filter nodes,
+  reorder nodes within their evidence-derived tier, highlight one-hop
+  relationships, and inspect evidence and safe navigation actions by
+  double-clicking a node. A tier's **Add** action can open its specialist studio
+  or explicitly request a new source capability without provisioning Azure.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
   reports repository and Azure discovery health rather than simulated platform
   status.

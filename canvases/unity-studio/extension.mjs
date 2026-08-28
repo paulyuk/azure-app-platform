@@ -8,6 +8,7 @@ import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/exte
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
 import { runCommand } from "./discovery.mjs";
+import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
 import { listSourceCatalog } from "./source-catalog.mjs";
 import {
   PLATFORM_TIERS,
@@ -23,7 +24,7 @@ import {
   traceUnityApp,
   WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
-import { renderExpandedAppMapHtml, renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
+import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 
 const servers = new Map();
@@ -591,7 +592,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/capability-request") {
       const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
-      sendJson(response, 202, await requestCapabilityWork({ session, input }));
+      const root = input.root
+        ? await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots)
+        : workspaceRoot;
+      if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Capability root is not an authorized app workspace.");
+      }
+      sendJson(response, 202, await requestCapabilityWork({
+        session,
+        input: { ...input, targetRoot: root },
+      }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/open-vscode") {
@@ -601,6 +611,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("VS Code root is not an authorized app workspace.");
       }
       sendJson(response, 200, await openWorkspaceInVsCode({ root }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/open-source") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Source root is not an authorized app workspace.");
+      }
+      const sourceRoot = await resolveDiscoveryRoot(input.projectPath || ".", root);
+      sendJson(response, 200, await openWorkspaceInVsCode({ root: sourceRoot }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/app-command") {
@@ -679,7 +699,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("App Map root is not an authorized app workspace.");
       }
       response.setHeader("Content-Type", "text/html; charset=utf-8");
-      response.end(renderExpandedAppMapHtml(await traceUnityApp({ root })));
+      response.end(renderInteractiveAppMapHtml(await traceUnityApp({ root }), { apiToken }));
       return;
     }
     if (request.method !== "GET" || url.pathname !== "/") {

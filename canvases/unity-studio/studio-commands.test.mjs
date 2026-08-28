@@ -6,6 +6,11 @@ import test from "node:test";
 
 import { traceApp } from "./app-map.mjs";
 import {
+  appMapFingerprint,
+  buildInteractiveAppMapModel,
+  renderInteractiveAppMapHtml,
+} from "./interactive-app-map.mjs";
+import {
   classifyAzureResources,
   createCommandEnvironment,
   discoverAzure,
@@ -33,7 +38,7 @@ import {
   parseWorktrees,
   resolveSourcePlan,
 } from "./source-catalog.mjs";
-import { renderAppMapMarkup, renderExpandedAppMapHtml, renderStudioHtml } from "./studio-ui.mjs";
+import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { buildWorkspaceKickoff } from "./workspace-actions.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
@@ -749,12 +754,15 @@ test("workspace action blocks an extend request with uncommitted candidate chang
       tierId: "skills",
       intent: "improve",
       sourceProjectPath: "src/sample/skills",
+      targetRoot: "/tmp/example-app",
     });
     const prompt = buildCapabilityRequestPrompt(request);
     assert.match(prompt, /current app worktree/);
     assert.match(prompt, /do not create another session/);
     assert.match(prompt, /unity\.app\.yaml/);
     assert.match(prompt, /focused tests/);
+    assert.match(prompt, /"targetAppRoot": "\/tmp\/example-app"/);
+    assert.match(prompt, /confine all inspection and edits/);
 
     const sent = [];
     const result = await requestCapabilityWork({
@@ -1056,8 +1064,105 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     assert.doesNotMatch(rendered, /not-a-gateway-binding/);
     assert.match(rendered, /Foundry Toolbox/);
     assert.doesNotMatch(rendered, /model request <b>agent<\/b>/);
-    assert.match(renderExpandedAppMapHtml(graph), /Unity App Map/);
+    assert.match(renderInteractiveAppMapHtml(graph), /Unity App Map/);
   });
+});
+
+test("interactive App Map model keeps the tier contract and versioned topology layout", () => {
+  const graph = {
+    root: "/tmp/unity-app",
+    generatedAt: "2026-08-27T12:00:00.000Z",
+    nodes: [
+      {
+        id: "project:web",
+        kind: "project",
+        tierId: "web",
+        name: "web",
+        projectPath: "src/web",
+        confidence: "high",
+        evidence: [{ path: "src/web/package.json", line: 1, rule: "package", confidence: "high" }],
+      },
+      {
+        id: "project:agent",
+        kind: "project",
+        tierId: "agent",
+        name: "agent",
+        projectPath: "src/agent",
+        confidence: "high",
+        evidence: [{ path: "src/agent/agent.yaml", line: 1, rule: "manifest", confidence: "high" }],
+      },
+    ],
+    edges: [{
+      id: "edge:1",
+      from: "project:web",
+      to: "project:agent",
+      kind: "http-request",
+      confidence: "high",
+      evidence: [{ path: "src/web/client.ts", line: 4, rule: "agent-http-reference", confidence: "high" }],
+    }],
+    unresolved: [],
+    diagnostics: [],
+    summary: { projectNodes: 2, operationNodes: 0, edges: 1, unresolved: 0 },
+  };
+  const reordered = {
+    ...graph,
+    nodes: [...graph.nodes].reverse(),
+    edges: [...graph.edges].reverse(),
+  };
+  const changed = {
+    ...graph,
+    nodes: [...graph.nodes, { ...graph.nodes[0], id: "project:web:second" }],
+  };
+
+  const model = buildInteractiveAppMapModel(graph);
+  assert.equal(model.tiers.length, PLATFORM_TIERS.length);
+  assert.deepEqual(model.tiers.map((tier) => tier.id), PLATFORM_TIERS.map((tier) => tier.id));
+  assert.equal(model.tiers.find((tier) => tier.id === "web").nodeIds[0], "project:web");
+  assert.equal(model.edges.length, 1);
+  assert.match(model.layoutKey, /^unity-studio:app-map-layout:v2:/);
+  assert.equal(appMapFingerprint(graph), appMapFingerprint(reordered));
+  assert.notEqual(appMapFingerprint(graph), appMapFingerprint(changed));
+});
+
+test("interactive App Map renderer emits accessible local interaction and safe actions", () => {
+  const maliciousName = "</script><script>globalThis.compromised=true</script>";
+  const graph = {
+    root: "/tmp/unity-app",
+    generatedAt: "2026-08-27T12:00:00.000Z",
+    nodes: [{
+      id: "project:web",
+      kind: "project",
+      tierId: "web",
+      name: maliciousName,
+      projectPath: "src/web",
+      confidence: "high",
+      badges: [{ label: "Embr target", kind: "embr" }],
+      evidence: [{ path: "src/web/package.json", line: 1, rule: "package", confidence: "high" }],
+    }],
+    edges: [],
+    unresolved: [],
+    diagnostics: [],
+    summary: { projectNodes: 1, operationNodes: 0, edges: 0, unresolved: 0 },
+  };
+  const html = renderInteractiveAppMapHtml(graph, { apiToken: "test-token" });
+  const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1];
+
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
+  assert.match(html, /role="application" aria-label="Interactive source-derived Unity application graph"/);
+  assert.match(html, /role="toolbar" aria-label="App Map controls"/);
+  assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /localStorage\.getItem\(MODEL\.layoutKey\)/);
+  assert.match(html, /addEventListener\("dblclick"/);
+  assert.match(html, /aria-label": "Add capability to "/);
+  assert.match(html, /x: lanePosition\.x/);
+  assert.match(html, /"\/api\/open-source"/);
+  assert.match(html, /"\/api\/tier-action"/);
+  assert.match(html, /"\/api\/open-entrypoint"/);
+  assert.match(html, /"\/api\/capability-request"/);
+  assert.match(html, /Confirm capability request/);
+  assert.doesNotMatch(html, /<script>globalThis\.compromised=true<\/script>/);
+  assert.match(script, /\\u003c\/script>/);
 });
 
 test("App Map reports ambiguous targets instead of creating Cartesian edges", async () => {

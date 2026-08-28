@@ -72,60 +72,6 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderExpandedAppMapHtml(appMap) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unity App Map</title>
-  <style>
-    :root { color-scheme: light dark; --bg:#fff; --panel:#f7f6fb; --raised:#fff; --line:#e6e3f0; --ink:#1b1a24; --muted:#6a6775; --accent:#6b3fd6; --warn:#b45309; }
-    * { box-sizing: border-box; }
-    body { margin:0; padding:24px; background:radial-gradient(1200px 600px at 100% -12%,rgba(107,63,214,.07),transparent),var(--bg); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    main { max-width:1600px; margin:0 auto; }
-    header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:12px; margin-bottom:18px; }
-    h1 { margin:0; font-size:26px; } p { margin:4px 0 0; color:var(--muted); }
-    button { border:1px solid var(--line); border-radius:9px; padding:8px 12px; background:var(--raised); color:var(--ink); cursor:pointer; }
-    .app-map-visual { overflow:auto; }
-    .map-lanes { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-items:start; }
-    .map-lane { min-width:0; padding:11px; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:10px; background:var(--raised); }
-    .map-lane-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:9px; }
-    .map-lane-head small,.map-evidence,.map-legend { color:var(--muted); }
-    .map-node { padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
-    .map-node + .map-node { margin-top:8px; } .map-node.operation { border-style:dashed; }
-    .map-node strong,.map-node code { display:block; } .map-node code { margin-top:3px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
-    .map-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
-    .map-badge { border:1px solid var(--line); border-radius:999px; padding:1px 6px; background:var(--raised); color:var(--muted); font-size:10px; line-height:1.45; }
-    .map-badge.hosted-agent,.map-badge.model { border-color:#54aeff; background:#ddf4ff; color:#0550ae; }
-    .map-badge.framework,.map-badge.sdk { border-color:#c084fc; background:#f3e8ff; color:#6b21a8; }
-    .map-badge.target { border-color:#8b5cf6; background:#ede9fe; color:#5b21b6; }
-    .map-badge.bound { border-color:#4ac26b; background:#dafbe1; color:#116329; }
-    .map-badge.embr { border-color:#22d3ee; background:#cffafe; color:#155e75; }
-    .map-links { display:grid; gap:5px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
-    .map-details { display:grid; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
-    .map-detail { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
-    .map-detail b { color:var(--ink); font-weight:650; text-align:right; overflow-wrap:anywhere; }
-    .map-link { display:grid; grid-template-columns:auto 1fr; gap:5px; color:var(--muted); font-size:11px; }
-    .map-link .arrow { color:var(--accent); font-weight:700; } .map-link b { color:var(--ink); }
-    .map-link.unresolved { padding:5px; border:1px dashed var(--warn); border-radius:6px; } .map-link.unresolved .arrow { color:var(--warn); }
-    .map-evidence { margin-top:7px; font-size:10px; overflow-wrap:anywhere; }
-    .map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:14px; }
-    .badge { border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; background:var(--panel); }
-    .map-empty { padding:32px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:10px; }
-    @media (prefers-color-scheme:dark) { :root { --bg:#111218; --panel:#1b1c25; --raised:#16171f; --line:#343542; --ink:#f2f2f5; --muted:#aaa8b5; } }
-  </style>
-</head>
-<body>
-  <main>
-    <header><div><h1>Unity App Map</h1><p>${escapeHtml(appMap.root)} · generated ${escapeHtml(appMap.generatedAt)}</p></div>
-      <button type="button" onclick="location.reload()">Refresh map</button></header>
-    ${renderAppMapMarkup(appMap, { expanded: true })}
-  </main>
-</body>
-</html>`;
-}
-
 export function renderStudioHtml(instanceId, apiToken = "") {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
@@ -1002,9 +948,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         document.querySelectorAll("[data-open-source]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Opening component source in VS Code…");
           try {
-            await request("/api/open-vscode", {
+            await request("/api/open-source", {
               method: "POST",
-              body: JSON.stringify({ root: result.worktreePath + "/" + button.dataset.openSource })
+              body: JSON.stringify({ root: result.worktreePath, projectPath: button.dataset.openSource })
             });
             clearStatus("Source opened in VS Code.");
           } catch (cause) {
