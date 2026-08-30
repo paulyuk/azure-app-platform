@@ -234,7 +234,9 @@ infrastructure dashboard. It translates the current graph into a progressive
 immediate action, and shows one evidence-backed improvement at a time. Later
 suggestions remain collapsed. The journey is a non-interactive vertical
 stepper: explanatory text stays visible, connected nodes communicate order,
-and only the current stage is highlighted. For example, an agent without a
+and only the current stage is highlighted. Its matching **Next action** card
+appears immediately below the stepper; unavailable runtime work and later
+improvements do not compete with that action. For example, an agent without a
 gateway gets model-connection guidance, unresolved references get an evidence
 review, and an app without telemetry gets a plain-language observability setup
 action. Local readiness and lifecycle state update the Run step through the

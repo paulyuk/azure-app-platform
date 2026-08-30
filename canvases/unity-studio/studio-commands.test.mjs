@@ -1741,7 +1741,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Another app is using the local ports/);
   assert.match(html, /foreignEntrypoints/);
   assert.match(html, /Stop partial startup/);
-  assert.match(html, /More suggestions/);
+  assert.match(html, /Next action/);
+  assert.match(html, /currentOpportunity\.title \+ " below"/);
+  assert.match(html, /Later improvements/);
   assert.match(html, /function renderEdgeDetails/);
   assert.equal(
     script.indexOf("function renderEdgeDetails") < script.indexOf("function selectEdge"),
@@ -1772,7 +1774,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /stage\.state === "running" \? "Running"/);
   assert.match(html, /let nextAssigned = false/);
   assert.match(html, /detail: "Available after " \+ stages\[index - 1\]\.label/);
-  assert.match(html, /appendText\(item, "span", stage\.detail, "journey-detail"\)/);
+  assert.match(html, /stage === currentStage && currentOpportunity \? currentOpportunity\.title \+ " below" : stage\.detail/);
   assert.match(html, /Check for changes/);
   assert.match(html, /Confirm capability request/);
   assert.doesNotMatch(html, /<script>globalThis\.compromised=true<\/script>/);

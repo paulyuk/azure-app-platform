@@ -1485,11 +1485,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       guideActions.append(actionButton("＋ Add to app", renderAddToAppPanel, true));
       details.append(guideActions);
 
+      const stages = effectiveJourneyStages();
+      const currentStage = stages.find((stage) =>
+        stage.state === "next" || stage.state === "ready" ||
+        stage.state === "running" || stage.state === "runtime");
+      const currentOpportunity = currentStage
+        ? MODEL.actionCenter.opportunities.find((opportunity) => opportunity.stage === currentStage.id)
+        : null;
       const journey = document.createElement("div");
       journey.className = "journey";
       journey.setAttribute("role", "list");
       journey.setAttribute("aria-label", "App progress");
-      for (const stage of effectiveJourneyStages()) {
+      for (const stage of stages) {
         const item = document.createElement("div");
         item.className = "journey-stage " + stage.state;
         item.setAttribute("role", "listitem");
@@ -1501,40 +1508,41 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           : stage.state === "running" ? "Running" : stage.state === "ready"
             ? "Ready" : stage.state === "blocked" ? "Later" : stage.state === "runtime" ? "Checking" : "Next", "journey-state");
         appendText(item, "strong", stage.label);
-        appendText(item, "span", stage.detail, "journey-detail");
+        appendText(
+          item,
+          "span",
+          stage === currentStage && currentOpportunity ? currentOpportunity.title + " below" : stage.detail,
+          "journey-detail",
+        );
         journey.append(item);
       }
       details.append(journey);
 
-      renderRuntimeAction(details);
-      if (MODEL.actionCenter.opportunities.length === 0) {
-        appendText(details, "h3", "Suggested improvement");
-        const list = document.createElement("div");
-        list.className = "action-list";
-        const complete = document.createElement("div");
-        complete.className = "action-card recommended";
-        appendText(complete, "strong", "Core app journey is covered");
-        appendText(complete, "p", "Unity found implementation, connections, and operational signals. Inspect any component to continue managing it.");
-        list.append(complete);
-        details.append(list);
+      appendText(details, "h3", "Next action");
+      if (currentStage?.id === "run" || !currentOpportunity) {
+        renderRuntimeAction(details);
       } else {
-        appendText(details, "h3", "Suggested improvement");
         const list = document.createElement("div");
         list.className = "action-list";
-        list.append(opportunityCard(MODEL.actionCenter.opportunities[0]));
+        list.append(opportunityCard(currentOpportunity));
         details.append(list);
-        const remaining = MODEL.actionCenter.opportunities.slice(1);
-        if (remaining.length > 0) {
-          const more = document.createElement("details");
-          more.className = "more-guidance";
-          const summary = document.createElement("summary");
-          summary.textContent = "More suggestions (" + remaining.length + ")";
-          const moreList = document.createElement("div");
-          moreList.className = "action-list";
-          for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
-          more.append(summary, moreList);
-          details.append(more);
-        }
+      }
+      if (operationalState.app?.state === "running" && currentStage?.id !== "run") {
+        appendText(details, "h3", "App status");
+        renderRuntimeAction(details);
+      }
+      const remaining = MODEL.actionCenter.opportunities.filter((opportunity) =>
+        opportunity !== currentOpportunity);
+      if (remaining.length > 0) {
+        const more = document.createElement("details");
+        more.className = "more-guidance";
+        const summary = document.createElement("summary");
+        summary.textContent = "Later improvements (" + remaining.length + ")";
+        const moreList = document.createElement("div");
+        moreList.className = "action-list";
+        for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
+        more.append(summary, moreList);
+        details.append(more);
       }
       details.scrollTop = previousScrollTop;
       if (restoreFocus) {
