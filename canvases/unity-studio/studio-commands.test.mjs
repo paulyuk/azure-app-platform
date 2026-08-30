@@ -1712,7 +1712,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /← Apps/);
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Manage<\/button>/);
-  assert.match(html, /＋ Add to app/);
+  assert.match(html, /<nav class="map-view-bar"[\s\S]*id="add-to-app" class="map-add"[^>]*>＋ Add to app<\/button>/);
+  assert.doesNotMatch(html, /guideActions/);
   assert.match(html, /function renderAddToAppPanel/);
   assert.match(html, /Choose the capability you want/);
   assert.match(html, /Add another/);

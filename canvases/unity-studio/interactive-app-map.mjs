@@ -443,7 +443,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
-    .map-view-bar { padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .map-view-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+    }
     .map-tools { position: relative; }
     .map-tools > summary {
       min-height: 32px; display: flex; align-items: center; padding: 4px 10px;
@@ -483,6 +486,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
     .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
+    .map-add { flex: 0 0 auto; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
     #entry-filter[hidden] { display: none; }
     main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
@@ -610,9 +614,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
       .map-tools > summary { justify-content: center; }
       .toolbar { width: calc(100vw - 24px); }
-      .map-view-bar { padding-inline: 12px; }
+      .map-view-bar { flex-wrap: wrap; padding: 8px 12px; }
       .map-view-switch { width: 100%; min-width: 0; }
       .map-view-switch button { flex: 1; }
+      .map-add { width: 100%; }
       main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
       aside {
         position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
@@ -657,6 +662,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
       <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
     </div>
+    <button id="add-to-app" class="map-add" type="button">＋ Add to app</button>
   </nav>
   <main>
     <div id="graph-shell">
@@ -1480,11 +1486,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }));
         details.append(notice);
       }
-      const guideActions = document.createElement("div");
-      guideActions.className = "actions";
-      guideActions.append(actionButton("＋ Add to app", renderAddToAppPanel, true));
-      details.append(guideActions);
-
       const stages = effectiveJourneyStages();
       const currentStage = stages.find((stage) =>
         stage.state === "next" || stage.state === "ready" ||
@@ -2223,6 +2224,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
+    document.querySelector("#add-to-app").addEventListener("click", renderAddToAppPanel);
     document.querySelector("#action-center").addEventListener("click", renderActionCenter);
     document.querySelector("#manage-app").addEventListener("click", renderManagePanel);
     document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));

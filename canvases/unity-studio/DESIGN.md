@@ -199,8 +199,9 @@ Both views use the same directional evidence-backed edges, pan and zoom
 controls, search, and tier filters. The **Request flow** and **Implementation
 map** switch remains visible in a dedicated view bar. Search, filters,
 zoom, fit, and reset controls are grouped under **Search & layout** so they do
-not compete with the primary views. Guide keeps **Add to app** visible without
-requiring users to discover the Implementation lanes. The deterministic Request flow layout is
+not compete with the primary views. The same view bar keeps **Add to app**
+visible as a map-level command without mixing it into Guide progress. The
+deterministic Request flow layout is
 not draggable because its position communicates architectural meaning. The
 Implementation view permits vertical reordering inside the evidence-derived
 tier only; a component cannot be moved into another tier. Those positions are
