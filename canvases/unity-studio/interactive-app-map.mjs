@@ -389,6 +389,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
   <meta name="color-scheme" content="light dark">
   <title>Unity App Map</title>
   <style>
@@ -427,7 +428,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-    body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--bg); color: var(--text); }
+    body {
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+      background: var(--bg); color: var(--text);
+    }
+    header, main, footer { min-width: 0; }
     header {
       display: flex; align-items: center; gap: 16px; padding: 12px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
@@ -471,7 +476,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .icon-group button:last-child { border-radius: 0 4px 4px 0; }
     .view-toggle button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
     #entry-filter[hidden] { display: none; }
-    main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+    main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
     #graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
     #graph.panning { cursor: grabbing; }
@@ -545,6 +550,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .action-card.optional { border-left: 4px solid var(--border); }
     .action-card strong { display: block; font-size: 13px; }
     .action-card p { margin: 5px 0 9px; font-size: 11px; }
+    .action-card progress { width: 100%; height: 8px; accent-color: var(--accent); }
     .action-priority { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .action-card button { min-height: 28px; font-size: 11px; }
     .run-card { margin-bottom: 14px; }
@@ -553,7 +559,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .more-guidance .action-list { margin-top: 9px; }
     .management-section { margin-top: 14px; padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     .management-section[open] > summary { color: var(--text); }
-    .management-section > .section-body { margin-top: 10px; }
+    .management-section > .section-body { min-width: 0; margin-top: 10px; }
+    .management-section .action-list { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+    .management-section select,
+    .management-section .action-list > button { width: 100%; min-width: 0; max-width: 100%; }
+    .management-section .actions { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+    .management-section .actions > button { width: 100%; min-width: 0; white-space: normal; }
     .detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
@@ -564,11 +575,32 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px;
       border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
     }
+    footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 900px) {
       main { grid-template-columns: minmax(0, 1fr); }
-      aside { position: absolute; right: 0; top: 73px; bottom: 27px; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
+      aside { position: absolute; z-index: 4; right: 0; inset-block: 0; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
       aside[data-empty="true"] { display: none; }
       .heading p { display: none; }
+    }
+    @media (max-width: 620px) {
+      header {
+        display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; padding: 8px 12px;
+      }
+      .heading { min-width: 0; }
+      h1 { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+      .header-actions {
+        grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%; margin-left: 0;
+      }
+      .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
+      .map-tools > summary { justify-content: center; }
+      .toolbar { width: calc(100vw - 24px); }
+      main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
+      aside {
+        position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
+        border-left: 0; box-shadow: none;
+      }
+      footer > :last-child { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
@@ -633,6 +665,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     "use strict";
     const MODEL = ${safeJson(model)};
     const API_TOKEN = ${safeJson(apiToken)};
+    let launchNotice = new URLSearchParams(location.search).get("notice") || "";
     const NS = "http://www.w3.org/2000/svg";
     const LANE_WIDTH = 248;
     const LANE_GAP = 24;
@@ -1272,7 +1305,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderRuntimeAction(parent) {
       const card = document.createElement("div");
       const appState = operationalState.app?.state;
-      card.className = "action-card run-card " + (appState === "running" ? "recommended" : "optional");
+      const foreignEntrypoints = operationalState.app?.foreignEntrypoints || [];
+      card.className = "action-card run-card " +
+        (appState === "running" ? "recommended" : foreignEntrypoints.length ? "attention" : "optional");
       appendText(card, "span", "Run", "action-priority");
       if (appState === "running") {
         appendText(card, "strong", "Your app is running");
@@ -1293,19 +1328,61 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           }, true));
         }
         card.append(keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
+      } else if (foreignEntrypoints.length) {
+        appendText(card, "strong", "Another app is using the local ports");
+        appendText(
+          card,
+          "p",
+          "Stop the other local app before starting this one. Ports in use: " +
+            foreignEntrypoints.map((entrypoint) => String(entrypoint.port)).join(", ") + ".",
+        );
+        card.append(actionButton("Back to apps", () => location.assign("/"), true));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         if (operationalState.app?.recovered) {
           appendText(card, "strong", "Startup needs attention");
           appendText(card, "p", "Some app services are still running, but the original startup command is no longer active. Stop them before trying again.");
           card.append(keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
+        } else if (appState === "starting") {
+          const expectedEntrypoints = runtimeEntrypoints.filter((entrypoint) => entrypoint.expected !== false);
+          const readyCount = expectedEntrypoints.filter((entrypoint) => entrypoint.ready).length;
+          const totalCount = expectedEntrypoints.length;
+          appendText(card, "strong", "Starting your app");
+          appendText(card, "p", totalCount
+            ? String(readyCount) + " of " + String(totalCount) + " services are ready. First startup can take about a minute."
+            : "Unity is starting the local services. First startup can take about a minute.");
+          if (totalCount) {
+            const progress = document.createElement("progress");
+            progress.max = totalCount;
+            progress.value = readyCount;
+            progress.setAttribute("aria-label", String(readyCount) + " of " + String(totalCount) + " services ready");
+            card.append(progress);
+          }
         } else {
-          appendText(card, "strong", humanize(appState) + " in progress");
+          const activeLabels = {
+            stopping: "Stopping your app",
+            configuring: "Configuring model access",
+            provisioning: "Provisioning Azure resources",
+            deploying: "Deploying your app",
+          };
+          appendText(card, "strong", activeLabels[appState] || "Updating your app");
           appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
         }
       } else if (operationalState.readiness?.ready) {
-        appendText(card, "strong", "Ready to try");
-        appendText(card, "p", "Required local configuration was found. Unity can start the complete app for you.");
-        card.append(keyedActionButton("run-app", "Run app", () => runAppOperation("run-local"), true));
+        const previewMode = operationalState.readiness.mode === "preview";
+        appendText(card, "strong", previewMode ? "Ready to preview" : "Ready to try");
+        appendText(
+          card,
+          "p",
+          previewMode
+            ? "Unity can start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
+            : "Required local configuration was found. Unity can start the complete app for you.",
+        );
+        card.append(keyedActionButton(
+          "run-app",
+          previewMode ? "Run preview" : "Run app",
+          () => runAppOperation("run-local"),
+          true,
+        ));
       } else if (operationalState.readiness) {
         appendText(card, "strong", "Finish setup before running");
         appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
@@ -1361,6 +1438,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const heading = appendText(details, "h2", "Guide");
       heading.tabIndex = -1;
       appendText(details, "p", "Unity checks the app and keeps the next useful action here. Progress updates automatically.");
+      if (launchNotice) {
+        const notice = document.createElement("div");
+        notice.className = "action-card attention";
+        appendText(notice, "strong", "App created");
+        appendText(notice, "p", launchNotice);
+        notice.append(actionButton("Dismiss", () => {
+          launchNotice = "";
+          renderActionCenter();
+        }));
+        details.append(notice);
+      }
+      const guideActions = document.createElement("div");
+      guideActions.className = "actions";
+      guideActions.append(actionButton("＋ Add to app", renderAddToAppPanel, true));
+      details.append(guideActions);
 
       const journey = document.createElement("div");
       journey.className = "journey";
@@ -1497,7 +1589,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(
         details,
         "p",
-        "This permanently removes the app Git worktree and local files. Azure resources and source repositories are not deleted.",
+        "This permanently removes the app Git worktree, local files, and its Unity-created branch. Azure resources and source repositories are not deleted.",
       );
       const actions = document.createElement("div");
       actions.className = "actions";
@@ -1540,10 +1632,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "p",
         ACTIVE_LIFECYCLE_STATES.includes(appState)
           ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
+          : appState === "running"
+            ? "Stop the local app before changing its AI Gateway."
           : "Loading available AI Gateways…",
       );
       gatewaySection.append(gatewayControls);
-      if (!ACTIVE_LIFECYCLE_STATES.includes(appState)) void loadGatewayControls(gatewayControls);
+      if (!ACTIVE_LIFECYCLE_STATES.includes(appState) && appState !== "running") {
+        void loadGatewayControls(gatewayControls);
+      }
 
       const deploymentSection = managementSection("Azure deployment");
       appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
@@ -1624,6 +1720,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             entrypoint.port,
             entrypoint.ready,
           ]),
+          foreignEntrypoints: (app.foreignEntrypoints || []).map((entrypoint) => entrypoint.port),
         });
         const changed = nextFingerprint !== operationalFingerprint;
         operationalFingerprint = nextFingerprint;
@@ -1657,6 +1754,42 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } catch (error) {
         setStatus(error.message, true);
       }
+    }
+
+    function renderAddToAppPanel() {
+      panelMode = "add";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      appendPanelBack();
+      appendText(details, "h2", "Add to app");
+      appendText(
+        details,
+        "p",
+        "Choose the capability you want. Unity will find an existing implementation, open its guided setup, or prepare a source change for confirmation.",
+      );
+      const list = document.createElement("div");
+      list.className = "action-list";
+      const tiers = [...MODEL.tiers].sort((left, right) =>
+        Number(left.nodeIds.length > 0) - Number(right.nodeIds.length > 0));
+      for (const tier of tiers) {
+        const card = document.createElement("div");
+        card.className = "action-card optional";
+        appendText(card, "strong", tier.name);
+        appendText(card, "p", tier.jobToBeDone || tier.role);
+        const existing = tier.nodeIds.length;
+        appendText(
+          card,
+          "span",
+          existing ? String(existing) + " implementation" + (existing === 1 ? "" : "s") + " already in this app" : "Not added yet",
+          "action-priority",
+        );
+        card.append(actionButton(existing ? "Add another" : "Add capability", () => renderTierAddPanel(tier)));
+        list.append(card);
+      }
+      details.append(list);
     }
 
     function renderTierAddPanel(tier, confirming = false, tierResult = null) {
@@ -1707,14 +1840,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           for (const button of actions.querySelectorAll("button")) button.disabled = true;
           setStatus("Requesting a new " + tier.name + " source capability…");
           try {
-            await apiRequest("/api/capability-request", {
+            const result = await apiRequest("/api/capability-request", {
               method: "POST",
               body: JSON.stringify({ root: MODEL.root, tierId: tier.id, intent: "add" }),
             });
             clearElement(details);
             appendPanelBack();
-            appendText(details, "h2", "Capability request sent");
-            appendText(details, "p", "Unity is implementing this capability. When it completes, refresh progress to discover the new evidence and receive the next tailored recommendation.");
+            appendText(details, "h2", "Capability implementation started");
+            appendText(
+              details,
+              "p",
+              result.targetSessionId
+                ? "Unity routed this work to the app's implementation session. When it completes, refresh progress to discover the new evidence and receive the next tailored recommendation."
+                : "Unity started this work in the current app session. When it completes, refresh progress to discover the new evidence and receive the next tailored recommendation.",
+            );
             const nextActions = document.createElement("div");
             nextActions.className = "actions";
             nextActions.append(actionButton("Check for changes", () => location.reload(), true));

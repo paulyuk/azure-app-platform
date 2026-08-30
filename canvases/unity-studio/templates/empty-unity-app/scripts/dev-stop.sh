@@ -13,10 +13,10 @@ kill_tree() {
   kill "$pid" 2>/dev/null || true
 }
 
-for file in "$RUN_DIR"/*.pid; do
-  [[ -f "$file" ]] || continue
-  pid="$(cat "$file")"
-  kill_tree "$pid"
-done
+if [[ -f "$RUN_DIR/processes.posix.tsv" ]]; then
+  while IFS=$'\t' read -r _name _port pid; do
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill_tree "$pid"
+  done <"$RUN_DIR/processes.posix.tsv"
+fi
 rm -rf "$RUN_DIR"
 echo "__APP_NAME__ stopped."

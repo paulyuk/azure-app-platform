@@ -20,8 +20,11 @@ the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
 
 After creation or selection, the App Map becomes the primary app interface.
-The default surface has only **Guide**, **Manage**, and the request-flow
-diagram. Guide shows runtime status and one suggested improvement at a time.
+An optional VS Code launch failure does not roll back the new worktree; App Map
+opens with a clear warning so the user can continue.
+The default surface keeps **Guide**, **Manage**, and the request-flow diagram
+visually primary. Guide exposes **Add to app**, runtime status, and one suggested
+improvement at a time.
 Additional recommendations are collapsed, and search, filters, layout modes,
 and zoom controls live under **Map tools**. Manage groups model connection,
 Azure deployment, developer tools, and deletion into closed sections rather
@@ -34,6 +37,12 @@ local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts
 with azd** and **Deploy with azd up** run the corresponding commands in the app
 worktree. Cloud actions are explicit and mutate Azure; review the selected
 subscription and `azure.yaml` before using them.
+
+Each created app persists a runtime profile in `.unity-studio/app.json`.
+The profile defines the exact start arguments, expected entrypoints, and all
+reserved ports. This lets an empty app run without cloud credentials and lets
+the Dealer sample use a credential-free preview without mistaking another
+worktree's listeners for its own services.
 
 ## First-class templates
 
@@ -96,6 +105,9 @@ independently built source projects, adding non-template capabilities, and
 troubleshooting—not known-file creation.
 - `build_capability` adds or improves one tier in the current app worktree,
   updates `unity.app.yaml`, wires it to adjacent tiers, and runs focused tests.
+  Add-to-app requests resolve or create the app's persisted child session and
+  direct the parent agent to relay the implementation there, so source changes
+  occur in the selected app rather than the Unity Studio worktree.
 - `open_in_vscode` opens an explicitly selected, workspace-confined repository
   path in a new VS Code window.
 - `activate_tier` opens a registered preferred studio, returns implementations to
@@ -125,13 +137,20 @@ root-owned web and agent listeners recover the running state even when the
 in-memory launcher record is gone. Listeners from another app are not attributed
 to the selected worktree. Run is idempotent and will not restart an
 already-running or partially starting app.
+While startup is active, Guide shows how many local services are ready instead
+of presenting an indefinite spinner or generic in-progress message.
+Detached lifecycle and configuration commands write to a private
+`unity-studio-command-logs` directory under the system temporary directory, so
+closing Studio does not terminate the operation or discard its diagnostics.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
 agent offers an inline Responses API prompt plus a specialist-studio handoff.
 
 Discovery and scaffold results are informational. Workspace creation and
-implementation happen in the child session, not in the source worktree. No
-canvas action provisions Azure resources or retrieves secrets.
+implementation happen in the app child session, not in the Unity Studio
+worktree. Explicit gateway configuration retrieves the selected gateway key,
+validates a real Responses request, and writes worktree-local agent settings;
+the key is never returned to the browser.
 
 ## Run from this repository
 

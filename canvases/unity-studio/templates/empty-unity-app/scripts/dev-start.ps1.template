@@ -23,7 +23,8 @@ function Wait-Port($Name, $Port, $Process) {
 
 $processes = @()
 try {
-  $agent = Start-Process python3 -ArgumentList "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -PassThru
+  if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv is required." }
+  $agent = Start-Process uv -ArgumentList "run", "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -PassThru
   $processes += @{ name = "agent"; port = 8088; pid = $agent.Id }
   $web = Start-Process npm.cmd -ArgumentList "run", "dev" -WorkingDirectory (Join-Path $Root "src/web") -PassThru
   $processes += @{ name = "web"; port = 3000; pid = $web.Id }

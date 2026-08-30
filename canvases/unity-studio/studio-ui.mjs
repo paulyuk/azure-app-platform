@@ -84,6 +84,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
     <title>Unity Studio</title>
     <style>
       :root {
@@ -385,8 +386,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         return payload;
       }
 
-      function openAppMap(root) {
-        location.assign("/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken));
+      function openAppMap(root, notice = "") {
+        location.assign("/app-map?root=" + encodeURIComponent(root) +
+          "&token=" + encodeURIComponent(apiToken) +
+          (notice ? "&notice=" + encodeURIComponent(notice) : ""));
       }
 
       function setBusy(busy, message = "") {
@@ -455,7 +458,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           dialog.className = "confirm-backdrop";
           dialog.innerHTML = '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
             '<h2 id="confirm-delete-title">Delete ' + escape(appName) + '?</h2>' +
-            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree and its local files. This cannot be undone.</p>' +
+            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree, its local files, and its Unity-created branch. This cannot be undone.</p>' +
             '<p>No Azure resources, repositories, or cloud deployments will be deleted.</p>' +
             '<div class="actions"><button type="button" id="cancel-delete">No, keep app</button>' +
             '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>';
@@ -612,6 +615,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         wireTopBack(renderLanding);
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
+            captureDetails();
             draft.templateRootId = input.value;
             const template = sources.templates.find((item) => item.id === input.value);
             applyTemplateDefaults(template);
@@ -619,6 +623,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             document.getElementById("app-name").value = draft.appName;
             document.getElementById("purpose").value = draft.purpose;
           });
+        });
+        document.getElementById("app-name").addEventListener("input", (event) => {
+          draft.appName = event.target.value;
+        });
+        document.getElementById("purpose").addEventListener("input", (event) => {
+          draft.purpose = event.target.value;
         });
         document.getElementById("next").addEventListener("click", async () => {
           captureDetails();
@@ -1255,7 +1265,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             })
           });
           if (result.worktreePath) {
-            openAppMap(result.worktreePath);
+            openAppMap(result.worktreePath, result.editorWarning);
           } else {
             renderLanding();
             clearStatus("Assembly started. The app will appear here when its isolated workspace is ready.");

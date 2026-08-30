@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { dirname, join, resolve } from "node:path";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
 import { EMPTY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
@@ -258,6 +258,7 @@ export function normalizeCapabilityRequest(input) {
     ),
     azureResourceId: optionalText(input?.azureResourceId, "Azure resource ID", 512),
     targetRoot: optionalText(input?.targetRoot, "Target app root", 2048),
+    targetSessionId: optionalText(input?.targetSessionId, "Target app session", 128),
   };
 }
 
@@ -280,11 +281,14 @@ export function buildCapabilityRequestPrompt(request) {
       scaffold: tier.scaffold,
     },
     targetAppRoot: request.targetRoot,
+    targetSessionId: request.targetSessionId,
     sourceProjectPath: request.sourceProjectPath,
     azureResourceId: request.azureResourceId,
   };
   return [
-    `Unity Studio requested ${request.intent === "improve" ? "an improvement to" : "a new"} capability in the current app worktree. Execute it now; do not only explain it and do not create another session.`,
+    `Unity Studio requested ${request.intent === "improve" ? "an improvement to" : "a new"} capability in an app worktree. Execute it now; do not only explain it.`,
+    "When targetSessionId is present and differs from this session, immediately relay the implementation request to that exact app session with send_session_message using delivery_mode `immediate` and mode `autopilot`. Do not inspect or edit the target app from this parent session.",
+    "Do not create another session when targetSessionId is present.",
     "Inspect the current app and its `unity.app.yaml` inventory first.",
     "Implement or improve the requested tier with a real runtime entry point or configuration artifact, an explicit interface, and a wired relationship to the nearest existing tier.",
     ...tierGuidance,
@@ -310,6 +314,7 @@ export async function requestCapabilityWork({ session, input }) {
     messageId,
     tierId: request.tierId,
     intent: request.intent,
+    targetSessionId: request.targetSessionId,
   };
 }
 
@@ -475,11 +480,6 @@ async function createTemplateWorkspace({
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
     await mkdir(join(destination, ".unity-studio"), { recursive: true });
-    await writeFile(
-      join(destination, ".unity-studio", "app.json"),
-      `${JSON.stringify({ name: request.appName, purpose: request.purpose }, null, 2)}\n`,
-      { mode: 0o600 },
-    );
     let opened = null;
     if (session?.rpc?.sessions?.open) {
       opened = await session.rpc.sessions.open({
@@ -495,13 +495,26 @@ async function createTemplateWorkspace({
         throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
       }
     }
+    await writeFile(
+      join(destination, ".unity-studio", "app.json"),
+      `${JSON.stringify({
+        name: request.appName,
+        purpose: request.purpose,
+        managedBranch: branch,
+        childSessionId: opened?.sessionId ?? null,
+        runtime: request.sourcePlan[0]?.startup ?? null,
+      }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
 
+    let editor = null;
+    let editorWarning = null;
     if (request.openInVsCode) {
-      const code = await commandRunner("code", ["--new-window", destination], { timeout: 10_000 });
-      if (!code.ok) {
-        throw new Error(`The app was created, but VS Code could not be opened: ${code.stderr || code.error || "unknown error"}`);
+      try {
+        editor = await openWorkspaceInVsCode({ root: destination, commandRunner });
+      } catch (error) {
+        editorWarning = `VS Code did not open automatically: ${error.message}. The app was still created.`;
       }
-
     }
     return {
       outcome: "workspace-created",
@@ -520,9 +533,12 @@ async function createTemplateWorkspace({
       },
       specialistCanvases: specialistCanvases(request.tierIds),
       openInVsCode: request.openInVsCode,
+      editor,
+      editorWarning,
     };
   } catch (error) {
     await commandRunner("git", ["-C", workspaceRoot, "worktree", "remove", "--force", destination]);
+    await commandRunner("git", ["-C", workspaceRoot, "branch", "-D", branch]);
     throw error;
   }
 }
@@ -539,12 +555,41 @@ export async function deleteAppWorkspace({
   if (resolvedRoot === resolvedWorkspace) throw new Error("The Unity Studio workspace cannot be deleted.");
   const listed = await commandRunner("git", ["-C", resolvedWorkspace, "worktree", "list", "--porcelain"]);
   if (!listed.ok) throw new Error(`Could not list Git worktrees: ${listed.stderr || listed.error || "unknown error"}`);
-  if (!listed.stdout.split(/\r?\n/).some((line) => line === `worktree ${resolvedRoot}`)) {
+  const worktreeBlock = listed.stdout.split(/\r?\n\r?\n/).find((block) =>
+    block.split(/\r?\n/).some((line) => line === `worktree ${resolvedRoot}`));
+  if (!worktreeBlock) {
     throw new Error("Only a registered Unity app worktree can be deleted.");
+  }
+  const manifestPath = join(resolvedRoot, ".unity-studio", "app.json");
+  const manifestText = await readFile(manifestPath, "utf8").catch((error) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  const manifest = manifestText ? JSON.parse(manifestText) : null;
+  const worktreeBranch = worktreeBlock
+    .split(/\r?\n/)
+    .find((line) => line.startsWith("branch refs/heads/"))
+    ?.slice("branch refs/heads/".length);
+  if (manifest?.managedBranch && manifest.managedBranch !== worktreeBranch) {
+    throw new Error("The app's managed branch does not match its registered worktree branch.");
   }
   const removed = await commandRunner("git", ["-C", resolvedWorkspace, "worktree", "remove", "--force", resolvedRoot]);
   if (!removed.ok) throw new Error(`Could not delete the app worktree: ${removed.stderr || removed.error || "unknown error"}`);
-  return { outcome: "workspace-deleted", worktreePath: resolvedRoot };
+  if (manifest?.managedBranch) {
+    const branchRemoved = await commandRunner("git", ["-C", resolvedWorkspace, "branch", "-D", worktreeBranch]);
+    if (!branchRemoved.ok) {
+      throw new Error(
+        `The app worktree was deleted, but its managed branch could not be removed: ${
+          branchRemoved.stderr || branchRemoved.error || "unknown error"
+        }`,
+      );
+    }
+  }
+  return {
+    outcome: "workspace-deleted",
+    worktreePath: resolvedRoot,
+    branch: manifest?.managedBranch ?? null,
+  };
 }
 
 export async function openWorkspaceInVsCode({

@@ -26,6 +26,19 @@ export const EMPTY_TEMPLATE = Object.freeze({
     start: "./scripts/dev-start.sh --skip-skill",
     fullStart: "./scripts/dev-start.sh",
     stop: "./scripts/dev-stop.sh",
+    startArgs: ["--skip-skill"],
+    startPowerShellArgs: ["-SkipSkill"],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "web", port: 3000 },
+      { name: "agent", port: 8088 },
+      { name: "skill", port: 7071 },
+    ],
+    startEntrypoints: [
+      { name: "web", port: 3000 },
+      { name: "agent", port: 8088 },
+    ],
+    reservedPorts: [3000, 8088, 7071],
   },
 });
 
@@ -61,22 +74,22 @@ function sanitizeRepository(value) {
     return null;
   }
   const scp = remote.match(/^[^/@\s]+@([^:/\s]+):([^\s?#]+)$/);
+  let parsed;
   if (scp) {
-    return `ssh://${scp[1]}/${scp[2]}`;
-  }
-  try {
-    const url = new URL(remote);
-    if (!["http:", "https:", "ssh:", "git:"].includes(url.protocol)) {
+    parsed = new URL(`ssh://${scp[1]}/${scp[2]}`);
+  } else {
+    try {
+      parsed = new URL(remote);
+    } catch {
       return null;
     }
-    url.username = "";
-    url.password = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
+  }
+  if (!["http:", "https:", "ssh:", "git:"].includes(parsed.protocol)) {
     return null;
   }
+  const repositoryPath = parsed.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  if (!parsed.hostname || !repositoryPath) return null;
+  return `https://${parsed.hostname.toLowerCase()}/${repositoryPath}.git`;
 }
 
 async function discoverPinnedRepository(root, commit, commandRunner) {
@@ -278,6 +291,22 @@ export async function listSourceCatalog({
         start: "./scripts/dev-start.sh --skip-skills --skip-agent",
         fullStart: "./scripts/dev-start.sh",
         stop: "./scripts/dev-stop.sh",
+        startArgs: ["--skip-skills", "--skip-agent"],
+        startPowerShellArgs: ["-SkipSkills", "-SkipAgent"],
+        requiresGatewayForFullStart: true,
+        entrypoints: [
+          { name: "web", port: 3000 },
+          { name: "agent", port: 8088 },
+          { name: "inventory-search", port: 7071 },
+          { name: "trade-in-value", port: 7072 },
+          { name: "rate-sheet", port: 7073 },
+          { name: "deal-doc", port: 7074 },
+          { name: "azurite", port: 10000 },
+          { name: "azurite-queue", port: 10001 },
+          { name: "azurite-table", port: 10002 },
+        ],
+        startEntrypoints: [{ name: "web", port: 3000 }],
+        reservedPorts: [3000, 8088, 7071, 7072, 7073, 7074, 10000, 10001, 10002],
       },
     })),
   ];
@@ -331,6 +360,7 @@ export function resolveSourcePlan(catalog, input) {
           editableDomainConfiguration: true,
           wholeAppScriptsRequired: true,
         },
+        startup: template.startup,
       }];
     }
     const root = template ? roots.get(template.sourceRootId) : null;

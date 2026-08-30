@@ -136,8 +136,9 @@ the source. Absolute local paths are transport data and must not be written to
   and session-authorized folders. No source is selected automatically.
 - `request_app_workspace` creates template worktrees and child sessions directly
   through session RPC, runs the exact materializer, and optionally launches VS
-  Code. It returns `workspace-created`. Assembly requests use the structured
-  foreground-agent handoff and return `workspace-requested`.
+  Code. It persists the managed branch, runtime profile, and child session ID
+  in `.unity-studio/app.json` and returns `workspace-created`. Assembly requests
+  use the structured foreground-agent handoff and return `workspace-requested`.
 - `open_in_vscode` resolves an explicit repository path inside the current
   workspace before invoking `code --new-window`, with the macOS application
   launcher as a fallback.
@@ -160,7 +161,9 @@ Template creation does not use `session.send()` or a model-generated creation
 prompt. It creates a Git worktree and opens the child session through the
 host-provided session RPC, preserving the visible project/worktree UX while
 keeping known-file creation deterministic. Assembly remains the deliberate
-model boundary.
+model boundary. Add-to-app work reuses that persisted app session; when the
+extension SDK can only send through the parent session, the request carries the
+target session ID and requires an immediate relay into the app worktree.
 
 ## Scaffold recipes
 
@@ -195,7 +198,8 @@ mixed into the request path. They remain available in the secondary
 Both views use the same directional evidence-backed edges, pan and zoom
 controls, search, and tier filters. These advanced controls and the
 Implementation switch are collapsed under **Map tools** so the default header
-shows only **Guide** and **Manage**. The deterministic Request flow layout is
+shows only **Guide** and **Manage**. Guide keeps **Add to app** visible without
+requiring users to discover the Implementation lanes. The deterministic Request flow layout is
 not draggable because its position communicates architectural meaning. The
 Implementation view permits vertical reordering inside the evidence-derived
 tier only; a component cannot be moved into another tier. Those positions are
@@ -240,6 +244,10 @@ directly mutate the graph, so its completion screen offers **Check for changes**
 to retrace the app. This is the first progressive-guidance layer; future history
 or preference signals may refine ranking but must not weaken evidence requirements.
 
+At narrow mobile widths, the request-flow diagram and Guide stack vertically.
+The Guide must not become an overlay that hides the architecture the user is
+trying to understand.
+
 Manage is intentionally secondary. AI model connection, Azure deployment,
 developer tools, technical output, and deletion are grouped into disclosures;
 only model connection opens automatically when readiness says it needs action.
@@ -255,6 +263,14 @@ only model connection opens automatically when readiness says it needs action.
 - Additional local folders are canonicalized with `realpath`, remain authorized
   only for that canvas server instance, and are referenced through opaque IDs.
 - Template and assembly requests reject stale or tier-incompatible source IDs.
+- Runtime profiles define start arguments, expected entrypoints, and reserved
+  ports; ownership checks reject listeners rooted in another worktree.
+- Gateway selection is persisted atomically with a unique configuration ID.
+  The configuration script validates a readable Responses result and verifies
+  that ID under a cross-process lock before writing local credentials. A
+  superseded process cannot overwrite a newer selection.
+- Deleting a Unity-created app removes its worktree and only the explicitly
+  recorded managed branch; unrelated branches are never inferred or removed.
 - Loopback JSON and action endpoints remain loopback-only.
 - No discovery or scaffold action mutates files, resources, or configuration.
 - Static analysis can miss dynamic registration, generated configuration,

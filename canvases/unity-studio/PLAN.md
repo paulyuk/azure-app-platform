@@ -60,7 +60,8 @@ use the form `Dealer-sample-<unique-id>` (case preserved when entered, with a
 stable lower-case slug for filesystem/branch use).
 
 New deterministic template workspaces persist identity metadata in
-`.unity-studio/app.json` with the app name and purpose. Existing apps must not
+`.unity-studio/app.json` with the app name, purpose, managed branch, runtime
+profile, and app child session ID. Existing apps must not
 be identified by a README title such as “Unity: The Self-Aware App Platform,”
 nor by exposing multiple unrelated branch, worktree, and commit IDs as the
 primary label. The Open existing list shows one canonical app name and a
@@ -76,7 +77,9 @@ Deletion is irreversible. Open existing and the app inventory must both expose
 Delete. The UI must require an explicit confirmation naming the app and
 warning that its worktree will be removed. The API must independently require
 confirmation, reject the current Unity Studio workspace, require an authorized
-registered Git worktree, and remove only that worktree.
+registered Git worktree, and remove only that worktree. A branch is removed only
+when metadata explicitly marks it as Unity-managed and it matches the registered
+worktree branch.
 
 ## Truthful inventory
 
@@ -140,6 +143,12 @@ gateway/model set or provision one in AI Gateway Studio. `azd provision`
 does not imply that SRE has been obtained; SRE remains a separate tier that
 must be discovered, attached, or provisioned explicitly.
 
+Created apps persist runtime-specific start arguments, expected entrypoints,
+and reserved ports. A template may declare a safe credential-free preview, but
+full startup remains gated on validated gateway identity, endpoint, key, and
+model settings. API callers cannot bypass the same readiness decision shown in
+Guide.
+
 Gateway configuration only establishes governed model access. Local Run then
 starts discovered Hosted Skills as separate Functions MCP services before the
 agent, binds the agent to their localhost endpoints when no cloud Toolbox is
@@ -157,6 +166,10 @@ retrieve and apply them safely.
 - Selecting an AI Gateway persists the selection and immediately configures
   the app from that gateway. A separate configure action may remain as an
   explicit retry, but it is not the primary path.
+- Each selection receives a unique configuration ID. The app settings file and
+  configuration process coordinate through an app-local cross-process lock, and
+  the process rereads the on-disk ID before writing credentials. Older
+  configuration processes therefore cannot overwrite a newer selection.
 - Configuration and runtime are distinct regions. **Azure configuration**
   establishes cloud bindings such as the active AI Gateway; **Local runtime**
   starts and observes local processes.
@@ -172,6 +185,10 @@ retrieve and apply them safely.
 - Local component endpoints are clickable actions. A ready web surface opens
   in the Browser canvas, a Hosted Skill opens its MCP endpoint, and a ready
   agent exposes both prompt and specialist-studio actions.
+- Optional editor launch is best-effort. Failure to open VS Code must not remove
+  a successfully created worktree or block navigation to App Map.
+- Active startup reports ready services against the discovered total so a
+  normal first-run delay does not look like an indefinite hang.
 - Background status probes are silent. They must not generate application
   request-log traffic or imply that the user invoked a component.
 - Runtime status survives Unity Studio reloads. Rehydrate it from the app's
@@ -193,6 +210,8 @@ Intelligent Function App studios and the Microsoft Foundry portal:
   introducing a separate app-workspace dashboard;
 - keep the architecture diagram visually dominant and place progressive
   guidance in **Guide**;
+- keep a visible **Add to app** action in Guide that routes users into the
+  capability-specific implementation or specialist workflow;
 - keep only **Guide**, **Manage**, and collapsed **Map tools** in the primary
   header;
 - group model selection, Azure deployment, source navigation, technical output,
@@ -201,7 +220,9 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 - use compact pills only for status or categorical metadata, never as the sole
   indicator of state; and
 - preserve full-button hit targets, keyboard focus treatment, responsive
-  stacking, and readable wrapping for paths and errors.
+  stacking, and readable wrapping for paths and errors. Below the mobile
+  breakpoint, stack Guide below the map rather than covering the map with a
+  drawer.
 
 The visual hierarchy must not change backend behavior. Presentation tests
 assert direct App Map routing, management actions, and generated browser-script

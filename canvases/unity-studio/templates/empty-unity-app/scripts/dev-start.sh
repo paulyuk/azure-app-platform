@@ -23,7 +23,7 @@ export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
 export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
 
-command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
+command -v uv >/dev/null || { echo "uv is required." >&2; exit 1; }
 command -v npm >/dev/null || { echo "npm is required." >&2; exit 1; }
 
 port_listening() {
@@ -52,16 +52,16 @@ wait_port() {
 
 (
   cd "$ROOT/src/agent"
-  exec env AGENT_PORT="$AGENT_PORT" python3 main.py
+  exec env AGENT_PORT="$AGENT_PORT" uv run main.py
 ) >"$RUN_DIR/agent.log" 2>&1 &
 agent_pid=$!
-echo "$agent_pid" >"$RUN_DIR/agent.pid"
+printf "agent\t%s\t%s\n" "$AGENT_PORT" "$agent_pid" >"$RUN_DIR/processes.posix.tsv"
 (
   cd "$ROOT/src/web"
   exec env WEB_PORT="$WEB_PORT" AGENT_URL="http://127.0.0.1:$AGENT_PORT" npm run dev
 ) >"$RUN_DIR/web.log" 2>&1 &
 web_pid=$!
-echo "$web_pid" >"$RUN_DIR/web.pid"
+printf "web\t%s\t%s\n" "$WEB_PORT" "$web_pid" >>"$RUN_DIR/processes.posix.tsv"
 
 wait_port agent "$AGENT_PORT" "$agent_pid"
 wait_port web "$WEB_PORT" "$web_pid"
@@ -75,7 +75,7 @@ elif command -v uv >/dev/null && command -v func >/dev/null; then
     exec uv run --with-requirements requirements.txt func start --port "$SKILL_PORT"
   ) >"$RUN_DIR/skill.log" 2>&1 &
   skill_pid=$!
-  echo "$skill_pid" >"$RUN_DIR/skill.pid"
+  printf "skill\t%s\t%s\n" "$SKILL_PORT" "$skill_pid" >>"$RUN_DIR/processes.posix.tsv"
   wait_port skill "$SKILL_PORT" "$skill_pid"
 else
   echo "Hosted Skill not started: install uv and Azure Functions Core Tools when you are ready to edit it."

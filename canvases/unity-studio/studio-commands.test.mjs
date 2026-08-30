@@ -44,6 +44,12 @@ import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { buildWorkspaceKickoff } from "./workspace-actions.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
+import {
+  evaluateGatewayReadiness,
+  gatewayCommandEnvironment,
+  requireGatewayReadiness,
+  validateGatewayCandidate,
+} from "./gateway-state.mjs";
 
 async function fixture(files) {
   const root = await mkdtemp(join(tmpdir(), "unity-studio-"));
@@ -97,6 +103,71 @@ test("runtime registry infers known ports for legacy PowerShell entries", async 
       { name: "skill", port: 7071, pid: 789 },
     ]);
   });
+});
+
+test("gateway selection validates identity and readiness for the selected model", () => {
+  const gateway = validateGatewayCandidate({
+    id: "/subscriptions/sub-1/resourceGroups/rg-unity/providers/Microsoft.ApiManagement/service/aigw-unity",
+    name: "aigw-unity",
+    location: "westus3",
+    properties: { gatewayUrl: "https://aigw-unity.example" },
+  });
+  const readyGateway = { ...gateway, configurationStatus: "ready" };
+  assert.deepEqual(gatewayCommandEnvironment(gateway), {
+    UNITY_GATEWAY_SELECTION: "1",
+    AZURE_SUBSCRIPTION_ID: "sub-1",
+    AI_GATEWAY_RESOURCE_GROUP: "rg-unity",
+    AI_GATEWAY_NAME: "aigw-unity",
+    AZURE_AI_GATEWAY_ENDPOINT: "https://aigw-unity.example",
+    AZURE_AI_GATEWAY_MODEL: "",
+    AZURE_AI_GATEWAY_MINI_MODEL: "",
+  });
+  assert.throws(
+    () => validateGatewayCandidate({ name: "incomplete" }),
+    /missing resource group, subscription, runtime endpoint metadata/,
+  );
+
+  const configured = `
+AI_GATEWAY_NAME="aigw-unity"
+AI_GATEWAY_RESOURCE_GROUP="rg-unity"
+AZURE_SUBSCRIPTION_ID="sub-1"
+AZURE_AI_GATEWAY_ENDPOINT="https://aigw-unity.example/"
+AZURE_AI_GATEWAY_API_KEY="secret"
+AZURE_AI_GATEWAY_MODEL="gpt-latest"
+`;
+  assert.equal(evaluateGatewayReadiness(configured, readyGateway).ready, true);
+  assert.equal(evaluateGatewayReadiness(
+    configured.replace('AZURE_AI_GATEWAY_MODEL="gpt-latest"', ""),
+    readyGateway,
+  ).ready, false);
+  assert.equal(evaluateGatewayReadiness(
+    configured.replace('AI_GATEWAY_NAME="aigw-unity"', 'AI_GATEWAY_NAME="another-gateway"'),
+    readyGateway,
+  ).ready, false);
+  assert.equal(evaluateGatewayReadiness(configured, readyGateway, true).ready, false);
+  assert.equal(evaluateGatewayReadiness(
+    configured.replace("https://aigw-unity.example/", "https://old.example/"),
+    readyGateway,
+  ).ready, false);
+  assert.equal(evaluateGatewayReadiness(
+    configured,
+    { ...gateway, configurationStatus: "failed" },
+  ).ready, false);
+
+  assert.throws(
+    () => requireGatewayReadiness(evaluateGatewayReadiness("", null)),
+    (error) => error.statusCode === 409 && /Choose and configure an AI Gateway/.test(error.message),
+  );
+  assert.throws(
+    () => requireGatewayReadiness(evaluateGatewayReadiness("", {
+      ...gateway,
+      configurationStatus: "configuring",
+    }, true)),
+    (error) => error.statusCode === 409 && /not configured yet/.test(error.message),
+  );
+  assert.equal(requireGatewayReadiness(
+    evaluateGatewayReadiness(configured, readyGateway),
+  ).ready, true);
 });
 
 test("runtime status does not report a stale process registry as running", () => {
@@ -534,9 +605,42 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       assert.equal(result.outcome, "workspace-created");
       assert.equal(result.sessionId, "child-session-1");
       assert.equal(result.app.tierIds.includes("agent"), true);
+      assert.equal(result.editor?.outcome, "opened-in-vscode");
+      assert.equal(result.editorWarning, null);
       assert.equal(commands.some(([command, args]) =>
         command === "git" && args.includes("worktree") && args.includes("add")), true);
       assert.equal(commands.some(([command]) => command === "code"), true);
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
+  });
+
+  test("VS Code launch failure preserves the created app", async () => {
+    await withFixture({}, async (root) => {
+      const result = await requestAppWorkspace({
+        session: {},
+        workspaceRoot: root,
+        input: {
+          appName: "claims",
+          purpose: "Review claims",
+          tierIds: ["agent", "gateway"],
+          openInVsCode: true,
+        },
+        sourceCatalog: { roots: [], templates: [EMPTY_TEMPLATE] },
+        commandRunner: async (command, args) => {
+          if (args.includes("--show-current")) {
+            return { ok: true, stdout: "feature/unity\n", stderr: "" };
+          }
+          if (command === "code" || command === "open") {
+            return { ok: false, stdout: "", stderr: "", error: `spawn ${command} ENOENT` };
+          }
+          return { ok: true, stdout: "", stderr: "" };
+        },
+      });
+
+      assert.equal(result.outcome, "workspace-created");
+      assert.equal(result.editor, null);
+      assert.match(result.editorWarning, /The app was still created/);
+      assert.match(await readFile(join(result.worktreePath, ".unity-studio", "app.json"), "utf8"), /claims/);
       await rm(result.worktreePath, { recursive: true, force: true });
     });
   });
@@ -609,6 +713,45 @@ test("source catalog parses worktrees and excludes internal projects", async () 
   });
 });
 
+test("source catalog recognizes the Dealer template from SSH remotes", async () => {
+  await withFixture({
+    "src/agent/agent.yaml": "kind: hosted\nname: generic\n",
+  }, async (root) => {
+    const requiredTiers = ["web", "agent", "skills", "sandbox", "workflows"];
+    const catalog = await listSourceCatalog({
+      workspaceRoot: root,
+      commandRunner: async (_command, args) => {
+        if (args.includes("worktree")) {
+          return {
+            ok: true,
+            stdout: `worktree ${root}\nHEAD 2830d882941163f833b9a893dcc62d507dc98bb6\nbranch refs/heads/main\n`,
+            stderr: "",
+          };
+        }
+        if (args.includes("status")) return { ok: true, stdout: "", stderr: "" };
+        if (args.includes("config")) {
+          return { ok: true, stdout: "git@github.com:coreai-microsoft/unity.git\n", stderr: "" };
+        }
+        if (args.includes("cat-file") || args.includes("merge-base")) {
+          return { ok: true, stdout: "", stderr: "" };
+        }
+        if (args.includes("show")) return { ok: true, stdout: "1700000000\n", stderr: "" };
+        throw new Error(`Unexpected Git args: ${args.join(" ")}`);
+      },
+      pinnedDiscovery: async () => ({
+        candidates: requiredTiers.map((tierId) => ({
+          tierId,
+          name: tierId,
+          projectPath: `src/${tierId}`,
+          evidence: [],
+        })),
+      }),
+    });
+    assert.equal(catalog.roots[0].repository, "https://github.com/coreai-microsoft/unity.git");
+    assert.equal(catalog.templates.some((template) => template.kind === "sample"), true);
+  });
+});
+
 test("source plans use pinned templates and explicit assembly snapshots", () => {
   const catalog = {
     roots: [{
@@ -669,6 +812,8 @@ test("empty template plan is deterministic and does not invent tools", () => {
   assert.equal(plan[0].constraints.hostedSkillCount, 1);
   assert.equal(plan[0].constraints.inventDomainTools, false);
   assert.equal(plan[0].constraints.wholeAppScriptsRequired, true);
+  assert.deepEqual(plan[0].startup.startArgs, ["--skip-skill"]);
+  assert.deepEqual(plan[0].startup.reservedPorts, [3000, 8088, 7071]);
 });
 
 test("empty template materializer creates a runnable editable starter", async () => {
@@ -685,14 +830,44 @@ test("empty template materializer creates a runnable editable starter", async ()
     const skillFiles = await readdir(join(root, "src", "skills", "claim-lookup"));
     assert.equal(skillFiles.includes("function_app.py"), true);
     assert.match(await readFile(join(root, "src", "agent", "prompts", "system.md"), "utf8"), /use only registered tools/i);
-    assert.match(await readFile(join(root, "scripts", "dev-start.sh"), "utf8"), /packagefeedproxy\.microsoft\.io/);
+    const posixStart = await readFile(join(root, "scripts", "dev-start.sh"), "utf8");
+    assert.match(posixStart, /packagefeedproxy\.microsoft\.io/);
+    assert.match(posixStart, /uv run main\.py/);
+    assert.match(posixStart, /processes\.posix\.tsv/);
+    assert.match(await readFile(join(root, "scripts", "dev-stop.sh"), "utf8"), /processes\.posix\.tsv/);
     const powershellStart = await readFile(join(root, "scripts", "dev-start.ps1"), "utf8");
+    assert.match(powershellStart, /Start-Process uv -ArgumentList "run", "main\.py"/);
     assert.match(powershellStart, /name = "agent"; port = 8088; pid = \$agent\.Id/);
     assert.match(powershellStart, /name = "web"; port = 3000; pid = \$web\.Id/);
     assert.match(powershellStart, /name = "skill"; port = 7071; pid = \$skill\.Id/);
     assert.match(await readFile(join(root, "unity.app.yaml"), "utf8"), /claim-lookup/);
     assert.equal(await readFile(join(root, "unrelated.txt"), "utf8"), "__APP_NAME__");
     assert.equal(skillFiles.includes("tests"), true);
+  });
+});
+
+test("sample materialization preserves the destination when archive creation fails", async () => {
+  await withFixture({ "sentinel.txt": "keep me" }, async (root) => {
+    await assert.rejects(
+      materializeTemplate({
+        appName: "Dealer sample",
+        purpose: "Verify the sample",
+        sourcePlan: {
+          kind: "complete-sample",
+          rootPath: root,
+          commit: "a".repeat(40),
+        },
+      }, {
+        destination: root,
+        commandRunner: async () => ({
+          ok: false,
+          stdout: "",
+          stderr: "archive failed",
+        }),
+      }),
+      /Could not archive the pinned Dealer sample: archive failed/,
+    );
+    assert.equal(await readFile(join(root, "sentinel.txt"), "utf8"), "keep me");
   });
 });
 
@@ -838,13 +1013,16 @@ test("workspace action blocks an extend request with uncommitted candidate chang
       intent: "improve",
       sourceProjectPath: "src/sample/skills",
       targetRoot: "/tmp/example-app",
+      targetSessionId: "app-session-1",
     });
     const prompt = buildCapabilityRequestPrompt(request);
-    assert.match(prompt, /current app worktree/);
-    assert.match(prompt, /do not create another session/);
+    assert.match(prompt, /app worktree/);
+    assert.match(prompt, /send_session_message/);
+    assert.match(prompt, /do not create another session/i);
     assert.match(prompt, /unity\.app\.yaml/);
     assert.match(prompt, /focused tests/);
     assert.match(prompt, /"targetAppRoot": "\/tmp\/example-app"/);
+    assert.match(prompt, /"targetSessionId": "app-session-1"/);
     assert.match(prompt, /confine all inspection and edits/);
 
     const sent = [];
@@ -854,6 +1032,7 @@ test("workspace action blocks an extend request with uncommitted candidate chang
     });
     assert.equal(result.outcome, "capability-requested");
     assert.equal(result.intent, "improve");
+    assert.equal(result.targetSessionId, "app-session-1");
     assert.equal(sent.length, 1);
 
     const observabilityPrompt = buildCapabilityRequestPrompt(normalizeCapabilityRequest({
@@ -924,6 +1103,9 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
     assert.equal(html.includes("Insights:"), false);
+    assert.match(html, /captureDetails\(\);\s*draft\.templateRootId = input\.value/);
+    assert.match(html, /"app-name"\)\.addEventListener\("input"/);
+    assert.match(html, /"purpose"\)\.addEventListener\("input"/);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
     assert.equal(html.includes("local changes excluded"), false);
@@ -944,10 +1126,10 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
 test("app selection and creation route directly to the primary App Map", () => {
   const html = renderStudioHtml("unity-studio", "test-token");
   for (const expected of [
-    'function openAppMap(root)',
+    'function openAppMap(root, notice = "")',
     'location.assign("/app-map?root="',
     'openAppMap(button.dataset.existingApp)',
-    'openAppMap(result.worktreePath)',
+    'openAppMap(result.worktreePath, result.editorWarning)',
     'if (result.worktreePath)',
     "Assembly started. The app will appear here when its isolated workspace is ready.",
     "Select one to open its request flow and Guide",
@@ -961,6 +1143,45 @@ test("workspace renderer emits valid browser JavaScript", () => {
   const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1];
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
+});
+
+test("extension honors runtime profiles and blocks live gateway changes", async () => {
+  const source = await readFile(new URL("./extension.mjs", import.meta.url), "utf8");
+  assert.match(source, /async function readAppRuntimeProfile/);
+  assert.match(source, /runtime\.startPowerShellArgs/);
+  assert.match(source, /runtime\.startArgs/);
+  assert.match(source, /azurite-table", port: 10002/);
+  assert.match(source, /runCommand\("powershell"/);
+  assert.match(source, /Stop the local app before changing its AI Gateway/);
+  assert.match(source, /UNITY_GATEWAY_CONFIGURATION_ID/);
+  assert.match(source, /loadActiveGateway\(root, \{ refresh: true \}\)/);
+  assert.match(source, /persistActiveGateway\(root, completed, configurationId\)/);
+  assert.match(source, /unity-studio-command-logs/);
+  assert.match(source, /createHash\("sha256"\)\.update\(root\)/);
+  assert.match(source, /stdio: \["ignore", logHandle\.fd, logHandle\.fd\]/);
+  assert.doesNotMatch(source, /stdio: \["ignore", "pipe", "pipe"\]/);
+  assert.match(source, /kind: "resume"/);
+  assert.match(source, /resumed\.status === "resumed"/);
+  assert.match(source, /resumed\.status !== "not_found"/);
+});
+
+test("gateway scripts validate Responses output and reject superseded configuration", async () => {
+  const [shell, powershell] = await Promise.all([
+    readFile(new URL("../../infra-ai-gateway/scripts/configure-ai-gateway.sh", import.meta.url), "utf8"),
+    readFile(new URL("../../infra-ai-gateway/scripts/configure-ai-gateway.ps1", import.meta.url), "utf8"),
+  ]);
+  for (const source of [shell, powershell]) {
+    assert.match(source, /default\/models\/openai\/v1\/responses/);
+    assert.match(source, /UNITY_GATEWAY_CONFIGURATION_ID/);
+    assert.match(source, /AI_GATEWAY_RESOURCE_GROUP/);
+    assert.match(source, /AZURE_SUBSCRIPTION_ID/);
+    assert.match(source, /configurationStatus/);
+    assert.match(source, /active-gateway\.json/);
+  }
+  assert.match(shell, /mkdir -p "\$\{REPO_ROOT\}\/\.unity-studio"/);
+  assert.match(powershell, /New-Item -ItemType Directory -Path \$stateDirectory -Force/);
+  assert.doesNotMatch(shell, /\bpython3\b/);
+  assert.match(shell, /uv run --project/);
 });
 
 test("platform discovery preserves repository results when Azure is unavailable", async () => {
@@ -1000,6 +1221,40 @@ test("app deletion requires confirmation and removes only a registered worktree"
   });
   assert.equal(result.outcome, "workspace-deleted");
   assert.deepEqual(calls.at(-1), ["git", ["-C", "/repo", "worktree", "remove", "--force", "/repo/app"]]);
+});
+
+test("app deletion removes the branch managed by a created Unity app", async () => {
+  await withFixture({
+    ".unity-studio/app.json": JSON.stringify({
+      name: "Managed app",
+      purpose: "Test cleanup",
+      managedBranch: "managed-app-abc123",
+    }),
+  }, async (root) => {
+    const calls = [];
+    const commandRunner = async (command, args) => {
+      calls.push([command, args]);
+      if (args.at(-1) === "--porcelain") {
+        return {
+          ok: true,
+          stdout: `worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree ${root}\nHEAD def\nbranch refs/heads/managed-app-abc123\n`,
+          stderr: "",
+        };
+      }
+      return { ok: true, stdout: "", stderr: "" };
+    };
+    const result = await deleteAppWorkspace({
+      workspaceRoot: "/repo",
+      root,
+      confirmed: true,
+      commandRunner,
+    });
+    assert.equal(result.branch, "managed-app-abc123");
+    assert.deepEqual(calls.slice(-2), [
+      ["git", ["-C", "/repo", "worktree", "remove", "--force", root]],
+      ["git", ["-C", "/repo", "branch", "-D", "managed-app-abc123"]],
+    ]);
+  });
 });
 
 test("doctor readiness reflects requested probe health rather than candidate presence", async () => {
@@ -1447,8 +1702,13 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /← Apps/);
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Manage<\/button>/);
+  assert.match(html, /＋ Add to app/);
+  assert.match(html, /function renderAddToAppPanel/);
+  assert.match(html, /Choose the capability you want/);
+  assert.match(html, /Add another/);
   assert.match(html, /<summary>Map tools<\/summary>/);
   assert.match(html, /Open a section only when you need to change settings, deploy, troubleshoot, or delete this app/);
+  assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
@@ -1457,6 +1717,19 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"\/api\/delete-app"/);
   assert.match(html, /Operations across the request path/);
   assert.match(html, /Progress updates automatically/);
+  assert.match(html, /@media \(max-width: 620px\)/);
+  assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(html, /grid-template-rows: minmax\(180px, 2fr\) minmax\(260px, 3fr\)/);
+  assert.match(html, /footer > \* \{ min-width: 0/);
+  assert.match(html, /inset-block: 0/);
+  assert.match(html, /new URLSearchParams\(location\.search\)\.get\("notice"\)/);
+  assert.match(html, /Starting your app/);
+  assert.match(html, /Stopping your app/);
+  assert.match(html, /Ready to preview/);
+  assert.match(html, /Stop the local app before changing its AI Gateway/);
+  assert.match(html, /services are ready/);
+  assert.match(html, /Another app is using the local ports/);
+  assert.match(html, /foreignEntrypoints/);
   assert.match(html, /Stop partial startup/);
   assert.match(html, /More suggestions/);
   assert.match(html, /function renderEdgeDetails/);

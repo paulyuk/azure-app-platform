@@ -30,8 +30,13 @@ gateway_name="$(require_value AI_GATEWAY_NAME "${AI_GATEWAY_NAME:-$(azd_value AI
 gateway_resource_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/service/${gateway_name}"
 gateway_uri="https://management.azure.com${gateway_resource_id}?api-version=${AI_GATEWAY_API_VERSION}"
 
-gateway_model="${AZURE_AI_GATEWAY_MODEL:-$(azd_value AZURE_AI_GATEWAY_MODEL)}"
-gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)}"
+if [ "${UNITY_GATEWAY_SELECTION:-0}" = "1" ]; then
+  gateway_model="${AZURE_AI_GATEWAY_MODEL:-}"
+  gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-}"
+else
+  gateway_model="${AZURE_AI_GATEWAY_MODEL:-$(azd_value AZURE_AI_GATEWAY_MODEL)}"
+  gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)}"
+fi
 if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
   model_names="$(az rest --method get \
     --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/modelProviders/foundry/models?api-version=${AI_GATEWAY_API_VERSION}" \
@@ -45,7 +50,10 @@ fi
 gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$gateway_model")"
 gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model")"
 
-gateway_url="${AZURE_AI_GATEWAY_ENDPOINT:-$(azd_value AZURE_AI_GATEWAY_ENDPOINT)}"
+gateway_url="${AZURE_AI_GATEWAY_ENDPOINT:-}"
+if [ -z "$gateway_url" ] && [ "${UNITY_GATEWAY_SELECTION:-0}" != "1" ]; then
+  gateway_url="$(azd_value AZURE_AI_GATEWAY_ENDPOINT)"
+fi
 if [ -z "$gateway_url" ]; then
   gateway_url="$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv 2>/dev/null || true)"
 fi
@@ -70,16 +78,29 @@ if [ -z "$gateway_api_key" ]; then
 fi
 gateway_api_key="$(require_value AZURE_AI_GATEWAY_API_KEY "$gateway_api_key")"
 
-request_body="$(python3 -c 'import json,sys; print(json.dumps({"model":sys.argv[1],"messages":[{"role":"user","content":"Reply with exactly one word: ok"}],"max_completion_tokens":128}))' "$gateway_model")"
+request_body="$(uv run --project "${REPO_ROOT}/src/agent" python -c \
+  'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
+  "$gateway_model")"
 ready=false
 for attempt in $(seq 1 20); do
   response="$(curl -sS -w $'\n%{http_code}' \
-    -X POST "${gateway_url%/}/default/models/openai/v1/chat/completions" \
+    -X POST "${gateway_url%/}/default/models/openai/v1/responses" \
     -H "Api-Key: ${gateway_api_key}" \
     -H "Content-Type: application/json" \
     --data-binary "$request_body" || true)"
   status="${response##*$'\n'}"
-  if [[ "$status" == 2* ]]; then
+  response_body="${response%$'\n'*}"
+  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | uv run --project "${REPO_ROOT}/src/agent" python -c '
+import json, sys
+payload = json.load(sys.stdin)
+readable = any(
+    content.get("type") == "output_text" and content.get("text", "").strip()
+    for item in payload.get("output", [])
+    if item.get("type") == "message"
+    for content in item.get("content", [])
+)
+raise SystemExit(0 if readable else 1)
+'; then
     ready=true
     break
   fi
@@ -87,8 +108,41 @@ for attempt in $(seq 1 20); do
   sleep 6
 done
 if [ "$ready" != true ]; then
-  echo "AI Gateway model route did not become ready (HTTP ${status:-unavailable})." >&2
+  echo "AI Gateway Responses route did not return a readable message (HTTP ${status:-unavailable})." >&2
   exit 1
+fi
+
+active_gateway_file="${REPO_ROOT}/.unity-studio/active-gateway.json"
+gateway_lock_dir="${REPO_ROOT}/.unity-studio/gateway-config.lock"
+gateway_lock_acquired=false
+mkdir -p "${REPO_ROOT}/.unity-studio"
+release_gateway_lock() {
+  if [ "$gateway_lock_acquired" = true ]; then
+    rm -f "${gateway_lock_dir}/pid"
+    rmdir "$gateway_lock_dir"
+  fi
+}
+for _ in $(seq 1 600); do
+  if mkdir "$gateway_lock_dir" 2>/dev/null; then
+    gateway_lock_acquired=true
+    printf '%s\n' "$$" > "${gateway_lock_dir}/pid"
+    break
+  fi
+  sleep 0.2
+done
+if [ "$gateway_lock_acquired" != true ]; then
+  echo "Timed out waiting to apply AI Gateway settings. If no configuration is running, remove ${gateway_lock_dir} and retry." >&2
+  exit 1
+fi
+trap release_gateway_lock EXIT
+if [ -n "${UNITY_GATEWAY_CONFIGURATION_ID:-}" ]; then
+  current_configuration_id="$(uv run --project "${REPO_ROOT}/src/agent" python -c \
+    'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("configurationId", ""))' \
+    "$active_gateway_file")"
+  if [ "$current_configuration_id" != "$UNITY_GATEWAY_CONFIGURATION_ID" ]; then
+    echo "Gateway configuration was superseded before settings were applied."
+    exit 3
+  fi
 fi
 
 if [ -n "$(azd_value AZURE_ENV_NAME)" ]; then
@@ -100,6 +154,9 @@ fi
 
 agent_env="${REPO_ROOT}/src/agent/.env"
 cat > "$agent_env" <<EOF
+AI_GATEWAY_NAME="${gateway_name}"
+AI_GATEWAY_RESOURCE_GROUP="${resource_group}"
+AZURE_SUBSCRIPTION_ID="${subscription_id}"
 AZURE_AI_GATEWAY_ENDPOINT="${gateway_url%/}/"
 AZURE_AI_GATEWAY_API_KEY="${gateway_api_key}"
 AZURE_AI_GATEWAY_MODEL="${gateway_model}"
@@ -107,6 +164,38 @@ AZURE_AI_GATEWAY_MINI_MODEL="${gateway_mini_model}"
 MOCK="0"
 EOF
 chmod 600 "$agent_env"
+
+active_gateway_tmp="${active_gateway_file}.$$"
+uv run --project "${REPO_ROOT}/src/agent" python -c '
+import datetime, json, os, sys
+source, destination, expected, name, resource_group, subscription_id, endpoint = sys.argv[1:]
+if expected:
+    with open(source, encoding="utf-8") as handle:
+        active = json.load(handle)
+    if active.get("configurationId") != expected:
+        raise SystemExit("Gateway configuration changed before completion.")
+else:
+    active = {
+        "name": name,
+        "resourceGroup": resource_group,
+        "location": "",
+        "subscriptionId": subscription_id,
+        "endpoint": endpoint,
+        "selectedAt": datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+active.update({
+    "configurationStatus": "ready",
+    "configuredAt": datetime.datetime.now(datetime.UTC).isoformat(),
+    "lastExitCode": 0,
+    "lastSignal": None,
+})
+with open(destination, "w", encoding="utf-8") as handle:
+    json.dump(active, handle, indent=2)
+    handle.write("\n")
+os.chmod(destination, 0o600)
+' "$active_gateway_file" "$active_gateway_tmp" "${UNITY_GATEWAY_CONFIGURATION_ID:-}" \
+  "$gateway_name" "$resource_group" "$subscription_id" "${gateway_url%/}/"
+mv "$active_gateway_tmp" "$active_gateway_file"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."
 echo "No TOOLBOX_ENDPOINT set. Run locally to start each Hosted Skill as a separate Functions MCP service; the agent will bind to those local endpoints."

@@ -1,8 +1,21 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
-import { realpath, stat, access, readdir, readFile, mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  realpath,
+  stat,
+  access,
+  readdir,
+  readFile,
+  mkdir,
+  writeFile,
+  open,
+  rename,
+  unlink,
+  rmdir,
+} from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
+import { tmpdir } from "node:os";
 import { isAbsolute, relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
@@ -26,45 +39,189 @@ import {
 } from "./studio-commands.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
+import {
+  evaluateGatewayReadiness,
+  gatewayCommandEnvironment,
+  normalizeGatewayCandidate,
+  validateGatewayCandidate,
+} from "./gateway-state.mjs";
 
 const servers = new Map();
 const appStates = new Map();
 const appOutput = new Map();
 const activeGateways = new Map();
+const gatewayWriteQueues = new Map();
 let session;
 const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
 const pendingAppMutations = new Set();
 
+function commandLogDirectory(root) {
+  const rootHash = createHash("sha256").update(root).digest("hex").slice(0, 20);
+  return `${tmpdir()}/unity-studio-command-logs/${rootHash}`;
+}
+
 async function readRuntimeOutput(root) {
   const run = appOutput.get(root);
   const lines = [];
-  try {
-    async function readLogs(directory, prefix = "") {
-      for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-        const path = `${directory}/${entry.name}`;
-        if (entry.isDirectory()) {
-          await readLogs(path, `${prefix}${entry.name}/`);
-        } else if (entry.name.endsWith(".log") && (!run || (await stat(path)).mtimeMs >= run.startedAt)) {
-          const contents = await readFile(path, "utf8");
-          lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${prefix}${entry.name}] ${line}`));
-        }
+  async function readLogs(directory, prefix = "") {
+    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await readLogs(path, `${prefix}${entry.name}/`);
+      } else if (
+        entry.name.endsWith(".log")
+        && path !== run?.logPath
+        && (!run || (await stat(path)).mtimeMs >= run.startedAt)
+      ) {
+        const contents = await readFile(path, "utf8");
+        lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${prefix}${entry.name}] ${line}`));
       }
     }
+  }
+  try {
     if (run?.state !== "stopping") {
       await readLogs(`${root}/.dev-run`);
     }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
+  try {
+    await readLogs(commandLogDirectory(root), "unity-studio/");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (run?.logPath) {
+    try {
+      const contents = await readFile(run.logPath, "utf8");
+      lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[unity-studio] ${line}`));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
   lines.push(...(run?.lines ?? []));
   return lines.slice(-400);
 }
 
-async function probeHttpEntrypoints(root) {
+async function readAppRuntimeProfile(root) {
+  try {
+    const identity = JSON.parse(await readFile(`${root}/.unity-studio/app.json`, "utf8"));
+    return identity?.runtime && typeof identity.runtime === "object" ? identity.runtime : null;
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function ensureAppSession(root, workspaceRoot) {
+  if (root === workspaceRoot) return session.sessionId ?? null;
+  const identityPath = `${root}/.unity-studio/app.json`;
+  let identity = {};
+  try {
+    identity = JSON.parse(await readFile(identityPath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (!session?.rpc?.sessions?.open) {
+    if (typeof identity.childSessionId === "string" && identity.childSessionId) {
+      return identity.childSessionId;
+    }
+    throw new Error("This host cannot open an app implementation session.");
+  }
+  if (typeof identity.childSessionId === "string" && identity.childSessionId) {
+    const resumed = await session.rpc.sessions.open({
+      kind: "resume",
+      sessionId: identity.childSessionId,
+      options: { workingDirectory: root },
+      resume: false,
+      suppressResumeWorkspaceMetadataWriteback: true,
+    });
+    if (resumed.status === "resumed" && resumed.sessionId) {
+      return resumed.sessionId;
+    }
+    if (resumed.status !== "not_found") {
+      throw new Error(`The app implementation session could not be resumed: ${resumed.status ?? "unknown status"}.`);
+    }
+  }
+  const opened = await session.rpc.sessions.open({
+    kind: "create",
+    options: {
+      name: `${identity.name || "Unity app"} implementation`,
+      model: "gpt-5.6-sol",
+      reasoningEffort: "max",
+      workingDirectory: root,
+    },
+  });
+  if (opened.status !== "created" || !opened.sessionId) {
+    throw new Error(`The app implementation session could not be created: ${opened.status ?? "unknown status"}.`);
+  }
+  await mkdir(`${root}/.unity-studio`, { recursive: true });
+  await writeFile(identityPath, JSON.stringify({
+    ...identity,
+    childSessionId: opened.sessionId,
+  }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  return opened.sessionId;
+}
+
+async function runtimePortCandidates(root) {
+  const runtime = await readAppRuntimeProfile(root);
+  if (Array.isArray(runtime?.entrypoints)) {
+    const gatewayConfigured = await hasGatewayConfiguration(root);
+    const usesStartProfile = runtime.requiresGatewayForFullStart !== true || !gatewayConfigured;
+    const expectedPorts = new Set(
+      (usesStartProfile && Array.isArray(runtime.startEntrypoints)
+        ? runtime.startEntrypoints
+        : runtime.entrypoints)
+        .map((entrypoint) => Number(entrypoint?.port)),
+    );
+    const entrypoints = runtime.entrypoints
+      .map((entrypoint) => ({ name: String(entrypoint?.name || ""), port: Number(entrypoint?.port) }))
+      .filter((entrypoint) =>
+        entrypoint.name && Number.isInteger(entrypoint.port) && entrypoint.port > 0 && entrypoint.port <= 65_535);
+    for (const port of runtime.reservedPorts ?? []) {
+      const numericPort = Number(port);
+      if (
+        Number.isInteger(numericPort)
+        && numericPort > 0
+        && numericPort <= 65_535
+        && !entrypoints.some((entrypoint) => entrypoint.port === numericPort)
+      ) {
+        entrypoints.push({ name: `reserved-${numericPort}`, port: numericPort });
+      }
+    }
+    return entrypoints.map((entrypoint) => ({
+      ...entrypoint,
+      expected: expectedPorts.has(entrypoint.port),
+    }));
+  }
+
   const candidates = [
-    { name: "Web", port: 3000 },
-    { name: "Agent", port: 8088 },
+    { name: "web", port: 3000 },
+    { name: "agent", port: 8088 },
   ];
+  let lifecycleSource = "";
+  for (const path of [`${root}/scripts/dev-start.sh`, `${root}/scripts/dev-start.ps1`]) {
+    try {
+      lifecycleSource += await readFile(path, "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  if (/7074|10002|AZURITE/i.test(lifecycleSource)) {
+    candidates.push(
+      { name: "inventory-search", port: 7071 },
+      { name: "trade-in-value", port: 7072 },
+      { name: "rate-sheet", port: 7073 },
+      { name: "deal-doc", port: 7074 },
+      { name: "azurite", port: 10000 },
+      { name: "azurite-queue", port: 10001 },
+      { name: "azurite-table", port: 10002 },
+    );
+  }
+  return candidates;
+}
+
+async function probeHttpEntrypoints(root) {
+  const candidates = await runtimePortCandidates(root);
   for (const entry of await readProcessRegistry(root)) {
     candidates.push({ name: entry.name, port: entry.port });
   }
@@ -111,13 +268,16 @@ async function inspectWindowsEntrypointOwnership(entrypoints, registry) {
     "$processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)",
     "@{ connections = $connections; processes = $processes } | ConvertTo-Json -Depth 4 -Compress",
   ].join("; ");
-  const result = await runCommand("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script]);
-  if (!result.ok) return { available: true, ownedPorts: new Set() };
+  let result = await runCommand("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script]);
+  if (!result.ok) {
+    result = await runCommand("powershell", ["-NoProfile", "-NonInteractive", "-Command", script]);
+  }
+  if (!result.ok) return { available: false, ownedPorts: new Set() };
   let payload;
   try {
     payload = JSON.parse(result.stdout);
   } catch {
-    return { available: true, ownedPorts: new Set() };
+    return { available: false, ownedPorts: new Set() };
   }
   const asArray = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
   const listenerPidsByPort = new Map();
@@ -260,28 +420,117 @@ async function promptLocalAgent(root, prompt) {
   }
 }
 
+async function loadActiveGateway(root, { refresh = false } = {}) {
+  if (!refresh && activeGateways.has(root)) return activeGateways.get(root);
+  try {
+    const active = JSON.parse(await readFile(`${root}/.unity-studio/active-gateway.json`, "utf8"));
+    activeGateways.set(root, active);
+    return active;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    activeGateways.delete(root);
+    return null;
+  }
+}
+
+async function withGatewayCommitLock(root, operation) {
+  const lockDirectory = `${root}/.unity-studio/gateway-config.lock`;
+  const pidFile = `${lockDirectory}/pid`;
+  let acquired = false;
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    try {
+      await mkdir(lockDirectory);
+      acquired = true;
+      await writeFile(pidFile, `${process.pid}\n`, "utf8");
+      break;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+  if (!acquired) {
+    throw new Error(
+      `Timed out waiting to persist AI Gateway settings. If no configuration is running, remove ${lockDirectory} and retry.`,
+    );
+  }
+  try {
+    return await operation();
+  } finally {
+    await unlink(pidFile);
+    await rmdir(lockDirectory);
+  }
+}
+
+async function persistActiveGateway(root, active, expectedConfigurationId) {
+  const writeState = async () => {
+    const directory = `${root}/.unity-studio`;
+    const target = `${directory}/active-gateway.json`;
+    const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+    await mkdir(directory, { recursive: true });
+    return withGatewayCommitLock(root, async () => {
+      if (expectedConfigurationId) {
+        const persisted = await loadActiveGateway(root, { refresh: true });
+        if (persisted?.configurationId !== expectedConfigurationId) return false;
+      }
+      try {
+        await writeFile(temporary, JSON.stringify(active, null, 2) + "\n", {
+          encoding: "utf8",
+          mode: 0o600,
+        });
+        await rename(temporary, target);
+        activeGateways.set(root, active);
+        return true;
+      } catch (error) {
+        try {
+          await unlink(temporary);
+        } catch (cleanupError) {
+          if (cleanupError.code !== "ENOENT") {
+            error.message += ` Cleanup also failed: ${cleanupError.message}`;
+          }
+        }
+        throw error;
+      }
+    });
+  };
+  const previous = gatewayWriteQueues.get(root) ?? Promise.resolve();
+  const pending = previous.then(writeState, writeState);
+  gatewayWriteQueues.set(root, pending);
+  try {
+    return await pending;
+  } finally {
+    if (gatewayWriteQueues.get(root) === pending) gatewayWriteQueues.delete(root);
+  }
+}
+
 async function localReadiness(root) {
-  const agentEnv = `${root}/src/agent/.env`;
   let agentConfiguration = "";
   try {
-    agentConfiguration = await readFile(agentEnv, "utf8");
+    agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const gatewayConfigured = /AZURE_AI_GATEWAY_ENDPOINT\s*=\s*\S+/.test(agentConfiguration)
-    && /AZURE_AI_GATEWAY_API_KEY\s*=\s*\S+/.test(agentConfiguration);
-  const active = activeGateways.get(root);
+  const gatewayReadiness = evaluateGatewayReadiness(
+    agentConfiguration,
+    await loadActiveGateway(root, { refresh: true }),
+    appStates.get(root)?.state === "configuring",
+  );
+  const runtime = await readAppRuntimeProfile(root);
+  const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
+  const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
+  const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
   return {
-    ready: gatewayConfigured,
-    gatewayConfigured,
-    activeGateway: active ?? null,
-    missing: gatewayConfigured ? [] : ["AI Gateway endpoint and model credentials"],
-    guidance: gatewayConfigured
-      ? "Gateway configuration is present. Run the local stack."
-      : activeGateways.has(root)
-        ? "A gateway is selected. Unity Studio is configuring this app's endpoint, key, and model settings."
-        : "Select an existing AI Gateway with models or provision one, then configure this app worktree before running locally.",
+    ...gatewayReadiness,
+    ready,
+    mode: previewMode ? "preview" : "full",
+    missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
+    guidance: previewMode
+      ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
+      : gatewayReadiness.guidance,
   };
+}
+
+async function hasGatewayConfiguration(root) {
+  return (await localReadiness(root)).gatewayConfigured;
 }
 
 async function currentAppState(root) {
@@ -295,7 +544,10 @@ async function currentAppState(root) {
     { ownershipAvailable: ownership.available, ownedPorts: ownership.ownedPorts },
   );
   appStates.set(root, runtimeState);
-  return { ...runtimeState, entrypoints };
+  const foreignEntrypoints = ownership.available
+    ? entrypoints.filter((entrypoint) => entrypoint.ready && !ownership.ownedPorts.has(entrypoint.port))
+    : [];
+  return { ...runtimeState, entrypoints, foreignEntrypoints };
 }
 
 function requireIdleApp(root, { allowActiveLifecycle = false } = {}) {
@@ -390,10 +642,23 @@ async function resolveLifecycleCommand(root, operation) {
     try {
       await access(scriptPath);
       if (name.endsWith(".ps1")) {
-        return { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath] };
+        const runtime = operation === "run-local" ? await readAppRuntimeProfile(root) : null;
+        const readiness = operation === "run-local" ? await localReadiness(root) : null;
+        const profileArgs = runtime && (
+          runtime.requiresGatewayForFullStart !== true || readiness?.mode === "preview"
+        ) ? runtime.startPowerShellArgs ?? [] : [];
+        return {
+          command: "powershell",
+          args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...profileArgs],
+        };
       }
 
-      return { command: "bash", args: [scriptPath] };
+      const runtime = operation === "run-local" ? await readAppRuntimeProfile(root) : null;
+      const readiness = operation === "run-local" ? await localReadiness(root) : null;
+      const profileArgs = runtime && (
+        runtime.requiresGatewayForFullStart !== true || readiness?.mode === "preview"
+      ) ? runtime.startArgs ?? [] : [];
+      return { command: "bash", args: [scriptPath, ...profileArgs] };
     } catch {
       // Try the other platform-specific script before surfacing a useful error.
     }
@@ -437,37 +702,92 @@ async function startAppCommand(root, command, args, state, options = {}) {
     delete commandEnvironment[key];
   }
   Object.assign(commandEnvironment, options.env ?? {});
-  const child = spawn(command, args, {
-    cwd: options.cwd ?? root,
-    env: commandEnvironment,
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const run = { lines: [], startedAt: Date.now(), state };
+  const startedAt = Date.now();
+  const logDirectory = commandLogDirectory(root);
+  const logPath = `${logDirectory}/${startedAt}-${state}.log`;
+  await mkdir(logDirectory, { recursive: true, mode: 0o700 });
+  const logHandle = await open(logPath, "a", 0o600);
+  let child;
+  try {
+    child = spawn(command, args, {
+      cwd: options.cwd ?? root,
+      env: commandEnvironment,
+      detached: true,
+      stdio: ["ignore", logHandle.fd, logHandle.fd],
+    });
+  } finally {
+    await logHandle.close();
+  }
+  const run = { lines: [], logPath, startedAt, state };
   appOutput.set(root, run);
   const appendOutput = (chunk) => {
     run.lines.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
     if (run.lines.length > 400) run.lines.splice(0, run.lines.length - 400);
   };
-  child.stdout.on("data", appendOutput);
-  child.stderr.on("data", appendOutput);
   child.once("error", (error) => {
     appendOutput(`Command failed to start: ${error.message}`);
-    appStates.set(root, { state: "failed", updatedAt: new Date().toISOString() });
-  });
-  child.once("close", (exitCode, signal) => {
-    if (options.completedState) {
+    if (appStates.get(root)?.pid === child.pid) {
       appStates.set(root, {
-        state: exitCode === 0 ? options.completedState : "failed",
-        exitCode,
-        signal,
+        state: "failed",
+        operation: state,
+        error: error.message,
         updatedAt: new Date().toISOString(),
       });
     }
   });
+  child.once("close", (initialExitCode, signal) => {
+    void (async () => {
+      let exitCode = initialExitCode;
+      try {
+        await options.onComplete?.({ exitCode, signal });
+      } catch (error) {
+        appendOutput(`Unable to persist command completion: ${error.message}`);
+        exitCode = 1;
+      }
+      if (options.completedState && appStates.get(root)?.pid === child.pid) {
+        appStates.set(root, {
+          state: exitCode === 0 ? options.completedState : "failed",
+          operation: state,
+          exitCode,
+          signal,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    })();
+  });
   child.unref();
-  appStates.set(root, { state, pid: child.pid, updatedAt: new Date().toISOString() });
+  appStates.set(root, { state, operation: state, pid: child.pid, updatedAt: new Date().toISOString() });
   return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state };
+}
+
+async function startGatewayConfiguration(root, gateway, workspaceRoot, configurationId = randomUUID()) {
+  await syncGatewayConfigScript(root, workspaceRoot);
+  const active = {
+    ...validateGatewayCandidate(gateway),
+    selectedAt: new Date().toISOString(),
+    configurationStatus: "configuring",
+    configurationId,
+  };
+  await persistActiveGateway(root, active);
+  const gatewayConfig = await resolveGatewayConfigCommand(root);
+  return startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", {
+    completedState: "stopped",
+    cwd: gatewayConfig.cwd,
+    env: {
+      ...gatewayCommandEnvironment(active),
+      UNITY_GATEWAY_CONFIGURATION_ID: configurationId,
+    },
+    onComplete: async ({ exitCode, signal }) => {
+      const completed = {
+        ...active,
+        configurationStatus: exitCode === 0 ? "ready" : "failed",
+        configuredAt: new Date().toISOString(),
+        lastExitCode: exitCode,
+        lastSignal: signal,
+      };
+      await persistActiveGateway(root, completed, configurationId);
+    },
+  });
 }
 
 function hasAzureMappings(input) {
@@ -559,13 +879,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "GET" && url.pathname === "/api/gateway-options") {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
-      if (!activeGateways.has(root)) {
-        try {
-          activeGateways.set(root, JSON.parse(await readFile(`${root}/.unity-studio/active-gateway.json`, "utf8")));
-        } catch (error) {
-          if (error.code !== "ENOENT") throw error;
-        }
-      }
+      const active = await loadActiveGateway(root, { refresh: true });
       const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
       if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
       let gateways;
@@ -574,26 +888,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       } catch {
         throw new Error("Azure CLI returned invalid AI Gateway data.");
       }
-      const active = activeGateways.get(root);
       const activeResource = active && gateways.find((gateway) => gateway.name === active.name);
       if (activeResource) {
         activeGateways.set(root, {
           ...active,
-          resourceGroup: activeResource.resourceGroup || activeResource.resourceGroupName || active.resourceGroup || "",
-          location: activeResource.location || active.location || "",
-          subscriptionId: activeResource.id?.split("/")[2] || active.subscriptionId || "",
-          endpoint: activeResource.properties?.gatewayUrl || active.endpoint || "",
+          ...normalizeGatewayCandidate(activeResource),
         });
       }
       sendJson(response, 200, {
         active: activeGateways.get(root) ?? null,
-        gateways: gateways.map((gateway) => ({
-          name: gateway.name,
-          resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
-          location: gateway.location || "",
-          subscriptionId: gateway.id?.split("/")[2] || "",
-          endpoint: gateway.properties?.gatewayUrl || "",
-        })),
+        gateways: gateways.map(normalizeGatewayCandidate),
       });
       return;
     }
@@ -603,22 +907,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       releaseAppMutation = reserveAppMutation(root);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       if (typeof input.name !== "string" || !input.name.trim()) throw new Error("Choose an AI Gateway.");
+      const current = await currentAppState(root);
+      if (current.state === "running") {
+        const error = new Error("Stop the local app before changing its AI Gateway.");
+        error.statusCode = 409;
+        throw error;
+      }
       const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
       if (!result.ok) throw new Error(result.stderr || result.error || "Unable to verify AI Gateways.");
       const gateways = JSON.parse(result.stdout);
       const gateway = gateways.find((candidate) => candidate.name === input.name);
       if (!gateway) throw new Error("The selected AI Gateway is no longer available.");
-      const active = {
-        name: gateway.name,
-        resourceGroup: gateway.resourceGroup || gateway.resourceGroupName || "",
-        location: gateway.location || "",
-        subscriptionId: gateway.id?.split("/")[2] || "",
-        endpoint: gateway.properties?.gatewayUrl || "",
-      };
-      activeGateways.set(root, active);
-      await mkdir(`${root}/.unity-studio`, { recursive: true });
-      await writeFile(`${root}/.unity-studio/active-gateway.json`, JSON.stringify(active, null, 2) + "\n", "utf8");
-      sendJson(response, 200, { active });
+      const configuration = await startGatewayConfiguration(root, gateway, workspaceRoot);
+      sendJson(response, 202, {
+        outcome: "gateway-selected",
+        active: await loadActiveGateway(root),
+        configuration,
+      });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/app-output") {
@@ -734,9 +1039,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("Capability root is not an authorized app workspace.");
       }
+      const targetSessionId = await ensureAppSession(root, workspaceRoot);
       sendJson(response, 202, await requestCapabilityWork({
         session,
-        input: { ...input, targetRoot: root },
+        input: { ...input, targetRoot: root, targetSessionId },
       }));
       return;
     }
@@ -779,6 +1085,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           });
           return;
         }
+        if (current.foreignEntrypoints.length > 0) {
+          const ports = current.foreignEntrypoints.map((entrypoint) => entrypoint.port).join(", ");
+          const error = new Error(
+            `Another local app is using required port${current.foreignEntrypoints.length === 1 ? "" : "s"} ${ports}. Stop that app before starting this one.`,
+          );
+          error.statusCode = 409;
+          throw error;
+        }
         if (transientAppStates.has(current.state)) {
           sendJson(response, 202, {
             outcome: "operation-in-progress",
@@ -787,6 +1101,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             entrypoints: current.entrypoints,
           });
           return;
+        }
+        const readiness = await localReadiness(root);
+        if (!readiness.ready) {
+          const error = new Error(readiness.guidance);
+          error.statusCode = 409;
+          throw error;
         }
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
         sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "starting", {
@@ -807,19 +1127,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         return;
       }
       if (input.operation === "configure-gateway") {
-        await syncGatewayConfigScript(root, workspaceRoot);
-        const gatewayConfig = await resolveGatewayConfigCommand(root);
-        const active = activeGateways.get(root);
-        const gatewayEnv = active ? {
-          AZURE_SUBSCRIPTION_ID: active.subscriptionId,
-          AI_GATEWAY_RESOURCE_GROUP: active.resourceGroup,
-          AI_GATEWAY_NAME: active.name,
-          AZURE_AI_GATEWAY_ENDPOINT: active.endpoint,
-        } : {};
-        sendJson(response, 202, await startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", {
-          cwd: gatewayConfig.cwd,
-          env: gatewayEnv,
-        }));
+        if (current.state === "running") {
+          const error = new Error("Stop the local app before changing its AI Gateway.");
+          error.statusCode = 409;
+          throw error;
+        }
+        const active = await loadActiveGateway(root, { refresh: true });
+        if (!active) {
+          const error = new Error("Select an AI Gateway before configuring the app.");
+          error.statusCode = 400;
+          throw error;
+        }
+        sendJson(response, 202, await startGatewayConfiguration(root, active, workspaceRoot));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
@@ -864,6 +1183,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       authorizedRoots.delete(root);
       appStates.delete(root);
       appOutput.delete(root);
+      activeGateways.delete(root);
+      gatewayWriteQueues.delete(root);
       sendJson(response, 200, result);
       return;
     }
