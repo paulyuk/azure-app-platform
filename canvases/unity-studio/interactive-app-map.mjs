@@ -536,18 +536,27 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
-    .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 18px; }
-    .journey-stage { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); }
+    .journey { display: grid; grid-template-columns: minmax(0, 1fr); margin: 14px 0 18px; }
+    .journey-stage { position: relative; min-width: 0; padding: 10px 10px 12px 34px; }
+    .journey-stage::before {
+      position: absolute; z-index: 1; top: 14px; left: 7px; width: 12px; height: 12px;
+      border: 2px solid var(--border); border-radius: 50%; background: var(--surface); content: "";
+    }
+    .journey-stage:not(:last-child)::after {
+      position: absolute; top: 24px; bottom: -20px; left: 12px; width: 2px;
+      background: var(--border); content: "";
+    }
+    .journey-stage.complete:not(:last-child)::after { background: #107c10; }
+    .journey-stage.next, .journey-stage.ready, .journey-stage.running { border-radius: 7px; background: var(--accent-soft); }
     .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
     .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
-    .journey-state { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-    .journey-state::before { width: 7px; height: 7px; border-radius: 50%; background: var(--border); content: ""; }
+    .journey-state { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .journey-stage.complete::before { border-color: #107c10; background: #107c10; }
     .journey-stage.complete .journey-state { color: #107c10; }
-    .journey-stage.complete .journey-state::before { background: #107c10; }
+    .journey-stage.next::before, .journey-stage.ready::before { border-color: var(--accent); background: var(--accent); }
     .journey-stage.next .journey-state, .journey-stage.ready .journey-state { color: var(--accent); }
-    .journey-stage.next .journey-state::before, .journey-stage.ready .journey-state::before { background: var(--accent); }
+    .journey-stage.running::before { border-color: #107c10; background: #107c10; box-shadow: 0 0 0 3px rgb(16 124 16 / .18); }
     .journey-stage.running .journey-state { color: #107c10; }
-    .journey-stage.running .journey-state::before { background: #107c10; box-shadow: 0 0 0 3px rgb(16 124 16 / .18); }
     .action-list { display: grid; gap: 9px; }
     .action-card { padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     .action-card.required { border-left: 4px solid var(--danger); }
@@ -1484,6 +1493,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const item = document.createElement("div");
         item.className = "journey-stage " + stage.state;
         item.setAttribute("role", "listitem");
+        if (stage.state === "next" || stage.state === "ready" || stage.state === "running") {
+          item.setAttribute("aria-current", "step");
+        }
         appendText(item, "span", stage.state === "complete"
           ? "Complete"
           : stage.state === "running" ? "Running" : stage.state === "ready"

@@ -276,7 +276,8 @@ The expanded map opens on **Guide**, which abstracts the platform into
 four user outcomes: **Build**, **Connect**, **Run**, and **Observe & manage**.
 The current source graph, unresolved relationships, local readiness, and runtime
 state determine stage progress and prioritized next actions. The surface shows
-runtime first, one suggested improvement, and collapses later suggestions.
+these outcomes as a non-interactive vertical stepper, shows runtime first, shows
+one suggested improvement, and collapses later suggestions.
 Runtime progress updates automatically; delegated implementation work offers
 **Check for changes** when the user needs to retrace source evidence. The Run
 stage uses existing readiness and lifecycle APIs so gateway hardening remains
