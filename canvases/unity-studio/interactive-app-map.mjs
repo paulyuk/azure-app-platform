@@ -1766,8 +1766,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(
           tester,
           "p",
-          "Run the app and wait for its agent service to become ready before sending a test prompt.",
+          operationalState.app?.state === "running"
+            ? "The web preview is running, but the agent service is not. Complete the required setup, then run the full app."
+            : "Complete the required setup and run the app to enable test prompts.",
         );
+        const prompt = document.createElement("textarea");
+        prompt.disabled = true;
+        prompt.placeholder = "Start the local agent to enable test prompts";
+        prompt.setAttribute("aria-label", "Agent test prompt unavailable");
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const send = actionButton("Send test prompt", () => {});
+        send.disabled = true;
+        actions.append(send);
+        actions.append(actionButton("Show required setup", renderActionCenter, true));
+        tester.append(prompt, actions);
         container.append(tester);
         return;
       }
