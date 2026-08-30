@@ -32,6 +32,8 @@ const appStates = new Map();
 const appOutput = new Map();
 const activeGateways = new Map();
 let session;
+const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
+const pendingAppMutations = new Set();
 
 async function readRuntimeOutput(root) {
   const run = appOutput.get(root);
@@ -174,6 +176,32 @@ async function localReadiness(root) {
   };
 }
 
+async function currentAppState(root) {
+  const entrypoints = await probeHttpEntrypoints(root);
+  const runtimeState = deriveRuntimeState(
+    appStates.get(root),
+    await readProcessRegistry(root),
+    entrypoints,
+  );
+  appStates.set(root, runtimeState);
+  return { ...runtimeState, entrypoints };
+}
+
+function requireIdleApp(root) {
+  const state = appStates.get(root)?.state;
+  if (!transientAppStates.has(state) && !pendingAppMutations.has(root)) return;
+  const operation = transientAppStates.has(state) ? state : "pending";
+  const error = new Error(`Wait for the current ${operation} operation to finish before starting another app operation.`);
+  error.statusCode = 409;
+  throw error;
+}
+
+function reserveAppMutation(root) {
+  requireIdleApp(root);
+  pendingAppMutations.add(root);
+  return () => pendingAppMutations.delete(root);
+}
+
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
   response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -289,6 +317,9 @@ async function syncGatewayConfigScript(root, workspaceRoot) {
 }
 
 async function startAppCommand(root, command, args, state, options = {}) {
+  if (state === "configuring" && options.completedState === undefined) {
+    options = { ...options, completedState: "stopped" };
+  }
   const commandEnvironment = { ...process.env };
   for (const key of ["client_session", "CLIENT_SESSION", "AZURE_CORE_CLIENT_SESSION", "SESSION_ID", "COPILOT_AGENT_SESSION_ID", "AGENCY_SESSION_ID"]) {
     delete commandEnvironment[key];
@@ -368,6 +399,7 @@ function authorizeApiRequest(request, url, apiToken, trustedHost) {
 
 async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
+  let releaseAppMutation;
   try {
     authorizeApiRequest(request, url, apiToken, trustedHost);
     if (request.method === "GET" && url.pathname === "/api/overview") {
@@ -400,17 +432,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App status root is not an authorized app workspace.");
       }
-      const entrypoints = await probeHttpEntrypoints(root);
-      const runtimeState = deriveRuntimeState(
-        appStates.get(root),
-        await readProcessRegistry(root),
-        entrypoints,
-      );
-      appStates.set(root, runtimeState);
-      sendJson(response, 200, {
-        ...runtimeState,
-        entrypoints,
-      });
+      const runtimeState = await currentAppState(root);
+      sendJson(response, 200, runtimeState);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/local-readiness") {
@@ -465,6 +488,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "POST" && url.pathname === "/api/active-gateway") {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      releaseAppMutation = reserveAppMutation(root);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       if (typeof input.name !== "string" || !input.name.trim()) throw new Error("Choose an AI Gateway.");
       const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
@@ -629,9 +653,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App command root is not an authorized app workspace.");
       }
+      releaseAppMutation = reserveAppMutation(root);
       if (input.operation === "run-local") {
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
-        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "running"));
+        sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "starting", {
+          completedState: "running",
+        }));
         return;
       }
       if (input.operation === "stop-local") {
@@ -659,7 +686,13 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
         const command = input.operation === "provision-cloud" ? "provision" : "up";
-        sendJson(response, 202, await startAppCommand(root, "azd", [command], command === "provision" ? "provisioning" : "deploying"));
+        sendJson(response, 202, await startAppCommand(
+          root,
+          "azd",
+          [command],
+          command === "provision" ? "provisioning" : "deploying",
+          { completedState: "stopped" },
+        ));
         return;
       }
       throw new Error("Unknown app command.");
@@ -670,9 +703,20 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) || root === workspaceRoot) {
         throw new Error("Only an authorized app worktree can be deleted.");
       }
+      releaseAppMutation = reserveAppMutation(root);
       const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
       if (!catalog.apps.some((app) => app.path === root)) {
         throw new Error("The selected path is not a discovered Unity app.");
+      }
+      const state = await currentAppState(root);
+      if (state.state === "running" || transientAppStates.has(state.state)) {
+        const error = new Error(
+          state.state === "running"
+            ? "Stop the local app before deleting its worktree."
+            : `Wait for the current ${state.state} operation to finish before deleting this app.`,
+        );
+        error.statusCode = 409;
+        throw error;
       }
       const result = await deleteAppWorkspace({
         workspaceRoot,
@@ -698,8 +742,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App Map root is not an authorized app workspace.");
       }
+      const catalog = await listSourceCatalog({
+        workspaceRoot,
+        additionalRoots: [...authorizedRoots],
+      });
+      const appIdentity = catalog.apps.find((app) => app.path === root);
       response.setHeader("Content-Type", "text/html; charset=utf-8");
-      response.end(renderInteractiveAppMapHtml(await traceUnityApp({ root }), { apiToken }));
+      response.end(renderInteractiveAppMapHtml(await traceUnityApp({ root }), {
+        apiToken,
+        appName: appIdentity?.name,
+      }));
       return;
     }
     if (request.method !== "GET" || url.pathname !== "/") {
@@ -712,6 +764,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     sendJson(response, error?.statusCode ?? 500, {
       error: error instanceof Error ? error.message : String(error),
     });
+  } finally {
+    releaseAppMutation?.();
   }
 }
 
@@ -818,7 +872,7 @@ const workspaceInputSchema = {
 const canvas = createCanvas({
   id: "unity-studio",
   displayName: "Unity Studio",
-  description: "Create or extend a Unity-pattern app in a worktree, inventory implementations, open tier studios, and trace its App Map.",
+  description: "Create or assemble a Unity-pattern app, then operate it through an evidence-backed App Map.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1005,7 +1059,7 @@ const canvas = createCanvas({
     }
     return {
       title: "Unity Studio",
-      status: "App workspace",
+      status: "Unity apps",
       url: entry.url,
     };
   },

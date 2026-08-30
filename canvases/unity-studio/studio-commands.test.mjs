@@ -92,10 +92,10 @@ test("runtime status does not report a stale process registry as running", () =>
 });
 
 test("runtime status preserves lifecycle transitions while commands are active", () => {
-  const stopping = { state: "stopping", pid: 123 };
-  assert.equal(deriveRuntimeState(stopping, [], []).state, "stopping");
-  const starting = { state: "running", pid: 456 };
-  assert.equal(deriveRuntimeState(starting, [], []).state, "running");
+  for (const state of ["starting", "stopping", "configuring", "provisioning", "deploying"]) {
+    assert.equal(deriveRuntimeState({ state, pid: 123 }, [], []).state, state);
+  }
+  assert.equal(deriveRuntimeState({ state: "running", pid: 456 }, [], []).state, "running");
 });
 
 const GENERIC_APP = {
@@ -841,53 +841,34 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
     assert.equal(html.includes("Insights:"), false);
-    assert.equal(html.includes('class="badges"'), true);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
-    assert.equal(html.includes("Command output"), true);
     assert.equal(html.includes("local changes excluded"), false);
     assert.equal(html.includes("Preserves the finished dealer domain"), false);
     assert.equal(html.includes("./scripts/dev-start.sh --skip-skills"), false);
     assert.equal(EMPTY_TEMPLATE.description, "Start with an editable app shell and shape it around your own scenario.");
-    assert.equal(html.includes('request("/api/app-output?root="'), true);
-    assert.equal(html.includes("Create / Manage"), true);
-    assert.equal(html.includes("Configure app from active gateway"), true);
     assert.equal(html.includes("Yes, delete worktree"), true);
     assert.equal(html.includes("No, keep app"), true);
     assert.equal(html.includes("No Azure resources, repositories, or cloud deployments will be deleted."), true);
-    assert.equal(html.includes("Open source"), true);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);
     assert.match(html, /Dealer-sample-"\s*\+\s*crypto\.randomUUID\(\)\.slice\(0, 8\)/);
     assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
 });
 
-test("workspace renderer uses standard studio regions and collapsible command output", () => {
+test("app selection and creation route directly to the primary App Map", () => {
   const html = renderStudioHtml("unity-studio", "test-token");
   for (const expected of [
-    'class="surface configuration-region"',
-    'class="surface runtime-region"',
-    'class="surface app-map-region"',
-    'class="surface inventory-region"',
-    'id="configuration-title">Azure configuration',
-    'id="runtime-title">Local runtime',
-    ".app-map-visual",
-    ".map-lanes",
-    'class="command-panel" id="local-command-panel"',
-    'id="local-command-summary"',
-    'id="open-app-map"',
-    'class="icon-button map-expand"',
-    'aria-label="Open expanded App Map"',
-    'request("/api/open-app-map"',
-    "Selecting a gateway configures this app automatically",
-    'if (!appMap) void traceAndRender(false)',
-    "Refresh map",
+    'function openAppMap(root)',
+    'location.assign("/app-map?root="',
+    'openAppMap(button.dataset.existingApp)',
+    'openAppMap(result.worktreePath)',
+    'if (result.worktreePath)',
+    "Assembly started. The app will appear here when its isolated workspace is ready.",
+    "Select one to open its request flow and Action Center",
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }
-  assert.equal((html.match(/<details class="surface /g) ?? []).length, 5);
-  assert.equal(html.includes('<details class="command-panel"'), true);
-  assert.equal(html.includes('<div class="terminal">'), false);
 });
 
 test("workspace renderer emits valid browser JavaScript", () => {
@@ -1378,13 +1359,24 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
   assert.match(html, />Request flow<\/button>/);
   assert.match(html, />Implementation<\/button>/);
+  assert.match(html, /← Apps/);
+  assert.match(html, />Manage app<\/button>/);
+  assert.match(html, /Configure model access, manage source, and control the app lifecycle from this map/);
+  assert.match(html, /Provision Azure/);
+  assert.match(html, /Deploy app/);
+  assert.match(html, /Delete local worktree/);
+  assert.match(html, /"\/api\/gateway-options/);
+  assert.match(html, /"\/api\/active-gateway"/);
+  assert.match(html, /"\/api\/delete-app"/);
   assert.match(html, /Operations across the request path/);
   assert.match(html, /function renderEdgeDetails/);
   assert.equal(
     script.indexOf("function renderEdgeDetails") < script.indexOf("function selectEdge"),
     true,
   );
-  assert.match(html, /addEventListener\("dblclick"/);
+  assert.doesNotMatch(html, /addEventListener\("dblclick"/);
+  assert.match(html, /if \(selectedId === nodeId\)/);
+  assert.match(html, /const clearFocus = !panState\.moved/);
   assert.match(html, /aria-label": "Add capability to "/);
   assert.match(html, /x: lanePosition\.x/);
   assert.match(html, /"\/api\/open-source"/);
@@ -1393,6 +1385,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"\/api\/capability-request"/);
   assert.match(html, /"\/api\/local-readiness/);
   assert.match(html, /"\/api\/app-command"/);
+  assert.match(html, /ACTIVE_LIFECYCLE_STATES/);
+  assert.match(html, /Stop the local app before deleting its worktree/);
+  assert.match(html, /group\.setAttribute\(\s*"aria-label"/);
   assert.match(html, /Build/);
   assert.match(html, /Connect/);
   assert.match(html, /Observe & manage/);

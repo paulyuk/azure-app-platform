@@ -183,8 +183,9 @@ available. Unresolved references and parser diagnostics are first-class output.
 The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
-The embedded App Map remains a compact static summary. Its expanded Browser
-canvas opens on a customer-oriented **Request flow** architecture view. Proven
+The App Map is the primary app interface after creation or selection; Unity
+Studio does not insert a separate workspace dashboard. It opens on a
+customer-oriented **Request flow** architecture view. Proven
 paths move left to right through Experience, Reasoning, Models & capabilities,
 and Connected systems, with observability shown as a cross-cutting operations
 plane. Internal workflow operations and disconnected implementations are not
@@ -200,14 +201,15 @@ browser-local and versioned by the authorized app root plus a stable topology
 fingerprint, so changing the graph starts a fresh layout without modifying the
 repository.
 
-Selecting a node highlights only its immediate graph neighborhood. Selecting a
+Selecting a node opens its details and highlights only its immediate graph
+neighborhood. Clicking the selected node again, clicking empty map space, or
+pressing Escape returns to the Action Center. Selecting a
 connection explains how the request moves between the two components and shows
 the exact source evidence, while explicitly distinguishing architecture
 evidence from a successful live distributed trace.
 Documentation-only paths remain visible but render as low-confidence dashed
 connections until executable source confirms them.
-Double-clicking it, or pressing Enter while it has focus, opens a read-only
-details panel with source evidence, bindings, incoming and outgoing
+The read-only details panel includes source evidence, bindings, incoming and outgoing
 relationships, and safe navigation actions. Source, specialist-studio, and
 ready local-endpoint actions continue through the existing authorized loopback
 APIs. The graph renderer introduces no CDN or other external network

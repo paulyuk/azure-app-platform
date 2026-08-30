@@ -10,23 +10,23 @@ pattern. Its landing page has three journeys:
    source project from a Git worktree or authorized local folder, optionally map
    compatible Azure resources, and create a portable assembled app.
 3. **Open existing** — rediscover apps persisted as repository/worktree
-   pairs, reopen one, inspect its inventory, open component source, or enter a
-   specialist studio. This is the local persistence mechanism until Unity apps
-   register with a control plane.
+   pairs, then open their App Map to inspect request flow, implementation inventory,
+   source, runtime, or specialist studios. This is the local persistence
+   mechanism until Unity apps register with a control plane.
 
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
 
-After creation, Unity Studio immediately scans the new worktree and stays useful:
-the app workspace view shows observed components by tier, source paths, evidence
-files and confidence, plus counts and App Map statistics. Each source component
-can be opened directly in VS Code, and each tier can be handed to its registered
-specialist studio with the app worktree as context. Missing tiers are labeled as
-scaffoldable rather than inferred from the platform catalog.
+After creation or selection, the App Map becomes the primary app interface.
+Its request-flow architecture, Action Center, Implementation view, and Manage
+app panel expose observed components, evidence, configuration, lifecycle
+controls, source navigation, and specialist studios without an intermediate
+workspace dashboard. Missing tiers are scaffoldable rather than inferred from
+the platform catalog.
 
-The app workspace also exposes deterministic lifecycle actions: **Run locally**
-and **Stop local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts
+The App Map exposes deterministic lifecycle actions: **Run locally** and **Stop
+local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts
 (or their `.ps1` equivalents on Windows), while **Provision
 with azd** and **Deploy with azd up** run the corresponding commands in the app
 worktree. Cloud actions are explicit and mutate Azure; review the selected
@@ -104,7 +104,8 @@ troubleshooting—not known-file creation.
   operations. Only evidence-backed paths are shown; disconnected components and
   workflow internals remain in the secondary **Implementation** tier view.
   Search or filter nodes, inspect connection evidence, highlight one-hop
-  relationships, and open safe navigation actions by double-clicking a node.
+  relationships, and open safe navigation actions with one click. Click the
+  selected card again or click empty map space to return to the Action Center.
   An Implementation tier's **Add** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
   The default **Action Center** turns current app evidence into a progressive
@@ -115,8 +116,8 @@ troubleshooting—not known-file creation.
   reports repository and Azure discovery health rather than simulated platform
   status.
 
-After local startup, the app workspace derives component status from the
-lifecycle state. Ready endpoint URLs are actionable: the web surface opens in
+After local startup, the App Map derives component status from lifecycle state.
+Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
 agent offers an inline Responses API prompt plus a specialist-studio handoff.
 

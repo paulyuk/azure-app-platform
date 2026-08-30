@@ -1,5 +1,17 @@
 import { readFile } from "node:fs/promises";
 
+const TRANSIENT_APP_STATES = new Set([
+  "starting",
+  "stopping",
+  "configuring",
+  "provisioning",
+  "deploying",
+]);
+
+function isAppOperationActive(state) {
+  return TRANSIENT_APP_STATES.has(state);
+}
+
 function normalizeRegistryEntry(entry) {
   const port = Number(entry?.port);
   if (!entry?.name || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
@@ -37,8 +49,7 @@ export async function readProcessRegistry(root, read = readFile) {
 }
 
 export function deriveRuntimeState(recordedState, registry, entrypoints) {
-  const transientStates = new Set(["starting", "stopping", "configuring"]);
-  if (transientStates.has(recordedState?.state)) return recordedState;
+  if (isAppOperationActive(recordedState?.state)) return recordedState;
   if (recordedState?.state === "running" && registry.length === 0) return recordedState;
 
   const readyPorts = new Set(entrypoints.filter((entrypoint) => entrypoint.ready).map((entrypoint) => entrypoint.port));

@@ -375,8 +375,11 @@ function renderNoScriptFallback(model) {
   }).join("");
 }
 
-export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
+export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName } = {}) {
   const model = buildInteractiveAppMapModel(appMap);
+  const appName = providedAppName ||
+    model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
+    "Unity app";
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
@@ -430,6 +433,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       border-bottom: 1px solid var(--border); background: var(--surface);
     }
     .heading { min-width: 220px; }
+    .heading small { display: block; margin-bottom: 1px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     h1 { margin: 0; font-size: 20px; }
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .toolbar { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
@@ -442,6 +446,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
     button:hover { border-color: var(--accent); }
+    .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
     button:focus-visible, input:focus-visible, select:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
     }
@@ -501,6 +506,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     aside code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
     aside ul { margin: 4px 0; padding-left: 18px; }
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
+    .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
     .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 20px; }
     .journey-stage { min-height: 68px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); }
@@ -529,6 +535,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
     .actions button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
     footer {
       display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px;
@@ -546,8 +553,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
 </head>
 <body>
   <header>
+    <button id="back-apps" class="back-link" type="button">← Apps</button>
     <div class="heading">
-      <h1>Unity App Map</h1>
+      <small>App Map</small>
+      <h1>${escapeHtml(appName)}</h1>
       <p title="${escapeHtml(model.root)}">${escapeHtml(model.root)}</p>
     </div>
     <div class="toolbar" role="toolbar" aria-label="App Map controls">
@@ -565,6 +574,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       <button id="fit" type="button">Fit</button>
       <button id="reset-layout" type="button">Reset view</button>
       <button id="action-center" type="button">Action Center</button>
+      <button id="manage-app" type="button">Manage app</button>
     </div>
   </header>
   <main>
@@ -628,6 +638,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     const defaultPositions = new Map();
     let runtimeEntrypoints = [];
     let operationalState = { app: null, readiness: null };
+    let gatewayState = null;
     let operationalFingerprint = "";
     let lifecycleOperation = null;
     let layoutMode = "request-flow";
@@ -636,6 +647,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     let selectedEdgeId = null;
     let panState = null;
     let dragState = null;
+    let suppressNodeClick = null;
+    const ACTIVE_LIFECYCLE_STATES = ["starting", "stopping", "configuring", "provisioning", "deploying"];
     let transform = { x: 0, y: 0, scale: 1 };
 
     const maxTierNodes = Math.max(1, ...MODEL.tiers.map((tier) => tier.nodeIds.length));
@@ -889,15 +902,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
           badges.textContent = shorten(node.badges.map((badge) => badge.label).join(" · "), 37);
           group.append(badges);
         }
-        group.addEventListener("click", () => selectNode(node.id, false));
-        group.addEventListener("dblclick", () => selectNode(node.id, true));
+        group.addEventListener("click", () => {
+          if (suppressNodeClick === node.id) return;
+          selectNode(node.id);
+        });
         group.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            selectNode(node.id, true);
-          } else if (event.key === " ") {
-            event.preventDefault();
-            selectNode(node.id, false);
+            selectNode(node.id);
           }
         });
         group.addEventListener("pointerdown", (event) => {
@@ -974,6 +986,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
           : edge.confidence;
         group.classList.remove("high", "medium", "low");
         group.classList.add(confidence);
+        group.setAttribute(
+          "aria-label",
+          (layoutMode === "request-flow" && flow ? flow.label : humanize(edge.kind)) +
+            ", " + confidence + " confidence",
+        );
         group.querySelector("path").setAttribute("marker-end", "url(#arrow-" + confidence + ")");
         label.textContent = layoutMode === "request-flow" && flow
           ? (flow.step ? flow.step + ". " : "") + flow.label
@@ -1156,7 +1173,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         if (appState === "running") {
           return { ...stage, state: "running", detail: "App is running locally" };
         }
-        if (["starting", "stopping", "configuring", "provisioning", "deploying"].includes(appState)) {
+        if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
           return { ...stage, state: "next", detail: humanize(appState) + " in progress" };
         }
         if (operationalState.readiness?.ready) {
@@ -1175,13 +1192,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       const labels = {
         "run-local": "Starting app…",
         "stop-local": "Stopping app…",
+        "configure-gateway": "Configuring model access…",
+        "provision-cloud": "Provisioning Azure resources…",
+        "deploy-cloud": "Deploying app to Azure…",
+      };
+      const states = {
+        "run-local": "starting",
+        "stop-local": "stopping",
+        "configure-gateway": "configuring",
+        "provision-cloud": "provisioning",
+        "deploy-cloud": "deploying",
       };
       setStatus(labels[operation] || "Updating app…");
       operationalState = {
         ...operationalState,
         app: {
           ...(operationalState.app || {}),
-          state: operation === "run-local" ? "starting" : "stopping",
+          state: states[operation] || "configuring",
         },
       };
       operationalFingerprint = "optimistic:" + operation;
@@ -1224,7 +1251,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
           }, true));
         }
         card.append(keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
-      } else if (["starting", "stopping", "configuring", "provisioning", "deploying"].includes(appState)) {
+      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(card, "strong", humanize(appState) + " in progress");
         appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
       } else if (operationalState.readiness?.ready) {
@@ -1255,7 +1282,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         if (layoutMode === "request-flow" && !MODEL.requestFlow.nodeIds.includes(opportunity.action.nodeId)) {
           applyLayout("implementation");
         }
-        selectNode(opportunity.action.nodeId, true);
+        selectNode(opportunity.action.nodeId);
       }
     }
 
@@ -1327,6 +1354,225 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       }
     }
 
+    async function loadGatewayControls(container) {
+      try {
+        gatewayState = await apiRequest("/api/gateway-options?root=" + encodeURIComponent(MODEL.root));
+        if (!container.isConnected || panelMode !== "manage") return;
+        clearElement(container);
+        const activeName = gatewayState.active?.name || "";
+        appendText(
+          container,
+          "p",
+          activeName
+            ? "Active gateway: " + activeName
+            : "No AI Gateway is connected to this app yet.",
+        );
+        if (gatewayState.gateways.length) {
+          const select = document.createElement("select");
+          select.setAttribute("aria-label", "AI Gateway");
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "Choose an AI Gateway";
+          select.append(empty);
+          for (const gateway of gatewayState.gateways) {
+            const option = document.createElement("option");
+            option.value = gateway.name;
+            option.textContent = gateway.name +
+              (gateway.resourceGroup ? " · " + gateway.resourceGroup : "");
+            option.selected = gateway.name === activeName;
+            select.append(option);
+          }
+          container.append(select);
+          const apply = actionButton(
+            activeName ? "Apply or reconfigure" : "Connect gateway",
+            async () => {
+              if (!select.value || lifecycleOperation) return;
+              apply.disabled = true;
+              try {
+                const result = await apiRequest("/api/active-gateway", {
+                  method: "POST",
+                  body: JSON.stringify({ root: MODEL.root, name: select.value }),
+                });
+                gatewayState.active = result.active;
+                if (result.configuration) {
+                  operationalState = {
+                    ...operationalState,
+                    app: { ...(operationalState.app || {}), state: "configuring" },
+                  };
+                  await refreshOperationalState();
+                } else {
+                  await runAppOperation("configure-gateway");
+                }
+                renderActionCenter();
+              } catch (error) {
+                apply.disabled = false;
+                setStatus(error.message, true);
+              }
+            },
+            true,
+          );
+          container.append(apply);
+        }
+        const gatewayTier = tierById.get("gateway");
+        container.append(actionButton("Create or manage gateways", () => renderTierAddPanel(gatewayTier)));
+      } catch (error) {
+        if (!container.isConnected || panelMode !== "manage") return;
+        clearElement(container);
+        appendText(container, "p", error.message, "error");
+        const gatewayTier = tierById.get("gateway");
+        container.append(actionButton("Open guided gateway setup", () => renderTierAddPanel(gatewayTier), true));
+      }
+    }
+
+    function renderDeleteConfirmation() {
+      panelMode = "manage";
+      clearElement(details);
+      details.dataset.empty = "false";
+      appendPanelBack();
+      appendText(details, "h2", "Delete this local app?");
+      appendText(
+        details,
+        "p",
+        "This permanently removes the app Git worktree and local files. Azure resources and source repositories are not deleted.",
+      );
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const confirm = actionButton("Delete local worktree", async () => {
+        for (const button of actions.querySelectorAll("button")) button.disabled = true;
+        try {
+          await apiRequest("/api/delete-app", {
+            method: "POST",
+            body: JSON.stringify({ root: MODEL.root, confirmed: true }),
+          });
+          location.assign("/");
+        } catch (error) {
+          for (const button of actions.querySelectorAll("button")) button.disabled = false;
+          setStatus(error.message, true);
+        }
+      });
+      confirm.className = "danger";
+      actions.append(confirm);
+      actions.append(actionButton("Cancel", renderManagePanel));
+      details.append(actions);
+    }
+
+    function renderManagePanel() {
+      panelMode = "manage";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      appendPanelBack();
+      appendText(details, "h2", "Manage app");
+      appendText(details, "p", "Configure model access, manage source, and control the app lifecycle from this map.");
+
+      appendText(details, "h3", "Source");
+      const sourceActions = document.createElement("div");
+      sourceActions.className = "actions";
+      sourceActions.append(actionButton("Open app source", async () => {
+        try {
+          await apiRequest("/api/open-source", {
+            method: "POST",
+            body: JSON.stringify({ root: MODEL.root, projectPath: "." }),
+          });
+          setStatus("Opened the app source in VS Code.");
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }, true));
+      details.append(sourceActions);
+
+      appendText(details, "h3", "Model access");
+      const gatewayControls = document.createElement("div");
+      gatewayControls.className = "action-list";
+      const appState = operationalState.app?.state;
+      appendText(
+        gatewayControls,
+        "p",
+        ACTIVE_LIFECYCLE_STATES.includes(appState)
+          ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
+          : "Loading available AI Gateways…",
+      );
+      details.append(gatewayControls);
+      if (!ACTIVE_LIFECYCLE_STATES.includes(appState)) void loadGatewayControls(gatewayControls);
+
+      appendText(details, "h3", "Azure lifecycle");
+      appendText(details, "p", "Cloud actions run the app's checked-in azd workflow and may change Azure resources.");
+      const cloudActions = document.createElement("div");
+      cloudActions.className = "actions";
+      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
+      } else {
+        cloudActions.append(actionButton("Provision Azure", async () => {
+          await runAppOperation("provision-cloud");
+          renderActionCenter();
+        }));
+        cloudActions.append(actionButton("Deploy app", async () => {
+          await runAppOperation("deploy-cloud");
+          renderActionCenter();
+        }));
+      }
+      details.append(cloudActions);
+
+      appendText(details, "h3", "Local app");
+      const localActions = document.createElement("div");
+      localActions.className = "actions";
+      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(localActions, "p", humanize(appState) + " is in progress. Local controls will return when it finishes.");
+      } else if (appState === "running") {
+        localActions.append(actionButton("Stop local app", async () => {
+          await runAppOperation("stop-local");
+          renderActionCenter();
+        }));
+      } else if (operationalState.readiness?.ready) {
+        localActions.append(actionButton("Run local app", async () => {
+          await runAppOperation("run-local");
+          renderActionCenter();
+        }));
+      } else if (operationalState.readiness) {
+        appendText(
+          localActions,
+          "p",
+          operationalState.readiness.guidance || "Complete model access before running locally.",
+        );
+      } else {
+        appendText(localActions, "p", "Checking local readiness…");
+      }
+      details.append(localActions);
+
+      appendText(details, "h3", "Recent activity");
+      const activity = document.createElement("div");
+      const output = document.createElement("pre");
+      output.className = "command-output";
+      output.textContent = "Open command output when you need implementation details.";
+      activity.append(actionButton("View command output", async () => {
+        try {
+          const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
+          output.textContent = result.lines.join("\\n") || "No command output yet.";
+          output.scrollTop = output.scrollHeight;
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }));
+      activity.append(output);
+      details.append(activity);
+
+      appendText(details, "h3", "Danger zone");
+      const dangerActions = document.createElement("div");
+      dangerActions.className = "actions";
+      if (appState === "running") {
+        appendText(dangerActions, "p", "Stop the local app before deleting its worktree.");
+      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(dangerActions, "p", "Wait for the current operation to finish before deleting this app.");
+      } else {
+        const deleteButton = actionButton("Delete app…", renderDeleteConfirmation);
+        deleteButton.className = "danger";
+        dangerActions.append(deleteButton);
+      }
+      details.append(dangerActions);
+    }
+
     async function refreshOperationalState() {
       try {
         const [app, readiness] = await Promise.all([
@@ -1348,6 +1594,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         operationalState = { app, readiness };
         runtimeEntrypoints = app.entrypoints || [];
         if (changed && panelMode === "action-center") renderActionCenter();
+        if (changed && panelMode === "manage") renderManagePanel();
       } catch {
         const changed = operationalFingerprint !== "unavailable";
         operationalFingerprint = "unavailable";
@@ -1561,28 +1808,28 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       ), "No direct source evidence recorded.");
     }
 
-    function renderSelectionHint(node) {
-      panelMode = "node";
-      clearElement(details);
-      details.dataset.empty = "false";
-      appendPanelBack();
-      appendText(details, "h2", node.name);
-      appendText(details, "p", "Immediate graph relationships are highlighted. Double-click this node, or press Enter while it has keyboard focus, to inspect evidence and safe actions.");
-    }
-
-    function selectNode(nodeId, openPanel) {
+    function selectNode(nodeId) {
+      if (selectedId === nodeId) {
+        renderActionCenter();
+        setStatus("Card focus cleared.");
+        return;
+      }
       selectedId = nodeId;
       selectedEdgeId = null;
       applySelection();
       const node = nodeById.get(nodeId);
-      if (openPanel) renderDetails(node);
-      else renderSelectionHint(node);
+      renderDetails(node);
       setStatus("Selected " + node.name + ".");
     }
 
     function selectEdge(edgeId) {
       const edge = MODEL.edges.find((candidate) => candidate.id === edgeId);
       if (!edge) return;
+      if (selectedEdgeId === edgeId) {
+        renderActionCenter();
+        setStatus("Connection focus cleared.");
+        return;
+      }
       selectedId = null;
       selectedEdgeId = edgeId;
       applySelection();
@@ -1695,7 +1942,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
 
     svg.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
-      panState = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, startX: transform.x, startY: transform.y };
+      panState = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        startX: transform.x,
+        startY: transform.y,
+        moved: false,
+      };
       svg.setPointerCapture(event.pointerId);
       svg.classList.add("panning");
     });
@@ -1711,6 +1965,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         positions.set(dragState.nodeId, next);
         updateGeometry();
       } else if (panState?.pointerId === event.pointerId) {
+        if (Math.abs(event.clientX - panState.x) > 3 || Math.abs(event.clientY - panState.y) > 3) {
+          panState.moved = true;
+        }
         transform.x = panState.startX + event.clientX - panState.x;
         transform.y = panState.startY + event.clientY - panState.y;
         applyTransform();
@@ -1718,12 +1975,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     });
     svg.addEventListener("pointerup", (event) => {
       if (dragState?.pointerId === event.pointerId) {
-        if (dragState.moved) savePositions();
+        if (dragState.moved) {
+          savePositions();
+          suppressNodeClick = dragState.nodeId;
+          setTimeout(() => { suppressNodeClick = null; }, 0);
+        }
         dragState = null;
       }
       if (panState?.pointerId === event.pointerId) {
+        const clearFocus = !panState.moved && (selectedId || selectedEdgeId);
         panState = null;
         svg.classList.remove("panning");
+        if (clearFocus) {
+          renderActionCenter();
+          setStatus("Card focus cleared.");
+        }
       }
     });
     svg.addEventListener("pointercancel", (event) => {
@@ -1739,6 +2005,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#action-center").addEventListener("click", renderActionCenter);
+    document.querySelector("#manage-app").addEventListener("click", renderManagePanel);
+    document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));
     requestFlowButton.addEventListener("click", () => {
       if (layoutMode === "request-flow") return;
       applyLayout("request-flow");

@@ -43,9 +43,10 @@ The landing context is **Unity apps** and has three actions:
    pairs.
 
 Template choice cards show only a clear title and one outcome-focused
-description. Capability lists, lifecycle commands, file paths, and source
-provenance belong in the app workspace and inventory views, not in this
-decision surface.
+description. After creation or selection, navigation goes directly to the App
+Map. Capability lists, lifecycle commands, file paths, and source provenance
+belong in its Action Center, Manage app panel, and Implementation view, not in
+the landing decision surface.
 
 Every non-landing screen has a visible back arrow near the top. Bottom action
 buttons may remain for keyboard/mobile flow, but navigation must not depend on
@@ -186,27 +187,21 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 
 - use documented canvas theme tokens, the shared sans/mono type ramps, a
   restrained purple accent, and a subtle Foundry-style background treatment;
-- organize the app workspace into bordered **surface panels** with a compact
-  title/status header and padded body instead of a long undifferentiated page;
-  every primary workspace panel is collapsible, with configuration, runtime,
-  and App Map expanded by default and secondary inspection panels collapsed;
-- use uppercase section labels to separate **Configure**, **Run**, **Map**, and
-  **Inspect** tasks without adding heavy navigation;
-- group the active AI Gateway and future Azure bindings inside one **Azure
-  configuration** panel;
-- group lifecycle actions, component readiness, endpoint actions, and agent
-  interaction inside one **Local runtime** panel;
-- render command output in a collapsible `<details>` region with a compact
-  status summary and a dark, monospace output body; opening Run, Stop, or
-  configuration work expands it so progress remains visible;
+- make App Map the primary app screen after creation or selection rather than
+  introducing a separate app-workspace dashboard;
+- keep the architecture diagram visually dominant and place progressive
+  guidance in the Action Center;
+- group model selection, source navigation, local lifecycle, Azure lifecycle,
+  and deletion in a secondary **Manage app** panel;
+- return to the app list through one visible top-level back action;
 - use compact pills only for status or categorical metadata, never as the sole
   indicator of state; and
 - preserve full-button hit targets, keyboard focus treatment, responsive
   stacking, and readable wrapping for paths and errors.
 
 The visual hierarchy must not change backend behavior. Presentation tests
-assert the panel regions, Azure grouping, collapsible command output, and
-generated browser-script syntax alongside the existing workflow assertions.
+assert direct App Map routing, management actions, and generated browser-script
+syntax alongside the existing workflow assertions.
 
 ## App Map
 
@@ -216,15 +211,14 @@ references, HTTP boundaries, and durable workflow activities. Do not invent
 Cartesian relationships when targets are ambiguous. Show useful graph counts
 and retain enough source provenance to inspect the relationship.
 
-Tracing runs automatically when an app workspace is discovered or opened; a
+Tracing runs automatically when an app is created or opened; a
 running app never depends on the user clicking a first-time Trace button. The
 canvas renders the result as a visual graph with component nodes,
 directional relationship labels, source evidence, and visibly unresolved
 references. A secondary **Refresh map** action exists only to pick up source
-changes made after the initial discovery. The embedded map uses a responsive
-multi-column lane grid to fit the canvas width without horizontal panning. An
-**Open expanded** action opens the same authorized, freshly traced graph in a
-dedicated Browser canvas.
+changes made after the initial discovery. The App Map is the primary app screen,
+using the full canvas for the graph and its Action Center rather than requiring
+an expansion step from an intermediate workspace.
 
 The expanded canvas defaults to **Request flow**, a stable left-to-right
 architecture diagram across Experience, Reasoning, Models & capabilities, and
@@ -242,9 +236,10 @@ labeled and rendered as low-confidence dashed connections. The Implementation vi
 swimlanes and draggable nodes constrained to their evidence-derived lane.
 Browser-local positions are keyed by app, mode, and a stable topology
 fingerprint, so graph changes get a clean layout and never write presentation
-state into the app. Single-click highlights one-hop relationships; double-click
-or keyboard Enter opens evidence, bindings, and authorized source, specialist,
-and ready-endpoint actions. A lane-level **Add** handoff opens its specialist
+state into the app. A single click or keyboard activation opens evidence,
+bindings, and authorized source, specialist, and ready-endpoint actions.
+Clicking the selected card again or clicking empty map space returns to the
+Action Center. A lane-level **Add** handoff opens its specialist
 studio or, after explicit confirmation, requests a source capability through
 the existing implementation workflow; Azure provisioning remains outside the map.
 The expansion action is an accessible

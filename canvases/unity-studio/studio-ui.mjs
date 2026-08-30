@@ -1,4 +1,5 @@
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
+export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
   return String(value)
@@ -380,6 +381,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         return payload;
       }
 
+      function openAppMap(root) {
+        location.assign("/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken));
+      }
+
       function setBusy(busy, message = "") {
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
           control.disabled = busy;
@@ -533,7 +538,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderExistingApps() {
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Action Center.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
@@ -543,19 +548,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
           '';
         wireTopBack(renderLanding);
-        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", async () => {
-          setBusy(true, "Rediscovering app components…");
-          try {
-            const root = button.dataset.existingApp;
-            const inventory = await request("/api/discovery?azure=false&root=" + encodeURIComponent(root));
-            draft.appName = button.querySelector("strong").textContent;
-            draft.purpose = "Existing Unity app";
-            renderInventory({ worktreePath: root, specialistCanvases: [] }, inventory, null);
-          } catch (cause) {
-            error(cause.message);
-          } finally {
-            setBusy(false, status.textContent);
-          }
+        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", () => {
+          openAppMap(button.dataset.existingApp);
         }));
         document.querySelectorAll("[data-delete-existing-app]").forEach((button) => button.addEventListener("click", async (event) => {
           event.stopPropagation();
@@ -1252,13 +1246,13 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               openInVsCode: draft.openInVsCode
             })
           });
-          const sessionStatus = result.sessionRegistration === "created"
-            ? "A new child session was registered."
-            : "This host cannot register child sessions, so the worktree was created directly.";
-          const inventory = await request("/api/discovery?azure=false&root=" +
-            encodeURIComponent(result.worktreePath));
-          renderInventory(result, inventory, null);
-          clearStatus(sessionStatus);
+          if (result.worktreePath) {
+            openAppMap(result.worktreePath);
+          } else {
+            renderLanding();
+            clearStatus("Assembly started. The app will appear here when its isolated workspace is ready.");
+            setBusy(false, status.textContent);
+          }
         } catch (cause) {
           error(cause.message);
           setBusy(false, status.textContent);
