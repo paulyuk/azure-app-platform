@@ -184,15 +184,28 @@ The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
 The embedded App Map remains a compact static summary. Its expanded Browser
-canvas is an interactive SVG graph with all nine Unity tiers as swimlanes,
-directional evidence-backed edges, pan and zoom controls, search, tier filters,
-and draggable nodes. Dragging changes vertical ordering inside the evidence-
-derived tier only; a component cannot be moved into a different tier by
-presentation state. Node positions are browser-local and versioned by the
-authorized app root plus a stable topology fingerprint; changing the graph
-automatically starts a fresh layout without modifying the repository.
+canvas opens on a customer-oriented **Request flow** architecture view. Proven
+paths move left to right through Experience, Reasoning, Models & capabilities,
+and Connected systems, with observability shown as a cross-cutting operations
+plane. Internal workflow operations and disconnected implementations are not
+mixed into the request path. They remain available in the secondary
+**Implementation** view, which preserves all nine Unity tier swimlanes.
 
-Selecting a node highlights only its immediate graph neighborhood.
+Both views use the same directional evidence-backed edges, pan and zoom
+controls, search, and tier filters. The deterministic Request flow layout is
+not draggable because its position communicates architectural meaning. The
+Implementation view permits vertical reordering inside the evidence-derived
+tier only; a component cannot be moved into another tier. Those positions are
+browser-local and versioned by the authorized app root plus a stable topology
+fingerprint, so changing the graph starts a fresh layout without modifying the
+repository.
+
+Selecting a node highlights only its immediate graph neighborhood. Selecting a
+connection explains how the request moves between the two components and shows
+the exact source evidence, while explicitly distinguishing architecture
+evidence from a successful live distributed trace.
+Documentation-only paths remain visible but render as low-confidence dashed
+connections until executable source confirms them.
 Double-clicking it, or pressing Enter while it has focus, opens a read-only
 details panel with source evidence, bindings, incoming and outgoing
 relationships, and safe navigation actions. Source, specialist-studio, and
@@ -200,11 +213,27 @@ ready local-endpoint actions continue through the existing authorized loopback
 APIs. The graph renderer introduces no CDN or other external network
 dependency.
 
-Each tier lane exposes an **Add** handoff. A specialist studio can manage
+Each Implementation tier lane exposes an **Add** handoff. A specialist studio can manage
 existing or provisioned resources. Requesting a new source capability requires
 an explicit second confirmation, delegates to the existing capability workflow,
 and does not provision or deploy Azure resources. The new card appears only
 after refreshed source discovery produces evidence for it.
+
+The expanded map's default side panel is an **Action Center**, not an
+infrastructure dashboard. It translates the current graph into a progressive
+**Build → Connect → Run → Observe & manage** journey and recommends only the
+next actions supported by current evidence. For example, an agent without a
+gateway gets model-connection guidance, unresolved references get an evidence
+review, and an app without telemetry gets a plain-language observability setup
+action. Local readiness and lifecycle state update the Run step through the
+existing APIs, including the stricter gateway validation introduced by later
+Studio changes.
+
+Recommendations are deterministic and recomputed from a fresh trace. Completing
+work does not directly mutate the graph: **Refresh progress** retraces the app,
+removes recommendations whose evidence now exists, and presents the next
+relevant step. This is the first progressive-guidance layer; future history or
+preference signals may refine ranking but must not weaken evidence requirements.
 
 ## Safety and limitations
 

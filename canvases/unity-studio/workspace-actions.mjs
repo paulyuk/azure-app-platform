@@ -263,6 +263,12 @@ export function normalizeCapabilityRequest(input) {
 
 export function buildCapabilityRequestPrompt(request) {
   const tier = getTierDefinition(request.tierId);
+  const tierGuidance = tier.id === "sre"
+    ? [
+        "Treat Self-awareness / SRE as a cross-cutting capability: inspect every discovered runtime component and add appropriate health and telemetry signals rather than creating an isolated placeholder.",
+        "Prefer OpenTelemetry-compatible instrumentation and local health verification. Keep cloud resource attachment behind the specialist studio or a later deployment step.",
+      ]
+    : [];
   const requestData = {
     operation: `${request.intent}-unity-capability`,
     tier: {
@@ -281,6 +287,7 @@ export function buildCapabilityRequestPrompt(request) {
     `Unity Studio requested ${request.intent === "improve" ? "an improvement to" : "a new"} capability in the current app worktree. Execute it now; do not only explain it and do not create another session.`,
     "Inspect the current app and its `unity.app.yaml` inventory first.",
     "Implement or improve the requested tier with a real runtime entry point or configuration artifact, an explicit interface, and a wired relationship to the nearest existing tier.",
+    ...tierGuidance,
     "When targetAppRoot is present in the request data, confine all inspection and edits to that exact authorized app worktree.",
     "Update `unity.app.yaml` with the component path, interface, and tier links.",
     "Add or update focused tests and the app README's run commands and production next steps.",

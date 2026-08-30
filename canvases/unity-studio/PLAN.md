@@ -218,25 +218,54 @@ and retain enough source provenance to inspect the relationship.
 
 Tracing runs automatically when an app workspace is discovered or opened; a
 running app never depends on the user clicking a first-time Trace button. The
-canvas renders the result as a visual tier-lane graph with component nodes,
+canvas renders the result as a visual graph with component nodes,
 directional relationship labels, source evidence, and visibly unresolved
 references. A secondary **Refresh map** action exists only to pick up source
 changes made after the initial discovery. The embedded map uses a responsive
 multi-column lane grid to fit the canvas width without horizontal panning. An
 **Open expanded** action opens the same authorized, freshly traced graph in a
-dedicated Browser canvas. The expanded view uses all nine tiers as interactive
-swimlanes with real directional SVG edges, pan, zoom, fit, search, tier filters,
-and draggable nodes constrained to their evidence-derived swimlane.
-Browser-local positions are keyed by app and a stable topology fingerprint, so
-a graph change gets a clean layout and never writes presentation state into the
-app. Single-click highlights one-hop relationships; double-click or keyboard
-Enter opens evidence, bindings, and authorized source, specialist, and
-ready-endpoint actions. A lane-level **Add** handoff opens its specialist studio
-or, after explicit confirmation, requests a source capability through the
-existing implementation workflow; Azure provisioning remains outside the map.
+dedicated Browser canvas.
+
+The expanded canvas defaults to **Request flow**, a stable left-to-right
+architecture diagram across Experience, Reasoning, Models & capabilities, and
+Connected systems. An Operations plane spans the path for telemetry, health,
+and management. Only components reachable through evidence-backed
+relationships from a discovered entry point appear on the flow; disconnected
+implementations and detailed workflow operations remain available in the
+secondary **Implementation** view rather than implying requests reach them.
+Multiple entry points can filter the visible request path.
+
+Both views support pan, zoom, fit, search, and tier filters. Selecting an edge
+explains the connection and its source evidence while stating that the diagram
+is not a live distributed trace. Documentation-only paths are explicitly
+labeled and rendered as low-confidence dashed connections. The Implementation view retains all nine tier
+swimlanes and draggable nodes constrained to their evidence-derived lane.
+Browser-local positions are keyed by app, mode, and a stable topology
+fingerprint, so graph changes get a clean layout and never write presentation
+state into the app. Single-click highlights one-hop relationships; double-click
+or keyboard Enter opens evidence, bindings, and authorized source, specialist,
+and ready-endpoint actions. A lane-level **Add** handoff opens its specialist
+studio or, after explicit confirmation, requests a source capability through
+the existing implementation workflow; Azure provisioning remains outside the map.
 The expansion action is an accessible
 Fluent-style icon in the map's top-right toolbar, with a tooltip and
 screen-reader label rather than another large text button.
+
+The expanded map opens on an **Action Center** that abstracts the platform into
+four user outcomes: **Build**, **Connect**, **Run**, and **Observe & manage**.
+The current source graph, unresolved relationships, local readiness, and runtime
+state determine stage progress and prioritized next actions. Guidance is
+progressive rather than generic: after Unity completes an action, **Refresh
+progress** retraces evidence and replaces the completed recommendation with the
+next applicable one. The Run stage uses existing readiness and lifecycle APIs
+so gateway hardening remains authoritative and merge-compatible.
+
+Observability is a first-class recommendation. When no SRE or telemetry evidence
+exists, **Set up observability** requests cross-tier, OpenTelemetry-compatible
+health instrumentation while cloud resource attachment remains an explicit
+specialist/deployment step. Partial instrumentation remains incomplete: the
+Action Center reports evidence-backed coverage across runtime components and
+recommends extending it across the remaining request path.
 
 Graph labels describe runtime roles rather than source-folder accidents. A
 gateway marker found in an agent project is rendered as an **AI Gateway
@@ -287,8 +316,9 @@ Future changes should preserve these invariants:
    gateway card now automatically runs the checked-in configuration hook after
    selection or provisioning, including a runtime-hostname fallback for
    preview gateway resources that do not expose `properties.gatewayUrl`.
-3. Add SRE attach/provision guidance and integrate SRE Agent Studio when it is
-   registered.
+3. Extend the Action Center's observability setup with direct SRE Agent and
+   Application Insights resource attachment when their specialist operations
+   are registered.
 4. Add lifecycle command logs, process status, and detected local endpoint or
    portal links.
 5. Define a future control-plane registration model without weakening the

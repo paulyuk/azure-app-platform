@@ -471,6 +471,44 @@ function addPlatformMetadata(nodes, files) {
   }
 }
 
+function addObservabilityMetadata(nodes, files) {
+  const telemetryExpression = /configure_azure_monitor|useAzureMonitor|AzureMonitor(?:Trace|Metric|Log)Exporter|["']@opentelemetry\/sdk-node["']|\bfrom\s+opentelemetry\.(?:sdk|instrumentation)|["']applicationInsights["']\s*:|(?:os\.environ(?:\.get)?|os\.getenv)\s*[\[(]\s*["'](?:APPLICATIONINSIGHTS_CONNECTION_STRING|OTEL_[A-Z_]+)|process\.env\.(?:APPLICATIONINSIGHTS_CONNECTION_STRING|OTEL_[A-Z_]+)|(?:getenv|GetEnvironmentVariable)\(\s*["'](?:APPLICATIONINSIGHTS_CONNECTION_STRING|OTEL_[A-Z_]+)|["'](?:APPLICATIONINSIGHTS_CONNECTION_STRING|OTEL_[A-Z_]+)["']\s*:|(?:export\s+|\$env:)(?:APPLICATIONINSIGHTS_CONNECTION_STRING|OTEL_[A-Z_]+)\s*=/i;
+  const isRuntimeConfiguration = (file) =>
+    /\.(?:py|mjs|cjs|js|jsx|ts|tsx|cs|java|go|rs|sh|ps1|bicep|tf|ya?ml)$/i.test(file.name) ||
+    /^(?:host|appsettings(?:\.[^.]+)?|local\.settings)\.json$/i.test(file.name);
+  const nestedProjectRoots = nodes
+    .filter((node) => node.kind === "project" && node.projectPath !== ".")
+    .map((node) => `${node.projectPath}/`);
+  for (const node of nodes.filter((candidate) =>
+    candidate.kind === "project" &&
+    !["gateway", "sre"].includes(candidate.tierId))) {
+    const ownedFiles = node.projectPath === "."
+      ? files.filter((file) => !nestedProjectRoots.some((root) => file.path.startsWith(root)))
+      : candidateFiles(node, files);
+    const match = ownedFiles
+      .filter(isRuntimeConfiguration)
+      .map((file) => ({ file, found: firstMatch(file, telemetryExpression) }))
+      .find((entry) => entry.found);
+    if (!match) continue;
+    const evidence = sourceEvidence(
+      match.file.path,
+      match.found.line,
+      "telemetry-configuration",
+      match.found.match[0],
+      "high",
+    );
+    node.badges ??= [];
+    node.details ??= [];
+    node.badges.push(platformBadge("Telemetry configured", "telemetry", evidence));
+    node.details.push({
+      kind: "telemetry",
+      label: "Operations",
+      value: "Telemetry configured",
+      evidence,
+    });
+  }
+}
+
 function addGatewayDetails(nodes, files) {
   const gateways = findNodes(nodes, "gateway");
   if (gateways.length === 0) return;
@@ -583,6 +621,7 @@ export async function traceApp({ root = process.cwd() } = {}) {
   addPlatformMetadata(nodes, files);
   addCrossTierEdges(nodes, files, edges, seen, unresolved);
   addGatewayDetails(nodes, files);
+  addObservabilityMetadata(nodes, files);
   addWorkflowOperations(nodes, files, edges, seen);
 
   return {

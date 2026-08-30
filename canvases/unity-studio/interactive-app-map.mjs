@@ -2,7 +2,41 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 
-const RENDERER_SCHEMA_VERSION = 2;
+const RENDERER_SCHEMA_VERSION = 3;
+const REQUEST_FLOW_GROUPS = [
+  {
+    id: "entry",
+    label: "Experience",
+    role: "Where a request enters the app",
+    tierIds: ["web"],
+  },
+  {
+    id: "reasoning",
+    label: "Reasoning",
+    role: "How the app understands and decides",
+    tierIds: ["agent"],
+  },
+  {
+    id: "capabilities",
+    label: "Models & capabilities",
+    role: "Model access and actions the agent can invoke",
+    tierIds: ["gateway", "skills", "workflows", "sandbox"],
+  },
+  {
+    id: "systems",
+    label: "Connected systems",
+    role: "Business systems and data used by the app",
+    tierIds: ["connectors", "data"],
+  },
+];
+const RUNTIME_TIERS = new Set([
+  "web",
+  "agent",
+  "skills",
+  "workflows",
+  "sandbox",
+  "connectors",
+]);
 
 function hash(value) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
@@ -30,6 +64,241 @@ export function appMapFingerprint(appMap) {
     ...appMap.edges.map((edge) => `edge:${edge.from}:${edge.to}:${edge.kind}`).sort(),
   ].join("\n");
   return hash(topology);
+}
+
+export function buildActionCenterModel(appMap) {
+  const tierIds = new Set(appMap.nodes.map((node) => node.tierId));
+  const nodeTiers = new Map(appMap.nodes.map((node) => [node.id, node.tierId]));
+  const hasTierEdge = (fromTier, toTier) => appMap.edges.some((edge) =>
+    nodeTiers.get(edge.from) === fromTier && nodeTiers.get(edge.to) === toTier);
+  const hasAgent = tierIds.has("agent");
+  const hasGateway = tierIds.has("gateway");
+  const hasSkills = tierIds.has("skills");
+  const hasWeb = tierIds.has("web");
+  const runtimeNodes = appMap.nodes.filter((node) =>
+    node.kind === "project" && RUNTIME_TIERS.has(node.tierId));
+  const instrumentedNodes = runtimeNodes.filter((node) =>
+    node.badges?.some((badge) => badge.kind === "telemetry"));
+  const hasSreImplementation = tierIds.has("sre");
+  const observabilityComplete = hasSreImplementation ||
+    (runtimeNodes.length > 0 && instrumentedNodes.length === runtimeNodes.length);
+  const hasObservability = hasSreImplementation || instrumentedNodes.length > 0;
+  const gatewayConnected = hasGateway && hasTierEdge("agent", "gateway");
+  const skillsConnected = !hasSkills || hasTierEdge("agent", "skills");
+  const unresolvedCount = appMap.unresolved?.length ?? 0;
+  const opportunities = [];
+
+  if (!hasAgent) {
+    opportunities.push({
+      id: "add-agent",
+      priority: "required",
+      stage: "build",
+      title: "Add your app's reasoning layer",
+      detail: "Unity did not find an agent yet. Describe what the app should accomplish and Unity will guide the implementation.",
+      action: { kind: "add-tier", tierId: "agent", label: "Add an agent" },
+    });
+  }
+  if (hasAgent && !hasSkills) {
+    opportunities.push({
+      id: "add-skill",
+      priority: "recommended",
+      stage: "build",
+      title: "Give the agent a real capability",
+      detail: "No callable Hosted Skill was found. Add one bounded business action so the agent can do more than generate text.",
+      action: { kind: "add-tier", tierId: "skills", label: "Add a capability" },
+    });
+  }
+  if (!hasWeb) {
+    opportunities.push({
+      id: "add-surface",
+      priority: "optional",
+      stage: "build",
+      title: "Add a user experience",
+      detail: "No application surface was found. Add one when people need a dedicated way to use this app.",
+      action: { kind: "add-tier", tierId: "web", label: "Add an app surface" },
+    });
+  }
+  if (hasAgent && !hasGateway) {
+    opportunities.push({
+      id: "add-gateway",
+      priority: "required",
+      stage: "connect",
+      title: "Connect governed model access",
+      detail: "The agent has no discovered AI Gateway binding. Unity can guide model connection, policy, identity, and quota setup.",
+      action: { kind: "add-tier", tierId: "gateway", label: "Connect AI models" },
+    });
+  } else if (hasAgent && !gatewayConnected) {
+    opportunities.push({
+      id: "connect-gateway",
+      priority: "required",
+      stage: "connect",
+      title: "Wire the agent to its model gateway",
+      detail: "A gateway was found, but Unity could not verify an agent-to-gateway relationship in source.",
+      action: { kind: "add-tier", tierId: "gateway", label: "Complete model connection" },
+    });
+  }
+  if (hasAgent && hasSkills && !skillsConnected) {
+    opportunities.push({
+      id: "connect-skills",
+      priority: "attention",
+      stage: "connect",
+      title: "Connect capabilities to the agent",
+      detail: "Hosted Skills were found, but Unity could not verify that the agent can call them.",
+      action: { kind: "add-tier", tierId: "skills", label: "Complete capability connection" },
+    });
+  }
+  if (unresolvedCount > 0) {
+    const first = appMap.unresolved[0];
+    opportunities.push({
+      id: "resolve-connections",
+      priority: "attention",
+      stage: "connect",
+      title: `Review ${unresolvedCount} uncertain ${unresolvedCount === 1 ? "connection" : "connections"}`,
+      detail: "Unity found source references whose destination is missing or ambiguous. Inspect the evidence before relying on these paths.",
+      action: { kind: "inspect-node", nodeId: first.from, label: "Review evidence" },
+    });
+  }
+  if (!hasObservability) {
+    opportunities.push({
+      id: "add-observability",
+      priority: "recommended",
+      stage: "observe",
+      title: "Make this app observable",
+      detail: "No telemetry or SRE implementation was found. Add health signals now so the app can explain failures after it is running.",
+      action: { kind: "add-tier", tierId: "sre", label: "Set up observability" },
+    });
+  } else if (!observabilityComplete) {
+    opportunities.push({
+      id: "extend-observability",
+      priority: "recommended",
+      stage: "observe",
+      title: "Complete observability coverage",
+      detail: `${instrumentedNodes.length} of ${runtimeNodes.length} runtime components have telemetry evidence. Extend the same operational view across the remaining request path.`,
+      action: { kind: "add-tier", tierId: "sre", label: "Extend observability" },
+    });
+  }
+
+  const priorityOrder = new Map([
+    ["required", 0],
+    ["attention", 1],
+    ["recommended", 2],
+    ["optional", 3],
+  ]);
+  opportunities.sort((left, right) =>
+    priorityOrder.get(left.priority) - priorityOrder.get(right.priority));
+
+  return {
+    stages: [
+      {
+        id: "build",
+        label: "Build",
+        state: hasAgent ? "complete" : "next",
+        detail: hasAgent ? "Agent foundation discovered" : "Add an agent foundation",
+      },
+      {
+        id: "connect",
+        label: "Connect",
+        state: hasAgent && gatewayConnected && skillsConnected && unresolvedCount === 0 ? "complete" : hasAgent ? "next" : "blocked",
+        detail: gatewayConnected && skillsConnected
+          ? unresolvedCount === 0 ? "Core connections discovered" : "Review uncertain connections"
+          : "Connect models and capabilities",
+      },
+      {
+        id: "run",
+        label: "Run",
+        state: "runtime",
+        detail: "Checking local readiness",
+      },
+      {
+        id: "observe",
+        label: "Observe & manage",
+        state: observabilityComplete ? "complete" : "next",
+        detail: observabilityComplete
+          ? "Operational signals cover the app"
+          : hasObservability ? "Extend signals across the request path" : "Add telemetry and health",
+      },
+    ],
+    opportunities,
+  };
+}
+
+function flowEdgePresentation(edge, nodeTiers) {
+  const documentationOnly = (edge.evidence ?? []).length > 0 &&
+    edge.evidence.every((item) => /(?:^|\/)(?:README|docs?\/)|\.md$/i.test(item.path));
+  const pair = `${nodeTiers.get(edge.from)}:${nodeTiers.get(edge.to)}`;
+  const known = {
+    "web:agent": { label: "Request", step: 1 },
+    "agent:gateway": { label: "Model request", step: 2 },
+    "agent:skills": { label: "Tool call", step: 2 },
+    "agent:workflows": { label: "Workflow", step: 2 },
+    "agent:sandbox": { label: "Sandbox task", step: 2 },
+    "skills:connectors": { label: "System call", step: 3 },
+    "skills:data": { label: "Data access", step: 3 },
+    "workflows:connectors": { label: "System call", step: 3 },
+    "workflows:data": { label: "Data access", step: 3 },
+  }[pair];
+  const presentation = known ?? {
+    label: edge.kind.replaceAll("-", " "),
+    step: null,
+  };
+  return {
+    ...presentation,
+    label: documentationOnly ? `Documented ${presentation.label.toLowerCase()}` : presentation.label,
+    confidence: documentationOnly ? "low" : edge.confidence,
+    evidenceKind: documentationOnly ? "documentation" : "source",
+  };
+}
+
+export function buildRequestFlowModel(appMap) {
+  const visibleNodes = appMap.nodes.filter((node) => node.kind !== "operation");
+  const nodeTiers = new Map(appMap.nodes.map((node) => [node.id, node.tierId]));
+  const entrypointIds = visibleNodes
+    .filter((node) => node.tierId === "web")
+    .map((node) => node.id);
+  if (entrypointIds.length === 0) {
+    entrypointIds.push(...visibleNodes
+      .filter((node) => node.tierId === "agent")
+      .map((node) => node.id));
+  }
+  const reachable = new Set(entrypointIds);
+  const queue = [...entrypointIds];
+  while (queue.length) {
+    const current = queue.shift();
+    for (const edge of appMap.edges.filter((candidate) => candidate.from === current)) {
+      if (reachable.has(edge.to)) continue;
+      reachable.add(edge.to);
+      queue.push(edge.to);
+    }
+  }
+  const pathNodes = visibleNodes.filter((node) =>
+    reachable.has(node.id) || node.tierId === "sre");
+  const pathNodeIds = new Set(pathNodes.map((node) => node.id));
+  const groups = REQUEST_FLOW_GROUPS.map((group) => ({
+    ...group,
+    nodeIds: pathNodes
+      .filter((node) => group.tierIds.includes(node.tierId))
+      .map((node) => node.id),
+  }));
+  const operations = pathNodes
+    .filter((node) => node.tierId === "sre")
+    .map((node) => node.id);
+  const telemetryNodeIds = pathNodes
+    .filter((node) => node.badges?.some((badge) => badge.kind === "telemetry"))
+    .map((node) => node.id);
+  const edges = appMap.edges
+    .filter((edge) => pathNodeIds.has(edge.from) && pathNodeIds.has(edge.to))
+    .map((edge) => ({ id: edge.id, ...flowEdgePresentation(edge, nodeTiers) }));
+  return {
+    groups,
+    operations,
+    telemetryNodeIds,
+    nodeIds: [...pathNodeIds],
+    unconnectedNodeIds: visibleNodes
+      .filter((node) => !pathNodeIds.has(node.id))
+      .map((node) => node.id),
+    entrypointIds,
+    edges,
+  };
 }
 
 export function buildInteractiveAppMapModel(appMap) {
@@ -70,6 +339,7 @@ export function buildInteractiveAppMapModel(appMap) {
     role: tier.role,
     jobToBeDone: tier.jobToBeDone,
     scaffold: tier.scaffold,
+    hasSpecialistStudio: tier.preferredCanvases.length > 0,
     nodeIds: nodes.filter((node) => node.tierId === tier.id).map((node) => node.id),
   }));
   const fingerprint = appMapFingerprint({ nodes, edges });
@@ -81,8 +351,10 @@ export function buildInteractiveAppMapModel(appMap) {
     tiers,
     nodes,
     edges,
+    requestFlow: buildRequestFlowModel(appMap),
     unresolved: appMap.unresolved ?? [],
     diagnostics: appMap.diagnostics ?? [],
+    actionCenter: buildActionCenterModel(appMap),
     fingerprint,
     layoutKey: `unity-studio:app-map-layout:v${RENDERER_SCHEMA_VERSION}:${hash(appMap.root)}:${fingerprint}`,
   };
@@ -177,7 +449,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     .icon-group button { border-radius: 0; min-width: 34px; }
     .icon-group button:first-child { border-radius: 4px 0 0 4px; }
     .icon-group button:last-child { border-radius: 0 4px 4px 0; }
-    main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+    .view-toggle button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+    #entry-filter[hidden] { display: none; }
+    main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
     #graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
     #graph.panning { cursor: grabbing; }
@@ -189,17 +463,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     .lane-add rect { fill: var(--surface-muted); stroke: var(--border); }
     .lane-add text { fill: var(--accent); font-size: 10px; font-weight: 650; pointer-events: none; }
     .lane-add:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
+    .flow-region > rect { fill: var(--surface); stroke: var(--border); }
+    .flow-region.operations > rect { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 7 5; }
+    .flow-region-title { fill: var(--text); font-size: 14px; font-weight: 650; }
+    .flow-region-role { fill: var(--muted); font-size: 10px; }
     .edge { color: var(--edge-medium); }
     .edge.high { color: var(--edge-high); }
     .edge.low { color: var(--edge-low); }
-    .edge path { fill: none; stroke: currentColor; stroke-width: 2; }
+    .edge path { fill: none; stroke: currentColor; stroke-width: 2; pointer-events: stroke; cursor: pointer; }
     .edge.medium path { stroke-dasharray: 9 5; }
     .edge.low path { stroke-dasharray: 3 6; }
     .edge text {
       fill: currentColor; font-size: 10px; font-weight: 600;
-      paint-order: stroke; stroke: var(--surface-muted); stroke-width: 4px; stroke-linejoin: round;
+      paint-order: stroke; stroke: var(--surface-muted); stroke-width: 4px; stroke-linejoin: round; cursor: pointer;
     }
-    .node { cursor: ns-resize; }
+    .edge:focus-visible path, .edge.selected path { stroke: var(--focus); stroke-width: 4; }
+    .node { cursor: pointer; }
+    body.implementation-view .node { cursor: ns-resize; }
     .node rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .12)); }
     .node.project rect { stroke: var(--accent); }
     .node:focus-visible rect { stroke: var(--focus); stroke-width: 3; }
@@ -207,6 +487,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     .node-title { fill: var(--text); font-size: 13px; font-weight: 650; }
     .node-meta { fill: var(--muted); font-size: 10px; }
     .node-badge { fill: var(--accent); font-size: 9px; font-weight: 600; }
+    .node-tier { fill: var(--accent); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .muted { opacity: .18; }
     .hidden { display: none; }
     #empty-state {
@@ -220,6 +501,30 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     aside code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
     aside ul { margin: 4px 0; padding-left: 18px; }
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
+    .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
+    .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 20px; }
+    .journey-stage { min-height: 68px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); }
+    .journey-stage strong { display: block; font-size: 12px; }
+    .journey-stage small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .journey-state { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .journey-state::before { width: 7px; height: 7px; border-radius: 50%; background: var(--border); content: ""; }
+    .journey-stage.complete .journey-state { color: #107c10; }
+    .journey-stage.complete .journey-state::before { background: #107c10; }
+    .journey-stage.next .journey-state, .journey-stage.ready .journey-state { color: var(--accent); }
+    .journey-stage.next .journey-state::before, .journey-stage.ready .journey-state::before { background: var(--accent); }
+    .journey-stage.running .journey-state { color: #107c10; }
+    .journey-stage.running .journey-state::before { background: #107c10; box-shadow: 0 0 0 3px rgb(16 124 16 / .18); }
+    .action-list { display: grid; gap: 9px; }
+    .action-card { padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    .action-card.required { border-left: 4px solid var(--danger); }
+    .action-card.attention { border-left: 4px solid #ca5010; }
+    .action-card.recommended { border-left: 4px solid var(--accent); }
+    .action-card.optional { border-left: 4px solid var(--border); }
+    .action-card strong { display: block; font-size: 13px; }
+    .action-card p { margin: 5px 0 9px; font-size: 11px; }
+    .action-priority { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .action-card button { min-height: 28px; font-size: 11px; }
+    .run-card { margin-bottom: 14px; }
     .detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
@@ -246,6 +551,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       <p title="${escapeHtml(model.root)}">${escapeHtml(model.root)}</p>
     </div>
     <div class="toolbar" role="toolbar" aria-label="App Map controls">
+      <div class="icon-group view-toggle" aria-label="Map view">
+        <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
+        <button id="implementation-view" type="button" aria-pressed="false">Implementation</button>
+      </div>
+      <label><span class="visually-hidden">Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
       <label><span class="visually-hidden">Search nodes</span><input id="search" type="search" placeholder="Search components…" aria-label="Search nodes"></label>
       <label><span class="visually-hidden">Filter by tier</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All tiers</option>${tierOptions}</select></label>
       <div class="icon-group" aria-label="Zoom controls">
@@ -253,7 +563,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
       </div>
       <button id="fit" type="button">Fit</button>
-      <button id="reset-layout" type="button">Reset layout</button>
+      <button id="reset-layout" type="button">Reset view</button>
+      <button id="action-center" type="button">Action Center</button>
     </div>
   </header>
   <main>
@@ -272,16 +583,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       </svg>
       <div id="empty-state">No nodes match the current filters.</div>
     </div>
-    <aside id="details" aria-live="polite" data-empty="true">
-      <h2>Inspect the graph</h2>
-      <p>Select a node to highlight its immediate relationships. Double-click it, or press Enter while it has keyboard focus, to inspect evidence and safe actions.</p>
-      <h3>Legend</h3>
-      <p>Solid edges are high confidence, dashed edges are medium confidence, and dotted edges are low confidence. Arrowheads show relationship direction.</p>
-    </aside>
+    <aside id="details" aria-live="polite" data-empty="false"></aside>
   </main>
   <footer>
     <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
-    <span>Source-derived map · not runtime health</span>
+    <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
   </footer>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
@@ -297,6 +603,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     const NODE_HEIGHT = 96;
     const NODE_STEP = 122;
     const MIN_WORLD_HEIGHT = 680;
+    const FLOW_REGION_GAP = 34;
+    const FLOW_CARD_GAP = 18;
     const svg = document.querySelector("#graph");
     const viewport = document.querySelector("#viewport");
     const lanesLayer = document.querySelector("#lanes");
@@ -304,22 +612,35 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     const nodesLayer = document.querySelector("#nodes");
     const details = document.querySelector("#details");
     const status = document.querySelector("#status");
+    const mapContext = document.querySelector("#map-context");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
+    const entryFilter = document.querySelector("#entry-filter");
+    const requestFlowButton = document.querySelector("#request-flow-view");
+    const implementationButton = document.querySelector("#implementation-view");
+    const resetLayoutButton = document.querySelector("#reset-layout");
     const nodeById = new Map(MODEL.nodes.map((node) => [node.id, node]));
+    const tierById = new Map(MODEL.tiers.map((tier) => [tier.id, tier]));
+    const flowEdgeById = new Map(MODEL.requestFlow.edges.map((edge) => [edge.id, edge]));
     const nodeElements = new Map();
     const edgeElements = new Map();
     const positions = new Map();
     const defaultPositions = new Map();
     let runtimeEntrypoints = [];
+    let operationalState = { app: null, readiness: null };
+    let operationalFingerprint = "";
+    let lifecycleOperation = null;
+    let layoutMode = "request-flow";
+    let panelMode = "action-center";
     let selectedId = null;
+    let selectedEdgeId = null;
     let panState = null;
     let dragState = null;
     let transform = { x: 0, y: 0, scale: 1 };
 
     const maxTierNodes = Math.max(1, ...MODEL.tiers.map((tier) => tier.nodeIds.length));
-    const worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
-    const worldHeight = Math.max(MIN_WORLD_HEIGHT, LANE_HEADER + 40 + maxTierNodes * NODE_STEP);
+    let worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
+    let worldHeight = Math.max(MIN_WORLD_HEIGHT, LANE_HEADER + 40 + maxTierNodes * NODE_STEP);
 
     function svgElement(name, attributes = {}) {
       const element = document.createElementNS(NS, name);
@@ -357,7 +678,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       status.classList.toggle("error", isError);
     }
 
-    function initialPositions() {
+    function implementationLayout() {
+      worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
+      worldHeight = Math.max(MIN_WORLD_HEIGHT, LANE_HEADER + 40 + maxTierNodes * NODE_STEP);
       MODEL.tiers.forEach((tier, tierIndex) => {
         tier.nodeIds.forEach((nodeId, nodeIndex) => {
           defaultPositions.set(nodeId, {
@@ -367,19 +690,73 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         });
       });
       let saved = {};
+      const storageKey = MODEL.layoutKey + ":implementation";
       try {
-        saved = JSON.parse(localStorage.getItem(MODEL.layoutKey) || "{}");
+        saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
       } catch {
-        localStorage.removeItem(MODEL.layoutKey);
+        localStorage.removeItem(storageKey);
       }
       for (const node of MODEL.nodes) {
         const candidate = saved[node.id];
         const fallback = defaultPositions.get(node.id);
-        positions.set(
+        positions.set(node.id, constrainPosition(
           node.id,
-          constrainPosition(node.id, Number.isFinite(candidate?.y) ? candidate : fallback),
-        );
+          Number.isFinite(candidate?.y) ? candidate : fallback,
+        ));
       }
+    }
+
+    function requestFlowLayout() {
+      const maxGroupRows = Math.max(1, ...MODEL.requestFlow.groups.map((group) =>
+        Math.ceil(group.nodeIds.length / flowGroupColumns(group))));
+      const flowBodyHeight = Math.max(500, LANE_HEADER + 48 + maxGroupRows * NODE_STEP);
+      const operationRows = Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4));
+      const operationsHeight = 72 + operationRows * NODE_STEP;
+      worldWidth = WORLD_PADDING * 2 +
+        MODEL.requestFlow.groups.reduce((total, group) => total + flowGroupWidth(group), 0) +
+        (MODEL.requestFlow.groups.length - 1) * FLOW_REGION_GAP;
+      worldHeight = flowBodyHeight + operationsHeight + FLOW_REGION_GAP + WORLD_PADDING;
+      MODEL.requestFlow.groups.forEach((group, groupIndex) => {
+        group.nodeIds.forEach((nodeId, nodeIndex) => {
+          const columns = flowGroupColumns(group);
+          const column = nodeIndex % columns;
+          const row = Math.floor(nodeIndex / columns);
+          defaultPositions.set(nodeId, {
+            x: flowGroupX(groupIndex) + 32 + column * (NODE_WIDTH + FLOW_CARD_GAP),
+            y: LANE_HEADER + 44 + row * NODE_STEP,
+          });
+        });
+      });
+      MODEL.requestFlow.operations.forEach((nodeId, nodeIndex) => {
+        const column = nodeIndex % 4;
+        const row = Math.floor(nodeIndex / 4);
+        const slotWidth = (worldWidth - WORLD_PADDING * 2) / 4;
+        defaultPositions.set(nodeId, {
+          x: WORLD_PADDING + column * slotWidth + (slotWidth - NODE_WIDTH) / 2,
+          y: flowBodyHeight + FLOW_REGION_GAP + 52 + row * NODE_STEP,
+        });
+      });
+      for (const node of MODEL.nodes) {
+        positions.set(node.id, defaultPositions.get(node.id) || {
+          x: WORLD_PADDING,
+          y: worldHeight - WORLD_PADDING - NODE_HEIGHT,
+        });
+      }
+    }
+
+    function flowGroupColumns(group) {
+      return group.nodeIds.length > 4 ? 2 : 1;
+    }
+
+    function flowGroupWidth(group) {
+      const columns = flowGroupColumns(group);
+      return columns * NODE_WIDTH + (columns - 1) * FLOW_CARD_GAP + 64;
+    }
+
+    function flowGroupX(groupIndex) {
+      return WORLD_PADDING + MODEL.requestFlow.groups
+        .slice(0, groupIndex)
+        .reduce((x, group) => x + flowGroupWidth(group) + FLOW_REGION_GAP, 0);
     }
 
     function constrainPosition(nodeId, point) {
@@ -395,7 +772,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         x: Math.round(point.x * 10) / 10,
         y: Math.round(point.y * 10) / 10,
       }]));
-      localStorage.setItem(MODEL.layoutKey, JSON.stringify(serialized));
+      localStorage.setItem(MODEL.layoutKey + ":implementation", JSON.stringify(serialized));
     }
 
     function renderLanes() {
@@ -434,6 +811,57 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       });
     }
 
+    function renderFlowRegions() {
+      const operationsY = worldHeight -
+        (72 + Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4)) * NODE_STEP) -
+        WORLD_PADDING;
+      MODEL.requestFlow.groups.forEach((group, index) => {
+        const x = flowGroupX(index);
+        const region = svgElement("g", { class: "flow-region", "data-flow-group": group.id });
+        region.append(svgElement("rect", {
+          x,
+          y: WORLD_PADDING,
+          width: flowGroupWidth(group),
+          height: operationsY - FLOW_REGION_GAP - WORLD_PADDING,
+          rx: 10,
+        }));
+        const title = svgElement("text", { x: x + 16, y: WORLD_PADDING + 25, class: "flow-region-title" });
+        title.textContent = (index + 1) + ". " + group.label;
+        region.append(title);
+        const role = svgElement("text", { x: x + 16, y: WORLD_PADDING + 44, class: "flow-region-role" });
+        role.textContent = shorten(group.role, 40);
+        region.append(role);
+        lanesLayer.append(region);
+      });
+      const operations = svgElement("g", { class: "flow-region operations" });
+      operations.append(svgElement("rect", {
+        x: WORLD_PADDING,
+        y: operationsY,
+        width: worldWidth - WORLD_PADDING * 2,
+        height: worldHeight - operationsY - WORLD_PADDING,
+        rx: 10,
+      }));
+      const title = svgElement("text", {
+        x: WORLD_PADDING + 16,
+        y: operationsY + 25,
+        class: "flow-region-title",
+      });
+      title.textContent = "Operations across the request path";
+      operations.append(title);
+      const role = svgElement("text", {
+        x: WORLD_PADDING + 270,
+        y: operationsY + 25,
+        class: "flow-region-role",
+      });
+      role.textContent = MODEL.requestFlow.operations.length
+        ? "Telemetry, health, and management"
+        : MODEL.requestFlow.telemetryNodeIds.length
+          ? "Telemetry evidence on " + MODEL.requestFlow.telemetryNodeIds.length + " components"
+          : "No operational implementation discovered yet";
+      operations.append(role);
+      lanesLayer.append(operations);
+    }
+
     function renderNodes() {
       for (const node of MODEL.nodes) {
         const group = svgElement("g", {
@@ -450,7 +878,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         const name = svgElement("text", { x: 12, y: 23, class: "node-title" });
         name.textContent = shorten(node.name, 27);
         group.append(name);
-        const kind = svgElement("text", { x: 12, y: 42, class: "node-meta" });
+        const kind = svgElement("text", { x: 12, y: 42, class: "node-meta", "data-role": "kind" });
         kind.textContent = humanize(node.kind) + " · " + node.confidence + " confidence";
         group.append(kind);
         const project = svgElement("text", { x: 12, y: 61, class: "node-meta" });
@@ -475,6 +903,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         group.addEventListener("pointerdown", (event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
+          if (layoutMode !== "implementation") return;
           const point = worldPoint(event);
           const position = positions.get(node.id);
           dragState = {
@@ -495,6 +924,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       for (const edge of MODEL.edges) {
         const group = svgElement("g", {
           class: "edge " + edge.confidence,
+          tabindex: "0",
+          role: "button",
           "data-edge-id": edge.id,
           "aria-label": humanize(edge.kind) + ", " + edge.confidence + " confidence",
         });
@@ -502,9 +933,72 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         const label = svgElement("text", { "text-anchor": "middle" });
         label.textContent = humanize(edge.kind) + " · " + edge.confidence;
         group.append(label);
+        group.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectEdge(edge.id);
+        });
+        group.addEventListener("pointerdown", (event) => event.stopPropagation());
+        group.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          selectEdge(edge.id);
+        });
         edgesLayer.append(group);
         edgeElements.set(edge.id, group);
       }
+    }
+
+    function updatePresentation() {
+      document.body.classList.toggle("implementation-view", layoutMode === "implementation");
+      requestFlowButton.setAttribute("aria-pressed", String(layoutMode === "request-flow"));
+      implementationButton.setAttribute("aria-pressed", String(layoutMode === "implementation"));
+      entryFilter.hidden = layoutMode !== "request-flow" || MODEL.requestFlow.entrypointIds.length < 2;
+      resetLayoutButton.textContent = layoutMode === "request-flow" ? "Reset view" : "Reset layout";
+      mapContext.textContent = layoutMode === "request-flow"
+        ? "Evidence-backed request flow · dashed paths need confirmation"
+        : "Source-derived implementation inventory · not runtime health";
+      for (const node of MODEL.nodes) {
+        const element = nodeElements.get(node.id);
+        const kind = element.querySelector('[data-role="kind"]');
+        const tier = tierById.get(node.tierId);
+        kind.textContent = layoutMode === "request-flow"
+          ? (tier?.name || node.tierId) + " · " + node.confidence + " confidence"
+          : humanize(node.kind) + " · " + node.confidence + " confidence";
+      }
+      for (const edge of MODEL.edges) {
+        const group = edgeElements.get(edge.id);
+        const label = edgeElements.get(edge.id).querySelector("text");
+        const flow = flowEdgeById.get(edge.id);
+        const confidence = layoutMode === "request-flow" && flow
+          ? flow.confidence
+          : edge.confidence;
+        group.classList.remove("high", "medium", "low");
+        group.classList.add(confidence);
+        group.querySelector("path").setAttribute("marker-end", "url(#arrow-" + confidence + ")");
+        label.textContent = layoutMode === "request-flow" && flow
+          ? (flow.step ? flow.step + ". " : "") + flow.label
+          : humanize(edge.kind) + " · " + edge.confidence;
+      }
+    }
+
+    function applyLayout(nextMode, shouldFit = true) {
+      layoutMode = nextMode;
+      defaultPositions.clear();
+      positions.clear();
+      clearElement(lanesLayer);
+      if (layoutMode === "request-flow") {
+        requestFlowLayout();
+        renderFlowRegions();
+      } else {
+        implementationLayout();
+        renderLanes();
+      }
+      selectedId = null;
+      selectedEdgeId = null;
+      updatePresentation();
+      updateGeometry();
+      applyFilters();
+      if (shouldFit) requestAnimationFrame(() => fitGraph(layoutMode === "request-flow" ? .48 : .58));
     }
 
     function edgeGeometry(edge) {
@@ -568,11 +1062,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       const connected = selectedId ? connectedIds(selectedId) : null;
       for (const [nodeId, element] of nodeElements) {
         element.classList.toggle("selected", nodeId === selectedId);
-        element.classList.toggle("muted", Boolean(connected) && !connected.has(nodeId));
+        const edge = selectedEdgeId
+          ? MODEL.edges.find((candidate) => candidate.id === selectedEdgeId)
+          : null;
+        element.classList.toggle(
+          "muted",
+          Boolean(connected) && !connected.has(nodeId) ||
+            Boolean(edge) && edge.from !== nodeId && edge.to !== nodeId,
+        );
       }
       for (const edge of MODEL.edges) {
         const element = edgeElements.get(edge.id);
-        element.classList.toggle("muted", Boolean(selectedId) && edge.from !== selectedId && edge.to !== selectedId);
+        element.classList.toggle("selected", edge.id === selectedEdgeId);
+        element.classList.toggle(
+          "muted",
+          Boolean(selectedId) && edge.from !== selectedId && edge.to !== selectedId ||
+            Boolean(selectedEdgeId) && edge.id !== selectedEdgeId,
+        );
       }
     }
 
@@ -607,6 +1113,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       return button;
     }
 
+    function keyedActionButton(key, label, handler, primary = false) {
+      const button = actionButton(label, handler, primary);
+      button.dataset.actionKey = key;
+      return button;
+    }
+
+    function appendPanelBack() {
+      const button = actionButton("← Action Center", renderActionCenter);
+      button.className = "panel-back";
+      details.append(button);
+    }
+
     async function apiRequest(path, options = {}) {
       const response = await fetch(path, {
         ...options,
@@ -631,6 +1149,214 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       });
     }
 
+    function effectiveJourneyStages() {
+      return MODEL.actionCenter.stages.map((stage) => {
+        if (stage.id !== "run") return stage;
+        const appState = operationalState.app?.state;
+        if (appState === "running") {
+          return { ...stage, state: "running", detail: "App is running locally" };
+        }
+        if (["starting", "stopping", "configuring", "provisioning", "deploying"].includes(appState)) {
+          return { ...stage, state: "next", detail: humanize(appState) + " in progress" };
+        }
+        if (operationalState.readiness?.ready) {
+          return { ...stage, state: "ready", detail: "Ready to run locally" };
+        }
+        if (operationalState.readiness) {
+          return { ...stage, state: "next", detail: "Finish guided setup" };
+        }
+        return stage;
+      });
+    }
+
+    async function runAppOperation(operation) {
+      if (lifecycleOperation) return;
+      lifecycleOperation = operation;
+      const labels = {
+        "run-local": "Starting app…",
+        "stop-local": "Stopping app…",
+      };
+      setStatus(labels[operation] || "Updating app…");
+      operationalState = {
+        ...operationalState,
+        app: {
+          ...(operationalState.app || {}),
+          state: operation === "run-local" ? "starting" : "stopping",
+        },
+      };
+      operationalFingerprint = "optimistic:" + operation;
+      if (panelMode === "action-center") renderActionCenter();
+      try {
+        await apiRequest("/api/app-command", {
+          method: "POST",
+          body: JSON.stringify({ root: MODEL.root, operation }),
+        });
+        await refreshOperationalState();
+      } catch (error) {
+        setStatus(error.message, true);
+        await refreshOperationalState();
+      } finally {
+        lifecycleOperation = null;
+      }
+    }
+
+    function renderRuntimeAction(parent) {
+      const card = document.createElement("div");
+      const appState = operationalState.app?.state;
+      card.className = "action-card run-card " + (appState === "running" ? "recommended" : "optional");
+      appendText(card, "span", "Run", "action-priority");
+      if (appState === "running") {
+        appendText(card, "strong", "Your app is running");
+        appendText(card, "p", "Open a ready endpoint to try it, or stop the local app when you are finished.");
+        const web = runtimeEntrypoints.find((entrypoint) =>
+          entrypoint.ready && normalized(entrypoint.name) === "web");
+        if (web) {
+          card.append(keyedActionButton("open-app", "Open app", async () => {
+            try {
+              await apiRequest("/api/open-entrypoint", {
+                method: "POST",
+                body: JSON.stringify({ root: MODEL.root, port: web.port }),
+              });
+              setStatus("Opened the local app.");
+            } catch (error) {
+              setStatus(error.message, true);
+            }
+          }, true));
+        }
+        card.append(keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
+      } else if (["starting", "stopping", "configuring", "provisioning", "deploying"].includes(appState)) {
+        appendText(card, "strong", humanize(appState) + " in progress");
+        appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
+      } else if (operationalState.readiness?.ready) {
+        appendText(card, "strong", "Ready to try");
+        appendText(card, "p", "Required local configuration was found. Unity can start the complete app for you.");
+        card.append(keyedActionButton("run-app", "Run app", () => runAppOperation("run-local"), true));
+      } else if (operationalState.readiness) {
+        appendText(card, "strong", "Finish setup before running");
+        appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
+        card.append(keyedActionButton("finish-setup", "Finish setup", () => {
+          const gateway = MODEL.tiers.find((tier) => tier.id === "gateway");
+          renderTierAddPanel(gateway);
+        }, true));
+      } else {
+        appendText(card, "strong", "Checking app status");
+        appendText(card, "p", "Unity is checking what is ready and what still needs setup.");
+      }
+      parent.append(card);
+    }
+
+    function runOpportunityAction(opportunity) {
+      if (opportunity.action.kind === "add-tier") {
+        const tier = MODEL.tiers.find((candidate) => candidate.id === opportunity.action.tierId);
+        if (tier) renderTierAddPanel(tier);
+        return;
+      }
+      if (opportunity.action.kind === "inspect-node" && nodeById.has(opportunity.action.nodeId)) {
+        if (layoutMode === "request-flow" && !MODEL.requestFlow.nodeIds.includes(opportunity.action.nodeId)) {
+          applyLayout("implementation");
+        }
+        selectNode(opportunity.action.nodeId, true);
+      }
+    }
+
+    function renderActionCenter() {
+      const restoreFocus = details.contains(document.activeElement);
+      const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
+      const previousScrollTop = details.scrollTop;
+      panelMode = "action-center";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      const heading = appendText(details, "h2", "Action Center");
+      heading.tabIndex = -1;
+      appendText(details, "p", "Unity uses the app's current evidence and readiness to recommend the next useful step. Complete an action, then refresh progress to get updated guidance.");
+      const progressActions = document.createElement("div");
+      progressActions.className = "actions";
+      progressActions.append(keyedActionButton("refresh-progress", "Refresh progress", () => location.reload(), true));
+      details.append(progressActions);
+
+      const journey = document.createElement("div");
+      journey.className = "journey";
+      for (const stage of effectiveJourneyStages()) {
+        const item = document.createElement("div");
+        item.className = "journey-stage " + stage.state;
+        appendText(item, "span", stage.state === "complete" || stage.state === "running"
+          ? "Complete"
+          : stage.state === "ready" ? "Ready" : stage.state === "blocked" ? "Later" : "Next", "journey-state");
+        appendText(item, "strong", stage.label);
+        appendText(item, "small", stage.detail);
+        journey.append(item);
+      }
+      details.append(journey);
+
+      renderRuntimeAction(details);
+      appendText(details, "h3", "Recommended next steps");
+      const list = document.createElement("div");
+      list.className = "action-list";
+      if (MODEL.actionCenter.opportunities.length === 0) {
+        const complete = document.createElement("div");
+        complete.className = "action-card recommended";
+        appendText(complete, "strong", "Core app journey is covered");
+        appendText(complete, "p", "Unity found implementation, connections, and operational signals. Inspect any component to continue managing it.");
+        list.append(complete);
+      }
+      for (const opportunity of MODEL.actionCenter.opportunities) {
+        const card = document.createElement("div");
+        card.className = "action-card " + opportunity.priority;
+        appendText(card, "span", opportunity.priority, "action-priority");
+        appendText(card, "strong", opportunity.title);
+        appendText(card, "p", opportunity.detail);
+        card.append(keyedActionButton(
+          "opportunity-" + opportunity.id,
+          opportunity.action.label,
+          () => runOpportunityAction(opportunity),
+          opportunity.priority === "required" || opportunity.id === "add-observability",
+        ));
+        list.append(card);
+      }
+      details.append(list);
+      details.scrollTop = previousScrollTop;
+      if (restoreFocus) {
+        const replacement = focusedAction
+          ? [...details.querySelectorAll("[data-action-key]")]
+            .find((element) => element.dataset.actionKey === focusedAction)
+          : null;
+        (replacement || heading).focus({ preventScroll: true });
+      }
+    }
+
+    async function refreshOperationalState() {
+      try {
+        const [app, readiness] = await Promise.all([
+          apiRequest("/api/app-status?root=" + encodeURIComponent(MODEL.root)),
+          apiRequest("/api/local-readiness?root=" + encodeURIComponent(MODEL.root)),
+        ]);
+        const nextFingerprint = JSON.stringify({
+          state: app.state,
+          ready: readiness.ready,
+          guidance: readiness.guidance,
+          entrypoints: (app.entrypoints || []).map((entrypoint) => [
+            entrypoint.name,
+            entrypoint.port,
+            entrypoint.ready,
+          ]),
+        });
+        const changed = nextFingerprint !== operationalFingerprint;
+        operationalFingerprint = nextFingerprint;
+        operationalState = { app, readiness };
+        runtimeEntrypoints = app.entrypoints || [];
+        if (changed && panelMode === "action-center") renderActionCenter();
+      } catch {
+        const changed = operationalFingerprint !== "unavailable";
+        operationalFingerprint = "unavailable";
+        operationalState = { app: null, readiness: null };
+        runtimeEntrypoints = [];
+        if (changed && panelMode === "action-center") renderActionCenter();
+      }
+    }
+
     async function openTierStudio(tier) {
       try {
         const result = await apiRequest("/api/tier-action", {
@@ -651,15 +1377,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     }
 
     function renderTierAddPanel(tier, confirming = false, tierResult = null) {
+      panelMode = "tier";
       selectedId = null;
+      selectedEdgeId = null;
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
+      appendPanelBack();
       appendText(details, "h2", "Add to " + tier.name);
       appendText(
         details,
         "p",
-        "Add a source-backed Unity capability in this lane, or open its specialist studio for existing and provisioned resources. App Map creates a card only after new source evidence is discovered.",
+        "Tell Unity what outcome you need. It will guide the source and cloud setup behind this lane, or open the focused studio for an existing resource.",
       );
       appendText(details, "h3", "Tier purpose");
       appendText(details, "p", tier.jobToBeDone || tier.role);
@@ -678,13 +1407,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         appendText(
           details,
           "p",
-          "This sends an implementation request to the current Copilot session and may modify app source. It does not provision or deploy Azure resources.",
+          "Unity will update this app's implementation and configuration. This step does not provision or deploy Azure resources.",
         );
       }
 
       const actions = document.createElement("div");
       actions.className = "actions";
-      actions.append(actionButton("Open tier studio", () => openTierStudio(tier), true));
+      actions.append(actionButton(
+        tier.hasSpecialistStudio ? "Open guided setup" : "Check existing implementations",
+        () => openTierStudio(tier),
+        true,
+      ));
       if (confirming) {
         const confirmButton = actionButton("Confirm capability request", async () => {
           if (confirmButton.disabled) return;
@@ -696,8 +1429,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
               body: JSON.stringify({ root: MODEL.root, tierId: tier.id, intent: "add" }),
             });
             clearElement(details);
+            appendPanelBack();
             appendText(details, "h2", "Capability request sent");
-            appendText(details, "p", "The current Copilot session will implement the source capability. Refresh App Map after the work completes to discover its evidence-backed node and relationships.");
+            appendText(details, "p", "Unity is implementing this capability. When it completes, refresh progress to discover the new evidence and receive the next tailored recommendation.");
+            const nextActions = document.createElement("div");
+            nextActions.className = "actions";
+            nextActions.append(actionButton("Refresh progress", () => location.reload(), true));
+            details.append(nextActions);
             setStatus("Requested a new " + tier.name + " source capability.");
           } catch (error) {
             for (const button of actions.querySelectorAll("button")) button.disabled = false;
@@ -707,14 +1445,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         actions.append(confirmButton);
         actions.append(actionButton("Cancel", () => renderTierAddPanel(tier)));
       } else {
-        actions.append(actionButton("Request source capability", () => renderTierAddPanel(tier, true)));
+        actions.append(actionButton(
+          tier.id === "sre" ? "Set up observability" : "Build this capability",
+          () => renderTierAddPanel(tier, true),
+        ));
       }
       details.append(actions);
     }
 
     function renderDetails(node) {
+      panelMode = "node";
       clearElement(details);
       details.dataset.empty = "false";
+      appendPanelBack();
       appendText(details, "h2", node.name);
       const tier = MODEL.tiers.find((candidate) => candidate.id === node.tierId);
       appendText(details, "p", (tier?.name || node.tierId) + " · " + humanize(node.kind) + " · " + node.confidence + " confidence");
@@ -728,6 +1471,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
         for (const badge of node.badges) appendText(badges, "span", badge.label, "detail-badge");
         details.append(badges);
       }
+
       if (node.details.length) {
         appendText(details, "h3", "Bindings and metadata");
         appendList(details, node.details.map((item) => item.label + ": " + item.value), "No binding details.");
@@ -784,15 +1528,51 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       details.append(actions);
     }
 
-    function renderSelectionHint(node) {
+    function renderEdgeDetails(edge) {
+      panelMode = "edge";
       clearElement(details);
       details.dataset.empty = "false";
+      appendPanelBack();
+      const from = nodeById.get(edge.from);
+      const to = nodeById.get(edge.to);
+      const flow = flowEdgeById.get(edge.id);
+      appendText(details, "h2", (from?.name || edge.from) + " → " + (to?.name || edge.to));
+      appendText(
+        details,
+        "p",
+        (flow?.label || humanize(edge.kind)) + " · " + (flow?.confidence || edge.confidence) +
+          " confidence · " + (flow?.evidenceKind === "documentation"
+            ? "documented architecture relationship"
+            : "inferred from runtime source"),
+      );
+      appendText(details, "h3", "How the request moves");
+      appendText(
+        details,
+        "p",
+        "Unity found evidence that " + (from?.name || edge.from) + " can call or transfer work to " +
+          (to?.name || edge.to) + ". " + (flow?.evidenceKind === "documentation"
+            ? "This path is documented but was not confirmed in executable source."
+            : "This source relationship is not proof of a successful live request."),
+      );
+      appendText(details, "h3", "Connection evidence");
+      appendList(details, edge.evidence.map((item) =>
+        item.path + ":" + item.line + " · " + humanize(item.rule) + " · " +
+          (item.confidence || edge.confidence) + " confidence",
+      ), "No direct source evidence recorded.");
+    }
+
+    function renderSelectionHint(node) {
+      panelMode = "node";
+      clearElement(details);
+      details.dataset.empty = "false";
+      appendPanelBack();
       appendText(details, "h2", node.name);
       appendText(details, "p", "Immediate graph relationships are highlighted. Double-click this node, or press Enter while it has keyboard focus, to inspect evidence and safe actions.");
     }
 
     function selectNode(nodeId, openPanel) {
       selectedId = nodeId;
+      selectedEdgeId = null;
       applySelection();
       const node = nodeById.get(nodeId);
       if (openPanel) renderDetails(node);
@@ -800,26 +1580,71 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
       setStatus("Selected " + node.name + ".");
     }
 
+    function selectEdge(edgeId) {
+      const edge = MODEL.edges.find((candidate) => candidate.id === edgeId);
+      if (!edge) return;
+      selectedId = null;
+      selectedEdgeId = edgeId;
+      applySelection();
+      renderEdgeDetails(edge);
+      setStatus("Selected the connection from " +
+        (nodeById.get(edge.from)?.name || edge.from) + " to " +
+        (nodeById.get(edge.to)?.name || edge.to) + ".");
+    }
+
     function visibleNodeIds() {
       return new Set([...nodeElements].filter(([, element]) => !element.classList.contains("hidden")).map(([id]) => id));
+    }
+
+    function selectedRequestPath() {
+      if (layoutMode !== "request-flow" || !entryFilter.value) {
+        return new Set(MODEL.requestFlow.nodeIds);
+      }
+      const reachable = new Set([entryFilter.value, ...MODEL.requestFlow.operations]);
+      const queue = [entryFilter.value];
+      while (queue.length) {
+        const current = queue.shift();
+        for (const edge of MODEL.edges.filter((candidate) => candidate.from === current)) {
+          if (reachable.has(edge.to)) continue;
+          reachable.add(edge.to);
+          queue.push(edge.to);
+        }
+      }
+      return reachable;
     }
 
     function applyFilters() {
       const query = normalized(search.value);
       const tierId = tierFilter.value;
+      const requestPath = selectedRequestPath();
       let visibleCount = 0;
       for (const node of MODEL.nodes) {
         const searchable = normalized([node.name, node.projectPath, node.kind, ...node.badges.map((badge) => badge.label)].join(" "));
-        const visible = (!tierId || node.tierId === tierId) && (!query || searchable.includes(query));
+        const visibleInMode = layoutMode === "implementation" || requestPath.has(node.id);
+        const visible = visibleInMode &&
+          (!tierId || node.tierId === tierId) &&
+          (!query || searchable.includes(query));
         nodeElements.get(node.id).classList.toggle("hidden", !visible);
         if (visible) visibleCount += 1;
       }
       const visibleIds = visibleNodeIds();
       for (const edge of MODEL.edges) {
-        edgeElements.get(edge.id).classList.toggle("hidden", !visibleIds.has(edge.from) || !visibleIds.has(edge.to));
+        const visibleInMode = layoutMode === "implementation" || flowEdgeById.has(edge.id);
+        edgeElements.get(edge.id).classList.toggle(
+          "hidden",
+          !visibleInMode || !visibleIds.has(edge.from) || !visibleIds.has(edge.to),
+        );
       }
       document.querySelector("#empty-state").style.display = visibleCount ? "none" : "grid";
-      setStatus(visibleCount + " of " + MODEL.nodes.length + " nodes visible.");
+      if (layoutMode === "request-flow") {
+        const unconnected = MODEL.requestFlow.unconnectedNodeIds.length;
+        setStatus(
+          visibleCount + " components on proven request paths" +
+            (unconnected ? " · " + unconnected + " more in Implementation" : "") + ".",
+        );
+      } else {
+        setStatus(visibleCount + " components in the implementation map.");
+      }
       applySelection();
     }
 
@@ -913,15 +1738,33 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
-    document.querySelector("#reset-layout").addEventListener("click", () => {
-      localStorage.removeItem(MODEL.layoutKey);
-      for (const [id, point] of defaultPositions) positions.set(id, { ...point });
-      updateGeometry();
-      fitGraph(.58);
-      setStatus("Layout reset to the source-derived tier view.");
+    document.querySelector("#action-center").addEventListener("click", renderActionCenter);
+    requestFlowButton.addEventListener("click", () => {
+      if (layoutMode === "request-flow") return;
+      applyLayout("request-flow");
+      setStatus("Showing the evidence-backed request flow.");
+    });
+    implementationButton.addEventListener("click", () => {
+      if (layoutMode === "implementation") return;
+      applyLayout("implementation");
+      setStatus("Showing the complete source-derived implementation map.");
+    });
+    resetLayoutButton.addEventListener("click", () => {
+      if (layoutMode === "implementation") {
+        localStorage.removeItem(MODEL.layoutKey + ":implementation");
+        applyLayout("implementation");
+        setStatus("Implementation layout reset.");
+        return;
+      }
+      fitGraph(.48);
+      setStatus("Request flow view reset.");
     });
     search.addEventListener("input", applyFilters);
     tierFilter.addEventListener("change", applyFilters);
+    entryFilter.addEventListener("change", () => {
+      applyFilters();
+      fitGraph(.48);
+    });
     search.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       const first = [...nodeElements.values()].find((element) => !element.classList.contains("hidden"));
@@ -929,23 +1772,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "" } = {}) {
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      selectedId = null;
-      applySelection();
-      details.dataset.empty = "true";
-      clearElement(details);
-      appendText(details, "h2", "Inspect the graph");
-      appendText(details, "p", "Select a node to highlight its immediate relationships. Double-click it, or press Enter while it has keyboard focus, to inspect evidence and safe actions.");
+      renderActionCenter();
     });
 
-    initialPositions();
-    renderLanes();
     renderEdges();
     renderNodes();
-    updateGeometry();
-    requestAnimationFrame(() => fitGraph(.58));
-    apiRequest("/api/app-status?root=" + encodeURIComponent(MODEL.root))
-      .then((result) => { runtimeEntrypoints = result.entrypoints || []; })
-      .catch(() => { runtimeEntrypoints = []; });
+    for (const nodeId of MODEL.requestFlow.entrypointIds) {
+      const node = nodeById.get(nodeId);
+      if (!node) continue;
+      const option = document.createElement("option");
+      option.value = nodeId;
+      option.textContent = "Starting at " + node.name;
+      entryFilter.append(option);
+    }
+    applyLayout("request-flow", false);
+    renderActionCenter();
+    requestAnimationFrame(() => fitGraph(.48));
+    void refreshOperationalState();
+    setInterval(() => { void refreshOperationalState(); }, 5000);
   </script>
 </body>
 </html>`;

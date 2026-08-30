@@ -7,7 +7,9 @@ import test from "node:test";
 import { traceApp } from "./app-map.mjs";
 import {
   appMapFingerprint,
+  buildActionCenterModel,
   buildInteractiveAppMapModel,
+  buildRequestFlowModel,
   renderInteractiveAppMapHtml,
 } from "./interactive-app-map.mjs";
 import {
@@ -772,6 +774,14 @@ test("workspace action blocks an extend request with uncommitted candidate chang
     assert.equal(result.outcome, "capability-requested");
     assert.equal(result.intent, "improve");
     assert.equal(sent.length, 1);
+
+    const observabilityPrompt = buildCapabilityRequestPrompt(normalizeCapabilityRequest({
+      tierId: "sre",
+      targetRoot: "/tmp/example-app",
+    }));
+    assert.match(observabilityPrompt, /cross-cutting capability/);
+    assert.match(observabilityPrompt, /every discovered runtime component/);
+    assert.match(observabilityPrompt, /OpenTelemetry-compatible instrumentation/);
   });
 
   test("implementation inventory exposes source projects and Azure resources", async () => {
@@ -1119,9 +1129,222 @@ test("interactive App Map model keeps the tier contract and versioned topology l
   assert.deepEqual(model.tiers.map((tier) => tier.id), PLATFORM_TIERS.map((tier) => tier.id));
   assert.equal(model.tiers.find((tier) => tier.id === "web").nodeIds[0], "project:web");
   assert.equal(model.edges.length, 1);
-  assert.match(model.layoutKey, /^unity-studio:app-map-layout:v2:/);
+  assert.match(model.layoutKey, /^unity-studio:app-map-layout:v3:/);
+  assert.deepEqual(model.requestFlow.entrypointIds, ["project:web"]);
+  assert.deepEqual(
+    model.requestFlow.groups.map((group) => [group.id, group.nodeIds]),
+    [
+      ["entry", ["project:web"]],
+      ["reasoning", ["project:agent"]],
+      ["capabilities", []],
+      ["systems", []],
+    ],
+  );
+  assert.deepEqual(model.requestFlow.edges, [{
+    id: "edge:1",
+    label: "Request",
+    step: 1,
+    confidence: "high",
+    evidenceKind: "source",
+  }]);
   assert.equal(appMapFingerprint(graph), appMapFingerprint(reordered));
   assert.notEqual(appMapFingerprint(graph), appMapFingerprint(changed));
+});
+
+test("App Map Action Center progressively recommends the next evidence-derived step", () => {
+  const node = (tierId) => ({
+    id: `project:${tierId}`,
+    kind: "project",
+    tierId,
+    name: tierId,
+    projectPath: `src/${tierId}`,
+    confidence: "high",
+    evidence: [{ path: `src/${tierId}/manifest.yaml`, line: 1, rule: "manifest", confidence: "high" }],
+  });
+  const connectedGraph = {
+    nodes: ["web", "agent", "gateway", "skills"].map(node),
+    edges: [
+      { from: "project:agent", to: "project:gateway", kind: "model-request" },
+      { from: "project:agent", to: "project:skills", kind: "tool-call" },
+    ],
+    unresolved: [{
+      from: "project:agent",
+      reference: "MCP or hosted skill",
+      evidence: { path: "src/agent/main.py", line: 10, rule: "tool-transport-reference" },
+    }],
+  };
+  const initial = buildActionCenterModel(connectedGraph);
+
+  assert.deepEqual(initial.stages.map((stage) => [stage.id, stage.state]), [
+    ["build", "complete"],
+    ["connect", "next"],
+    ["run", "runtime"],
+    ["observe", "next"],
+  ]);
+  assert.deepEqual(initial.opportunities.map((item) => item.id), [
+    "resolve-connections",
+    "add-observability",
+  ]);
+  assert.equal(initial.opportunities[1].action.label, "Set up observability");
+
+  const disconnected = buildActionCenterModel({
+    ...connectedGraph,
+    edges: [],
+    unresolved: [],
+  });
+  assert.deepEqual(disconnected.opportunities.map((item) => item.id), [
+    "connect-gateway",
+    "connect-skills",
+    "add-observability",
+  ]);
+
+  const progressed = buildActionCenterModel({
+    ...connectedGraph,
+    nodes: [...connectedGraph.nodes, node("sre")],
+    unresolved: [],
+  });
+  assert.deepEqual(progressed.stages.map((stage) => [stage.id, stage.state]), [
+    ["build", "complete"],
+    ["connect", "complete"],
+    ["run", "runtime"],
+    ["observe", "complete"],
+  ]);
+  assert.deepEqual(progressed.opportunities, []);
+});
+
+test("App Map Action Center starts inexperienced users with plain-language app foundations", () => {
+  const result = buildActionCenterModel({ nodes: [], edges: [], unresolved: [] });
+  assert.deepEqual(result.opportunities.map((item) => item.id), [
+    "add-agent",
+    "add-observability",
+    "add-surface",
+  ]);
+  assert.equal(result.opportunities[0].title, "Add your app's reasoning layer");
+  assert.equal(result.stages.find((stage) => stage.id === "connect").state, "blocked");
+});
+
+test("App Map treats OpenTelemetry configuration as observability evidence", async () => {
+  await withFixture({
+    "src/agent/agent.yaml": "kind: hosted\nname: observed-agent\n",
+    "src/agent/main.py": 'connection = os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"]\n',
+  }, async (root) => {
+    const graph = await traceApp({ root });
+    const agent = graph.nodes.find((node) => node.tierId === "agent");
+    assert.equal(
+      agent.badges.some((badge) =>
+        badge.kind === "telemetry"
+        && badge.evidence.rule === "telemetry-configuration"),
+      true,
+    );
+    assert.equal(
+      buildActionCenterModel(graph).opportunities.some((item) => item.id === "add-observability"),
+      false,
+    );
+  });
+});
+
+test("App Map does not treat observability documentation as runtime configuration", async () => {
+  await withFixture({
+    "src/agent/agent.yaml": "kind: hosted\nname: documented-agent\n",
+    "src/agent/README.md": "Unset APPLICATIONINSIGHTS_CONNECTION_STRING before starting.\n",
+  }, async (root) => {
+    const graph = await traceApp({ root });
+    const agent = graph.nodes.find((node) => node.tierId === "agent");
+    assert.equal(agent.badges.some((badge) => badge.kind === "telemetry"), false);
+  });
+});
+
+test("App Map recognizes root project telemetry without borrowing nested project evidence", async () => {
+  await withFixture({
+    "agent.yaml": "kind: hosted\nname: root-agent\n",
+    "main.py": "configure_azure_monitor()\n",
+    "src/skills/orders/host.json": '{"logging":{"applicationInsights":{"samplingSettings":{"isEnabled":true}}}}',
+  }, async (root) => {
+    const graph = await traceApp({ root });
+    const agent = graph.nodes.find((node) => node.tierId === "agent" && node.projectPath === ".");
+    assert.equal(agent.badges.some((badge) => badge.kind === "telemetry"), true);
+  });
+});
+
+test("App Map does not treat telemetry removal as positive configuration", async () => {
+  await withFixture({
+    "src/agent/agent.yaml": "kind: hosted\nname: uninstrumented-agent\n",
+    "src/agent/start.sh": "unset OTEL_EXPORTER_OTLP_ENDPOINT\nexec env -u OTEL_SERVICE_NAME app\n",
+  }, async (root) => {
+    const graph = await traceApp({ root });
+    const agent = graph.nodes.find((node) => node.tierId === "agent");
+    assert.equal(agent.badges.some((badge) => badge.kind === "telemetry"), false);
+  });
+});
+
+test("request flow hides implementation operations and preserves evidence-backed paths", () => {
+  const graph = {
+    nodes: [
+      { id: "web", kind: "project", tierId: "web" },
+      { id: "agent", kind: "project", tierId: "agent" },
+      { id: "skill", kind: "project", tierId: "skills" },
+      { id: "activity", kind: "operation", tierId: "workflows" },
+      { id: "sre", kind: "project", tierId: "sre" },
+    ],
+    edges: [
+      {
+        id: "request",
+        from: "web",
+        to: "agent",
+        kind: "http-request",
+        confidence: "high",
+        evidence: [{ path: "src/web/client.ts" }],
+      },
+      {
+        id: "tool",
+        from: "agent",
+        to: "skill",
+        kind: "tool-call",
+        confidence: "high",
+        evidence: [{ path: "src/agent/main.py" }],
+      },
+      {
+        id: "activity-call",
+        from: "agent",
+        to: "activity",
+        kind: "activity-call",
+        confidence: "high",
+        evidence: [{ path: "src/agent/main.py" }],
+      },
+    ],
+  };
+  const flow = buildRequestFlowModel(graph);
+  assert.deepEqual(flow.entrypointIds, ["web"]);
+  assert.equal(flow.nodeIds.includes("activity"), false);
+  assert.deepEqual(flow.operations, ["sre"]);
+  assert.deepEqual(flow.edges, [
+    { id: "request", label: "Request", step: 1, confidence: "high", evidenceKind: "source" },
+    { id: "tool", label: "Tool call", step: 2, confidence: "high", evidenceKind: "source" },
+  ]);
+});
+
+test("request flow distinguishes documented paths from executable source", () => {
+  const flow = buildRequestFlowModel({
+    nodes: [
+      { id: "web", kind: "project", tierId: "web" },
+      { id: "agent", kind: "project", tierId: "agent" },
+    ],
+    edges: [{
+      id: "documented-request",
+      from: "web",
+      to: "agent",
+      kind: "http-request",
+      confidence: "high",
+      evidence: [{ path: "src/web/README.md" }],
+    }],
+  });
+  assert.deepEqual(flow.edges, [{
+    id: "documented-request",
+    label: "Documented request",
+    step: 1,
+    confidence: "low",
+    evidenceKind: "documentation",
+  }]);
 });
 
 test("interactive App Map renderer emits accessible local interaction and safe actions", () => {
@@ -1152,7 +1375,15 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /role="application" aria-label="Interactive source-derived Unity application graph"/);
   assert.match(html, /role="toolbar" aria-label="App Map controls"/);
   assert.match(html, /prefers-reduced-motion/);
-  assert.match(html, /localStorage\.getItem\(MODEL\.layoutKey\)/);
+  assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
+  assert.match(html, />Request flow<\/button>/);
+  assert.match(html, />Implementation<\/button>/);
+  assert.match(html, /Operations across the request path/);
+  assert.match(html, /function renderEdgeDetails/);
+  assert.equal(
+    script.indexOf("function renderEdgeDetails") < script.indexOf("function selectEdge"),
+    true,
+  );
   assert.match(html, /addEventListener\("dblclick"/);
   assert.match(html, /aria-label": "Add capability to "/);
   assert.match(html, /x: lanePosition\.x/);
@@ -1160,6 +1391,12 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"\/api\/tier-action"/);
   assert.match(html, /"\/api\/open-entrypoint"/);
   assert.match(html, /"\/api\/capability-request"/);
+  assert.match(html, /"\/api\/local-readiness/);
+  assert.match(html, /"\/api\/app-command"/);
+  assert.match(html, /Build/);
+  assert.match(html, /Connect/);
+  assert.match(html, /Observe & manage/);
+  assert.match(html, /Refresh progress/);
   assert.match(html, /Confirm capability request/);
   assert.doesNotMatch(html, /<script>globalThis\.compromised=true<\/script>/);
   assert.match(script, /\\u003c\/script>/);

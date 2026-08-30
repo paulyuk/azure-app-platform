@@ -99,11 +99,18 @@ troubleshooting—not known-file creation.
   inspect, or returns a scaffold recipe when no implementation is observed.
 - `trace_app` derives a generic App Map whose nodes and edges retain matched
   source locations, unresolved references, and diagnostics. Open its expanded
-  Browser canvas to pan and zoom across tier swimlanes, search or filter nodes,
-  reorder nodes within their evidence-derived tier, highlight one-hop
-  relationships, and inspect evidence and safe navigation actions by
-  double-clicking a node. A tier's **Add** action can open its specialist studio
-  or explicitly request a new source capability without provisioning Azure.
+  Browser canvas to see a left-to-right **Request flow** across the experience,
+  reasoning, models and capabilities, connected systems, and cross-cutting
+  operations. Only evidence-backed paths are shown; disconnected components and
+  workflow internals remain in the secondary **Implementation** tier view.
+  Search or filter nodes, inspect connection evidence, highlight one-hop
+  relationships, and open safe navigation actions by double-clicking a node.
+  An Implementation tier's **Add** action can open its specialist studio or
+  explicitly request a new source capability without provisioning Azure.
+  The default **Action Center** turns current app evidence into a progressive
+  **Build → Connect → Run → Observe & manage** journey. It prioritizes missing
+  foundations, uncertain connections, local readiness, and observability, then
+  recomputes the next recommendation when you refresh progress after an action.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
   reports repository and Azure discovery health rather than simulated platform
   status.
