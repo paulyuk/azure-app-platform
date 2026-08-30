@@ -33,6 +33,8 @@ import {
   openWorkspaceInVsCode,
   requestAppWorkspace,
   requestCapabilityWork,
+  requestConnectionWork,
+  resolveConnectionRequest,
   runDoctor,
   traceUnityApp,
   WORKSPACE_TIER_IDS,
@@ -393,11 +395,22 @@ async function openExpandedAppMap(root, trustedHost, apiToken) {
   });
 }
 
-async function promptLocalAgent(root, prompt) {
+async function promptLocalAgent(root, prompt, requestedPort) {
   if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 2_000) {
     throw new Error("Enter a prompt up to 2,000 characters.");
   }
-  const agent = (await probeHttpEntrypoints(root)).find((candidate) => candidate.port === 8088);
+  if (
+    requestedPort !== undefined &&
+    (!Number.isInteger(requestedPort) || requestedPort < 1 || requestedPort > 65_535)
+  ) {
+    throw new Error("Choose a valid local agent endpoint.");
+  }
+  const entrypoints = await probeHttpEntrypoints(root);
+  const agents = entrypoints.filter((candidate) =>
+    candidate.name.trim().toLowerCase() === "agent");
+  const agent = requestedPort === undefined
+    ? agents.find((candidate) => candidate.port === 8088) ?? agents[0]
+    : agents.find((candidate) => candidate.port === requestedPort);
   if (!agent?.ready) throw new Error("The local agent is not running.");
   const ownership = await inspectEntrypointOwnership(root, [agent], await readProcessRegistry(root));
   if (ownership.available && !ownership.ownedPorts.has(agent.port)) {
@@ -946,7 +959,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Agent root is not an authorized app workspace.");
-      sendJson(response, 200, await promptLocalAgent(root, input.prompt));
+      sendJson(response, 200, await promptLocalAgent(root, input.prompt, input.port));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
@@ -1043,6 +1056,25 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 202, await requestCapabilityWork({
         session,
         input: { ...input, targetRoot: root, targetSessionId },
+      }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/connection-request") {
+      const input = await readJsonBody(request);
+      const root = input.root
+        ? await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots)
+        : workspaceRoot;
+      if (input.root && !authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Connection root is not an authorized app workspace.");
+      }
+      const targetSessionId = await ensureAppSession(root, workspaceRoot);
+      const connection = resolveConnectionRequest(
+        { ...input, targetRoot: root, targetSessionId },
+        await traceUnityApp({ root }),
+      );
+      sendJson(response, 202, await requestConnectionWork({
+        session,
+        input: connection,
       }));
       return;
     }

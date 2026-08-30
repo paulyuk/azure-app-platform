@@ -24,14 +24,18 @@ import {
   activateTier,
   buildImplementationInventory,
   buildCapabilityRequestPrompt,
+  buildConnectionRequestPrompt,
   buildWorkspaceRequestPrompt,
   deleteAppWorkspace,
   discoverUnityPlatform,
   normalizeCapabilityRequest,
+  normalizeConnectionRequest,
   normalizeWorkspaceRequest,
   openWorkspaceInVsCode,
   requestAppWorkspace,
   requestCapabilityWork,
+  requestConnectionWork,
+  resolveConnectionRequest,
   runDoctor,
 } from "./studio-commands.mjs";
 import {
@@ -1044,6 +1048,66 @@ test("workspace action blocks an extend request with uncommitted candidate chang
     assert.match(observabilityPrompt, /OpenTelemetry-compatible instrumentation/);
   });
 
+  test("connection action requests reviewed source-backed implementation work", async () => {
+    const input = {
+      intent: "add",
+      source: {
+        nodeId: "project:web",
+        name: "Web app",
+        tierId: "web",
+        projectPath: "src/web",
+      },
+      target: {
+        nodeId: "project:agent",
+        name: "Agent",
+        tierId: "agent",
+        projectPath: "src/agent",
+      },
+      targetRoot: "/tmp/example-app",
+      targetSessionId: "app-session-1",
+    };
+    const request = normalizeConnectionRequest(input);
+    const prompt = buildConnectionRequestPrompt(request);
+    assert.match(prompt, /source-backed connection/);
+    assert.match(prompt, /send_session_message/);
+    assert.match(prompt, /unity\.app\.yaml/);
+    assert.match(prompt, /"source"/);
+    assert.match(prompt, /"targetSessionId": "app-session-1"/);
+
+    const sent = [];
+    const result = await requestConnectionWork({
+      session: { send: async (message) => { sent.push(message); return "message-3"; } },
+      input,
+    });
+    assert.equal(result.outcome, "connection-requested");
+    assert.equal(result.sourceNodeId, "project:web");
+    assert.equal(result.targetNodeId, "project:agent");
+    assert.equal(sent.length, 1);
+
+    assert.throws(() => normalizeConnectionRequest({
+      ...input,
+      target: { ...input.target, projectPath: "../outside" },
+    }), /inside the app worktree/);
+
+    const resolved = resolveConnectionRequest({
+      ...input,
+      source: { ...input.source, name: "Spoofed", projectPath: "../outside" },
+    }, {
+      nodes: [
+        { id: "project:web", kind: "project", name: "Web app", tierId: "web", projectPath: "src/web" },
+        { id: "project:agent", kind: "project", name: "Agent", tierId: "agent", projectPath: "src/agent" },
+      ],
+      edges: [{ from: "project:web", to: "project:agent" }],
+    });
+    assert.equal(resolved.intent, "improve");
+    assert.equal(resolved.source.name, "Web app");
+    assert.equal(resolved.source.projectPath, "src/web");
+    assert.throws(() => resolveConnectionRequest({
+      ...input,
+      target: { ...input.target, nodeId: "project:missing" },
+    }, { nodes: [], edges: [] }), /no longer a source-backed component/);
+  });
+
   test("implementation inventory exposes source projects and Azure resources", async () => {
     await withFixture({ "agent/agent.yaml": "kind: hosted\nname: claims\n" }, async (root) => {
       const discovery = await discoverUnityPlatform({ root, includeAzure: false });
@@ -1713,6 +1777,11 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Manage<\/button>/);
   assert.match(html, /function appendFlowAdd/);
+  assert.match(html, /function appendFlowConnection/);
+  assert.match(html, /text\.textContent = "Connect →"/);
+  assert.match(html, /function renderConnectionPanel/);
+  assert.match(html, /"\/api\/connection-request"/);
+  assert.match(html, /Confirm source change/);
   assert.match(html, /addText\.textContent = "\+ Add component"/);
   assert.match(html, /const FLOW_ACTION_FOOTER = 48/);
   assert.match(html, /operationsY - FLOW_REGION_GAP - 38/);
@@ -1729,6 +1798,11 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
+  assert.match(html, /Test local agent/);
+  assert.match(html, /Send test prompt/);
+  assert.match(html, /"\/api\/agent-prompt"/);
+  assert.match(html, /port: agentEntrypoint\.port/);
+  assert.match(html, /View technical output/);
   assert.match(html, /"\/api\/gateway-options/);
   assert.match(html, /"\/api\/active-gateway"/);
   assert.match(html, /"\/api\/delete-app"/);
@@ -1763,6 +1837,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /x: lanePosition\.x/);
   assert.match(html, /"\/api\/open-source"/);
   assert.match(html, /"\/api\/tier-action"/);
+  assert.match(html, /setupButton\.textContent = "Opening setup…"/);
   assert.match(html, /"\/api\/open-entrypoint"/);
   assert.match(html, /"\/api\/capability-request"/);
   assert.match(html, /"\/api\/local-readiness/);

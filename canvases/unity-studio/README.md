@@ -22,7 +22,10 @@ An optional VS Code launch failure does not roll back the new worktree; App Map
 opens with a clear warning so the user can continue.
 The default surface keeps **Guide**, **Manage**, and the request-flow diagram
 visually primary. Each request-flow stage and Implementation lane exposes a
-contextual **Add component** action; Guide stays focused on progress and one
+contextual **Add component** action. Adjacent request-flow stages expose
+**Connect** actions that list discovered relationships, require source and
+destination selection, and review the source-backed change before delegating
+implementation to the app session. Guide stays focused on progress and one
 required action at a time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
@@ -108,6 +111,10 @@ troubleshooting—not known-file creation.
   Add-to-app requests resolve or create the app's persisted child session and
   direct the parent agent to relay the implementation there, so source changes
   occur in the selected app rather than the Unity Studio worktree.
+- App Map connection requests follow the same persisted app-session boundary.
+  They validate portable component paths, distinguish new from already-discovered
+  relationships, and require confirmation before requesting source/configuration
+  changes and an updated `unity.app.yaml`.
 - `open_in_vscode` opens an explicitly selected, workspace-confined repository
   path in a new VS Code window.
 - `activate_tier` opens a registered preferred studio, returns implementations to
@@ -123,6 +130,8 @@ troubleshooting—not known-file creation.
   selected card again or click empty map space to return to the Guide.
   An Implementation tier's **Add** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
+  **Connect** controls between adjacent stages expose existing evidence and a
+  confirmation-gated path to create or improve real source wiring.
   The default **Guide** turns current app evidence into a progressive
   **Build → Connect → Run → Observe & manage** journey. It prioritizes missing
   foundations, uncertain connections, local readiness, and observability while
@@ -144,7 +153,9 @@ Detached lifecycle and configuration commands write to a private
 closing Studio does not terminate the operation or discard its diagnostics.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
-agent offers an inline Responses API prompt plus a specialist-studio handoff.
+running agent offers an inline Responses API prompt under **Manage → Developer
+tools** plus a specialist-studio handoff. The same section preserves startup
+and deployment command output for troubleshooting.
 
 Discovery and scaffold results are informational. Workspace creation and
 implementation happen in the app child session, not in the Unity Studio

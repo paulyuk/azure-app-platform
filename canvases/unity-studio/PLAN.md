@@ -212,10 +212,14 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 - place contextual **Add component** actions on request-flow stages and
   Implementation lanes; narrow multi-tier choosers and open single-tier setup
   directly;
+- place explicit **Connect** actions between adjacent request-flow stages; show
+  existing evidence, require source/target selection and confirmation, then
+  delegate the real source/configuration change to the app session;
 - keep **Guide**, **Manage**, and collapsed **Search & layout** in the primary
   header, with the primary App Map view switch in a persistent row below it;
 - group model selection, Azure deployment, source navigation, technical output,
-  and deletion into disclosures in the secondary **Manage** panel;
+  local-agent testing, and deletion into disclosures in the secondary
+  **Manage** panel;
 - return to the app list through one visible top-level back action;
 - use compact pills only for status or categorical metadata, never as the sole
   indicator of state; and

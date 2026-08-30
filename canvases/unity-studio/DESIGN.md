@@ -202,7 +202,10 @@ zoom, fit, and reset controls are grouped under **Search & layout** so they do
 not compete with the primary views. Each request-flow stage and Implementation
 lane exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
-component types. The deterministic Request flow layout is
+component types. **Connect** controls between adjacent stages list existing
+evidence-backed relationships, collect an explicit source and destination, and
+show a confirmation before delegating source/configuration work to the app's
+persisted child session. The deterministic Request flow layout is
 not draggable because its position communicates architectural meaning. The
 Implementation view permits vertical reordering inside the evidence-derived
 tier only; a component cannot be moved into another tier. Those positions are
@@ -258,6 +261,8 @@ trying to understand.
 Manage is intentionally secondary. AI model connection, Azure deployment,
 developer tools, technical output, and deletion are grouped into disclosures;
 only model connection opens automatically when readiness says it needs action.
+Developer tools retain the running-agent prompt tester and command output from
+the previous management surface.
 
 ## Safety and limitations
 

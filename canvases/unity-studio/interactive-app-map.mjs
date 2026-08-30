@@ -507,6 +507,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .flow-add rect { fill: var(--surface-muted); stroke: var(--border); }
     .flow-add text { fill: var(--accent); font-size: 10px; font-weight: 650; pointer-events: none; }
     .flow-add:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
+    .flow-connect { cursor: pointer; }
+    .flow-connect rect { fill: var(--accent-soft); stroke: var(--accent); }
+    .flow-connect text { fill: var(--accent); font-size: 11px; font-weight: 650; pointer-events: none; }
+    .flow-connect:hover rect, .flow-connect:focus-visible rect { fill: var(--accent); }
+    .flow-connect:hover text, .flow-connect:focus-visible text { fill: #fff; }
+    .flow-connect:focus-visible { outline: none; }
     .edge { color: var(--edge-medium); }
     .edge.high { color: var(--edge-high); }
     .edge.low { color: var(--edge-low); }
@@ -542,6 +548,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     aside ul { margin: 4px 0; padding-left: 18px; }
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
+    .agent-tester { display: grid; gap: 9px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .agent-tester textarea {
+      width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--border);
+      border-radius: 7px; padding: 9px; color: var(--text); background: var(--surface); font: inherit;
+    }
+    .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
     .journey { display: grid; grid-template-columns: minmax(0, 1fr); margin: 14px 0 18px; }
     .journey-stage { position: relative; min-width: 0; padding: 10px 10px 12px 34px; }
@@ -591,6 +603,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
     .actions button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .actions button.setup-action { width: 100%; font-weight: 650; }
     button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
     footer {
@@ -702,7 +715,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const NODE_HEIGHT = 96;
     const NODE_STEP = 122;
     const MIN_WORLD_HEIGHT = 680;
-    const FLOW_REGION_GAP = 34;
+    const FLOW_REGION_GAP = 100;
     const FLOW_CARD_GAP = 18;
     const FLOW_ACTION_FOOTER = 48;
     const svg = document.querySelector("#graph");
@@ -946,6 +959,37 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       parent.append(add);
     }
 
+    function appendFlowConnection(sourceGroup, targetGroup, sourceIndex) {
+      const width = 76;
+      const height = 28;
+      const x = flowGroupX(sourceIndex) + flowGroupWidth(sourceGroup) +
+        (FLOW_REGION_GAP - width) / 2;
+      const y = WORLD_PADDING + 58;
+      const connection = svgElement("g", {
+        class: "flow-connect",
+        tabindex: "0",
+        role: "button",
+        "aria-label": "Connect " + sourceGroup.label + " to " + targetGroup.label,
+      });
+      connection.append(svgElement("rect", { x, y, width, height, rx: 14 }));
+      const text = svgElement("text", {
+        x: x + width / 2,
+        y: y + 18,
+        "text-anchor": "middle",
+      });
+      text.textContent = "Connect →";
+      connection.append(text);
+      const open = () => renderConnectionPanel(sourceGroup, targetGroup);
+      connection.addEventListener("pointerdown", (event) => event.stopPropagation());
+      connection.addEventListener("click", open);
+      connection.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open();
+      });
+      lanesLayer.append(connection);
+    }
+
     function renderFlowRegions() {
       const operationsY = worldHeight -
         (72 + Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4)) * NODE_STEP) -
@@ -975,6 +1019,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         );
         lanesLayer.append(region);
       });
+      for (let index = 0; index < MODEL.requestFlow.groups.length - 1; index += 1) {
+        appendFlowConnection(
+          MODEL.requestFlow.groups[index],
+          MODEL.requestFlow.groups[index + 1],
+          index,
+        );
+      }
       const operations = svgElement("g", { class: "flow-region operations" });
       operations.append(svgElement("rect", {
         x: WORLD_PADDING,
@@ -1705,6 +1756,70 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.append(actions);
     }
 
+    function renderAgentTester(container) {
+      const tester = document.createElement("div");
+      tester.className = "agent-tester";
+      appendText(tester, "strong", "Test local agent");
+      const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
+        entrypoint.ready && normalized(entrypoint.name) === "agent");
+      if (!agentEntrypoint) {
+        appendText(
+          tester,
+          "p",
+          "Run the app and wait for its agent service to become ready before sending a test prompt.",
+        );
+        container.append(tester);
+        return;
+      }
+
+      const prompt = document.createElement("textarea");
+      prompt.maxLength = 2000;
+      prompt.placeholder = "Send a prompt to the running agent";
+      prompt.setAttribute("aria-label", "Agent test prompt");
+      const response = document.createElement("pre");
+      response.className = "command-output agent-response";
+      response.textContent = "The agent response will appear here.";
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const send = actionButton("Send test prompt", async () => {
+        const message = prompt.value.trim();
+        if (!message) {
+          setStatus("Enter a prompt for the local agent.", true);
+          prompt.focus();
+          return;
+        }
+        send.disabled = true;
+        response.textContent = "Waiting for the local agent…";
+        try {
+          const result = await apiRequest("/api/agent-prompt", {
+            method: "POST",
+            body: JSON.stringify({
+              root: MODEL.root,
+              port: agentEntrypoint.port,
+              prompt: message,
+            }),
+          });
+          response.textContent = typeof result.response === "string"
+            ? result.response
+            : JSON.stringify(result.response, null, 2);
+          response.scrollTop = 0;
+          setStatus("Agent response received.");
+        } catch (error) {
+          response.textContent = error.message;
+          setStatus(error.message, true);
+        } finally {
+          send.disabled = false;
+        }
+      }, true);
+      actions.append(send);
+      const agentTier = tierById.get("agent");
+      if (agentTier) {
+        actions.append(actionButton("Open agent setup", () => openTierStudio(agentTier)));
+      }
+      tester.append(prompt, actions, response);
+      container.append(tester);
+    }
+
     function renderManagePanel() {
       panelMode = "manage";
       selectedId = null;
@@ -1767,6 +1882,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       }));
       developerSection.append(sourceActions);
+      renderAgentTester(developerSection);
       const activity = document.createElement("div");
       const output = document.createElement("pre");
       output.className = "command-output";
@@ -1838,15 +1954,191 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         if (result.outcome === "canvas-opened") {
           setStatus("Opened the " + tier.name + " specialist studio.");
-          return;
+          return result;
         }
         renderTierAddPanel(tier, false, result);
         setStatus(result.outcome === "scaffold-available"
           ? "Scaffold guidance is ready."
           : "Existing tier evidence is ready.");
+        return result;
       } catch (error) {
         setStatus(error.message, true);
+        return null;
       }
+    }
+
+    function connectionNodes(group) {
+      return group.nodeIds.map((nodeId) => nodeById.get(nodeId)).filter(Boolean);
+    }
+
+    function connectionSelect(labelText, nodes, selectedId) {
+      const label = document.createElement("label");
+      appendText(label, "strong", labelText);
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", labelText);
+      for (const node of nodes) {
+        const option = document.createElement("option");
+        option.value = node.id;
+        option.textContent = node.name + (node.projectPath ? " · " + node.projectPath : "");
+        option.selected = node.id === selectedId;
+        select.append(option);
+      }
+      label.append(select);
+      return { label, select };
+    }
+
+    function renderConnectionPanel(sourceGroup, targetGroup, selection = null, confirming = false) {
+      panelMode = "connect";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      appendPanelBack();
+      appendText(details, "h2", "Connect " + sourceGroup.label + " to " + targetGroup.label);
+      appendText(
+        details,
+        "p",
+        "Choose the two components that should exchange requests or data. Unity will review the source-backed change before editing the app.",
+      );
+
+      const sources = connectionNodes(sourceGroup);
+      const targets = connectionNodes(targetGroup);
+      const sourceIds = new Set(sources.map((node) => node.id));
+      const targetIds = new Set(targets.map((node) => node.id));
+      const existing = MODEL.edges.filter((edge) =>
+        sourceIds.has(edge.from) && targetIds.has(edge.to));
+
+      appendText(details, "h3", "Existing connections");
+      if (existing.length) {
+        const list = document.createElement("ul");
+        for (const edge of existing) {
+          const source = nodeById.get(edge.from);
+          const target = nodeById.get(edge.to);
+          const item = document.createElement("li");
+          item.textContent = source.name + " → " + target.name + " · " + humanize(edge.kind);
+          list.append(item);
+        }
+        details.append(list);
+      } else {
+        appendText(details, "p", "No source-backed connection is currently discovered between these stages.");
+      }
+
+      if (!sources.length || !targets.length) {
+        appendText(
+          details,
+          "p",
+          "Add at least one component to each stage before creating a connection.",
+          "error",
+        );
+        const missingActions = document.createElement("div");
+        missingActions.className = "actions";
+        if (!sources.length) {
+          missingActions.append(actionButton(
+            "Add to " + sourceGroup.label,
+            () => renderAddToAppPanel(sourceGroup.tierIds, sourceGroup.label),
+            true,
+          ));
+        }
+        if (!targets.length) {
+          missingActions.append(actionButton(
+            "Add to " + targetGroup.label,
+            () => renderAddToAppPanel(targetGroup.tierIds, targetGroup.label),
+            true,
+          ));
+        }
+        details.append(missingActions);
+        return;
+      }
+
+      const sourceField = connectionSelect(
+        "From component",
+        sources,
+        selection?.sourceId || sources[0].id,
+      );
+      const targetField = connectionSelect(
+        "To component",
+        targets,
+        selection?.targetId || targets[0].id,
+      );
+      const form = document.createElement("div");
+      form.className = "action-list";
+      form.append(sourceField.label, targetField.label);
+      details.append(form);
+
+      const source = nodeById.get(sourceField.select.value);
+      const target = nodeById.get(targetField.select.value);
+      const discoveredEdge = existing.find((edge) =>
+        edge.from === source.id && edge.to === target.id);
+      if (confirming) {
+        sourceField.select.disabled = true;
+        targetField.select.disabled = true;
+        appendText(details, "h3", discoveredEdge ? "Confirm connection improvement" : "Confirm source change");
+        appendText(
+          details,
+          "p",
+          discoveredEdge
+            ? "This connection already has evidence. Unity will inspect and improve its implementation or configuration, then update the App Map evidence."
+            : "Unity will implement real code or configuration wiring and update unity.app.yaml. It will not deploy or mutate Azure resources.",
+        );
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      if (!confirming) {
+        actions.append(actionButton("Review connection", () => renderConnectionPanel(
+          sourceGroup,
+          targetGroup,
+          { sourceId: sourceField.select.value, targetId: targetField.select.value },
+          true,
+        ), true));
+      } else {
+        const confirmButton = actionButton(
+          discoveredEdge ? "Improve connection" : "Create connection",
+          async () => {
+            if (confirmButton.disabled) return;
+            for (const button of actions.querySelectorAll("button")) button.disabled = true;
+            setStatus((discoveredEdge ? "Improving" : "Creating") + " connection…");
+            try {
+              const result = await apiRequest("/api/connection-request", {
+                method: "POST",
+                body: JSON.stringify({
+                  root: MODEL.root,
+                  intent: discoveredEdge ? "improve" : "add",
+                  source,
+                  target,
+                }),
+              });
+              clearElement(details);
+              appendPanelBack();
+              appendText(details, "h2", "Connection work started");
+              appendText(
+                details,
+                "p",
+                result.targetSessionId
+                  ? "Unity routed the reviewed change to the app's implementation session."
+                  : "Unity started the reviewed change in the current app session.",
+              );
+              const nextActions = document.createElement("div");
+              nextActions.className = "actions";
+              nextActions.append(actionButton("Check for changes", () => location.reload(), true));
+              details.append(nextActions);
+              setStatus("Connection implementation requested.");
+            } catch (error) {
+              for (const button of actions.querySelectorAll("button")) button.disabled = false;
+              setStatus(error.message, true);
+            }
+          },
+          true,
+        );
+        actions.append(confirmButton);
+        actions.append(actionButton("Back", () => renderConnectionPanel(
+          sourceGroup,
+          targetGroup,
+          { sourceId: source.id, targetId: target.id },
+        )));
+      }
+      details.append(actions);
     }
 
     function renderAddToAppPanel(allowedTierIds = null, contextLabel = "") {
@@ -1926,11 +2218,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
       const actions = document.createElement("div");
       actions.className = "actions";
-      actions.append(actionButton(
-        tier.hasSpecialistStudio ? "Open guided setup" : "Check existing implementations",
-        () => openTierStudio(tier),
-        true,
-      ));
+      const setupLabel = tier.hasSpecialistStudio
+        ? "Open " + tier.name + " setup →"
+        : "Find existing " + tier.name + " implementations →";
+      const setupButton = actionButton(setupLabel, async () => {
+        if (setupButton.disabled) return;
+        setupButton.disabled = true;
+        setupButton.textContent = "Opening setup…";
+        const result = await openTierStudio(tier);
+        if (!setupButton.isConnected) return;
+        setupButton.disabled = false;
+        setupButton.textContent = result?.outcome === "canvas-opened"
+          ? "Reopen " + tier.name + " setup →"
+          : setupLabel;
+      }, true);
+      setupButton.classList.add("setup-action");
+      actions.append(setupButton);
       if (confirming) {
         const confirmButton = actionButton("Confirm capability request", async () => {
           if (confirmButton.disabled) return;
