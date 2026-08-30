@@ -209,8 +209,9 @@ Intelligent Function App studios and the Microsoft Foundry portal:
   introducing a separate app-workspace dashboard;
 - keep the architecture diagram visually dominant and place progressive
   guidance in **Guide**;
-- keep a visible **Add to app** action in the App Map command bar that routes
-  users into the capability-specific implementation or specialist workflow;
+- place contextual **Add component** actions on request-flow stages and
+  Implementation lanes; narrow multi-tier choosers and open single-tier setup
+  directly;
 - keep **Guide**, **Manage**, and collapsed **Search & layout** in the primary
   header, with the primary App Map view switch in a persistent row below it;
 - group model selection, Azure deployment, source navigation, technical output,

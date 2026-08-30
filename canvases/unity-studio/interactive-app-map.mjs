@@ -444,7 +444,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
     .map-view-bar {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      display: flex; align-items: center;
       padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface);
     }
     .map-tools { position: relative; }
@@ -486,7 +486,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
     .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
-    .map-add { flex: 0 0 auto; border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
     #entry-filter[hidden] { display: none; }
     main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
@@ -504,6 +503,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .flow-region.operations > rect { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 7 5; }
     .flow-region-title { fill: var(--text); font-size: 14px; font-weight: 650; }
     .flow-region-role { fill: var(--muted); font-size: 10px; }
+    .flow-add { cursor: pointer; }
+    .flow-add rect { fill: var(--surface-muted); stroke: var(--border); }
+    .flow-add text { fill: var(--accent); font-size: 10px; font-weight: 650; pointer-events: none; }
+    .flow-add:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
     .edge { color: var(--edge-medium); }
     .edge.high { color: var(--edge-high); }
     .edge.low { color: var(--edge-low); }
@@ -614,10 +617,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
       .map-tools > summary { justify-content: center; }
       .toolbar { width: calc(100vw - 24px); }
-      .map-view-bar { flex-wrap: wrap; padding: 8px 12px; }
+      .map-view-bar { padding-inline: 12px; }
       .map-view-switch { width: 100%; min-width: 0; }
       .map-view-switch button { flex: 1; }
-      .map-add { width: 100%; }
       main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
       aside {
         position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
@@ -662,7 +664,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
       <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
     </div>
-    <button id="add-to-app" class="map-add" type="button">＋ Add to app</button>
   </nav>
   <main>
     <div id="graph-shell">
@@ -912,6 +913,35 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
     }
 
+    function appendFlowAdd(parent, x, y, label, tierIds) {
+      const add = svgElement("g", {
+        class: "flow-add",
+        tabindex: "0",
+        role: "button",
+        "aria-label": "Add component to " + label,
+      });
+      add.append(svgElement("rect", { x, y, width: 88, height: 24, rx: 4 }));
+      const addText = svgElement("text", { x: x + 44, y: y + 16, "text-anchor": "middle" });
+      addText.textContent = "+ Add component";
+      add.append(addText);
+      const open = () => {
+        const tiers = tierIds.map((tierId) => tierById.get(tierId)).filter(Boolean);
+        if (tiers.length === 1) {
+          renderTierAddPanel(tiers[0]);
+          return;
+        }
+        renderAddToAppPanel(tierIds, label);
+      };
+      add.addEventListener("pointerdown", (event) => event.stopPropagation());
+      add.addEventListener("click", open);
+      add.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open();
+      });
+      parent.append(add);
+    }
+
     function renderFlowRegions() {
       const operationsY = worldHeight -
         (72 + Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4)) * NODE_STEP) -
@@ -932,6 +962,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const role = svgElement("text", { x: x + 16, y: WORLD_PADDING + 44, class: "flow-region-role" });
         role.textContent = shorten(group.role, 40);
         region.append(role);
+        appendFlowAdd(
+          region,
+          x + flowGroupWidth(group) - 100,
+          WORLD_PADDING + 10,
+          group.label,
+          group.tierIds,
+        );
         lanesLayer.append(region);
       });
       const operations = svgElement("g", { class: "flow-region operations" });
@@ -960,6 +997,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ? "Telemetry evidence on " + MODEL.requestFlow.telemetryNodeIds.length + " components"
           : "No operational implementation discovered yet";
       operations.append(role);
+      appendFlowAdd(
+        operations,
+        worldWidth - WORLD_PADDING - 100,
+        operationsY + 10,
+        "Operations",
+        ["sre"],
+      );
       lanesLayer.append(operations);
     }
 
@@ -1801,7 +1845,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
-    function renderAddToAppPanel() {
+    function renderAddToAppPanel(allowedTierIds = null, contextLabel = "") {
       panelMode = "add";
       selectedId = null;
       selectedEdgeId = null;
@@ -1809,15 +1853,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
-      appendText(details, "h2", "Add to app");
+      appendText(details, "h2", contextLabel ? "Add component to " + contextLabel : "Add component");
       appendText(
         details,
         "p",
-        "Choose the capability you want. Unity will find an existing implementation, open its guided setup, or prepare a source change for confirmation.",
+        contextLabel
+          ? "Choose a component that belongs in this part of the request flow."
+          : "Choose a component. Unity will find an existing implementation, open its guided setup, or prepare a source change for confirmation.",
       );
       const list = document.createElement("div");
       list.className = "action-list";
-      const tiers = [...MODEL.tiers].sort((left, right) =>
+      const tiers = MODEL.tiers
+        .filter((tier) => !allowedTierIds || allowedTierIds.includes(tier.id))
+        .sort((left, right) =>
         Number(left.nodeIds.length > 0) - Number(right.nodeIds.length > 0));
       for (const tier of tiers) {
         const card = document.createElement("div");
@@ -1831,7 +1879,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           existing ? String(existing) + " implementation" + (existing === 1 ? "" : "s") + " already in this app" : "Not added yet",
           "action-priority",
         );
-        card.append(actionButton(existing ? "Add another" : "Add capability", () => renderTierAddPanel(tier)));
+        card.append(actionButton(existing ? "Add another" : "Add component", () => renderTierAddPanel(tier)));
         list.append(card);
       }
       details.append(list);
@@ -2224,7 +2272,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
-    document.querySelector("#add-to-app").addEventListener("click", renderAddToAppPanel);
     document.querySelector("#action-center").addEventListener("click", renderActionCenter);
     document.querySelector("#manage-app").addEventListener("click", renderManagePanel);
     document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));

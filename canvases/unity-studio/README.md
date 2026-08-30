@@ -21,8 +21,9 @@ After creation or selection, the App Map becomes the primary app interface.
 An optional VS Code launch failure does not roll back the new worktree; App Map
 opens with a clear warning so the user can continue.
 The default surface keeps **Guide**, **Manage**, and the request-flow diagram
-visually primary. The App Map command bar exposes **Add to app** directly;
-Guide stays focused on progress and one required action at a time.
+visually primary. Each request-flow stage and Implementation lane exposes a
+contextual **Add component** action; Guide stays focused on progress and one
+required action at a time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. Manage groups model connection,

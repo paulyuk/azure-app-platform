@@ -1712,10 +1712,13 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /← Apps/);
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Manage<\/button>/);
-  assert.match(html, /<nav class="map-view-bar"[\s\S]*id="add-to-app" class="map-add"[^>]*>＋ Add to app<\/button>/);
+  assert.match(html, /function appendFlowAdd/);
+  assert.match(html, /addText\.textContent = "\+ Add component"/);
+  assert.match(html, /"aria-label": "Add component to " \+ label/);
+  assert.match(html, /renderAddToAppPanel\(tierIds, label\)/);
   assert.doesNotMatch(html, /guideActions/);
   assert.match(html, /function renderAddToAppPanel/);
-  assert.match(html, /Choose the capability you want/);
+  assert.match(html, /Choose a component that belongs in this part of the request flow/);
   assert.match(html, /Add another/);
   assert.match(html, /<summary>Search &amp; layout<\/summary>/);
   assert.match(html, /Open a section only when you need to change settings, deploy, troubleshoot, or delete this app/);
