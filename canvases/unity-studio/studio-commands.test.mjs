@@ -1761,7 +1761,11 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Build/);
   assert.match(html, /Connect/);
   assert.match(html, /Observe & manage/);
-  assert.match(html, /document\.createElement\("details"\)/);
+  assert.match(html, /journey\.setAttribute\("role", "list"\)/);
+  assert.match(html, /item\.setAttribute\("role", "listitem"\)/);
+  assert.match(html, /stage\.state === "running" \? "Running"/);
+  assert.match(html, /let nextAssigned = false/);
+  assert.match(html, /detail: "Available after " \+ stages\[index - 1\]\.label/);
   assert.match(html, /appendText\(item, "span", stage\.detail, "journey-detail"\)/);
   assert.match(html, /Check for changes/);
   assert.match(html, /Confirm capability request/);

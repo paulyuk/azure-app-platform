@@ -531,12 +531,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
-    .journey { display: flex; gap: 6px; margin: 14px 0 18px; }
-    .journey-stage { flex: 1; min-width: 0; padding: 8px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); text-align: center; }
-    .journey-stage summary { cursor: pointer; list-style: none; }
-    .journey-stage summary::-webkit-details-marker { display: none; }
-    .journey-stage strong { display: block; overflow: hidden; font-size: 11px; text-overflow: ellipsis; }
-    .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; text-align: left; }
+    .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 18px; }
+    .journey-stage { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); }
+    .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
+    .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
     .journey-state { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-state::before { width: 7px; height: 7px; border-radius: 50%; background: var(--border); content: ""; }
     .journey-stage.complete .journey-state { color: #107c10; }
@@ -1249,7 +1247,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function effectiveJourneyStages() {
-      return MODEL.actionCenter.stages.map((stage) => {
+      const stages = MODEL.actionCenter.stages.map((stage) => {
         if (stage.id !== "run") return stage;
         const appState = operationalState.app?.state;
         if (appState === "running") {
@@ -1265,6 +1263,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           return { ...stage, state: "next", detail: "Finish guided setup" };
         }
         return stage;
+      });
+      let nextAssigned = false;
+      return stages.map((stage, index) => {
+        if (stage.state === "complete" || stage.state === "running") return stage;
+        if (!nextAssigned) {
+          nextAssigned = true;
+          return stage;
+        }
+        return { ...stage, state: "blocked", detail: "Available after " + stages[index - 1].label };
       });
     }
 
@@ -1463,15 +1470,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
       const journey = document.createElement("div");
       journey.className = "journey";
+      journey.setAttribute("role", "list");
+      journey.setAttribute("aria-label", "App progress");
       for (const stage of effectiveJourneyStages()) {
-        const item = document.createElement("details");
+        const item = document.createElement("div");
         item.className = "journey-stage " + stage.state;
-        const summary = document.createElement("summary");
-        appendText(summary, "span", stage.state === "complete" || stage.state === "running"
+        item.setAttribute("role", "listitem");
+        appendText(item, "span", stage.state === "complete"
           ? "Complete"
-          : stage.state === "ready" ? "Ready" : stage.state === "blocked" ? "Later" : "Next", "journey-state");
-        appendText(summary, "strong", stage.label);
-        item.append(summary);
+          : stage.state === "running" ? "Running" : stage.state === "ready"
+            ? "Ready" : stage.state === "blocked" ? "Later" : stage.state === "runtime" ? "Checking" : "Next", "journey-state");
+        appendText(item, "strong", stage.label);
         appendText(item, "span", stage.detail, "journey-detail");
         journey.append(item);
       }
