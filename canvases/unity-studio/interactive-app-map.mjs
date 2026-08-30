@@ -704,6 +704,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const MIN_WORLD_HEIGHT = 680;
     const FLOW_REGION_GAP = 34;
     const FLOW_CARD_GAP = 18;
+    const FLOW_ACTION_FOOTER = 48;
     const svg = document.querySelector("#graph");
     const viewport = document.querySelector("#viewport");
     const lanesLayer = document.querySelector("#lanes");
@@ -811,9 +812,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function requestFlowLayout() {
       const maxGroupRows = Math.max(1, ...MODEL.requestFlow.groups.map((group) =>
         Math.ceil(group.nodeIds.length / flowGroupColumns(group))));
-      const flowBodyHeight = Math.max(500, LANE_HEADER + 48 + maxGroupRows * NODE_STEP);
+      const flowBodyHeight = Math.max(
+        500 + FLOW_ACTION_FOOTER,
+        LANE_HEADER + 48 + maxGroupRows * NODE_STEP + FLOW_ACTION_FOOTER,
+      );
       const operationRows = Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4));
-      const operationsHeight = 72 + operationRows * NODE_STEP;
+      const operationsHeight = 72 + operationRows * NODE_STEP + FLOW_ACTION_FOOTER;
       worldWidth = WORLD_PADDING * 2 +
         MODEL.requestFlow.groups.reduce((total, group) => total + flowGroupWidth(group), 0) +
         (MODEL.requestFlow.groups.length - 1) * FLOW_REGION_GAP;
@@ -964,8 +968,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         region.append(role);
         appendFlowAdd(
           region,
-          x + flowGroupWidth(group) - 100,
-          WORLD_PADDING + 10,
+          x + (flowGroupWidth(group) - 88) / 2,
+          operationsY - FLOW_REGION_GAP - 38,
           group.label,
           group.tierIds,
         );
@@ -999,8 +1003,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       operations.append(role);
       appendFlowAdd(
         operations,
-        worldWidth - WORLD_PADDING - 100,
-        operationsY + 10,
+        (worldWidth - 88) / 2,
+        worldHeight - WORLD_PADDING - 38,
         "Operations",
         ["sre"],
       );

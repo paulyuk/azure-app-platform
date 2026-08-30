@@ -1714,6 +1714,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, />Manage<\/button>/);
   assert.match(html, /function appendFlowAdd/);
   assert.match(html, /addText\.textContent = "\+ Add component"/);
+  assert.match(html, /const FLOW_ACTION_FOOTER = 48/);
+  assert.match(html, /operationsY - FLOW_REGION_GAP - 38/);
+  assert.match(html, /worldHeight - WORLD_PADDING - 38/);
   assert.match(html, /"aria-label": "Add component to " \+ label/);
   assert.match(html, /renderAddToAppPanel\(tierIds, label\)/);
   assert.doesNotMatch(html, /guideActions/);
