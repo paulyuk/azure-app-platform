@@ -146,10 +146,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .workspace-intro p { margin-bottom: 8px; }
       .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
       .workspace-path { color: var(--studio-muted); }
-      .journeys { display: grid; gap: 12px; margin-top: 24px; }
+      .journeys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
       .journey {
         width: 100%;
-        min-height: 112px;
+        min-height: 104px;
         padding: 18px;
         text-align: left;
         display: block;
@@ -157,6 +157,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
       .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
       .journey span { color: var(--text-color-muted, #59636e); }
+      .advanced-journey { margin-top: 14px; }
+      .advanced-journey summary { cursor: pointer; color: var(--studio-muted); font-weight: 600; }
+      .advanced-journey .journey { min-height: auto; margin-top: 10px; }
       .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
@@ -320,6 +323,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
       @media (max-width: 480px) {
         body { padding-inline: 14px; }
+        .journeys { grid-template-columns: 1fr; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
         .actions-right, .actions button { width: 100%; }
         .actions-right { flex-direction: column-reverse; }
@@ -493,16 +497,16 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         draft.journey = null;
         clearStatus();
         app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
-          '<h1>Unity apps</h1>' +
-          '<p>Create, assemble, or reopen an app. Unity Studio will guide the rest.</p>' +
+          '<h1>What would you like to do?</h1>' +
+          '<p>Start a new app or continue working on one you already have.</p>' +
           '<div class="journeys">' +
-          '<button type="button" class="journey" id="new-app"><strong>Create from template</strong>' +
-          '<span>Start with an editable empty template or a complete sample that is ready to run.</span></button>' +
-          '<button type="button" class="journey" id="assemble-app"><strong>Assemble from existing components</strong>' +
-          '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
-          '<button type="button" class="journey" id="open-app"><strong>Open existing</strong>' +
-          '<span>Return to a previously created app worktree and inspect its live inventory.</span></button>' +
-          '</div>';
+          '<button type="button" class="journey primary" id="new-app"><strong>Create a new app</strong>' +
+          '<span>Describe what you want to build and start from a proven template.</span></button>' +
+          '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
+          '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
+          '</div><details class="advanced-journey"><summary>Advanced: build from existing pieces</summary>' +
+          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing components</strong>' +
+          '<span>Combine source projects and map existing Azure resources.</span></button></details>';
         document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
           draft.starterKind = "template";
@@ -538,7 +542,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderExistingApps() {
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Action Center.</p>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
@@ -1147,7 +1151,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               method: "POST",
               body: JSON.stringify({ operation: button.dataset.appCommand, root: result.worktreePath })
             });
-            clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
+            clearStatus(commandResult.outcome === "already-running"
+              ? "The local app is already running."
+              : commandResult.outcome === "operation-in-progress"
+                ? "The local app is already " + commandResult.state + "."
+                : commandResult.command + " started (PID " + commandResult.pid + ").");
             await refreshLocalStatus();
           } catch (cause) {
             error(cause.message);

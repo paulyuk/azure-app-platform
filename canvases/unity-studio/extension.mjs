@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { realpath, stat, access, readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
-import { relative } from "node:path";
+import { isAbsolute, relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
@@ -65,24 +65,8 @@ async function probeHttpEntrypoints(root) {
     { name: "Web", port: 3000 },
     { name: "Agent", port: 8088 },
   ];
-  try {
-    const tracked = await readFile(`${root}/.dev-run/processes.posix.tsv`, "utf8");
-    for (const line of tracked.split(/\r?\n/)) {
-      const [name, port] = line.split("\t");
-      if (name && /^\d+$/.test(port)) candidates.push({ name, port: Number(port) });
-    }
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  try {
-    const tracked = JSON.parse(await readFile(`${root}/.dev-run/processes.json`, "utf8"));
-    for (const item of Array.isArray(tracked) ? tracked : [tracked]) {
-      if (item?.name && Number.isInteger(Number(item.port))) {
-        candidates.push({ name: item.name, port: Number(item.port) });
-      }
-    }
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+  for (const entry of await readProcessRegistry(root)) {
+    candidates.push({ name: entry.name, port: entry.port });
   }
   const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.port, candidate])).values()];
   return Promise.all(uniqueCandidates.map(async (candidate) => {
@@ -100,10 +84,128 @@ async function probeHttpEntrypoints(root) {
   }));
 }
 
+function isWithinRoot(root, candidate) {
+  const pathFromRoot = relative(root, candidate);
+  return pathFromRoot === "" || (!pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot));
+}
+
+function processDescendsFrom(pid, possibleAncestors, parentByPid) {
+  const visited = new Set();
+  let current = pid;
+  while (current && !visited.has(current)) {
+    if (possibleAncestors.has(current)) return true;
+    visited.add(current);
+    current = parentByPid.get(current);
+  }
+  return false;
+}
+
+async function inspectWindowsEntrypointOwnership(entrypoints, registry) {
+  const readyEntrypoints = entrypoints.filter((entrypoint) => entrypoint.ready);
+  if (readyEntrypoints.length === 0) return { available: true, ownedPorts: new Set() };
+  const ports = readyEntrypoints.map((entrypoint) => entrypoint.port).join(",");
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `$ports = @(${ports})`,
+    "$connections = @(Get-NetTCPConnection -State Listen | Where-Object { $ports -contains $_.LocalPort } | Select-Object LocalPort, OwningProcess)",
+    "$processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)",
+    "@{ connections = $connections; processes = $processes } | ConvertTo-Json -Depth 4 -Compress",
+  ].join("; ");
+  const result = await runCommand("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script]);
+  if (!result.ok) return { available: true, ownedPorts: new Set() };
+  let payload;
+  try {
+    payload = JSON.parse(result.stdout);
+  } catch {
+    return { available: true, ownedPorts: new Set() };
+  }
+  const asArray = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
+  const listenerPidsByPort = new Map();
+  for (const connection of asArray(payload.connections ?? payload.Connections)) {
+    const port = Number(connection.LocalPort);
+    const pid = Number(connection.OwningProcess);
+    if (!Number.isInteger(port) || !Number.isInteger(pid)) continue;
+    if (!listenerPidsByPort.has(port)) listenerPidsByPort.set(port, new Set());
+    listenerPidsByPort.get(port).add(pid);
+  }
+  const parentByPid = new Map(asArray(payload.processes ?? payload.Processes)
+    .map((item) => [Number(item.ProcessId), Number(item.ParentProcessId)])
+    .filter(([pid, parentPid]) => Number.isInteger(pid) && Number.isInteger(parentPid)));
+  const registryPidsByPort = new Map();
+  for (const entry of registry) {
+    if (!entry.pid) continue;
+    if (!registryPidsByPort.has(entry.port)) registryPidsByPort.set(entry.port, new Set());
+    registryPidsByPort.get(entry.port).add(entry.pid);
+  }
+  return {
+    available: true,
+    ownedPorts: new Set(readyEntrypoints
+      .filter((entrypoint) => [...(listenerPidsByPort.get(entrypoint.port) ?? [])]
+        .some((pid) => processDescendsFrom(
+          pid,
+          registryPidsByPort.get(entrypoint.port) ?? new Set(),
+          parentByPid,
+        )))
+      .map((entrypoint) => entrypoint.port)),
+  };
+}
+
+async function inspectEntrypointOwnership(root, entrypoints, registry = []) {
+  if (process.platform === "win32") return inspectWindowsEntrypointOwnership(entrypoints, registry);
+  const readyEntrypoints = entrypoints.filter((entrypoint) => entrypoint.ready);
+  if (readyEntrypoints.length === 0) return { available: true, ownedPorts: new Set() };
+
+  const listeners = await runCommand("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"]);
+  if (!listeners.ok) return { available: false, ownedPorts: new Set() };
+  const pidsByPort = new Map();
+  let currentPid = null;
+  for (const line of listeners.stdout.split(/\r?\n/)) {
+    if (/^p\d+$/.test(line)) {
+      currentPid = line.slice(1);
+      continue;
+    }
+    const port = Number(line.match(/:(\d+)$/)?.[1]);
+    if (!currentPid || !Number.isInteger(port)) continue;
+    if (!pidsByPort.has(port)) pidsByPort.set(port, new Set());
+    pidsByPort.get(port).add(currentPid);
+  }
+
+  const relevantPids = [...new Set(readyEntrypoints.flatMap((entrypoint) =>
+    [...(pidsByPort.get(entrypoint.port) ?? [])]))];
+  if (relevantPids.length === 0) return { available: true, ownedPorts: new Set() };
+  const cwdResult = await runCommand("lsof", ["-a", "-p", relevantPids.join(","), "-d", "cwd", "-Fpn"]);
+  const cwdByPid = new Map();
+  currentPid = null;
+  for (const line of cwdResult.stdout.split(/\r?\n/)) {
+    if (/^p\d+$/.test(line)) {
+      currentPid = line.slice(1);
+    } else if (currentPid && line.startsWith("n")) {
+      cwdByPid.set(currentPid, line.slice(1));
+    }
+  }
+
+  return {
+    available: true,
+    ownedPorts: new Set(readyEntrypoints
+      .filter((entrypoint) => [...(pidsByPort.get(entrypoint.port) ?? [])]
+        .some((pid) => {
+          const workingDirectory = cwdByPid.get(pid);
+          return Boolean(workingDirectory) && isWithinRoot(root, workingDirectory);
+        }))
+      .map((entrypoint) => entrypoint.port)),
+  };
+}
+
 async function openEntrypoint(root, port) {
   const entrypoint = (await probeHttpEntrypoints(root)).find((candidate) => candidate.port === port);
   if (!entrypoint) throw new Error("The selected endpoint is not part of this app.");
   if (!entrypoint.ready) throw new Error(`${entrypoint.name} is not listening on port ${port}.`);
+  const ownership = await inspectEntrypointOwnership(root, [entrypoint], await readProcessRegistry(root));
+  if (ownership.available && !ownership.ownedPorts.has(port)) {
+    const error = new Error(`${entrypoint.name} on port ${port} belongs to another app.`);
+    error.statusCode = 409;
+    throw error;
+  }
   const available = await session.rpc.canvas.list();
   const browser = available.canvases.find((canvas) => canvas.canvasId === "browser");
   if (!browser) throw new Error("Browser canvas is unavailable.");
@@ -137,6 +239,12 @@ async function promptLocalAgent(root, prompt) {
   }
   const agent = (await probeHttpEntrypoints(root)).find((candidate) => candidate.port === 8088);
   if (!agent?.ready) throw new Error("The local agent is not running.");
+  const ownership = await inspectEntrypointOwnership(root, [agent], await readProcessRegistry(root));
+  if (ownership.available && !ownership.ownedPorts.has(agent.port)) {
+    const error = new Error("The local agent port belongs to another app.");
+    error.statusCode = 409;
+    throw error;
+  }
   const response = await fetch(`${agent.url}/responses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -178,26 +286,30 @@ async function localReadiness(root) {
 
 async function currentAppState(root) {
   const entrypoints = await probeHttpEntrypoints(root);
+  const registry = await readProcessRegistry(root);
+  const ownership = await inspectEntrypointOwnership(root, entrypoints, registry);
   const runtimeState = deriveRuntimeState(
     appStates.get(root),
-    await readProcessRegistry(root),
+    registry,
     entrypoints,
+    { ownershipAvailable: ownership.available, ownedPorts: ownership.ownedPorts },
   );
   appStates.set(root, runtimeState);
   return { ...runtimeState, entrypoints };
 }
 
-function requireIdleApp(root) {
-  const state = appStates.get(root)?.state;
-  if (!transientAppStates.has(state) && !pendingAppMutations.has(root)) return;
-  const operation = transientAppStates.has(state) ? state : "pending";
+function requireIdleApp(root, { allowActiveLifecycle = false } = {}) {
+  const appState = appStates.get(root);
+  const activeLifecycle = transientAppStates.has(appState?.state) && appState.recovered !== true;
+  if ((!activeLifecycle || allowActiveLifecycle) && !pendingAppMutations.has(root)) return;
+  const operation = activeLifecycle ? appState.state : "pending";
   const error = new Error(`Wait for the current ${operation} operation to finish before starting another app operation.`);
   error.statusCode = 409;
   throw error;
 }
 
-function reserveAppMutation(root) {
-  requireIdleApp(root);
+function reserveAppMutation(root, options) {
+  requireIdleApp(root, options);
   pendingAppMutations.add(root);
   return () => pendingAppMutations.delete(root);
 }
@@ -653,13 +765,39 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App command root is not an authorized app workspace.");
       }
-      releaseAppMutation = reserveAppMutation(root);
+      releaseAppMutation = reserveAppMutation(root, {
+        allowActiveLifecycle: input.operation === "run-local",
+      });
+      const current = await currentAppState(root);
       if (input.operation === "run-local") {
+        if (current.state === "running") {
+          sendJson(response, 200, {
+            outcome: "already-running",
+            root,
+            state: "running",
+            entrypoints: current.entrypoints,
+          });
+          return;
+        }
+        if (transientAppStates.has(current.state)) {
+          sendJson(response, 202, {
+            outcome: "operation-in-progress",
+            root,
+            state: current.state,
+            entrypoints: current.entrypoints,
+          });
+          return;
+        }
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
         sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "starting", {
           completedState: "running",
         }));
         return;
+      }
+      if (transientAppStates.has(current.state) && input.operation !== "stop-local") {
+        const error = new Error(`Wait for the current ${current.state} operation to finish before starting another app operation.`);
+        error.statusCode = 409;
+        throw error;
       }
       if (input.operation === "stop-local") {
         const lifecycle = await resolveLifecycleCommand(root, input.operation);

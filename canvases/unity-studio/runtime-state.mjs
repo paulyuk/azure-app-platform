@@ -8,15 +8,23 @@ const TRANSIENT_APP_STATES = new Set([
   "deploying",
 ]);
 
+const KNOWN_PROCESS_PORTS = new Map([
+  ["web", 3000],
+  ["agent", 8088],
+  ["skill", 7071],
+  ["azurite", 10000],
+]);
+
 function isAppOperationActive(state) {
   return TRANSIENT_APP_STATES.has(state);
 }
 
 function normalizeRegistryEntry(entry) {
-  const port = Number(entry?.port);
+  const name = String(entry?.name || "");
+  const port = Number(entry?.port ?? KNOWN_PROCESS_PORTS.get(name.toLowerCase()));
   if (!entry?.name || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
   return {
-    name: String(entry.name),
+    name,
     port,
     pid: Number.isInteger(Number(entry.pid)) && Number(entry.pid) > 0 ? Number(entry.pid) : null,
   };
@@ -48,16 +56,38 @@ export async function readProcessRegistry(root, read = readFile) {
   return [...new Map(entries.map((entry) => [entry.port, entry])).values()];
 }
 
-export function deriveRuntimeState(recordedState, registry, entrypoints) {
-  if (isAppOperationActive(recordedState?.state)) return recordedState;
-  if (recordedState?.state === "running" && registry.length === 0) return recordedState;
+export function deriveRuntimeState(
+  recordedState,
+  registry,
+  entrypoints,
+  { ownershipAvailable = false, ownedPorts = new Set() } = {},
+) {
+  if (isAppOperationActive(recordedState?.state) && recordedState.recovered !== true) return recordedState;
 
   const readyPorts = new Set(entrypoints.filter((entrypoint) => entrypoint.ready).map((entrypoint) => entrypoint.port));
   const trackedPorts = [...new Set(registry.map((entry) => entry.port))];
-  if (trackedPorts.length > 0 && trackedPorts.every((port) => readyPorts.has(port))) {
+  const attributableReadyPorts = ownershipAvailable ? ownedPorts : readyPorts;
+  const coreEntrypoints = new Map(entrypoints
+    .filter((entrypoint) => ["web", "agent"].includes(String(entrypoint.name).toLowerCase()))
+    .map((entrypoint) => [String(entrypoint.name).toLowerCase(), entrypoint]));
+  if (
+    trackedPorts.length === 0
+    && ownershipAvailable
+    && ["web", "agent"].every((name) => ownedPorts.has(coreEntrypoints.get(name)?.port))
+  ) {
     return { state: "running", recovered: recordedState?.state !== "running" };
   }
-  if (trackedPorts.some((port) => readyPorts.has(port))) {
+  if (trackedPorts.length > 0 && trackedPorts.every((port) => attributableReadyPorts.has(port))) {
+    return { state: "running", recovered: recordedState?.state !== "running" };
+  }
+  if (
+    trackedPorts.some((port) => attributableReadyPorts.has(port))
+    || (
+      trackedPorts.length === 0
+      && ownershipAvailable
+      && [...coreEntrypoints.values()].some((entrypoint) => ownedPorts.has(entrypoint.port))
+    )
+  ) {
     return { state: "starting", recovered: true };
   }
   if (recordedState?.state === "failed") return recordedState;

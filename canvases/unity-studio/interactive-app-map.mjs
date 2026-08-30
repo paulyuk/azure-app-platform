@@ -432,11 +432,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: flex; align-items: center; gap: 16px; padding: 12px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    .heading { min-width: 220px; }
+    .heading { min-width: 220px; flex: 1; }
     .heading small { display: block; margin-bottom: 1px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     h1 { margin: 0; font-size: 20px; }
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .toolbar { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+    .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .map-tools { position: relative; }
+    .map-tools > summary {
+      min-height: 32px; display: flex; align-items: center; padding: 4px 10px;
+      border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; list-style: none;
+    }
+    .map-tools > summary::-webkit-details-marker { display: none; }
+    .map-tools > summary::after { margin-left: 6px; content: "▾"; color: var(--muted); font-size: 10px; }
+    .map-tools[open] > summary { border-color: var(--accent); }
+    .toolbar {
+      position: absolute; z-index: 5; top: calc(100% + 8px); right: 0;
+      width: min(720px, calc(100vw - 32px)); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface); box-shadow: 0 10px 28px rgb(0 0 0 / .18);
+    }
     .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     input, select, button {
       min-height: 32px; border: 1px solid var(--border); border-radius: 4px;
@@ -508,10 +523,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
-    .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 20px; }
-    .journey-stage { min-height: 68px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); }
-    .journey-stage strong { display: block; font-size: 12px; }
-    .journey-stage small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .journey { display: flex; gap: 6px; margin: 14px 0 18px; }
+    .journey-stage { flex: 1; min-width: 0; padding: 8px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); text-align: center; }
+    .journey-stage summary { cursor: pointer; list-style: none; }
+    .journey-stage summary::-webkit-details-marker { display: none; }
+    .journey-stage strong { display: block; overflow: hidden; font-size: 11px; text-overflow: ellipsis; }
+    .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; text-align: left; }
     .journey-state { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-state::before { width: 7px; height: 7px; border-radius: 50%; background: var(--border); content: ""; }
     .journey-stage.complete .journey-state { color: #107c10; }
@@ -531,6 +548,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .action-priority { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
     .action-card button { min-height: 28px; font-size: 11px; }
     .run-card { margin-bottom: 14px; }
+    .more-guidance { margin-top: 10px; }
+    .more-guidance > summary, .management-section > summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .more-guidance .action-list { margin-top: 9px; }
+    .management-section { margin-top: 14px; padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    .management-section[open] > summary { color: var(--text); }
+    .management-section > .section-body { margin-top: 10px; }
     .detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
@@ -545,6 +568,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       main { grid-template-columns: minmax(0, 1fr); }
       aside { position: absolute; right: 0; top: 73px; bottom: 27px; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
       aside[data-empty="true"] { display: none; }
+      .heading p { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
@@ -557,24 +581,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <div class="heading">
       <small>App Map</small>
       <h1>${escapeHtml(appName)}</h1>
-      <p title="${escapeHtml(model.root)}">${escapeHtml(model.root)}</p>
+      <p>See how a request moves through your app.</p>
     </div>
-    <div class="toolbar" role="toolbar" aria-label="App Map controls">
-      <div class="icon-group view-toggle" aria-label="Map view">
-        <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
-        <button id="implementation-view" type="button" aria-pressed="false">Implementation</button>
-      </div>
-      <label><span class="visually-hidden">Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
-      <label><span class="visually-hidden">Search nodes</span><input id="search" type="search" placeholder="Search components…" aria-label="Search nodes"></label>
-      <label><span class="visually-hidden">Filter by tier</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All tiers</option>${tierOptions}</select></label>
-      <div class="icon-group" aria-label="Zoom controls">
-        <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-        <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
-      </div>
-      <button id="fit" type="button">Fit</button>
-      <button id="reset-layout" type="button">Reset view</button>
-      <button id="action-center" type="button">Action Center</button>
-      <button id="manage-app" type="button">Manage app</button>
+    <div class="header-actions">
+      <button id="action-center" class="primary" type="button">Guide</button>
+      <button id="manage-app" type="button">Manage</button>
+      <details class="map-tools">
+        <summary>Map tools</summary>
+        <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
+          <div class="icon-group view-toggle" aria-label="Map view">
+            <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
+            <button id="implementation-view" type="button" aria-pressed="false">Implementation details</button>
+          </div>
+          <label><span class="visually-hidden">Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
+          <label><span class="visually-hidden">Search nodes</span><input id="search" type="search" placeholder="Find a component…" aria-label="Search nodes"></label>
+          <label><span class="visually-hidden">Filter by tier</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All component types</option>${tierOptions}</select></label>
+          <div class="icon-group" aria-label="Zoom controls">
+            <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+            <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+          </div>
+          <button id="fit" type="button">Fit map</button>
+          <button id="reset-layout" type="button">Reset map</button>
+        </div>
+      </details>
     </div>
   </header>
   <main>
@@ -1137,9 +1166,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function appendPanelBack() {
-      const button = actionButton("← Action Center", renderActionCenter);
+      const button = actionButton("← Guide", renderActionCenter);
       button.className = "panel-back";
       details.append(button);
+    }
+
+    function managementSection(title, open = false) {
+      const section = document.createElement("details");
+      section.className = "management-section";
+      section.open = open;
+      const summary = document.createElement("summary");
+      summary.textContent = title;
+      const body = document.createElement("div");
+      body.className = "section-body";
+      section.append(summary, body);
+      details.append(section);
+      return body;
     }
 
     async function apiRequest(path, options = {}) {
@@ -1252,8 +1294,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         card.append(keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(card, "strong", humanize(appState) + " in progress");
-        appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
+        if (operationalState.app?.recovered) {
+          appendText(card, "strong", "Startup needs attention");
+          appendText(card, "p", "Some app services are still running, but the original startup command is no longer active. Stop them before trying again.");
+          card.append(keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
+        } else {
+          appendText(card, "strong", humanize(appState) + " in progress");
+          appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
+        }
       } else if (operationalState.readiness?.ready) {
         appendText(card, "strong", "Ready to try");
         appendText(card, "p", "Required local configuration was found. Unity can start the complete app for you.");
@@ -1286,6 +1334,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
+    function opportunityCard(opportunity) {
+      const card = document.createElement("div");
+      card.className = "action-card " + opportunity.priority;
+      appendText(card, "strong", opportunity.title);
+      appendText(card, "p", opportunity.detail);
+      card.append(keyedActionButton(
+        "opportunity-" + opportunity.id,
+        opportunity.action.label,
+        () => runOpportunityAction(opportunity),
+        opportunity.priority === "required" || opportunity.id === "add-observability",
+      ));
+      return card;
+    }
+
     function renderActionCenter() {
       const restoreFocus = details.contains(document.activeElement);
       const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
@@ -1296,54 +1358,56 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      const heading = appendText(details, "h2", "Action Center");
+      const heading = appendText(details, "h2", "Guide");
       heading.tabIndex = -1;
-      appendText(details, "p", "Unity uses the app's current evidence and readiness to recommend the next useful step. Complete an action, then refresh progress to get updated guidance.");
-      const progressActions = document.createElement("div");
-      progressActions.className = "actions";
-      progressActions.append(keyedActionButton("refresh-progress", "Refresh progress", () => location.reload(), true));
-      details.append(progressActions);
+      appendText(details, "p", "Unity checks the app and keeps the next useful action here. Progress updates automatically.");
 
       const journey = document.createElement("div");
       journey.className = "journey";
       for (const stage of effectiveJourneyStages()) {
-        const item = document.createElement("div");
+        const item = document.createElement("details");
         item.className = "journey-stage " + stage.state;
-        appendText(item, "span", stage.state === "complete" || stage.state === "running"
+        const summary = document.createElement("summary");
+        appendText(summary, "span", stage.state === "complete" || stage.state === "running"
           ? "Complete"
           : stage.state === "ready" ? "Ready" : stage.state === "blocked" ? "Later" : "Next", "journey-state");
-        appendText(item, "strong", stage.label);
-        appendText(item, "small", stage.detail);
+        appendText(summary, "strong", stage.label);
+        item.append(summary);
+        appendText(item, "span", stage.detail, "journey-detail");
         journey.append(item);
       }
       details.append(journey);
 
       renderRuntimeAction(details);
-      appendText(details, "h3", "Recommended next steps");
-      const list = document.createElement("div");
-      list.className = "action-list";
       if (MODEL.actionCenter.opportunities.length === 0) {
+        appendText(details, "h3", "Suggested improvement");
+        const list = document.createElement("div");
+        list.className = "action-list";
         const complete = document.createElement("div");
         complete.className = "action-card recommended";
         appendText(complete, "strong", "Core app journey is covered");
         appendText(complete, "p", "Unity found implementation, connections, and operational signals. Inspect any component to continue managing it.");
         list.append(complete);
+        details.append(list);
+      } else {
+        appendText(details, "h3", "Suggested improvement");
+        const list = document.createElement("div");
+        list.className = "action-list";
+        list.append(opportunityCard(MODEL.actionCenter.opportunities[0]));
+        details.append(list);
+        const remaining = MODEL.actionCenter.opportunities.slice(1);
+        if (remaining.length > 0) {
+          const more = document.createElement("details");
+          more.className = "more-guidance";
+          const summary = document.createElement("summary");
+          summary.textContent = "More suggestions (" + remaining.length + ")";
+          const moreList = document.createElement("div");
+          moreList.className = "action-list";
+          for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
+          more.append(summary, moreList);
+          details.append(more);
+        }
       }
-      for (const opportunity of MODEL.actionCenter.opportunities) {
-        const card = document.createElement("div");
-        card.className = "action-card " + opportunity.priority;
-        appendText(card, "span", opportunity.priority, "action-priority");
-        appendText(card, "strong", opportunity.title);
-        appendText(card, "p", opportunity.detail);
-        card.append(keyedActionButton(
-          "opportunity-" + opportunity.id,
-          opportunity.action.label,
-          () => runOpportunityAction(opportunity),
-          opportunity.priority === "required" || opportunity.id === "add-observability",
-        ));
-        list.append(card);
-      }
-      details.append(list);
       details.scrollTop = previousScrollTop;
       if (restoreFocus) {
         const replacement = focusedAction
@@ -1464,13 +1528,45 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
-      appendText(details, "h2", "Manage app");
-      appendText(details, "p", "Configure model access, manage source, and control the app lifecycle from this map.");
+      appendText(details, "h2", "Manage");
+      appendText(details, "p", "Open a section only when you need to change settings, deploy, troubleshoot, or delete this app.");
 
-      appendText(details, "h3", "Source");
+      const appState = operationalState.app?.state;
+      const gatewaySection = managementSection("AI model connection", !operationalState.readiness?.ready);
+      const gatewayControls = document.createElement("div");
+      gatewayControls.className = "action-list";
+      appendText(
+        gatewayControls,
+        "p",
+        ACTIVE_LIFECYCLE_STATES.includes(appState)
+          ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
+          : "Loading available AI Gateways…",
+      );
+      gatewaySection.append(gatewayControls);
+      if (!ACTIVE_LIFECYCLE_STATES.includes(appState)) void loadGatewayControls(gatewayControls);
+
+      const deploymentSection = managementSection("Azure deployment");
+      appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
+      const cloudActions = document.createElement("div");
+      cloudActions.className = "actions";
+      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
+      } else {
+        cloudActions.append(actionButton("Set up Azure resources", async () => {
+          await runAppOperation("provision-cloud");
+          renderActionCenter();
+        }));
+        cloudActions.append(actionButton("Deploy latest app", async () => {
+          await runAppOperation("deploy-cloud");
+          renderActionCenter();
+        }));
+      }
+      deploymentSection.append(cloudActions);
+
+      const developerSection = managementSection("Developer tools");
       const sourceActions = document.createElement("div");
       sourceActions.className = "actions";
-      sourceActions.append(actionButton("Open app source", async () => {
+      sourceActions.append(actionButton("Open source code", async () => {
         try {
           await apiRequest("/api/open-source", {
             method: "POST",
@@ -1480,73 +1576,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         } catch (error) {
           setStatus(error.message, true);
         }
-      }, true));
-      details.append(sourceActions);
-
-      appendText(details, "h3", "Model access");
-      const gatewayControls = document.createElement("div");
-      gatewayControls.className = "action-list";
-      const appState = operationalState.app?.state;
-      appendText(
-        gatewayControls,
-        "p",
-        ACTIVE_LIFECYCLE_STATES.includes(appState)
-          ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
-          : "Loading available AI Gateways…",
-      );
-      details.append(gatewayControls);
-      if (!ACTIVE_LIFECYCLE_STATES.includes(appState)) void loadGatewayControls(gatewayControls);
-
-      appendText(details, "h3", "Azure lifecycle");
-      appendText(details, "p", "Cloud actions run the app's checked-in azd workflow and may change Azure resources.");
-      const cloudActions = document.createElement("div");
-      cloudActions.className = "actions";
-      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
-      } else {
-        cloudActions.append(actionButton("Provision Azure", async () => {
-          await runAppOperation("provision-cloud");
-          renderActionCenter();
-        }));
-        cloudActions.append(actionButton("Deploy app", async () => {
-          await runAppOperation("deploy-cloud");
-          renderActionCenter();
-        }));
-      }
-      details.append(cloudActions);
-
-      appendText(details, "h3", "Local app");
-      const localActions = document.createElement("div");
-      localActions.className = "actions";
-      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(localActions, "p", humanize(appState) + " is in progress. Local controls will return when it finishes.");
-      } else if (appState === "running") {
-        localActions.append(actionButton("Stop local app", async () => {
-          await runAppOperation("stop-local");
-          renderActionCenter();
-        }));
-      } else if (operationalState.readiness?.ready) {
-        localActions.append(actionButton("Run local app", async () => {
-          await runAppOperation("run-local");
-          renderActionCenter();
-        }));
-      } else if (operationalState.readiness) {
-        appendText(
-          localActions,
-          "p",
-          operationalState.readiness.guidance || "Complete model access before running locally.",
-        );
-      } else {
-        appendText(localActions, "p", "Checking local readiness…");
-      }
-      details.append(localActions);
-
-      appendText(details, "h3", "Recent activity");
+      }));
+      developerSection.append(sourceActions);
       const activity = document.createElement("div");
       const output = document.createElement("pre");
       output.className = "command-output";
-      output.textContent = "Open command output when you need implementation details.";
-      activity.append(actionButton("View command output", async () => {
+      output.textContent = "Open startup and deployment output when troubleshooting.";
+      activity.append(actionButton("View technical output", async () => {
         try {
           const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
           output.textContent = result.lines.join("\\n") || "No command output yet.";
@@ -1556,9 +1592,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       }));
       activity.append(output);
-      details.append(activity);
+      developerSection.append(activity);
 
-      appendText(details, "h3", "Danger zone");
+      const dangerSection = managementSection("Delete app");
       const dangerActions = document.createElement("div");
       dangerActions.className = "actions";
       if (appState === "running") {
@@ -1570,7 +1606,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         deleteButton.className = "danger";
         dangerActions.append(deleteButton);
       }
-      details.append(dangerActions);
+      dangerSection.append(dangerActions);
     }
 
     async function refreshOperationalState() {
@@ -1681,7 +1717,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             appendText(details, "p", "Unity is implementing this capability. When it completes, refresh progress to discover the new evidence and receive the next tailored recommendation.");
             const nextActions = document.createElement("div");
             nextActions.className = "actions";
-            nextActions.append(actionButton("Refresh progress", () => location.reload(), true));
+            nextActions.append(actionButton("Check for changes", () => location.reload(), true));
             details.append(nextActions);
             setStatus("Requested a new " + tier.name + " source capability.");
           } catch (error) {

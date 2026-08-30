@@ -33,19 +33,20 @@ primitive.
 
 ## Entry journeys
 
-The landing context is **Unity apps** and has three actions:
+The landing context has two primary actions:
 
-1. **Create from template** — choose the editable Empty Unity app or the
+1. **Create a new app** — choose the editable Empty Unity app or the
    runnable Dealer sample.
-2. **Assemble from existing components** — select discovered source projects
-   and optional Azure resource mappings for each selected tier.
-3. **Open existing** — rediscover apps persisted as Git repository/worktree
+2. **Open an app** — rediscover apps persisted as Git repository/worktree
    pairs.
+
+**Assemble existing components** remains available under an explicitly
+advanced disclosure for users integrating independently built projects.
 
 Template choice cards show only a clear title and one outcome-focused
 description. After creation or selection, navigation goes directly to the App
 Map. Capability lists, lifecycle commands, file paths, and source provenance
-belong in its Action Center, Manage app panel, and Implementation view, not in
+belong in its Guide, Manage panel, and Implementation view, not in
 the landing decision surface.
 
 Every non-landing screen has a visible back arrow near the top. Bottom action
@@ -174,8 +175,9 @@ retrieve and apply them safely.
 - Background status probes are silent. They must not generate application
   request-log traffic or imply that the user invoked a component.
 - Runtime status survives Unity Studio reloads. Rehydrate it from the app's
-  persisted process registry and silent TCP readiness evidence so a live stack
-  is not mislabeled as stopped and stale registry files are not mislabeled as
+  persisted process registry or root-owned listeners plus silent TCP readiness
+  evidence so a live stack is not mislabeled as stopped, another app is not
+  attributed to the selected worktree, and stale evidence is not mislabeled as
   running.
 - Deterministic canvas actions replace copy/paste prompts and passive
   instructions wherever the host API can perform the operation directly.
@@ -190,9 +192,11 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 - make App Map the primary app screen after creation or selection rather than
   introducing a separate app-workspace dashboard;
 - keep the architecture diagram visually dominant and place progressive
-  guidance in the Action Center;
-- group model selection, source navigation, local lifecycle, Azure lifecycle,
-  and deletion in a secondary **Manage app** panel;
+  guidance in **Guide**;
+- keep only **Guide**, **Manage**, and collapsed **Map tools** in the primary
+  header;
+- group model selection, Azure deployment, source navigation, technical output,
+  and deletion into disclosures in the secondary **Manage** panel;
 - return to the app list through one visible top-level back action;
 - use compact pills only for status or categorical metadata, never as the sole
   indicator of state; and
@@ -217,7 +221,7 @@ canvas renders the result as a visual graph with component nodes,
 directional relationship labels, source evidence, and visibly unresolved
 references. A secondary **Refresh map** action exists only to pick up source
 changes made after the initial discovery. The App Map is the primary app screen,
-using the full canvas for the graph and its Action Center rather than requiring
+using the full canvas for the graph and its Guide rather than requiring
 an expansion step from an intermediate workspace.
 
 The expanded canvas defaults to **Request flow**, a stable left-to-right
@@ -229,7 +233,8 @@ implementations and detailed workflow operations remain available in the
 secondary **Implementation** view rather than implying requests reach them.
 Multiple entry points can filter the visible request path.
 
-Both views support pan, zoom, fit, search, and tier filters. Selecting an edge
+Both views support pan, zoom, fit, search, and tier filters under the collapsed
+**Map tools** disclosure. Selecting an edge
 explains the connection and its source evidence while stating that the diagram
 is not a live distributed trace. Documentation-only paths are explicitly
 labeled and rendered as low-confidence dashed connections. The Implementation view retains all nine tier
@@ -238,28 +243,29 @@ Browser-local positions are keyed by app, mode, and a stable topology
 fingerprint, so graph changes get a clean layout and never write presentation
 state into the app. A single click or keyboard activation opens evidence,
 bindings, and authorized source, specialist, and ready-endpoint actions.
-Clicking the selected card again or clicking empty map space returns to the
-Action Center. A lane-level **Add** handoff opens its specialist
+Clicking the selected card again or clicking empty map space returns to
+**Guide**. A lane-level **Add** handoff opens its specialist
 studio or, after explicit confirmation, requests a source capability through
 the existing implementation workflow; Azure provisioning remains outside the map.
 The expansion action is an accessible
 Fluent-style icon in the map's top-right toolbar, with a tooltip and
 screen-reader label rather than another large text button.
 
-The expanded map opens on an **Action Center** that abstracts the platform into
+The expanded map opens on **Guide**, which abstracts the platform into
 four user outcomes: **Build**, **Connect**, **Run**, and **Observe & manage**.
 The current source graph, unresolved relationships, local readiness, and runtime
-state determine stage progress and prioritized next actions. Guidance is
-progressive rather than generic: after Unity completes an action, **Refresh
-progress** retraces evidence and replaces the completed recommendation with the
-next applicable one. The Run stage uses existing readiness and lifecycle APIs
-so gateway hardening remains authoritative and merge-compatible.
+state determine stage progress and prioritized next actions. The surface shows
+runtime first, one suggested improvement, and collapses later suggestions.
+Runtime progress updates automatically; delegated implementation work offers
+**Check for changes** when the user needs to retrace source evidence. The Run
+stage uses existing readiness and lifecycle APIs so gateway hardening remains
+authoritative and merge-compatible.
 
 Observability is a first-class recommendation. When no SRE or telemetry evidence
 exists, **Set up observability** requests cross-tier, OpenTelemetry-compatible
 health instrumentation while cloud resource attachment remains an explicit
 specialist/deployment step. Partial instrumentation remains incomplete: the
-Action Center reports evidence-backed coverage across runtime components and
+Guide reports evidence-backed coverage across runtime components and
 recommends extending it across the remaining request path.
 
 Graph labels describe runtime roles rather than source-folder accidents. A
@@ -311,7 +317,7 @@ Future changes should preserve these invariants:
    gateway card now automatically runs the checked-in configuration hook after
    selection or provisioning, including a runtime-hostname fallback for
    preview gateway resources that do not expose `properties.gatewayUrl`.
-3. Extend the Action Center's observability setup with direct SRE Agent and
+3. Extend the Guide's observability setup with direct SRE Agent and
    Application Insights resource attachment when their specialist operations
    are registered.
 4. Add lifecycle command logs, process status, and detected local endpoint or

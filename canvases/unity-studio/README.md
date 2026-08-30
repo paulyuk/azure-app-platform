@@ -1,29 +1,32 @@
 # Unity Studio
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page has three journeys:
+pattern. Its landing page keeps two common journeys visible:
 
-1. **Create from template** — choose the editable **Empty Unity app** or the complete
+1. **Create a new app** — choose the editable **Empty Unity app** or the complete
    **Dealer sample**, customize the supported inputs, review the deterministic
    materialization plan, and create the app in an isolated worktree.
-2. **Assemble from existing components** — add capabilities, explicitly map each one to a
-   source project from a Git worktree or authorized local folder, optionally map
-   compatible Azure resources, and create a portable assembled app.
-3. **Open existing** — rediscover apps persisted as repository/worktree
+2. **Open an app** — rediscover apps persisted as repository/worktree
    pairs, then open their App Map to inspect request flow, implementation inventory,
    source, runtime, or specialist studios. This is the local persistence
    mechanism until Unity apps register with a control plane.
+
+The less common **Assemble existing components** journey is available under
+**Advanced: build from existing pieces**. It explicitly maps capabilities to
+source projects and, optionally, compatible Azure resources.
 
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
 
 After creation or selection, the App Map becomes the primary app interface.
-Its request-flow architecture, Action Center, Implementation view, and Manage
-app panel expose observed components, evidence, configuration, lifecycle
-controls, source navigation, and specialist studios without an intermediate
-workspace dashboard. Missing tiers are scaffoldable rather than inferred from
-the platform catalog.
+The default surface has only **Guide**, **Manage**, and the request-flow
+diagram. Guide shows runtime status and one suggested improvement at a time.
+Additional recommendations are collapsed, and search, filters, layout modes,
+and zoom controls live under **Map tools**. Manage groups model connection,
+Azure deployment, developer tools, and deletion into closed sections rather
+than presenting an infrastructure dashboard. Missing tiers are scaffoldable
+rather than inferred from the platform catalog.
 
 The App Map exposes deterministic lifecycle actions: **Run locally** and **Stop
 local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts
@@ -105,18 +108,23 @@ troubleshooting—not known-file creation.
   workflow internals remain in the secondary **Implementation** tier view.
   Search or filter nodes, inspect connection evidence, highlight one-hop
   relationships, and open safe navigation actions with one click. Click the
-  selected card again or click empty map space to return to the Action Center.
+  selected card again or click empty map space to return to the Guide.
   An Implementation tier's **Add** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
-  The default **Action Center** turns current app evidence into a progressive
+  The default **Guide** turns current app evidence into a progressive
   **Build → Connect → Run → Observe & manage** journey. It prioritizes missing
-  foundations, uncertain connections, local readiness, and observability, then
-  recomputes the next recommendation when you refresh progress after an action.
+  foundations, uncertain connections, local readiness, and observability while
+  keeping later suggestions collapsed.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
   reports repository and Azure discovery health rather than simulated platform
   status.
 
 After local startup, the App Map derives component status from lifecycle state.
+If Unity Studio reloads while the app is still live, its process registry or
+root-owned web and agent listeners recover the running state even when the
+in-memory launcher record is gone. Listeners from another app are not attributed
+to the selected worktree. Run is idempotent and will not restart an
+already-running or partially starting app.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
 agent offers an inline Responses API prompt plus a specialist-studio handoff.

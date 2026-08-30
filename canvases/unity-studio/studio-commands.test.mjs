@@ -83,6 +83,22 @@ test("runtime status recovers from the persisted POSIX process registry", async 
   });
 });
 
+test("runtime registry infers known ports for legacy PowerShell entries", async () => {
+  await withFixture({
+    ".dev-run/processes.json": JSON.stringify([
+      { name: "agent", pid: 123 },
+      { name: "web", pid: 456 },
+      { name: "skill", pid: 789 },
+    ]),
+  }, async (root) => {
+    assert.deepEqual(await readProcessRegistry(root), [
+      { name: "agent", port: 8088, pid: 123 },
+      { name: "web", port: 3000, pid: 456 },
+      { name: "skill", port: 7071, pid: 789 },
+    ]);
+  });
+});
+
 test("runtime status does not report a stale process registry as running", () => {
   const registry = [{ name: "agent", port: 8088, pid: 123 }];
   assert.deepEqual(
@@ -91,11 +107,72 @@ test("runtime status does not report a stale process registry as running", () =>
   );
 });
 
+test("runtime status recovers a live app from its core endpoints after Studio reload", () => {
+  const entrypoints = [
+    { name: "Web", port: 3000, ready: true },
+    { name: "Agent", port: 8088, ready: true },
+  ];
+  assert.deepEqual(
+    deriveRuntimeState(undefined, [], entrypoints),
+    { state: "stopped", recovered: false },
+  );
+  assert.deepEqual(
+    deriveRuntimeState(undefined, [], entrypoints, {
+      ownershipAvailable: true,
+      ownedPorts: new Set([3000, 8088]),
+    }),
+    { state: "running", recovered: true },
+  );
+  assert.deepEqual(
+    deriveRuntimeState(undefined, [], entrypoints, {
+      ownershipAvailable: true,
+      ownedPorts: new Set([8088]),
+    }),
+    { state: "starting", recovered: true },
+  );
+  assert.equal(
+    deriveRuntimeState(undefined, [], [{ ...entrypoints[0], ready: false }, entrypoints[1]]).state,
+    "stopped",
+  );
+  assert.equal(deriveRuntimeState(
+    { state: "running" },
+    [],
+    entrypoints.map((entrypoint) => ({ ...entrypoint, ready: false })),
+    { ownershipAvailable: true, ownedPorts: new Set() },
+  ).state, "stopped");
+  assert.equal(
+    deriveRuntimeState(undefined, [], [entrypoints[0]]).state,
+    "stopped",
+  );
+});
+
 test("runtime status preserves lifecycle transitions while commands are active", () => {
   for (const state of ["starting", "stopping", "configuring", "provisioning", "deploying"]) {
     assert.equal(deriveRuntimeState({ state, pid: 123 }, [], []).state, state);
   }
-  assert.equal(deriveRuntimeState({ state: "running", pid: 456 }, [], []).state, "running");
+  assert.equal(
+    deriveRuntimeState(
+      { state: "running", pid: 456 },
+      [{ name: "agent", port: 8088, pid: 456 }],
+      [{ name: "Agent", port: 8088, ready: true }],
+    ).state,
+    "running",
+  );
+});
+
+test("runtime status rejects stale registry ports owned by another app", () => {
+  const registry = [
+    { name: "web", port: 3000, pid: 100 },
+    { name: "agent", port: 8088, pid: 200 },
+  ];
+  const entrypoints = [
+    { name: "Web", port: 3000, ready: true },
+    { name: "Agent", port: 8088, ready: true },
+  ];
+  assert.equal(deriveRuntimeState(undefined, registry, entrypoints, {
+    ownershipAvailable: true,
+    ownedPorts: new Set(),
+  }).state, "stopped");
 });
 
 const GENERIC_APP = {
@@ -609,6 +686,10 @@ test("empty template materializer creates a runnable editable starter", async ()
     assert.equal(skillFiles.includes("function_app.py"), true);
     assert.match(await readFile(join(root, "src", "agent", "prompts", "system.md"), "utf8"), /use only registered tools/i);
     assert.match(await readFile(join(root, "scripts", "dev-start.sh"), "utf8"), /packagefeedproxy\.microsoft\.io/);
+    const powershellStart = await readFile(join(root, "scripts", "dev-start.ps1"), "utf8");
+    assert.match(powershellStart, /name = "agent"; port = 8088; pid = \$agent\.Id/);
+    assert.match(powershellStart, /name = "web"; port = 3000; pid = \$web\.Id/);
+    assert.match(powershellStart, /name = "skill"; port = 7071; pid = \$skill\.Id/);
     assert.match(await readFile(join(root, "unity.app.yaml"), "utf8"), /claim-lookup/);
     assert.equal(await readFile(join(root, "unrelated.txt"), "utf8"), "__APP_NAME__");
     assert.equal(skillFiles.includes("tests"), true);
@@ -826,17 +907,19 @@ test("VS Code launch uses the direct command and macOS fallback", async () => {
 test("guided renderer exposes create, assemble, and reopen journeys", () => {
     const html = renderStudioHtml("unity-studio", "test-token");
     for (const label of [
-      "Create from template",
-      "Assemble from existing components",
+      "Create a new app",
+      "Open an app",
+      "Advanced: build from existing pieces",
+      "Assemble existing components",
       "Empty Unity app",
       "Dealer sample",
       "Choose pieces",
       "Map Azure resources",
-      "Open existing",
     ]) {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }
-    assert.equal((html.match(/class="journey"/g) ?? []).length, 3);
+    assert.equal((html.match(/class="journey(?: |")/g) ?? []).length, 3);
+    assert.match(html, /<details class="advanced-journey">/);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
@@ -852,6 +935,8 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes("No Azure resources, repositories, or cloud deployments will be deleted."), true);
     assert.equal(html.includes('"X-Unity-Studio-Token": apiToken'), true);
     assert.equal(html.includes('const apiToken = "test-token"'), true);
+    assert.match(html, /commandResult\.outcome === "already-running"/);
+    assert.match(html, /commandResult\.outcome === "operation-in-progress"/);
     assert.match(html, /Dealer-sample-"\s*\+\s*crypto\.randomUUID\(\)\.slice\(0, 8\)/);
     assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
 });
@@ -865,7 +950,7 @@ test("app selection and creation route directly to the primary App Map", () => {
     'openAppMap(result.worktreePath)',
     'if (result.worktreePath)',
     "Assembly started. The app will appear here when its isolated workspace is ready.",
-    "Select one to open its request flow and Action Center",
+    "Select one to open its request flow and Guide",
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }
@@ -1132,7 +1217,7 @@ test("interactive App Map model keeps the tier contract and versioned topology l
   assert.notEqual(appMapFingerprint(graph), appMapFingerprint(changed));
 });
 
-test("App Map Action Center progressively recommends the next evidence-derived step", () => {
+test("App Map Guide progressively recommends the next evidence-derived step", () => {
   const node = (tierId) => ({
     id: `project:${tierId}`,
     kind: "project",
@@ -1193,7 +1278,7 @@ test("App Map Action Center progressively recommends the next evidence-derived s
   assert.deepEqual(progressed.opportunities, []);
 });
 
-test("App Map Action Center starts inexperienced users with plain-language app foundations", () => {
+test("App Map Guide starts inexperienced users with plain-language app foundations", () => {
   const result = buildActionCenterModel({ nodes: [], edges: [], unresolved: [] });
   assert.deepEqual(result.opportunities.map((item) => item.id), [
     "add-agent",
@@ -1354,21 +1439,26 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
   assert.match(html, /role="application" aria-label="Interactive source-derived Unity application graph"/);
-  assert.match(html, /role="toolbar" aria-label="App Map controls"/);
+  assert.match(html, /role="toolbar" aria-label="Advanced App Map controls"/);
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
   assert.match(html, />Request flow<\/button>/);
-  assert.match(html, />Implementation<\/button>/);
+  assert.match(html, />Implementation details<\/button>/);
   assert.match(html, /← Apps/);
-  assert.match(html, />Manage app<\/button>/);
-  assert.match(html, /Configure model access, manage source, and control the app lifecycle from this map/);
-  assert.match(html, /Provision Azure/);
-  assert.match(html, /Deploy app/);
+  assert.match(html, />Guide<\/button>/);
+  assert.match(html, />Manage<\/button>/);
+  assert.match(html, /<summary>Map tools<\/summary>/);
+  assert.match(html, /Open a section only when you need to change settings, deploy, troubleshoot, or delete this app/);
+  assert.match(html, /Set up Azure resources/);
+  assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
   assert.match(html, /"\/api\/gateway-options/);
   assert.match(html, /"\/api\/active-gateway"/);
   assert.match(html, /"\/api\/delete-app"/);
   assert.match(html, /Operations across the request path/);
+  assert.match(html, /Progress updates automatically/);
+  assert.match(html, /Stop partial startup/);
+  assert.match(html, /More suggestions/);
   assert.match(html, /function renderEdgeDetails/);
   assert.equal(
     script.indexOf("function renderEdgeDetails") < script.indexOf("function selectEdge"),
@@ -1391,7 +1481,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Build/);
   assert.match(html, /Connect/);
   assert.match(html, /Observe & manage/);
-  assert.match(html, /Refresh progress/);
+  assert.match(html, /document\.createElement\("details"\)/);
+  assert.match(html, /appendText\(item, "span", stage\.detail, "journey-detail"\)/);
+  assert.match(html, /Check for changes/);
   assert.match(html, /Confirm capability request/);
   assert.doesNotMatch(html, /<script>globalThis\.compromised=true<\/script>/);
   assert.match(script, /\\u003c\/script>/);
