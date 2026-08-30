@@ -1764,12 +1764,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       if (!agentEntrypoint) {
+        const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
+        const appRunning = operationalState.app?.state === "running";
         appendText(
           tester,
           "p",
-          operationalState.app?.state === "running"
-            ? "The web preview is running, but the agent service is not. Complete the required setup, then run the full app."
-            : "Complete the required setup and run the app to enable test prompts.",
+          !gatewayConfigured
+            ? "Sending is disabled because no AI Gateway is connected, so Unity started only the web preview. Stop the preview, connect an AI Gateway under AI model connection, then run the app again."
+            : appRunning
+              ? "Sending is disabled because the agent service did not start. Stop the current app, then run it again to retry the complete startup."
+              : "The AI Gateway is connected. Run the app to start the agent service and enable sending.",
         );
         const prompt = document.createElement("textarea");
         prompt.maxLength = 2000;
@@ -1784,7 +1788,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const send = actionButton("Send test prompt", () => {});
         send.disabled = true;
         actions.append(send);
-        actions.append(actionButton("Show required setup", renderActionCenter, true));
+        if (!gatewayConfigured && appRunning) {
+          actions.append(actionButton("Stop preview", () => runAppOperation("stop-local"), true));
+        } else if (!gatewayConfigured) {
+          actions.append(actionButton(
+            "Connect AI Gateway",
+            () => renderManagePanel({ openGateway: true }),
+            true,
+          ));
+        } else if (appRunning) {
+          actions.append(actionButton("Stop app", () => runAppOperation("stop-local"), true));
+        } else {
+          actions.append(actionButton("Run app", () => runAppOperation("run-local"), true));
+        }
         tester.append(prompt, actions);
         container.append(tester);
         return;
@@ -1842,7 +1858,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(tester);
     }
 
-    function renderManagePanel() {
+    function renderManagePanel({ openGateway = false } = {}) {
       panelMode = "manage";
       selectedId = null;
       selectedEdgeId = null;
@@ -1854,7 +1870,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(details, "p", "Open a section only when you need to change settings, deploy, troubleshoot, or delete this app.");
 
       const appState = operationalState.app?.state;
-      const gatewaySection = managementSection("AI model connection", !operationalState.readiness?.ready);
+      const gatewaySection = managementSection(
+        "AI model connection",
+        openGateway || !operationalState.readiness?.gatewayConfigured,
+      );
       const gatewayControls = document.createElement("div");
       gatewayControls.className = "action-list";
       appendText(

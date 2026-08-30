@@ -1801,7 +1801,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Test local agent/);
   assert.match(html, /Enter a prompt while the local agent starts/);
   assert.match(html, /agentPromptDraft = prompt\.value/);
-  assert.match(html, /Show required setup/);
+  assert.match(html, /Sending is disabled because no AI Gateway is connected/);
+  assert.match(html, /Connect AI Gateway/);
+  assert.match(html, /Stop preview/);
   assert.match(html, /Send test prompt/);
   assert.match(html, /"\/api\/agent-prompt"/);
   assert.match(html, /port: agentEntrypoint\.port/);
