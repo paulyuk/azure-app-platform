@@ -197,7 +197,7 @@ mixed into the request path. They remain available in the secondary
 
 Both views use the same directional evidence-backed edges, pan and zoom
 controls, search, and tier filters. The **Request flow** and **Implementation
-details** switch remains visible in a dedicated view bar. Search, filters,
+map** switch remains visible in a dedicated view bar. Search, filters,
 zoom, fit, and reset controls are grouped under **Search & layout** so they do
 not compete with the primary views. Guide keeps **Add to app** visible without
 requiring users to discover the Implementation lanes. The deterministic Request flow layout is

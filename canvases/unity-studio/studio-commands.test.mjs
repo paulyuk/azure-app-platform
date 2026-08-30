@@ -1701,9 +1701,12 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
   assert.match(html, />Request flow<\/button>/);
-  assert.match(html, />Implementation details<\/button>/);
+  assert.match(html, />Implementation map<\/button>/);
   assert.match(html, /<nav class="map-view-bar" aria-label="App Map views">/);
-  assert.match(html, /class="icon-group view-toggle map-view-switch" role="group" aria-label="App Map view"/);
+  assert.match(html, /class="map-view-switch" role="tablist" aria-label="App Map view"/);
+  assert.match(html, /role="tab" aria-selected="true" aria-controls="graph-shell"/);
+  assert.match(html, /\.map-view-switch button\[aria-selected="true"\]/);
+  assert.match(html, /if \(event\.key === "ArrowRight"\)/);
   const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, /← Apps/);

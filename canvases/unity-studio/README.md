@@ -24,7 +24,7 @@ The default surface keeps **Guide**, **Manage**, and the request-flow diagram
 visually primary. Guide exposes **Add to app**, runtime status, and one suggested
 improvement at a time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
-details** remain visible in a dedicated view bar, while search, filters, zoom,
+map** remain visible in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. Manage groups model connection,
 Azure deployment, developer tools, and deletion into closed sections rather
 than presenting an infrastructure dashboard. Missing tiers are scaffoldable

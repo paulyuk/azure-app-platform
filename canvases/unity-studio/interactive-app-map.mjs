@@ -443,9 +443,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
-    .map-view-bar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-    .map-view-switch { min-width: 260px; }
-    .map-view-switch button { flex: 1; padding-inline: 14px; white-space: nowrap; }
+    .map-view-bar { padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
     .map-tools { position: relative; }
     .map-tools > summary {
       min-height: 32px; display: flex; align-items: center; padding: 4px 10px;
@@ -477,7 +475,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .icon-group button { border-radius: 0; min-width: 34px; }
     .icon-group button:first-child { border-radius: 4px 0 0 4px; }
     .icon-group button:last-child { border-radius: 0 4px 4px 0; }
-    .view-toggle button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .map-view-switch { display: flex; gap: 18px; width: max-content; max-width: 100%; }
+    .map-view-switch button {
+      flex: 0 0 auto; min-height: 40px; padding: 8px 2px 7px;
+      border: 0; border-bottom: 3px solid transparent; border-radius: 0;
+      background: transparent; color: var(--muted); font-weight: 600; white-space: nowrap;
+    }
+    .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
+    .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
     #entry-filter[hidden] { display: none; }
     main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
@@ -598,6 +603,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       .toolbar { width: calc(100vw - 24px); }
       .map-view-bar { padding-inline: 12px; }
       .map-view-switch { width: 100%; min-width: 0; }
+      .map-view-switch button { flex: 1; }
       main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
       aside {
         position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
@@ -638,9 +644,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     </div>
   </header>
   <nav class="map-view-bar" aria-label="App Map views">
-    <div class="icon-group view-toggle map-view-switch" role="group" aria-label="App Map view">
-      <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
-      <button id="implementation-view" type="button" aria-pressed="false">Implementation details</button>
+    <div class="map-view-switch" role="tablist" aria-label="App Map view">
+      <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
+      <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
     </div>
   </nav>
   <main>
@@ -1029,8 +1035,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function updatePresentation() {
       document.body.classList.toggle("implementation-view", layoutMode === "implementation");
-      requestFlowButton.setAttribute("aria-pressed", String(layoutMode === "request-flow"));
-      implementationButton.setAttribute("aria-pressed", String(layoutMode === "implementation"));
+      requestFlowButton.setAttribute("aria-selected", String(layoutMode === "request-flow"));
+      implementationButton.setAttribute("aria-selected", String(layoutMode === "implementation"));
+      requestFlowButton.tabIndex = layoutMode === "request-flow" ? 0 : -1;
+      implementationButton.tabIndex = layoutMode === "implementation" ? 0 : -1;
       entryFilter.hidden = layoutMode !== "request-flow" || MODEL.requestFlow.entrypointIds.length < 2;
       resetLayoutButton.textContent = layoutMode === "request-flow" ? "Reset view" : "Reset layout";
       mapContext.textContent = layoutMode === "request-flow"
@@ -2207,6 +2215,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (layoutMode === "implementation") return;
       applyLayout("implementation");
       setStatus("Showing the complete source-derived implementation map.");
+    });
+    const viewTabs = [requestFlowButton, implementationButton];
+    viewTabs.forEach((button, index) => {
+      button.addEventListener("keydown", (event) => {
+        let nextIndex = null;
+        if (event.key === "ArrowLeft") nextIndex = (index - 1 + viewTabs.length) % viewTabs.length;
+        if (event.key === "ArrowRight") nextIndex = (index + 1) % viewTabs.length;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = viewTabs.length - 1;
+        if (nextIndex === null) return;
+        event.preventDefault();
+        viewTabs[nextIndex].focus();
+        viewTabs[nextIndex].click();
+      });
     });
     resetLayoutButton.addEventListener("click", () => {
       if (layoutMode === "implementation") {
