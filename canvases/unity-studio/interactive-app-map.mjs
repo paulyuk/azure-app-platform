@@ -744,6 +744,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let gatewayState = null;
     let operationalFingerprint = "";
     let lifecycleOperation = null;
+    let agentPromptDraft = "";
     let layoutMode = "request-flow";
     let panelMode = "action-center";
     let selectedId = null;
@@ -1771,9 +1772,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             : "Complete the required setup and run the app to enable test prompts.",
         );
         const prompt = document.createElement("textarea");
-        prompt.disabled = true;
-        prompt.placeholder = "Start the local agent to enable test prompts";
-        prompt.setAttribute("aria-label", "Agent test prompt unavailable");
+        prompt.maxLength = 2000;
+        prompt.value = agentPromptDraft;
+        prompt.placeholder = "Enter a prompt while the local agent starts";
+        prompt.setAttribute("aria-label", "Agent test prompt");
+        prompt.addEventListener("input", () => {
+          agentPromptDraft = prompt.value;
+        });
         const actions = document.createElement("div");
         actions.className = "actions";
         const send = actionButton("Send test prompt", () => {});
@@ -1787,8 +1792,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
       const prompt = document.createElement("textarea");
       prompt.maxLength = 2000;
+      prompt.value = agentPromptDraft;
       prompt.placeholder = "Send a prompt to the running agent";
       prompt.setAttribute("aria-label", "Agent test prompt");
+      prompt.addEventListener("input", () => {
+        agentPromptDraft = prompt.value;
+      });
       const response = document.createElement("pre");
       response.className = "command-output agent-response";
       response.textContent = "The agent response will appear here.";

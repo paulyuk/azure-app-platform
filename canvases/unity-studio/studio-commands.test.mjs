@@ -1799,7 +1799,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
   assert.match(html, /Test local agent/);
-  assert.match(html, /Start the local agent to enable test prompts/);
+  assert.match(html, /Enter a prompt while the local agent starts/);
+  assert.match(html, /agentPromptDraft = prompt\.value/);
   assert.match(html, /Show required setup/);
   assert.match(html, /Send test prompt/);
   assert.match(html, /"\/api\/agent-prompt"/);
