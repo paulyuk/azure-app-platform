@@ -1088,8 +1088,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     for (const label of [
       "Create a new app",
       "Open an app",
-      "Advanced: build from existing pieces",
-      "Assemble existing components",
+      "Assemble existing pieces",
       "Empty Unity app",
       "Dealer sample",
       "Choose pieces",
@@ -1098,7 +1097,8 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }
     assert.equal((html.match(/class="journey(?: |")/g) ?? []).length, 3);
-    assert.match(html, /<details class="advanced-journey">/);
+    assert.doesNotMatch(html, /advanced-journey/);
+    assert.match(html, /\.journeys \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
@@ -1106,6 +1106,9 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.match(html, /captureDetails\(\);\s*draft\.templateRootId = input\.value/);
     assert.match(html, /"app-name"\)\.addEventListener\("input"/);
     assert.match(html, /"purpose"\)\.addEventListener\("input"/);
+    assert.match(html, /\.journey\.primary span \{ color: #f0ebff; \}/);
+    assert.match(html, /\.capability, \.review-row \{ display: grid; gap: 4px; \}/);
+    assert.match(html, /\.review-row small \{ display: block; color: var\(--studio-muted\);/);
     assert.equal(html.includes('id="top-back"'), true);
     assert.equal(html.includes("Delete app"), true);
     assert.equal(html.includes("local changes excluded"), false);
@@ -1699,6 +1702,10 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
   assert.match(html, />Request flow<\/button>/);
   assert.match(html, />Implementation details<\/button>/);
+  assert.match(html, /<nav class="map-view-bar" aria-label="App Map views">/);
+  assert.match(html, /class="icon-group view-toggle map-view-switch" role="group" aria-label="App Map view"/);
+  const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
+  assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, /← Apps/);
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Manage<\/button>/);
@@ -1706,7 +1713,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /function renderAddToAppPanel/);
   assert.match(html, /Choose the capability you want/);
   assert.match(html, /Add another/);
-  assert.match(html, /<summary>Map tools<\/summary>/);
+  assert.match(html, /<summary>Search &amp; layout<\/summary>/);
   assert.match(html, /Open a section only when you need to change settings, deploy, troubleshoot, or delete this app/);
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);

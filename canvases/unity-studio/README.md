@@ -1,7 +1,7 @@
 # Unity Studio
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page keeps two common journeys visible:
+pattern. Its landing page keeps three journeys visible:
 
 1. **Create a new app** — choose the editable **Empty Unity app** or the complete
    **Dealer sample**, customize the supported inputs, review the deterministic
@@ -10,10 +10,8 @@ pattern. Its landing page keeps two common journeys visible:
    pairs, then open their App Map to inspect request flow, implementation inventory,
    source, runtime, or specialist studios. This is the local persistence
    mechanism until Unity apps register with a control plane.
-
-The less common **Assemble existing components** journey is available under
-**Advanced: build from existing pieces**. It explicitly maps capabilities to
-source projects and, optionally, compatible Azure resources.
+3. **Assemble existing pieces** — explicitly map capabilities to source projects
+   and, optionally, compatible Azure resources.
 
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
@@ -25,8 +23,9 @@ opens with a clear warning so the user can continue.
 The default surface keeps **Guide**, **Manage**, and the request-flow diagram
 visually primary. Guide exposes **Add to app**, runtime status, and one suggested
 improvement at a time.
-Additional recommendations are collapsed, and search, filters, layout modes,
-and zoom controls live under **Map tools**. Manage groups model connection,
+Additional recommendations are collapsed. **Request flow** and **Implementation
+details** remain visible in a dedicated view bar, while search, filters, zoom,
+and reset controls live under **Search & layout**. Manage groups model connection,
 Azure deployment, developer tools, and deletion into closed sections rather
 than presenting an infrastructure dashboard. Missing tiers are scaffoldable
 rather than inferred from the platform catalog.

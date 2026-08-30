@@ -33,15 +33,14 @@ primitive.
 
 ## Entry journeys
 
-The landing context has two primary actions:
+The landing context has three primary actions:
 
 1. **Create a new app** — choose the editable Empty Unity app or the
    runnable Dealer sample.
 2. **Open an app** — rediscover apps persisted as Git repository/worktree
    pairs.
-
-**Assemble existing components** remains available under an explicitly
-advanced disclosure for users integrating independently built projects.
+3. **Assemble existing pieces** — explicitly map capabilities to independently
+   built source projects and compatible Azure resources.
 
 Template choice cards show only a clear title and one outcome-focused
 description. After creation or selection, navigation goes directly to the App
@@ -212,8 +211,8 @@ Intelligent Function App studios and the Microsoft Foundry portal:
   guidance in **Guide**;
 - keep a visible **Add to app** action in Guide that routes users into the
   capability-specific implementation or specialist workflow;
-- keep only **Guide**, **Manage**, and collapsed **Map tools** in the primary
-  header;
+- keep **Guide**, **Manage**, and collapsed **Search & layout** in the primary
+  header, with the primary App Map view switch in a persistent row below it;
 - group model selection, Azure deployment, source navigation, technical output,
   and deletion into disclosures in the secondary **Manage** panel;
 - return to the app list through one visible top-level back action;
@@ -255,7 +254,8 @@ secondary **Implementation** view rather than implying requests reach them.
 Multiple entry points can filter the visible request path.
 
 Both views support pan, zoom, fit, search, and tier filters under the collapsed
-**Map tools** disclosure. Selecting an edge
+**Search & layout** disclosure, while the view switch remains persistently
+visible. Selecting an edge
 explains the connection and its source evidence while stating that the diagram
 is not a live distributed trace. Documentation-only paths are explicitly
 labeled and rendered as low-confidence dashed connections. The Implementation view retains all nine tier

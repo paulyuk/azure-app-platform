@@ -147,7 +147,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .workspace-intro p { margin-bottom: 8px; }
       .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
       .workspace-path { color: var(--studio-muted); }
-      .journeys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+      .journeys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
       .journey {
         width: 100%;
         min-height: 104px;
@@ -158,9 +158,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
       .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
       .journey span { color: var(--text-color-muted, #59636e); }
-      .advanced-journey { margin-top: 14px; }
-      .advanced-journey summary { cursor: pointer; color: var(--studio-muted); font-weight: 600; }
-      .advanced-journey .journey { min-height: auto; margin-top: 10px; }
+      .journey.primary span { color: #f0ebff; }
       .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
@@ -180,6 +178,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         border-radius: 10px;
         padding: 12px;
       }
+      .capability, .review-row { display: grid; gap: 4px; }
+      .capability strong, .review-row strong { display: block; }
+      .review-row small { display: block; color: var(--studio-muted); line-height: 1.45; }
       .app-row { display: flex; align-items: center; gap: 10px; }
       .app-row > [data-existing-app] { flex: 1; min-width: 0; text-align: left; }
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
@@ -322,7 +323,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .danger-zone { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--studio-line); }
       .danger-zone button { color: var(--studio-danger); border-color: color-mix(in srgb, var(--studio-danger) 45%, var(--studio-line)); }
       #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
-      @media (max-width: 480px) {
+      @media (max-width: 720px) {
         body { padding-inline: 14px; }
         .journeys { grid-template-columns: 1fr; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
@@ -501,15 +502,14 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         clearStatus();
         app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
           '<h1>What would you like to do?</h1>' +
-          '<p>Start a new app or continue working on one you already have.</p>' +
+          '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
           '<div class="journeys">' +
           '<button type="button" class="journey primary" id="new-app"><strong>Create a new app</strong>' +
           '<span>Describe what you want to build and start from a proven template.</span></button>' +
           '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
           '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
-          '</div><details class="advanced-journey"><summary>Advanced: build from existing pieces</summary>' +
-          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing components</strong>' +
-          '<span>Combine source projects and map existing Azure resources.</span></button></details>';
+          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
+          '<span>Combine source projects and map existing Azure resources.</span></button></div>';
         document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
           draft.starterKind = "template";

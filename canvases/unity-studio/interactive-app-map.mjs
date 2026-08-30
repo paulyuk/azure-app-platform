@@ -429,7 +429,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body {
-      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
     header, main, footer { min-width: 0; }
@@ -443,6 +443,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .map-view-bar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .map-view-switch { min-width: 260px; }
+    .map-view-switch button { flex: 1; padding-inline: 14px; white-space: nowrap; }
     .map-tools { position: relative; }
     .map-tools > summary {
       min-height: 32px; display: flex; align-items: center; padding: 4px 10px;
@@ -595,6 +598,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
       .map-tools > summary { justify-content: center; }
       .toolbar { width: calc(100vw - 24px); }
+      .map-view-bar { padding-inline: 12px; }
+      .map-view-switch { width: 100%; min-width: 0; }
       main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
       aside {
         position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
@@ -619,12 +624,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="action-center" class="primary" type="button">Guide</button>
       <button id="manage-app" type="button">Manage</button>
       <details class="map-tools">
-        <summary>Map tools</summary>
+        <summary>Search &amp; layout</summary>
         <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
-          <div class="icon-group view-toggle" aria-label="Map view">
-            <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
-            <button id="implementation-view" type="button" aria-pressed="false">Implementation details</button>
-          </div>
           <label><span class="visually-hidden">Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
           <label><span class="visually-hidden">Search nodes</span><input id="search" type="search" placeholder="Find a component…" aria-label="Search nodes"></label>
           <label><span class="visually-hidden">Filter by tier</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All component types</option>${tierOptions}</select></label>
@@ -638,6 +639,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       </details>
     </div>
   </header>
+  <nav class="map-view-bar" aria-label="App Map views">
+    <div class="icon-group view-toggle map-view-switch" role="group" aria-label="App Map view">
+      <button id="request-flow-view" type="button" aria-pressed="true">Request flow</button>
+      <button id="implementation-view" type="button" aria-pressed="false">Implementation details</button>
+    </div>
+  </nav>
   <main>
     <div id="graph-shell">
       <svg id="graph" role="application" aria-label="Interactive source-derived Unity application graph">

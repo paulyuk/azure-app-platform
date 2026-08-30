@@ -196,9 +196,10 @@ mixed into the request path. They remain available in the secondary
 **Implementation** view, which preserves all nine Unity tier swimlanes.
 
 Both views use the same directional evidence-backed edges, pan and zoom
-controls, search, and tier filters. These advanced controls and the
-Implementation switch are collapsed under **Map tools** so the default header
-shows only **Guide** and **Manage**. Guide keeps **Add to app** visible without
+controls, search, and tier filters. The **Request flow** and **Implementation
+details** switch remains visible in a dedicated view bar. Search, filters,
+zoom, fit, and reset controls are grouped under **Search & layout** so they do
+not compete with the primary views. Guide keeps **Add to app** visible without
 requiring users to discover the Implementation lanes. The deterministic Request flow layout is
 not draggable because its position communicates architectural meaning. The
 Implementation view permits vertical reordering inside the evidence-derived
