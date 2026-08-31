@@ -21,7 +21,9 @@ After creation or selection, the App Map becomes the primary app interface.
 An optional VS Code launch failure does not roll back the new worktree; App Map
 opens with a clear warning so the user can continue.
 The default surface keeps **Guide**, **Manage**, and the request-flow diagram
-visually primary. Each request-flow stage and Implementation lane exposes a
+visually primary. A persistent badge beside the app name distinguishes
+**Not running**, **Local preview**, **Running locally**, and active lifecycle
+transitions. Each request-flow stage and Implementation lane exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
@@ -31,8 +33,9 @@ Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. Manage groups model connection,
 Azure deployment, developer tools, and deletion into closed sections rather
-than presenting an infrastructure dashboard. Missing tiers are scaffoldable
-rather than inferred from the platform catalog.
+than presenting an infrastructure dashboard. Its desktop panel width is
+adjustable and remembered per app; command output stays collapsed until opened.
+Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
 The App Map exposes deterministic lifecycle actions: **Run locally** and **Stop
 local app** invoke the checked-in `dev-start`/`dev-stop` shell scripts

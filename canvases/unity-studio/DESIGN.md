@@ -199,7 +199,9 @@ Both views use the same directional evidence-backed edges, pan and zoom
 controls, search, and tier filters. The **Request flow** and **Implementation
 map** switch remains visible in a dedicated view bar. Search, filters,
 zoom, fit, and reset controls are grouped under **Search & layout** so they do
-not compete with the primary views. Each request-flow stage and Implementation
+not compete with the primary views. Overall runtime state remains visible beside
+the app name as **Not running**, **Local preview**, **Running locally**, or the
+current lifecycle transition. Each request-flow stage and Implementation
 lane exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
@@ -262,7 +264,9 @@ Manage is intentionally secondary. AI model connection, Azure deployment,
 developer tools, technical output, and deletion are grouped into disclosures;
 only model connection opens automatically when readiness says it needs action.
 Developer tools retain the running-agent prompt tester and command output from
-the previous management surface.
+the previous management surface. Command output is collapsible, while the
+desktop details panel is pointer- and keyboard-resizable with its per-app width
+stored locally.
 
 ## Safety and limitations
 

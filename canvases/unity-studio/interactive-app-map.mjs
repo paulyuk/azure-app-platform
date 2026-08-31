@@ -439,7 +439,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .heading { min-width: 220px; flex: 1; }
     .heading small { display: block; margin-bottom: 1px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-    h1 { margin: 0; font-size: 20px; }
+    .app-title-row { min-width: 0; display: flex; align-items: center; gap: 9px; }
+    h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+    .runtime-badge {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
+      border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
+      color: var(--muted); background: var(--surface-muted); font-size: 10px; font-weight: 700;
+    }
+    .runtime-badge::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .runtime-badge[data-tone="success"] { border-color: #107c10; color: #107c10; background: rgb(16 124 16 / .1); }
+    .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
+    .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .runtime-badge[data-tone="error"] { border-color: var(--danger); color: var(--danger); background: rgb(164 38 44 / .1); }
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
@@ -487,7 +498,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
     .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
     #entry-filter[hidden] { display: none; }
-    main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+    main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 6px var(--details-width, 380px); }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
     #graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
     #graph.panning { cursor: grabbing; }
@@ -540,15 +551,35 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       position: absolute; inset: 0; display: none; place-items: center; pointer-events: none;
       color: var(--muted); font-weight: 600;
     }
-    aside { min-width: 0; overflow: auto; border-left: 1px solid var(--border); background: var(--surface); padding: 16px; }
+    #details-resizer {
+      position: relative; z-index: 3; cursor: col-resize; background: var(--border);
+      touch-action: none;
+    }
+    #details-resizer::after {
+      position: absolute; inset-block: 0; left: -3px; width: 12px; content: "";
+    }
+    #details-resizer:hover, #details-resizer:focus-visible { background: var(--accent); outline: none; }
+    body.resizing-details { cursor: col-resize; user-select: none; }
+    aside { min-width: 0; overflow: auto; background: var(--surface); padding: 16px; }
     aside h2 { margin: 0 0 4px; font-size: 18px; }
     aside h3 { margin: 18px 0 6px; font-size: 13px; }
     aside p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
     aside code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
     aside ul { margin: 4px 0; padding-left: 18px; }
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
-    .command-output { max-height: 220px; overflow: auto; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
-    .agent-tester { display: grid; gap: 9px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .command-output[hidden] { display: none; }
+    .developer-tool-card {
+      display: grid; gap: 9px; margin-top: 12px; padding: 12px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    }
+    .developer-tool-card > strong { font-size: 14px; }
+    .developer-tool-card > p { margin: 0; }
+    .tool-status { width: fit-content; border-radius: 999px; padding: 3px 7px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
+    .tool-status.ready { background: rgb(16 124 16 / .1); color: #107c10; }
+    .setup-steps { margin: 0; padding-left: 22px; color: var(--text); }
+    .setup-steps li { margin: 3px 0; font-size: 12px; }
+    .agent-tester { display: grid; gap: 9px; }
     .agent-tester textarea {
       width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--border);
       border-radius: 7px; padding: 9px; color: var(--text); background: var(--surface); font: inherit;
@@ -613,6 +644,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 900px) {
       main { grid-template-columns: minmax(0, 1fr); }
+      #details-resizer { display: none; }
       aside { position: absolute; z-index: 4; right: 0; inset-block: 0; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
       aside[data-empty="true"] { display: none; }
       .heading p { display: none; }
@@ -650,7 +682,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <button id="back-apps" class="back-link" type="button">← Apps</button>
     <div class="heading">
       <small>App Map</small>
-      <h1>${escapeHtml(appName)}</h1>
+      <div class="app-title-row">
+        <h1>${escapeHtml(appName)}</h1>
+        <span id="app-status-badge" class="runtime-badge" data-tone="busy" role="status">Checking status</span>
+      </div>
       <p>See how a request moves through your app.</p>
     </div>
     <div class="header-actions">
@@ -694,6 +729,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       </svg>
       <div id="empty-state">No nodes match the current filters.</div>
     </div>
+    <div id="details-resizer" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabindex="0"></div>
     <aside id="details" aria-live="polite" data-empty="false"></aside>
   </main>
   <footer>
@@ -723,8 +759,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const lanesLayer = document.querySelector("#lanes");
     const edgesLayer = document.querySelector("#edges");
     const nodesLayer = document.querySelector("#nodes");
+    const detailsResizer = document.querySelector("#details-resizer");
     const details = document.querySelector("#details");
     const status = document.querySelector("#status");
+    const appStatusBadge = document.querySelector("#app-status-badge");
     const mapContext = document.querySelector("#map-context");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
@@ -751,6 +789,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedEdgeId = null;
     let panState = null;
     let dragState = null;
+    let detailsResizeState = null;
+    let detailsPanelWidth = 380;
     let suppressNodeClick = null;
     const ACTIVE_LIFECYCLE_STATES = ["starting", "stopping", "configuring", "provisioning", "deploying"];
     let transform = { x: 0, y: 0, scale: 1 };
@@ -772,6 +812,56 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function humanize(value) {
       return String(value ?? "").replaceAll("-", " ");
+    }
+
+    function updateAppStatusBadge() {
+      const appState = operationalState.app?.state;
+      let label = "Not running";
+      let tone = "neutral";
+      if (!operationalState.app) {
+        label = "Checking status";
+        tone = "busy";
+      } else if (appState === "running") {
+        const previewMode = operationalState.readiness?.mode === "preview";
+        label = previewMode ? "Local preview" : "Running locally";
+        tone = previewMode ? "warning" : "success";
+      } else if (appState === "starting") {
+        label = "Starting locally";
+        tone = "busy";
+      } else if (appState === "stopping") {
+        label = "Stopping";
+        tone = "busy";
+      } else if (appState === "configuring") {
+        label = "Configuring";
+        tone = "busy";
+      } else if (appState === "provisioning") {
+        label = "Provisioning Azure";
+        tone = "busy";
+      } else if (appState === "deploying") {
+        label = "Deploying to Azure";
+        tone = "busy";
+      } else if (appState === "failed") {
+        label = "Needs attention";
+        tone = "error";
+      }
+      appStatusBadge.textContent = label;
+      appStatusBadge.dataset.tone = tone;
+      appStatusBadge.title = "App status: " + label;
+    }
+
+    function detailsWidthMaximum() {
+      return Math.max(320, Math.min(720, window.innerWidth - 360));
+    }
+
+    function setDetailsPanelWidth(value, persist = false) {
+      detailsPanelWidth = Math.round(Math.max(320, Math.min(detailsWidthMaximum(), value)));
+      document.documentElement.style.setProperty("--details-width", detailsPanelWidth + "px");
+      detailsResizer.setAttribute("aria-valuemin", "320");
+      detailsResizer.setAttribute("aria-valuemax", String(detailsWidthMaximum()));
+      detailsResizer.setAttribute("aria-valuenow", String(detailsPanelWidth));
+      if (persist) {
+        localStorage.setItem(MODEL.layoutKey + ":details-width", String(detailsPanelWidth));
+      }
     }
 
     function normalized(value) {
@@ -1424,6 +1514,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         },
       };
       operationalFingerprint = "optimistic:" + operation;
+      updateAppStatusBadge();
       if (panelMode === "action-center") renderActionCenter();
       try {
         await apiRequest("/api/app-command", {
@@ -1759,22 +1850,36 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderAgentTester(container) {
       const tester = document.createElement("div");
-      tester.className = "agent-tester";
+      tester.className = "developer-tool-card agent-tester";
       appendText(tester, "strong", "Test local agent");
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       if (!agentEntrypoint) {
         const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
         const appRunning = operationalState.app?.state === "running";
+        appendText(tester, "span", "Agent unavailable", "tool-status");
         appendText(
           tester,
           "p",
           !gatewayConfigured
-            ? "Sending is disabled because no AI Gateway is connected, so Unity started only the web preview. Stop the preview, connect an AI Gateway under AI model connection, then run the app again."
+            ? "The local agent cannot start until this app has an AI Gateway connection."
             : appRunning
-              ? "Sending is disabled because the agent service did not start. Stop the current app, then run it again to retry the complete startup."
-              : "The AI Gateway is connected. Run the app to start the agent service and enable sending.",
+              ? "The agent service did not start with the rest of the app."
+              : "The AI Gateway is connected, but the app is not running.",
         );
+        const steps = document.createElement("ol");
+        steps.className = "setup-steps";
+        const stepLabels = !gatewayConfigured
+          ? [
+              ...(appRunning ? ["Stop the web preview."] : []),
+              "Connect an AI Gateway.",
+              "Run the app again.",
+            ]
+          : appRunning
+            ? ["Stop the current app.", "Run the app again."]
+            : ["Run the app."];
+        for (const label of stepLabels) appendText(steps, "li", label);
+        tester.append(steps);
         const prompt = document.createElement("textarea");
         prompt.maxLength = 2000;
         prompt.value = agentPromptDraft;
@@ -1806,6 +1911,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
 
+      appendText(tester, "span", "Agent ready", "tool-status ready");
       const prompt = document.createElement("textarea");
       prompt.maxLength = 2000;
       prompt.value = agentPromptDraft;
@@ -1925,19 +2031,38 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       developerSection.append(sourceActions);
       renderAgentTester(developerSection);
       const activity = document.createElement("div");
+      activity.className = "developer-tool-card";
+      appendText(activity, "strong", "Command output");
+      appendText(activity, "p", "Inspect startup and deployment logs when something needs attention.");
       const output = document.createElement("pre");
       output.className = "command-output";
-      output.textContent = "Open startup and deployment output when troubleshooting.";
-      activity.append(actionButton("View technical output", async () => {
+      output.textContent = "No output loaded.";
+      output.hidden = true;
+      const outputActions = document.createElement("div");
+      outputActions.className = "actions";
+      const outputButton = actionButton("Show command output", async () => {
+        if (!output.hidden) {
+          output.hidden = true;
+          outputButton.textContent = "Show command output";
+          return;
+        }
+        outputButton.disabled = true;
+        outputButton.textContent = "Loading output…";
         try {
           const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
           output.textContent = result.lines.join("\\n") || "No command output yet.";
           output.scrollTop = output.scrollHeight;
+          output.hidden = false;
+          outputButton.textContent = "Hide command output";
         } catch (error) {
           setStatus(error.message, true);
+          outputButton.textContent = "Show command output";
+        } finally {
+          outputButton.disabled = false;
         }
-      }));
-      activity.append(output);
+      });
+      outputActions.append(outputButton);
+      activity.append(outputActions, output);
       developerSection.append(activity);
 
       const dangerSection = managementSection("Delete app");
@@ -1976,6 +2101,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         operationalFingerprint = nextFingerprint;
         operationalState = { app, readiness };
         runtimeEntrypoints = app.entrypoints || [];
+        updateAppStatusBadge();
         if (changed && panelMode === "action-center") renderActionCenter();
         if (changed && panelMode === "manage") renderManagePanel();
       } catch {
@@ -1983,6 +2109,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         operationalFingerprint = "unavailable";
         operationalState = { app: null, readiness: null };
         runtimeEntrypoints = [];
+        updateAppStatusBadge();
         if (changed && panelMode === "action-center") renderActionCenter();
       }
     }
@@ -2555,6 +2682,43 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       };
       applyTransform();
     }
+
+    const savedDetailsWidth = Number(localStorage.getItem(MODEL.layoutKey + ":details-width"));
+    if (Number.isFinite(savedDetailsWidth) && savedDetailsWidth > 0) {
+      setDetailsPanelWidth(savedDetailsWidth);
+    } else {
+      setDetailsPanelWidth(detailsPanelWidth);
+    }
+    detailsResizer.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || window.innerWidth <= 900) return;
+      detailsResizeState = { pointerId: event.pointerId };
+      detailsResizer.setPointerCapture(event.pointerId);
+      document.body.classList.add("resizing-details");
+    });
+    detailsResizer.addEventListener("pointermove", (event) => {
+      if (detailsResizeState?.pointerId !== event.pointerId) return;
+      setDetailsPanelWidth(window.innerWidth - event.clientX);
+    });
+    const finishDetailsResize = (event) => {
+      if (detailsResizeState?.pointerId !== event.pointerId) return;
+      detailsResizeState = null;
+      document.body.classList.remove("resizing-details");
+      setDetailsPanelWidth(detailsPanelWidth, true);
+    };
+    detailsResizer.addEventListener("pointerup", finishDetailsResize);
+    detailsResizer.addEventListener("pointercancel", finishDetailsResize);
+    detailsResizer.addEventListener("keydown", (event) => {
+      let nextWidth = null;
+      if (event.key === "ArrowLeft") nextWidth = detailsPanelWidth + 24;
+      if (event.key === "ArrowRight") nextWidth = detailsPanelWidth - 24;
+      if (event.key === "Home") nextWidth = 380;
+      if (nextWidth === null) return;
+      event.preventDefault();
+      setDetailsPanelWidth(nextWidth, true);
+    });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
+    });
 
     svg.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;

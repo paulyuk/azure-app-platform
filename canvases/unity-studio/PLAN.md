@@ -217,9 +217,13 @@ Intelligent Function App studios and the Microsoft Foundry portal:
   delegate the real source/configuration change to the app session;
 - keep **Guide**, **Manage**, and collapsed **Search & layout** in the primary
   header, with the primary App Map view switch in a persistent row below it;
+- keep overall runtime state visible beside the app name, distinguishing a
+  local preview from the complete app running locally;
 - group model selection, Azure deployment, source navigation, technical output,
   local-agent testing, and deletion into disclosures in the secondary
   **Manage** panel;
+- keep command output collapsible and make the desktop details panel resizable
+  without changing the mobile full-width layout;
 - return to the app list through one visible top-level back action;
 - use compact pills only for status or categorical metadata, never as the sole
   indicator of state; and
