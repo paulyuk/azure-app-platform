@@ -20,10 +20,12 @@ studios and may open the resulting worktree in VS Code.
 After creation or selection, the App Map becomes the primary app interface.
 An optional VS Code launch failure does not roll back the new worktree; App Map
 opens with a clear warning so the user can continue.
-The default surface keeps **Guide**, **Manage**, and the request-flow diagram
+The default surface keeps **Guide**, **Run & manage**, and the request-flow diagram
 visually primary. A persistent badge beside the app name distinguishes
 **Not running**, **Local preview**, **Running locally**, and active lifecycle
-transitions. Each request-flow stage and Implementation lane exposes a
+transitions; selecting it opens the local runtime controls. A neighboring
+contextual action starts the app or preview, stops a running app, or opens
+required setup. Each request-flow stage and Implementation lane exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
@@ -31,9 +33,9 @@ implementation to the app session. Guide stays focused on progress and one
 required action at a time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
-and reset controls live under **Search & layout**. Manage groups model connection,
-Azure deployment, developer tools, and deletion into closed sections rather
-than presenting an infrastructure dashboard. Its desktop panel width is
+and reset controls live under **Search & layout**. **Run & manage** leads with
+local runtime controls, followed by model connection, testing and
+troubleshooting, Azure deployment, and deletion. Its desktop panel width is
 adjustable and remembered per app; command output stays collapsed until opened.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
@@ -156,8 +158,8 @@ Detached lifecycle and configuration commands write to a private
 closing Studio does not terminate the operation or discard its diagnostics.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
-running agent offers an inline Responses API prompt under **Manage → Developer
-tools** plus a specialist-studio handoff. The same section preserves startup
+running agent offers an inline Responses API prompt under **Run & manage → Test
+& troubleshoot** plus a specialist-studio handoff. The same section preserves startup
 and deployment command output for troubleshooting.
 
 Discovery and scaffold results are informational. Workspace creation and

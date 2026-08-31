@@ -1775,11 +1775,17 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, /← Apps/);
   assert.match(html, /id="app-status-badge"/);
+  assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
   assert.match(html, /Running locally/);
+  assert.match(html, /Start preview/);
+  assert.match(html, /Stop app/);
   assert.match(html, /function updateAppStatusBadge/);
   assert.match(html, />Guide<\/button>/);
-  assert.match(html, />Manage<\/button>/);
+  assert.match(html, />Run &amp; manage<\/button>/);
+  assert.match(html, /managementSection\("Local runtime", true\)/);
+  assert.match(html, /Test & troubleshoot/);
+  assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
   assert.match(html, /function appendFlowConnection/);
   assert.match(html, /text\.textContent = "Connect →"/);
@@ -1797,7 +1803,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Choose a component that belongs in this part of the request flow/);
   assert.match(html, /Add another/);
   assert.match(html, /<summary>Search &amp; layout<\/summary>/);
-  assert.match(html, /Open a section only when you need to change settings, deploy, troubleshoot, or delete this app/);
+  assert.match(html, /Run and test locally, connect model access, deploy to Azure/);
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);

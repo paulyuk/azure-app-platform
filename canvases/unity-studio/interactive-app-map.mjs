@@ -451,6 +451,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
     .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
     .runtime-badge[data-tone="error"] { border-color: var(--danger); color: var(--danger); background: rgb(164 38 44 / .1); }
+    .runtime-action {
+      flex: 0 0 auto; min-height: 24px; padding: 2px 8px;
+      border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
+    }
+    .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
@@ -684,13 +689,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <small>App Map</small>
       <div class="app-title-row">
         <h1>${escapeHtml(appName)}</h1>
-        <span id="app-status-badge" class="runtime-badge" data-tone="busy" role="status">Checking status</span>
+        <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
+        <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       </div>
       <p>See how a request moves through your app.</p>
     </div>
     <div class="header-actions">
       <button id="action-center" class="primary" type="button">Guide</button>
-      <button id="manage-app" type="button">Manage</button>
+      <button id="manage-app" type="button">Run &amp; manage</button>
       <details class="map-tools">
         <summary>Search &amp; layout</summary>
         <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
@@ -763,6 +769,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const details = document.querySelector("#details");
     const status = document.querySelector("#status");
     const appStatusBadge = document.querySelector("#app-status-badge");
+    const headerRuntimeAction = document.querySelector("#header-runtime-action");
     const mapContext = document.querySelector("#map-context");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
@@ -846,7 +853,35 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       appStatusBadge.textContent = label;
       appStatusBadge.dataset.tone = tone;
-      appStatusBadge.title = "App status: " + label;
+      appStatusBadge.title = "Open local runtime controls";
+      appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run and manage.");
+
+      let actionLabel = "Set up";
+      let operation = "";
+      let disabled = false;
+      if (!operationalState.app) {
+        actionLabel = "Checking…";
+        disabled = true;
+      } else if (appState === "running") {
+        actionLabel = "Stop app";
+        operation = "stop-local";
+      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        actionLabel = appState === "starting"
+          ? "Starting…"
+          : appState === "stopping"
+            ? "Stopping…"
+            : humanize(appState) + "…";
+        disabled = true;
+      } else if (operationalState.readiness?.ready) {
+        actionLabel = operationalState.readiness.mode === "preview"
+          ? "Start preview"
+          : "Start app";
+        operation = "run-local";
+      }
+      headerRuntimeAction.textContent = actionLabel;
+      headerRuntimeAction.disabled = disabled;
+      headerRuntimeAction.dataset.operation = operation;
+      headerRuntimeAction.setAttribute("aria-label", actionLabel);
     }
 
     function detailsWidthMaximum() {
@@ -1972,10 +2007,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
-      appendText(details, "h2", "Manage");
-      appendText(details, "p", "Open a section only when you need to change settings, deploy, troubleshoot, or delete this app.");
+      appendText(details, "h2", "Run & manage");
+      appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
 
       const appState = operationalState.app?.state;
+      const runtimeSection = managementSection("Local runtime", true);
+      renderRuntimeAction(runtimeSection);
       const gatewaySection = managementSection(
         "AI model connection",
         openGateway || !operationalState.readiness?.gatewayConfigured,
@@ -1996,25 +2033,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         void loadGatewayControls(gatewayControls);
       }
 
-      const deploymentSection = managementSection("Azure deployment");
-      appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
-      const cloudActions = document.createElement("div");
-      cloudActions.className = "actions";
-      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
-      } else {
-        cloudActions.append(actionButton("Set up Azure resources", async () => {
-          await runAppOperation("provision-cloud");
-          renderActionCenter();
-        }));
-        cloudActions.append(actionButton("Deploy latest app", async () => {
-          await runAppOperation("deploy-cloud");
-          renderActionCenter();
-        }));
-      }
-      deploymentSection.append(cloudActions);
-
-      const developerSection = managementSection("Developer tools");
+      const developerSection = managementSection("Test & troubleshoot");
       const sourceActions = document.createElement("div");
       sourceActions.className = "actions";
       sourceActions.append(actionButton("Open source code", async () => {
@@ -2028,7 +2047,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           setStatus(error.message, true);
         }
       }));
-      developerSection.append(sourceActions);
       renderAgentTester(developerSection);
       const activity = document.createElement("div");
       activity.className = "developer-tool-card";
@@ -2064,6 +2082,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       outputActions.append(outputButton);
       activity.append(outputActions, output);
       developerSection.append(activity);
+      developerSection.append(sourceActions);
+
+      const deploymentSection = managementSection("Azure deployment");
+      appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
+      const cloudActions = document.createElement("div");
+      cloudActions.className = "actions";
+      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
+      } else {
+        cloudActions.append(actionButton("Set up Azure resources", async () => {
+          await runAppOperation("provision-cloud");
+          renderActionCenter();
+        }));
+        cloudActions.append(actionButton("Deploy latest app", async () => {
+          await runAppOperation("deploy-cloud");
+          renderActionCenter();
+        }));
+      }
+      deploymentSection.append(cloudActions);
 
       const dangerSection = managementSection("Delete app");
       const dangerActions = document.createElement("div");
@@ -2786,6 +2823,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#action-center").addEventListener("click", renderActionCenter);
     document.querySelector("#manage-app").addEventListener("click", renderManagePanel);
+    appStatusBadge.addEventListener("click", renderManagePanel);
+    headerRuntimeAction.addEventListener("click", () => {
+      if (headerRuntimeAction.disabled) return;
+      const operation = headerRuntimeAction.dataset.operation;
+      if (operation) {
+        void runAppOperation(operation);
+        return;
+      }
+      renderManagePanel({ openGateway: true });
+    });
     document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));
     requestFlowButton.addEventListener("click", () => {
       if (layoutMode === "request-flow") return;

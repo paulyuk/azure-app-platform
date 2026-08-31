@@ -201,7 +201,9 @@ map** switch remains visible in a dedicated view bar. Search, filters,
 zoom, fit, and reset controls are grouped under **Search & layout** so they do
 not compete with the primary views. Overall runtime state remains visible beside
 the app name as **Not running**, **Local preview**, **Running locally**, or the
-current lifecycle transition. Each request-flow stage and Implementation
+current lifecycle transition. A persistent adjacent action starts or stops the
+local runtime and routes missing prerequisites into **Run & manage**. Each
+request-flow stage and Implementation
 lane exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
@@ -260,11 +262,12 @@ At narrow mobile widths, the request-flow diagram and Guide stack vertically.
 The Guide must not become an overlay that hides the architecture the user is
 trying to understand.
 
-Manage is intentionally secondary. AI model connection, Azure deployment,
-developer tools, technical output, and deletion are grouped into disclosures;
-only model connection opens automatically when readiness says it needs action.
-Developer tools retain the running-agent prompt tester and command output from
-the previous management surface. Command output is collapsible, while the
+**Run & manage** is the explicit operational surface. It leads with expanded
+local runtime controls, then groups AI model connection, testing and
+troubleshooting, Azure deployment, and deletion into disclosures. The persistent
+runtime badge opens this panel directly. Testing and troubleshooting retain the
+running-agent prompt tester and command output from the previous management
+surface. Command output is collapsible, while the
 desktop details panel is pointer- and keyboard-resizable with its per-app width
 stored locally.
 

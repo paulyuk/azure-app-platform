@@ -45,7 +45,7 @@ The landing context has three primary actions:
 Template choice cards show only a clear title and one outcome-focused
 description. After creation or selection, navigation goes directly to the App
 Map. Capability lists, lifecycle commands, file paths, and source provenance
-belong in its Guide, Manage panel, and Implementation view, not in
+belong in its Guide, **Run & manage** panel, and Implementation view, not in
 the landing decision surface.
 
 Every non-landing screen has a visible back arrow near the top. Bottom action
@@ -215,13 +215,15 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 - place explicit **Connect** actions between adjacent request-flow stages; show
   existing evidence, require source/target selection and confirmation, then
   delegate the real source/configuration change to the app session;
-- keep **Guide**, **Manage**, and collapsed **Search & layout** in the primary
+- keep **Guide**, **Run & manage**, and collapsed **Search & layout** in the primary
   header, with the primary App Map view switch in a persistent row below it;
 - keep overall runtime state visible beside the app name, distinguishing a
-  local preview from the complete app running locally;
+  local preview from the complete app running locally, and make that badge open
+  runtime controls directly; place a contextual start, stop, or setup action
+  beside it;
 - group model selection, Azure deployment, source navigation, technical output,
-  local-agent testing, and deletion into disclosures in the secondary
-  **Manage** panel;
+  local-agent testing, and deletion under **Run & manage**, with expanded local
+  runtime controls first and testing ahead of deployment;
 - keep command output collapsible and make the desktop details panel resizable
   without changing the mobile full-width layout;
 - return to the app list through one visible top-level back action;
