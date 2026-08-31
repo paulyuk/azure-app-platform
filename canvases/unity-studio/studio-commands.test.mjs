@@ -1861,6 +1861,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"\/api\/open-source"/);
   assert.match(html, /"\/api\/tier-action"/);
   assert.match(html, /setupButton\.textContent = "Opening setup…"/);
+  assert.match(html, /Choose an AI Gateway →/);
+  assert.match(html, /candidate\.source === "azure"/);
   assert.match(html, /"\/api\/open-entrypoint"/);
   assert.match(html, /"\/api\/capability-request"/);
   assert.match(html, /"\/api\/local-readiness/);

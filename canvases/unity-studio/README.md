@@ -89,7 +89,9 @@ Current preferred studios include:
 
 If no preferred studio is registered, the action returns discovered implementations
 or a structured, non-mutating scaffold recipe. It does not claim availability
-from static metadata.
+from static metadata. Candidate results identify what was found and replace the
+discovery action with a concrete next step; Gateway candidates route directly
+to the AI Gateway selector instead of repeating discovery.
 
 ## Actions
 

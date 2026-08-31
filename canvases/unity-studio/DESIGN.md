@@ -146,7 +146,9 @@ the source. Absolute local paths are transport data and must not be written to
   `session.rpc.canvas.list()`. If a preferred specialist canvas is registered,
   it calls `session.rpc.canvas.open()` with a stable instance ID and tier
   context, directly opening or focusing that studio. If none is registered, it
-  returns discovered implementations or the tier's scaffold recipe.
+  returns discovered implementations or the tier's scaffold recipe. Candidate
+  results identify what was found and replace discovery with a concrete next
+  action rather than allowing an indistinguishable repeat.
 - `trace_app` builds a source-derived App Map for an application root or
   discovered implementation.
 - `run_doctor` is a compatibility action. It reports readiness metadata from

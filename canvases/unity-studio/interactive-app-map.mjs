@@ -2410,6 +2410,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (tierResult?.outcome === "candidates-discovered") {
         appendText(details, "h3", "Existing evidence");
         appendText(details, "p", String(tierResult.tier.candidateCount) + " implementation candidate(s) are already present in this tier.");
+        const candidates = [
+          ...(tierResult.tier.candidates?.repository || []),
+          ...(tierResult.tier.candidates?.azure || []),
+        ];
+        appendList(
+          details,
+          candidates.map((candidate) =>
+            candidate.name + " · " +
+              (candidate.source === "azure"
+                ? "Azure resource"
+                : candidate.projectPath || "Source project")),
+          "No candidate details are available.",
+        );
       }
 
       if (confirming) {
@@ -2423,22 +2436,32 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
       const actions = document.createElement("div");
       actions.className = "actions";
-      const setupLabel = tier.hasSpecialistStudio
-        ? "Open " + tier.name + " setup →"
-        : "Find existing " + tier.name + " implementations →";
-      const setupButton = actionButton(setupLabel, async () => {
-        if (setupButton.disabled) return;
-        setupButton.disabled = true;
-        setupButton.textContent = "Opening setup…";
-        const result = await openTierStudio(tier);
-        if (!setupButton.isConnected) return;
-        setupButton.disabled = false;
-        setupButton.textContent = result?.outcome === "canvas-opened"
-          ? "Reopen " + tier.name + " setup →"
-          : setupLabel;
-      }, true);
-      setupButton.classList.add("setup-action");
-      actions.append(setupButton);
+      if (!tierResult) {
+        const setupLabel = tier.hasSpecialistStudio
+          ? "Open " + tier.name + " setup →"
+          : "Find existing " + tier.name + " implementations →";
+        const setupButton = actionButton(setupLabel, async () => {
+          if (setupButton.disabled) return;
+          setupButton.disabled = true;
+          setupButton.textContent = "Opening setup…";
+          const result = await openTierStudio(tier);
+          if (!setupButton.isConnected) return;
+          setupButton.disabled = false;
+          setupButton.textContent = result?.outcome === "canvas-opened"
+            ? "Reopen " + tier.name + " setup →"
+            : setupLabel;
+        }, true);
+        setupButton.classList.add("setup-action");
+        actions.append(setupButton);
+      } else if (tierResult.outcome === "candidates-discovered" && tier.id === "gateway") {
+        const chooseGateway = actionButton(
+          "Choose an AI Gateway →",
+          () => renderManagePanel({ openGateway: true }),
+          true,
+        );
+        chooseGateway.classList.add("setup-action");
+        actions.append(chooseGateway);
+      }
       if (confirming) {
         const confirmButton = actionButton("Confirm capability request", async () => {
           if (confirmButton.disabled) return;
