@@ -1775,6 +1775,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, /← Apps/);
   assert.match(html, /id="app-status-badge"/);
+  assert.match(html, /button:not\(\.runtime-badge\):hover/);
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
   assert.match(html, /Running locally/);

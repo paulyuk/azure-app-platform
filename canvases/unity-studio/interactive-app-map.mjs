@@ -485,7 +485,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
-    button:hover { border-color: var(--accent); }
+    button:not(.runtime-badge):hover { border-color: var(--accent); }
     .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
     button:focus-visible, input:focus-visible, select:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
