@@ -269,7 +269,9 @@ Multiple entry points can filter the visible request path.
 
 Both views support pan, zoom, fit, search, and tier filters under the collapsed
 **Search & layout** disclosure, while the view switch remains persistently
-visible. Selecting an edge
+visible. Wheel and trackpad zoom are captured across the map surface and
+normalized across pixel, line, and page deltas so zoom remains smooth and
+consistent across browsers and input devices. Selecting an edge
 explains the connection and its source evidence while stating that the diagram
 is not a live distributed trace. Documentation-only paths are explicitly
 labeled and rendered as low-confidence dashed connections. The Implementation view retains all nine tier

@@ -771,6 +771,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const FLOW_REGION_GAP = 100;
     const FLOW_CARD_GAP = 18;
     const FLOW_ACTION_FOOTER = 48;
+    const WHEEL_ZOOM_SENSITIVITY = .0015;
+    const graphShell = document.querySelector("#graph-shell");
     const svg = document.querySelector("#graph");
     const viewport = document.querySelector("#viewport");
     const lanesLayer = document.querySelector("#lanes");
@@ -2827,6 +2829,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       applyTransform();
     }
 
+    function handleMapWheel(event) {
+      if (!event.deltaY) return;
+      event.preventDefault();
+      const deltaPixels = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? event.deltaY * 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? event.deltaY * Math.max(1, graphShell.clientHeight)
+          : event.deltaY;
+      const boundedDelta = Math.max(-240, Math.min(240, deltaPixels));
+      zoomBy(Math.exp(-boundedDelta * WHEEL_ZOOM_SENSITIVITY), event.clientX, event.clientY);
+    }
+
     const savedDetailsWidth = Number(localStorage.getItem(MODEL.layoutKey + ":details-width"));
     if (Number.isFinite(savedDetailsWidth) && savedDetailsWidth > 0) {
       setDetailsPanelWidth(savedDetailsWidth);
@@ -2921,10 +2935,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (panState?.pointerId === event.pointerId) panState = null;
       svg.classList.remove("panning");
     });
-    svg.addEventListener("wheel", (event) => {
-      event.preventDefault();
-      zoomBy(event.deltaY < 0 ? 1.12 : .89, event.clientX, event.clientY);
-    }, { passive: false });
+    graphShell.addEventListener("wheel", handleMapWheel, { passive: false, capture: true });
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());

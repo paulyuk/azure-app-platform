@@ -1794,6 +1794,10 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"aria-hidden": "true"/);
   assert.match(html, /\.node-visual\[data-tier-id="gateway"\]/);
   assert.match(html, /appendNodeVisual\(group, node\.tierId\)/);
+  assert.match(html, /function handleMapWheel/);
+  assert.match(html, /event\.deltaMode === WheelEvent\.DOM_DELTA_LINE/);
+  assert.match(html, /Math\.exp\(-boundedDelta \* WHEEL_ZOOM_SENSITIVITY\)/);
+  assert.match(html, /graphShell\.addEventListener\("wheel", handleMapWheel, \{ passive: false, capture: true \}\)/);
   assert.match(html, /text\.textContent = "Connect →"/);
   assert.match(html, /function renderConnectionPanel/);
   assert.match(html, /"\/api\/connection-request"/);

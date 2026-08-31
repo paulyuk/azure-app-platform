@@ -35,7 +35,8 @@ badges, or status. Guide stays focused on progress and one required action at a
 time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
-and reset controls live under **Search & layout**. **Run & manage** leads with
+and reset controls live under **Search & layout**. Wheel and trackpad gestures
+zoom smoothly anywhere over the map surface. **Run & manage** leads with
 local runtime controls, followed by model connection, testing and
 troubleshooting, Azure deployment, and deletion. Its desktop panel width is
 adjustable and remembered per app; command output stays collapsed until opened.
