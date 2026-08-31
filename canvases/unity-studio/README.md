@@ -29,8 +29,10 @@ required setup. Each request-flow stage and Implementation lane exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
-implementation to the app session. Guide stays focused on progress and one
-required action at a time.
+implementation to the app session. Compact tier illustrations on each component
+card make the architecture easier to scan without replacing source-derived names,
+badges, or status. Guide stays focused on progress and one required action at a
+time.
 Additional recommendations are collapsed. **Request flow** and **Implementation
 map** remain visible in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. **Run & manage** leads with

@@ -205,6 +205,9 @@ Intelligent Function App studios and the Microsoft Foundry portal:
 
 - use documented canvas theme tokens, the shared sans/mono type ramps, a
   restrained purple accent, and a subtle Foundry-style background treatment;
+- use compact, categorical vector illustrations on component cards to make tiers
+  recognizable at a glance; keep them decorative and never use them as the only
+  carrier of identity, status, or evidence;
 - make App Map the primary app screen after creation or selection rather than
   introducing a separate app-workspace dashboard;
 - keep the architecture diagram visually dominant and place progressive

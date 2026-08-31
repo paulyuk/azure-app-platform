@@ -1788,6 +1788,12 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
   assert.match(html, /function appendFlowConnection/);
+  assert.match(html, /function appendNodeVisual/);
+  assert.match(html, /class: "node-visual"/);
+  assert.match(html, /"data-tier-id": tierId/);
+  assert.match(html, /"aria-hidden": "true"/);
+  assert.match(html, /\.node-visual\[data-tier-id="gateway"\]/);
+  assert.match(html, /appendNodeVisual\(group, node\.tierId\)/);
   assert.match(html, /text\.textContent = "Connect →"/);
   assert.match(html, /function renderConnectionPanel/);
   assert.match(html, /"\/api\/connection-request"/);

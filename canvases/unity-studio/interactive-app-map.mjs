@@ -542,14 +542,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .edge:focus-visible path, .edge.selected path { stroke: var(--focus); stroke-width: 4; }
     .node { cursor: pointer; }
     body.implementation-view .node { cursor: ns-resize; }
-    .node rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .12)); }
-    .node.project rect { stroke: var(--accent); }
-    .node:focus-visible rect { stroke: var(--focus); stroke-width: 3; }
-    .node.selected rect { stroke: var(--focus); stroke-width: 3; }
+    .node > rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .12)); }
+    .node.project > rect { stroke: var(--accent); }
+    .node:focus-visible > rect { stroke: var(--focus); stroke-width: 3; }
+    .node.selected > rect { stroke: var(--focus); stroke-width: 3; }
     .node-title { fill: var(--text); font-size: 13px; font-weight: 650; }
     .node-meta { fill: var(--muted); font-size: 10px; }
     .node-badge { fill: var(--accent); font-size: 9px; font-weight: 600; }
     .node-tier { fill: var(--accent); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .node-visual { color: #5c2d91; overflow: visible; pointer-events: none; }
+    .node-visual[data-tier-id="web"], .node-visual[data-tier-id="workflows"] { color: #0078d4; }
+    .node-visual[data-tier-id="agent"], .node-visual[data-tier-id="sre"] { color: #8764b8; }
+    .node-visual[data-tier-id="gateway"], .node-visual[data-tier-id="connectors"] { color: #4f6bed; }
+    .node-visual[data-tier-id="skills"], .node-visual[data-tier-id="data"] { color: #038387; }
+    .node-visual[data-tier-id="sandbox"] { color: #605e5c; }
+    .node-visual-bg { fill: currentColor; opacity: .12; stroke: none; }
+    .node-visual-shape {
+      fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .node-visual-fill { fill: currentColor; stroke: none; }
     .muted { opacity: .18; }
     .hidden { display: none; }
     #empty-state {
@@ -819,6 +830,78 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function humanize(value) {
       return String(value ?? "").replaceAll("-", " ");
+    }
+
+    function appendNodeVisual(parent, tierId) {
+      const visual = svgElement("svg", {
+        x: NODE_WIDTH - 46,
+        y: 10,
+        width: 36,
+        height: 36,
+        viewBox: "0 0 36 36",
+        class: "node-visual",
+        "data-tier-id": tierId,
+        "aria-hidden": "true",
+      });
+      visual.append(svgElement("rect", {
+        x: 0,
+        y: 0,
+        width: 36,
+        height: 36,
+        rx: 9,
+        class: "node-visual-bg",
+      }));
+      const shape = (name, attributes) => visual.append(svgElement(name, {
+        ...attributes,
+        class: "node-visual-shape",
+      }));
+      const fill = (name, attributes) => visual.append(svgElement(name, {
+        ...attributes,
+        class: "node-visual-fill",
+      }));
+      switch (tierId) {
+        case "web":
+          shape("rect", { x: 8, y: 9, width: 20, height: 15, rx: 2 });
+          shape("path", { d: "M13 28h10M18 24v4" });
+          break;
+        case "agent":
+          shape("circle", { cx: 17, cy: 18, r: 8 });
+          shape("path", { d: "M17 10v16M10 18h14M12 13c3 2 7 2 10 0M12 23c3-2 7-2 10 0" });
+          fill("path", { d: "M27 7l1.1 2.9L31 11l-2.9 1.1L27 15l-1.1-2.9L23 11l2.9-1.1z" });
+          break;
+        case "gateway":
+          shape("path", { d: "M18 7l9 4v6c0 6-3.8 10-9 12-5.2-2-9-6-9-12v-6z" });
+          shape("path", { d: "M13 18h10M20 14l4 4-4 4" });
+          break;
+        case "skills":
+          shape("path", { d: "M9 11h7v5h5v-5h6v7h-5v6h5v4H9v-7h5v-5H9z" });
+          break;
+        case "sandbox":
+          shape("rect", { x: 7, y: 8, width: 22, height: 20, rx: 3 });
+          shape("path", { d: "M7 13h22M11 18l3 3-3 3M17 24h6" });
+          break;
+        case "connectors":
+          shape("path", { d: "M14 11l-3-3M22 25l3 3M12 22l-2 2a5 5 0 007 7l3-3M24 14l2-2a5 5 0 00-7-7l-3 3M13 23l10-10" });
+          break;
+        case "workflows":
+          shape("circle", { cx: 10, cy: 10, r: 3 });
+          shape("circle", { cx: 26, cy: 18, r: 3 });
+          shape("circle", { cx: 10, cy: 27, r: 3 });
+          shape("path", { d: "M13 10h4a5 5 0 015 5v0M22 21v1a5 5 0 01-5 5h-4" });
+          break;
+        case "sre":
+          shape("path", { d: "M7 19h5l3-7 5 13 3-6h6" });
+          shape("circle", { cx: 18, cy: 18, r: 12 });
+          break;
+        case "data":
+          shape("ellipse", { cx: 18, cy: 10, rx: 10, ry: 4 });
+          shape("path", { d: "M8 10v8c0 2 4.5 4 10 4s10-2 10-4v-8M8 18v8c0 2 4.5 4 10 4s10-2 10-4v-8" });
+          break;
+        default:
+          shape("rect", { x: 9, y: 9, width: 18, height: 18, rx: 4 });
+          shape("path", { d: "M14 18h8M18 14v8" });
+      }
+      parent.append(visual);
     }
 
     function updateAppStatusBadge() {
@@ -1201,8 +1284,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const title = svgElement("title");
         title.textContent = node.name + " — " + node.projectPath;
         group.append(title);
+        appendNodeVisual(group, node.tierId);
         const name = svgElement("text", { x: 12, y: 23, class: "node-title" });
-        name.textContent = shorten(node.name, 27);
+        name.textContent = shorten(node.name, 21);
         group.append(name);
         const kind = svgElement("text", { x: 12, y: 42, class: "node-meta", "data-role": "kind" });
         kind.textContent = humanize(node.kind) + " · " + node.confidence + " confidence";
