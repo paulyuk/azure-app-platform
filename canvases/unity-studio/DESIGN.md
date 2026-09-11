@@ -136,8 +136,9 @@ the source. Absolute local paths are transport data and must not be written to
   and session-authorized folders. No source is selected automatically.
 - `request_app_workspace` creates template worktrees and child sessions directly
   through session RPC, runs the exact materializer, and optionally launches VS
-  Code. It returns `workspace-created`. Assembly requests use the structured
-  foreground-agent handoff and return `workspace-requested`.
+  Code. It persists the managed branch, runtime profile, and child session ID
+  in `.unity-studio/app.json` and returns `workspace-created`. Assembly requests
+  use the structured foreground-agent handoff and return `workspace-requested`.
 - `open_in_vscode` resolves an explicit repository path inside the current
   workspace before invoking `code --new-window`, with the macOS application
   launcher as a fallback.
@@ -145,7 +146,9 @@ the source. Absolute local paths are transport data and must not be written to
   `session.rpc.canvas.list()`. If a preferred specialist canvas is registered,
   it calls `session.rpc.canvas.open()` with a stable instance ID and tier
   context, directly opening or focusing that studio. If none is registered, it
-  returns discovered implementations or the tier's scaffold recipe.
+  returns discovered implementations or the tier's scaffold recipe. Candidate
+  results identify what was found and replace discovery with a concrete next
+  action rather than allowing an indistinguishable repeat.
 - `trace_app` builds a source-derived App Map for an application root or
   discovered implementation.
 - `run_doctor` is a compatibility action. It reports readiness metadata from
@@ -160,7 +163,9 @@ Template creation does not use `session.send()` or a model-generated creation
 prompt. It creates a Git worktree and opens the child session through the
 host-provided session RPC, preserving the visible project/worktree UX while
 keeping known-file creation deterministic. Assembly remains the deliberate
-model boundary.
+model boundary. Add-to-app work reuses that persisted app session; when the
+extension SDK can only send through the parent session, the request carries the
+target session ID and requires an immediate relay into the app worktree.
 
 ## Scaffold recipes
 
@@ -183,6 +188,91 @@ available. Unresolved references and parser diagnostics are first-class output.
 The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
+The App Map is the primary app interface after creation or selection; Unity
+Studio does not insert a separate workspace dashboard. It opens on a
+customer-oriented **Request flow** architecture view. Proven
+paths move left to right through Experience, Reasoning, Models & capabilities,
+and Connected systems, with observability shown as a cross-cutting operations
+plane. Internal workflow operations and disconnected implementations are not
+mixed into the request path. They remain available in the secondary
+**Implementation** view, which preserves all nine Unity tier swimlanes.
+
+Both views use the same directional evidence-backed edges, pan and zoom
+controls, search, and tier filters. The **Request flow** and **Implementation
+map** switch remains visible in a dedicated view bar. Search, filters,
+zoom, fit, and reset controls are grouped under **Search & layout** so they do
+not compete with the primary views. Overall runtime state remains visible beside
+the app name as **Not running**, **Local preview**, **Running locally**, or the
+current lifecycle transition. A persistent adjacent action starts or stops the
+local runtime and routes missing prerequisites into **Run & manage**. Each
+request-flow stage and Implementation
+lane exposes a contextual **Add component** action. Single-tier locations open
+their setup directly; multi-tier locations narrow the chooser to valid
+component types. **Connect** controls between adjacent stages list existing
+evidence-backed relationships, collect an explicit source and destination, and
+show a confirmation before delegating source/configuration work to the app's
+persisted child session. The deterministic Request flow layout is
+not draggable because its position communicates architectural meaning. The
+Implementation view permits vertical reordering inside the evidence-derived
+tier only; a component cannot be moved into another tier. Those positions are
+browser-local and versioned by the authorized app root plus a stable topology
+fingerprint, so changing the graph starts a fresh layout without modifying the
+repository.
+
+Selecting a node opens its details and highlights only its immediate graph
+neighborhood. Clicking the selected node again, clicking empty map space, or
+pressing Escape returns to the Guide. Selecting a
+connection explains how the request moves between the two components and shows
+the exact source evidence, while explicitly distinguishing architecture
+evidence from a successful live distributed trace.
+Documentation-only paths remain visible but render as low-confidence dashed
+connections until executable source confirms them.
+The read-only details panel includes source evidence, bindings, incoming and outgoing
+relationships, and safe navigation actions. Source, specialist-studio, and
+ready local-endpoint actions continue through the existing authorized loopback
+APIs. The graph renderer introduces no CDN or other external network
+dependency.
+
+Each Implementation tier lane exposes an **Add** handoff. A specialist studio can manage
+existing or provisioned resources. Requesting a new source capability requires
+an explicit second confirmation, delegates to the existing capability workflow,
+and does not provision or deploy Azure resources. The new card appears only
+after refreshed source discovery produces evidence for it.
+
+The expanded map's default side panel is **Guide**, not an
+infrastructure dashboard. It translates the current graph into a progressive
+**Build → Connect → Run → Observe & manage** journey, presents runtime as the
+immediate action, and shows one evidence-backed improvement at a time. Later
+suggestions remain collapsed. The journey is a non-interactive vertical
+stepper: explanatory text stays visible, connected nodes communicate order,
+and only the current stage is highlighted. Its matching **Next action** card
+appears immediately below the stepper; unavailable runtime work and later
+improvements do not compete with that action. For example, an agent without a
+gateway gets model-connection guidance, unresolved references get an evidence
+review, and an app without telemetry gets a plain-language observability setup
+action. Local readiness and lifecycle state update the Run step through the
+existing APIs, including the stricter gateway validation introduced by later
+Studio changes.
+
+Recommendations are deterministic and recomputed from a fresh trace. Runtime
+progress updates automatically. Work delegated to another session does not
+directly mutate the graph, so its completion screen offers **Check for changes**
+to retrace the app. This is the first progressive-guidance layer; future history
+or preference signals may refine ranking but must not weaken evidence requirements.
+
+At narrow mobile widths, the request-flow diagram and Guide stack vertically.
+The Guide must not become an overlay that hides the architecture the user is
+trying to understand.
+
+**Run & manage** is the explicit operational surface. It leads with expanded
+local runtime controls, then groups AI model connection, testing and
+troubleshooting, Azure deployment, and deletion into disclosures. The persistent
+runtime badge opens this panel directly. Testing and troubleshooting retain the
+running-agent prompt tester and command output from the previous management
+surface. Command output is collapsible, while the
+desktop details panel is pointer- and keyboard-resizable with its per-app width
+stored locally.
+
 ## Safety and limitations
 
 - Repository scanning is bounded, local, and excludes common sensitive paths.
@@ -194,6 +284,14 @@ proof that a request path succeeds.
 - Additional local folders are canonicalized with `realpath`, remain authorized
   only for that canvas server instance, and are referenced through opaque IDs.
 - Template and assembly requests reject stale or tier-incompatible source IDs.
+- Runtime profiles define start arguments, expected entrypoints, and reserved
+  ports; ownership checks reject listeners rooted in another worktree.
+- Gateway selection is persisted atomically with a unique configuration ID.
+  The configuration script validates a readable Responses result and verifies
+  that ID under a cross-process lock before writing local credentials. A
+  superseded process cannot overwrite a newer selection.
+- Deleting a Unity-created app removes its worktree and only the explicitly
+  recorded managed branch; unrelated branches are never inferred or removed.
 - Loopback JSON and action endpoints remain loopback-only.
 - No discovery or scaffold action mutates files, resources, or configuration.
 - Static analysis can miss dynamic registration, generated configuration,

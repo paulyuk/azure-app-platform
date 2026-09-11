@@ -4,13 +4,17 @@ import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 export {
   buildImplementationInventory,
   buildCapabilityRequestPrompt,
+  buildConnectionRequestPrompt,
   buildWorkspaceRequestPrompt,
   deleteAppWorkspace,
   normalizeCapabilityRequest,
+  normalizeConnectionRequest,
   normalizeWorkspaceRequest,
   openWorkspaceInVsCode,
   requestAppWorkspace,
   requestCapabilityWork,
+  requestConnectionWork,
+  resolveConnectionRequest,
   WORKSPACE_TIER_IDS,
 } from "./workspace-actions.mjs";
 

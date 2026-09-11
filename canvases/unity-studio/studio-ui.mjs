@@ -1,4 +1,5 @@
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
+export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
   return String(value)
@@ -72,60 +73,6 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderExpandedAppMapHtml(appMap) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unity App Map</title>
-  <style>
-    :root { color-scheme: light dark; --bg:#fff; --panel:#f7f6fb; --raised:#fff; --line:#e6e3f0; --ink:#1b1a24; --muted:#6a6775; --accent:#6b3fd6; --warn:#b45309; }
-    * { box-sizing: border-box; }
-    body { margin:0; padding:24px; background:radial-gradient(1200px 600px at 100% -12%,rgba(107,63,214,.07),transparent),var(--bg); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    main { max-width:1600px; margin:0 auto; }
-    header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:12px; margin-bottom:18px; }
-    h1 { margin:0; font-size:26px; } p { margin:4px 0 0; color:var(--muted); }
-    button { border:1px solid var(--line); border-radius:9px; padding:8px 12px; background:var(--raised); color:var(--ink); cursor:pointer; }
-    .app-map-visual { overflow:auto; }
-    .map-lanes { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-items:start; }
-    .map-lane { min-width:0; padding:11px; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:10px; background:var(--raised); }
-    .map-lane-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:9px; }
-    .map-lane-head small,.map-evidence,.map-legend { color:var(--muted); }
-    .map-node { padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
-    .map-node + .map-node { margin-top:8px; } .map-node.operation { border-style:dashed; }
-    .map-node strong,.map-node code { display:block; } .map-node code { margin-top:3px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
-    .map-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
-    .map-badge { border:1px solid var(--line); border-radius:999px; padding:1px 6px; background:var(--raised); color:var(--muted); font-size:10px; line-height:1.45; }
-    .map-badge.hosted-agent,.map-badge.model { border-color:#54aeff; background:#ddf4ff; color:#0550ae; }
-    .map-badge.framework,.map-badge.sdk { border-color:#c084fc; background:#f3e8ff; color:#6b21a8; }
-    .map-badge.target { border-color:#8b5cf6; background:#ede9fe; color:#5b21b6; }
-    .map-badge.bound { border-color:#4ac26b; background:#dafbe1; color:#116329; }
-    .map-badge.embr { border-color:#22d3ee; background:#cffafe; color:#155e75; }
-    .map-links { display:grid; gap:5px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
-    .map-details { display:grid; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
-    .map-detail { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
-    .map-detail b { color:var(--ink); font-weight:650; text-align:right; overflow-wrap:anywhere; }
-    .map-link { display:grid; grid-template-columns:auto 1fr; gap:5px; color:var(--muted); font-size:11px; }
-    .map-link .arrow { color:var(--accent); font-weight:700; } .map-link b { color:var(--ink); }
-    .map-link.unresolved { padding:5px; border:1px dashed var(--warn); border-radius:6px; } .map-link.unresolved .arrow { color:var(--warn); }
-    .map-evidence { margin-top:7px; font-size:10px; overflow-wrap:anywhere; }
-    .map-footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:14px; }
-    .badge { border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; background:var(--panel); }
-    .map-empty { padding:32px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:10px; }
-    @media (prefers-color-scheme:dark) { :root { --bg:#111218; --panel:#1b1c25; --raised:#16171f; --line:#343542; --ink:#f2f2f5; --muted:#aaa8b5; } }
-  </style>
-</head>
-<body>
-  <main>
-    <header><div><h1>Unity App Map</h1><p>${escapeHtml(appMap.root)} · generated ${escapeHtml(appMap.generatedAt)}</p></div>
-      <button type="button" onclick="location.reload()">Refresh map</button></header>
-    ${renderAppMapMarkup(appMap, { expanded: true })}
-  </main>
-</body>
-</html>`;
-}
-
 export function renderStudioHtml(instanceId, apiToken = "") {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
@@ -137,6 +84,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
     <title>Unity Studio</title>
     <style>
       :root {
@@ -199,10 +147,10 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .workspace-intro p { margin-bottom: 8px; }
       .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
       .workspace-path { color: var(--studio-muted); }
-      .journeys { display: grid; gap: 12px; margin-top: 24px; }
+      .journeys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
       .journey {
         width: 100%;
-        min-height: 112px;
+        min-height: 104px;
         padding: 18px;
         text-align: left;
         display: block;
@@ -210,6 +158,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
       .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
       .journey span { color: var(--text-color-muted, #59636e); }
+      .journey.primary span { color: #f0ebff; }
       .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
@@ -229,6 +178,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         border-radius: 10px;
         padding: 12px;
       }
+      .capability, .review-row { display: grid; gap: 4px; }
+      .capability strong, .review-row strong { display: block; }
+      .review-row small { display: block; color: var(--studio-muted); line-height: 1.45; }
       .app-row { display: flex; align-items: center; gap: 10px; }
       .app-row > [data-existing-app] { flex: 1; min-width: 0; text-align: left; }
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
@@ -371,8 +323,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       .danger-zone { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--studio-line); }
       .danger-zone button { color: var(--studio-danger); border-color: color-mix(in srgb, var(--studio-danger) 45%, var(--studio-line)); }
       #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
-      @media (max-width: 480px) {
+      @media (max-width: 720px) {
         body { padding-inline: 14px; }
+        .journeys { grid-template-columns: 1fr; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
         .actions-right, .actions button { width: 100%; }
         .actions-right { flex-direction: column-reverse; }
@@ -432,6 +385,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Request failed.");
         return payload;
+      }
+
+      function openAppMap(root, notice = "") {
+        location.assign("/app-map?root=" + encodeURIComponent(root) +
+          "&token=" + encodeURIComponent(apiToken) +
+          (notice ? "&notice=" + encodeURIComponent(notice) : ""));
       }
 
       function setBusy(busy, message = "") {
@@ -500,7 +459,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           dialog.className = "confirm-backdrop";
           dialog.innerHTML = '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
             '<h2 id="confirm-delete-title">Delete ' + escape(appName) + '?</h2>' +
-            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree and its local files. This cannot be undone.</p>' +
+            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree, its local files, and its Unity-created branch. This cannot be undone.</p>' +
             '<p>No Azure resources, repositories, or cloud deployments will be deleted.</p>' +
             '<div class="actions"><button type="button" id="cancel-delete">No, keep app</button>' +
             '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>';
@@ -542,16 +501,15 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         draft.journey = null;
         clearStatus();
         app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
-          '<h1>Unity apps</h1>' +
-          '<p>Create, assemble, or reopen an app. Unity Studio will guide the rest.</p>' +
+          '<h1>What would you like to do?</h1>' +
+          '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
           '<div class="journeys">' +
-          '<button type="button" class="journey" id="new-app"><strong>Create from template</strong>' +
-          '<span>Start with an editable empty template or a complete sample that is ready to run.</span></button>' +
-          '<button type="button" class="journey" id="assemble-app"><strong>Assemble from existing components</strong>' +
-          '<span>Choose code from worktrees, repositories, or folders, then map Azure resources.</span></button>' +
-          '<button type="button" class="journey" id="open-app"><strong>Open existing</strong>' +
-          '<span>Return to a previously created app worktree and inspect its live inventory.</span></button>' +
-          '</div>';
+          '<button type="button" class="journey primary" id="new-app"><strong>Create a new app</strong>' +
+          '<span>Describe what you want to build and start from a proven template.</span></button>' +
+          '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
+          '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
+          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
+          '<span>Combine source projects and map existing Azure resources.</span></button></div>';
         document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
           draft.starterKind = "template";
@@ -587,7 +545,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderExistingApps() {
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to rediscover its components.</p>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
@@ -597,19 +555,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
           '';
         wireTopBack(renderLanding);
-        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", async () => {
-          setBusy(true, "Rediscovering app components…");
-          try {
-            const root = button.dataset.existingApp;
-            const inventory = await request("/api/discovery?azure=false&root=" + encodeURIComponent(root));
-            draft.appName = button.querySelector("strong").textContent;
-            draft.purpose = "Existing Unity app";
-            renderInventory({ worktreePath: root, specialistCanvases: [] }, inventory, null);
-          } catch (cause) {
-            error(cause.message);
-          } finally {
-            setBusy(false, status.textContent);
-          }
+        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", () => {
+          openAppMap(button.dataset.existingApp);
         }));
         document.querySelectorAll("[data-delete-existing-app]").forEach((button) => button.addEventListener("click", async (event) => {
           event.stopPropagation();
@@ -668,6 +615,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         wireTopBack(renderLanding);
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
+            captureDetails();
             draft.templateRootId = input.value;
             const template = sources.templates.find((item) => item.id === input.value);
             applyTemplateDefaults(template);
@@ -675,6 +623,12 @@ export function renderStudioHtml(instanceId, apiToken = "") {
             document.getElementById("app-name").value = draft.appName;
             document.getElementById("purpose").value = draft.purpose;
           });
+        });
+        document.getElementById("app-name").addEventListener("input", (event) => {
+          draft.appName = event.target.value;
+        });
+        document.getElementById("purpose").addEventListener("input", (event) => {
+          draft.purpose = event.target.value;
         });
         document.getElementById("next").addEventListener("click", async () => {
           captureDetails();
@@ -1002,9 +956,9 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         document.querySelectorAll("[data-open-source]").forEach((button) => button.addEventListener("click", async () => {
           setBusy(true, "Opening component source in VS Code…");
           try {
-            await request("/api/open-vscode", {
+            await request("/api/open-source", {
               method: "POST",
-              body: JSON.stringify({ root: result.worktreePath + "/" + button.dataset.openSource })
+              body: JSON.stringify({ root: result.worktreePath, projectPath: button.dataset.openSource })
             });
             clearStatus("Source opened in VS Code.");
           } catch (cause) {
@@ -1207,7 +1161,11 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               method: "POST",
               body: JSON.stringify({ operation: button.dataset.appCommand, root: result.worktreePath })
             });
-            clearStatus(commandResult.command + " started (PID " + commandResult.pid + ").");
+            clearStatus(commandResult.outcome === "already-running"
+              ? "The local app is already running."
+              : commandResult.outcome === "operation-in-progress"
+                ? "The local app is already " + commandResult.state + "."
+                : commandResult.command + " started (PID " + commandResult.pid + ").");
             await refreshLocalStatus();
           } catch (cause) {
             error(cause.message);
@@ -1306,13 +1264,13 @@ export function renderStudioHtml(instanceId, apiToken = "") {
               openInVsCode: draft.openInVsCode
             })
           });
-          const sessionStatus = result.sessionRegistration === "created"
-            ? "A new child session was registered."
-            : "This host cannot register child sessions, so the worktree was created directly.";
-          const inventory = await request("/api/discovery?azure=false&root=" +
-            encodeURIComponent(result.worktreePath));
-          renderInventory(result, inventory, null);
-          clearStatus(sessionStatus);
+          if (result.worktreePath) {
+            openAppMap(result.worktreePath, result.editorWarning);
+          } else {
+            renderLanding();
+            clearStatus("Assembly started. The app will appear here when its isolated workspace is ready.");
+            setBusy(false, status.textContent);
+          }
         } catch (cause) {
           error(cause.message);
           setBusy(false, status.textContent);

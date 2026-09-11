@@ -14,7 +14,13 @@ load_dotenv()
 if not os.environ.get("FOUNDRY_HOSTING_ENVIRONMENT"):
     os.environ.setdefault("MICROSOFT_OTEL_SDKSTATS_DISABLED", "true")
 
-from agent_framework import Agent
+from agent_framework import (
+    Agent,
+    ChatResponse,
+    ChatResponseUpdate,
+    Content,
+    ResponseStream,
+)
 from agent_framework.openai import OpenAIChatClient
 from agent_framework_foundry_hosting import FoundryToolbox, ResponsesHostServer
 from azure.identity import DefaultAzureCredential
@@ -30,6 +36,41 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("deal-finder")
+
+
+class BufferedGatewayChatClient(OpenAIChatClient):
+    """Adapt AI Gateway's buffered Responses route to Agent Framework streaming."""
+
+    def get_response(self, messages, *, stream=False, **kwargs):
+        if not stream:
+            return super().get_response(messages, stream=False, **kwargs)
+
+        async def buffered_updates():
+            response = await super(BufferedGatewayChatClient, self).get_response(
+                messages,
+                stream=False,
+                **kwargs,
+            )
+            last_index = len(response.messages) - 1
+            for index, message in enumerate(response.messages):
+                contents = list(message.contents)
+                if index == last_index and response.usage_details:
+                    contents.append(Content.from_usage(response.usage_details))
+                yield ChatResponseUpdate(
+                    contents=contents,
+                    role=message.role,
+                    author_name=message.author_name,
+                    response_id=response.response_id,
+                    message_id=message.message_id,
+                    conversation_id=response.conversation_id,
+                    model=response.model,
+                    created_at=response.created_at,
+                    finish_reason=response.finish_reason if index == last_index else None,
+                    continuation_token=response.continuation_token,
+                )
+
+        return ResponseStream(buffered_updates(), finalizer=ChatResponse.from_updates)
+
 
 INSTRUCTIONS = """
 You are deal-finder, the Unity Demo #1 car-buying hosted agent.
@@ -69,7 +110,7 @@ def _gateway_settings() -> tuple[str, str]:
 
 def _gateway_client() -> OpenAIChatClient:
     gateway_endpoint, gateway_key = _gateway_settings()
-    return OpenAIChatClient(
+    return BufferedGatewayChatClient(
         model=os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL),
         base_url=gateway_endpoint + "/default/models/openai/v1/",
         # Transport placeholder so auth comes from Api-Key header.

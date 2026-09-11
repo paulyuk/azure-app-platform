@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, cp, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,9 +112,38 @@ async function materializeSample(plan, destination, commandRunner) {
   const commit = requireText(plan.sourcePlan?.commit, "sample commit", /^[0-9a-f]{40}$/, 40);
   const temporaryRoot = await mkdtemp(join(tmpdir(), "unity-sample-"));
   const archive = join(temporaryRoot, "sample.tar");
+  const extracted = join(temporaryRoot, "source");
   try {
-    await commandRunner("git", ["-C", source, "archive", "--format=tar", `--output=${archive}`, commit]);
-    await commandRunner("tar", ["-xf", archive, "-C", destination]);
+    await mkdir(extracted);
+    const archived = await commandRunner("git", [
+      "-C",
+      source,
+      "archive",
+      "--format=tar",
+      `--output=${archive}`,
+      commit,
+    ]);
+    if (!archived?.ok) {
+      throw new Error(`Could not archive the pinned Dealer sample: ${archived?.stderr || archived?.error || "unknown error"}`);
+    }
+    const unpacked = await commandRunner("tar", ["-xf", archive, "-C", extracted]);
+    if (!unpacked?.ok) {
+      throw new Error(`Could not unpack the pinned Dealer sample: ${unpacked?.stderr || unpacked?.error || "unknown error"}`);
+    }
+    const requiredFiles = [
+      "scripts/dev-start.sh",
+      "scripts/dev-stop.sh",
+      "scripts/dev-start.ps1",
+      "scripts/dev-stop.ps1",
+    ];
+    await Promise.all(requiredFiles.map((path) => access(join(extracted, path))));
+    const existingEntries = await readdir(destination);
+    await Promise.all(existingEntries
+      .filter((entry) => entry !== ".git")
+      .map((entry) => rm(join(destination, entry), { recursive: true, force: true })));
+    const sampleEntries = await readdir(extracted);
+    await Promise.all(sampleEntries.map((entry) =>
+      cp(join(extracted, entry), join(destination, entry), { recursive: true, force: true })));
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -137,9 +166,10 @@ async function materializeSample(plan, destination, commandRunner) {
 
 async function defaultCommandRunner(command, args) {
   try {
-    return await execFileAsync(command, args, { maxBuffer: 10 * 1024 * 1024 });
+    const result = await execFileAsync(command, args, { maxBuffer: 10 * 1024 * 1024 });
+    return { ok: true, ...result };
   } catch (error) {
-    throw new Error(`${command} failed: ${error.stderr || error.message}`);
+    return { ok: false, stdout: error.stdout || "", stderr: error.stderr || "", error: error.message };
   }
 }
 
