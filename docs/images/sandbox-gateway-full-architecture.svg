@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid meet" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Sandbox &amp; Gateway Pattern — Complete Reference Architecture</title>
+
+  <style>
+    :root {
+      --bg:#ffffff; --ink:#16202b; --muted:#64748b; --line:#cbd5e1;
+      --card:#ffffff; --soft:#f1f5f9; --accent:#d7263d; --accent-soft:#fdf2f4;
+      --accent-line:#f0b8c1; --green:#10b981; --green-soft:#ecfdf5;
+      --blue:#2563eb; --blue-soft:#eff6ff;
+      --amber:#b45309; --amber-soft:#fffbeb;
+      --purple:#8b5cf6; --purple-soft:#f5f3ff;
+      --teal:#0f766e; --teal-soft:#f0fdfa; --teal-line:#99f6e4;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0f1620; --ink:#e8eef5; --muted:#93a3b6; --line:#33465c;
+        --card:#16202b; --soft:#1b2733; --accent:#ff6b81; --accent-soft:#24161c;
+        --accent-line:#6d3541; --green:#34d399; --green-soft:#064e3b;
+        --blue:#60a5fa; --blue-soft:#1e3a8a;
+        --amber:#fbbf24; --amber-soft:#3f2d05;
+        --purple:#a78bfa; --purple-soft:#2e1065;
+        --teal:#2dd4bf; --teal-soft:#042f2c; --teal-line:#115e59;
+      }
+    }
+    .bg    { fill: var(--bg); }
+    .card  { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+    .soft  { fill: var(--soft); stroke: var(--line); stroke-width: 1.5; }
+    .panel { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+    .gate  { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.75; }
+    .durable{ fill: var(--blue-soft); stroke: var(--blue); stroke-width: 2; stroke-dasharray: 6 5; }
+    .eval  { fill: var(--purple-soft); stroke: var(--purple); stroke-width: 2; stroke-dasharray: 6 5; }
+    .sre   { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 7 6; }
+    .chip  { fill: var(--card); stroke: var(--accent-line); stroke-width: 1.25; }
+    .pill  { fill: var(--accent-soft); stroke: var(--accent-line); stroke-width: 1.25; }
+    .trig  { fill: var(--soft); stroke: var(--line); stroke-width: 1.25; }
+    .egress{ fill: var(--amber-soft); stroke: var(--amber); stroke-width: 1.75; }
+    .prim  { fill: var(--teal-soft); stroke: var(--teal); stroke-width: 1.75; }
+    .primchip { fill: var(--card); stroke: var(--teal-line); stroke-width: 1.1; }
+    .t     { fill: var(--ink); }
+    .m     { fill: var(--muted); }
+    .a     { fill: var(--accent); }
+    .b     { fill: var(--blue); }
+    .p     { fill: var(--purple); }
+    .am    { fill: var(--amber); }
+    .tl    { fill: var(--teal); }
+    .cap   { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+    .lbl   { font-size: 12px; font-style: italic; }
+    .sub   { font-size: 12.5px; }
+    .flow  { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .flow-blue { fill: none; stroke: var(--blue); stroke-width: 1.8; stroke-dasharray: 4 4; }
+    .flow-purple { fill: none; stroke: var(--purple); stroke-width: 1.8; stroke-dasharray: 3 3; }
+    .flow-amber { fill: none; stroke: var(--amber); stroke-width: 2; }
+    .flow-dash { fill: none; stroke: var(--muted); stroke-width: 1.75; stroke-dasharray: 5 5; }
+    .badge { fill: var(--green-soft); stroke: var(--green); stroke-width: 1.2; }
+    .badgeT{ fill: var(--green); font-size: 11px; font-weight: 700; }
+  </style>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--accent)"/>
+    </marker>
+    <marker id="arw-blue" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--blue)"/>
+    </marker>
+    <marker id="arw-purple" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--purple)"/>
+    </marker>
+    <marker id="arw-amber" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--amber)"/>
+    </marker>
+    <marker id="arw-muted" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--muted)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="900"/>
+
+  <!-- Title -->
+  <text class="t" x="60" y="58" font-size="28" font-weight="700" letter-spacing="-0.4">Sandbox &amp; Gateway Pattern — Complete Reference Architecture</text>
+  <text class="m" x="60" y="86" font-size="14">Core building block (solid) plus every add-on (dashed): durability, evals, and SRE observability</text>
+
+  <!-- Triggers -->
+  <text class="m cap" x="60" y="150">Triggers</text>
+  <rect class="trig" x="60" y="165" width="210" height="60" rx="12"/>
+  <text class="t" x="80" y="201" font-size="14.5" font-weight="650">HTTP REST</text>
+
+  <rect class="trig" x="60" y="245" width="210" height="60" rx="12"/>
+  <text class="t" x="80" y="281" font-size="14.5" font-weight="650">Timer Trigger</text>
+
+  <path class="flow" d="M270,195 L310,255" marker-end="url(#arw)"/>
+  <path class="flow-dash" d="M270,275 L310,275" marker-end="url(#arw-muted)"/>
+
+  <!-- Host Compute -->
+  <text class="m cap" x="310" y="150">Host Compute (Interchangeable)</text>
+  <rect class="card" x="310" y="165" width="300" height="255" rx="16"/>
+  <rect class="a" x="310" y="165" width="6" height="255" rx="3"/>
+  <text class="t" x="335" y="200" font-size="18" font-weight="700">Agent Loop Host</text>
+
+  <rect class="badge" x="335" y="220" width="250" height="32" rx="8"/>
+  <text class="badgeT" x="460" y="240" text-anchor="middle">App Service / Functions / ACA</text>
+
+  <rect class="soft" x="335" y="270" width="250" height="130" rx="10"/>
+  <text class="t" x="355" y="300" font-size="13.5" font-weight="650">Agentic Control Flow</text>
+  <text class="m sub" x="355" y="325">• Prompts model via AI Gateway</text>
+  <text class="m sub" x="355" y="347">• Offloads tools to ACA Sandbox</text>
+  <text class="m sub" x="355" y="369">• Calls Hosted Skills</text>
+
+  <!-- Add-on: DTS (dashed blue) -->
+  <rect class="durable" x="310" y="445" width="300" height="80" rx="14"/>
+  <text class="b" x="335" y="478" font-size="14.5" font-weight="700">+ DTS / Durable Task Scheduler</text>
+  <text class="m sub" x="335" y="500">Turn-level checkpoint · pause &amp; resume</text>
+  <path class="flow-blue" d="M460,420 L460,445" marker-end="url(#arw-blue)"/>
+
+  <!-- Add-on: Continuous Evals (dashed purple) -->
+  <rect class="eval" x="310" y="545" width="300" height="70" rx="14"/>
+  <text class="p" x="335" y="576" font-size="14" font-weight="700">+ Continuous Evals Suite</text>
+  <text class="m sub" x="335" y="596">Quality, grounding &amp; safety scoring</text>
+  <path class="flow-purple" d="M460,525 L460,545" marker-end="url(#arw-purple)"/>
+
+  <!-- Hosted Skills -->
+  <rect class="chip" x="310" y="635" width="300" height="60" rx="12"/>
+  <text class="t" x="335" y="663" font-size="13.5" font-weight="650">Hosted Skills</text>
+  <text class="m sub" x="335" y="682">Azure Functions MCP tools</text>
+  <path class="flow" d="M335,420 L280,420 L280,665 L310,665" marker-end="url(#arw)"/>
+
+  <!-- Flow: Host Compute -> ACA Sandboxes -->
+  <path class="flow" d="M460,165 L460,105 L900,105 L900,165" marker-end="url(#arw)"/>
+  <text class="m lbl" x="680" y="95" text-anchor="middle">Tool execution (isolated)</text>
+
+  <!-- Flow: Host Compute -> AI Gateway -->
+  <path class="flow" d="M610,310 L790,310" marker-end="url(#arw)"/>
+  <text class="m lbl" x="700" y="297" text-anchor="middle" font-size="11">prompts</text>
+
+  <!-- ACA Sandboxes -->
+  <text class="m cap" x="790" y="150">Tool Execution &amp; Egress</text>
+  <rect class="panel" x="790" y="165" width="340" height="100" rx="16"/>
+  <text class="a" x="815" y="198" font-size="16.5" font-weight="700">★ ACA Sandboxes</text>
+  <rect class="pill" x="815" y="215" width="160" height="24" rx="12"/>
+  <text class="a" x="895" y="231" font-size="11" font-weight="700" text-anchor="middle">PII Boundary Enforced</text>
+
+  <path class="flow-amber" d="M960,265 L960,283" marker-end="url(#arw-amber)"/>
+  <rect class="egress" x="790" y="283" width="340" height="50" rx="14"/>
+  <text class="am" x="815" y="313" font-size="13.5" font-weight="700">🔒 Secure Egress Proxy</text>
+
+  <path class="flow-amber" d="M960,333 L960,351" marker-end="url(#arw-amber)"/>
+  <rect class="card" x="790" y="351" width="340" height="50" rx="14"/>
+  <text class="t" x="815" y="381" font-size="13.5" font-weight="650">M365 / SharePoint / Connectors</text>
+
+  <!-- AI Gateway -->
+  <text class="m cap" x="790" y="440">Egress &amp; Model Governance</text>
+  <rect class="gate" x="790" y="455" width="340" height="150" rx="16"/>
+  <text class="a" x="815" y="485" font-size="16.5" font-weight="700">AI Gateway (APIM)</text>
+
+  <rect class="chip" x="815" y="500" width="140" height="36" rx="8"/>
+  <text class="t" x="885" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Model Routing</text>
+
+  <rect class="chip" x="965" y="500" width="140" height="36" rx="8"/>
+  <text class="t" x="1035" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Tools</text>
+
+  <rect class="chip" x="815" y="544" width="140" height="36" rx="8"/>
+  <text class="t" x="885" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Policies</text>
+
+  <rect class="chip" x="965" y="544" width="140" height="36" rx="8"/>
+  <text class="t" x="1035" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Enforcement</text>
+
+  <!-- HITL routed through Gateway + Egress to Connectors -->
+  <path class="flow-blue" d="M610,470 L790,555" marker-end="url(#arw-blue)"/>
+  <text class="m lbl" x="650" y="465" font-size="11">+ HITL approval (via Gateway)</text>
+  <path class="flow-blue" d="M790,600 C 700,660 560,640 460,525" marker-end="url(#arw-blue)"/>
+  <text class="m lbl" x="590" y="655" font-size="11">approval event</text>
+
+  <!-- SRE & Evals band -->
+  <rect class="sre" x="1150" y="165" width="390" height="540" rx="16"/>
+  <text class="a" x="1175" y="198" font-size="16" font-weight="700">+ SRE Agent &amp; Observability</text>
+  <text class="m sub" x="1175" y="222">Correlates OTel traces, evals &amp; incidents</text>
+  <text class="m sub" x="1175" y="244">across every layer of this diagram</text>
+  <path class="flow-dash" d="M1130,235 L1150,300" marker-end="url(#arw-muted)"/>
+
+  <!-- Shared Primitives bottom bar -->
+  <rect class="prim" x="60" y="800" width="1480" height="60" rx="14"/>
+  <text class="tl" x="85" y="836" font-size="14.5" font-weight="700">★ Shared Primitives</text>
+
+  <rect class="primchip" x="310" y="815" width="90" height="30" rx="8"/>
+  <text class="t" x="355" y="835" font-size="11.5" font-weight="650" text-anchor="middle">Auth</text>
+  <rect class="primchip" x="410" y="815" width="90" height="30" rx="8"/>
+  <text class="t" x="455" y="835" font-size="11.5" font-weight="650" text-anchor="middle">OTEL</text>
+  <rect class="primchip" x="510" y="815" width="90" height="30" rx="8"/>
+  <text class="t" x="555" y="835" font-size="11.5" font-weight="650" text-anchor="middle">Audit</text>
+  <text class="m sub" x="620" y="835">— shared by every tier of this pattern, regardless of host compute choice</text>
+
+</svg>

@@ -250,6 +250,30 @@ flowchart LR
   gw -->|"connection credential"| cn
 ```
 
+### 2.4 Sandbox & Gateway Pattern: Progressive Reference Architecture
+
+The **Sandbox & Gateway pattern** provides a lean, modular blueprint for building agentic cloud applications on Azure. It prioritizes a minimal core building block that can be progressively expanded with durability, human approval, evaluation suites, and self-aware observability.
+
+#### 1. Minimal Building Blocks
+The simplest standalone building blocks has no dedicated front end: it's triggered by an **HTTP REST** call or a **Timer** schedule, runs interchangeable host compute (App Service, Azure Functions, or Azure Container Apps) for the Agent Loop, offloads tool execution to **ACA Sandboxes** ([sandboxes.azure.com](https://sandboxes.azure.com/docs)) enforcing a PII safety boundary, routes any sandbox outbound call through a **secure egress proxy** to a single allow-listed destination, and sends model egress through **AI Gateway (APIM)**.
+
+![Sandbox & Gateway Pattern — Minimal Building Blocks](images/sandbox-gateway-minimal-building-blocks.svg)
+
+#### 2. Minimal + Turn-Level Durability & Human-In-The-Loop (HITL)
+Adding the **Durable Task System (DTS / Durable Functions)** introduces turn-level state checkpointing and automatic recovery for long-running workflows. It enables **Human-In-The-Loop (HITL)** approval flows (e.g. Teams / Email) that pause execution without keeping host compute active. Secure egress from ACA Sandboxes remains in place, unchanged from the minimal pattern.
+
+![Sandbox & Gateway Pattern — Minimal + Durability & HITL](images/sandbox-gateway-durable-hitl.svg)
+
+#### 3. Minimal + SRE Observability & Continuous Evals
+Integrating **Continuous Evals** and the **SRE Agent Observability Band** provides real-time reasoning quality checks, OpenTelemetry trace correlation, and automated health monitoring across compute, sandboxes, and gateway layers.
+
+![Sandbox & Gateway Pattern — Minimal + SRE & Evals](images/sandbox-gateway-sre-evals.svg)
+
+#### 4. Complete Architecture
+Bringing together interchangeable Host Compute, ACA Sandboxes with secure egress, AI Gateway, DTS / Durable Workflows with HITL, Hosted Skills, and SRE Observability into one unified application architecture. Here the sandbox's secure egress path targets a concrete destination — an **M365 / SharePoint connector** — showing how sensitive sandboxed work can safely reach a Microsoft 365 system of record.
+
+![Sandbox & Gateway Pattern — Complete Architecture](images/sandbox-gateway-full-architecture.svg)
+
 ---
 
 ## 3. Narrative: Demo #1 end to end
