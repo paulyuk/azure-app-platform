@@ -1328,6 +1328,7 @@ const workspaceInputSchema = {
       properties: {
         hostedSkillName: { type: "string", minLength: 1, maxLength: 40 },
         agentInstructions: { type: "string", minLength: 1, maxLength: 2000 },
+        egressAllowDomain: { type: "string", minLength: 1, maxLength: 253 },
       },
       additionalProperties: false,
     },

@@ -1,0 +1,15 @@
+name: __APP_SLUG__
+purpose: "__PURPOSE_JSON__"
+capabilities:
+  agent:
+    path: src/agent
+    interface: http://localhost:8088
+    links: [sandbox, gateway]
+  sandbox:
+    path: src/sandbox/tool
+    interface: subprocess
+    links: [agent]
+  gateway:
+    path: infra-ai-gateway
+    interface: configuration
+    links: [agent]

@@ -40,7 +40,76 @@ export const EMPTY_TEMPLATE = Object.freeze({
     ],
     reservedPorts: [3000, 8088, 7071],
   },
+  requiredPaths: [
+    "README.md",
+    "unity.app.yaml",
+    "config/domain.json",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "src/web",
+    "src/agent/agent.yaml",
+    "src/agent/prompts/system.md",
+    "src/skills/<hosted-skill>",
+    "src/skills/<hosted-skill>/tests/test_contract.py",
+  ],
+  constraints: {
+    hostedSkillCount: 1,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+  },
 });
+
+export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
+  id: "builtin-sandbox-gateway-minimal-v1",
+  kind: "empty",
+  name: "Sandbox & Gateway (Minimal)",
+  description: "Start with the headless Sandbox & Gateway pattern: an interchangeable agent loop, an ACA Sandbox tool boundary, and an AI Gateway seam.",
+  capabilityIds: ["agent", "sandbox", "gateway"],
+  customization: ["App purpose", "Agent instructions", "Egress allow-list domain"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+    startArgs: [],
+    startPowerShellArgs: [],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    startEntrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    reservedPorts: [8088],
+  },
+  requiredPaths: [
+    "README.md",
+    "unity.app.yaml",
+    "config/domain.json",
+    "config/egress-allowlist.json",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "src/agent/agent.yaml",
+    "src/agent/prompts/system.md",
+    "src/sandbox/tool/main.py",
+    "src/sandbox/tool/egress-policy.md",
+    "infra-ai-gateway/README.md",
+  ],
+  constraints: {
+    hostedSkillCount: 0,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+    sandboxToolBoundary: true,
+  },
+});
+
+export const LOCAL_TEMPLATES = Object.freeze([EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE]);
 
 const RUNNABLE_SAMPLE_PATHS = Object.freeze([
   "scripts/dev-start.sh",
@@ -275,7 +344,7 @@ export async function listSourceCatalog({
         root.pinnedImplementations.some((item) => item.tierId === tierId)))
     .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
   const templates = [
-    EMPTY_TEMPLATE,
+    ...LOCAL_TEMPLATES,
     ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
       kind: "sample",
@@ -330,36 +399,17 @@ export function resolveSourcePlan(catalog, input) {
 
   let bindings = [];
   if (input?.starterKind === "template") {
-    const template = input.templateRootId === EMPTY_TEMPLATE.id
-      ? EMPTY_TEMPLATE
-      : catalog.templates.find((item) => item.id === input.templateRootId);
-    if (template?.kind === "empty") {
+    const template = LOCAL_TEMPLATES.find((item) => item.id === input.templateRootId)
+      ?? catalog.templates.find((item) => item.id === input.templateRootId);
+    if (template && LOCAL_TEMPLATES.some((item) => item.id === template.id)) {
       return [{
         kind: "empty-template",
         templateId: template.id,
         templateVersion: 1,
         snapshotMode: "blueprint",
         capabilityIds: template.capabilityIds,
-        requiredPaths: [
-          "README.md",
-          "unity.app.yaml",
-          "config/domain.json",
-          "scripts/dev-start.sh",
-          "scripts/dev-stop.sh",
-          "scripts/dev-start.ps1",
-          "scripts/dev-stop.ps1",
-          "src/web",
-          "src/agent/agent.yaml",
-          "src/agent/prompts/system.md",
-          "src/skills/<hosted-skill>",
-          "src/skills/<hosted-skill>/tests/test_contract.py",
-        ],
-        constraints: {
-          hostedSkillCount: 1,
-          inventDomainTools: false,
-          editableDomainConfiguration: true,
-          wholeAppScriptsRequired: true,
-        },
+        requiredPaths: template.requiredPaths,
+        constraints: template.constraints,
         startup: template.startup,
       }];
     }

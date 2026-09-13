@@ -3,9 +3,10 @@
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
 pattern. Its landing page keeps three journeys visible:
 
-1. **Create a new app** — choose the editable **Empty Unity app** or the complete
-   **Dealer sample**, customize the supported inputs, review the deterministic
-   materialization plan, and create the app in an isolated worktree.
+1. **Create a new app** — choose the editable **Empty Unity app**, the headless
+   **Sandbox & Gateway (Minimal)** template, or the complete **Dealer sample**,
+   customize the supported inputs, review the deterministic materialization
+   plan, and create the app in an isolated worktree.
 2. **Open an app** — rediscover apps persisted as repository/worktree
    pairs, then open their App Map to inspect request flow, implementation inventory,
    source, runtime, or specialist studios. This is the local persistence
@@ -61,6 +62,13 @@ worktree's listeners for its own services.
   editable domain configuration, editable agent instructions, and exactly one
   intentionally empty Hosted Skill. It includes whole-app `dev-start` and
   `dev-stop` scripts and never asks a model to invent tools.
+- **Sandbox & Gateway (Minimal)** is a versioned local template with the
+  headless Minimal Building Blocks from the [Sandbox & Gateway
+  pattern](../../docs/sandbox-gateway-pattern.md): an HTTP-triggered agent
+  loop, an ACA Sandbox tool boundary at `src/sandbox/tool` that returns only
+  derived, non-identifying results, and an AI Gateway configuration seam. It
+  has no web or Hosted Skill capability and a single `dev-start`/`dev-stop`
+  entrypoint (`src/agent`).
 - **Dealer sample** is the complete nine-capability reference application. Unity
   Studio selects the newest eligible pinned commit containing the web app,
   agent manifest, and whole-app lifecycle scripts, then extracts that entire
@@ -69,8 +77,8 @@ worktree's listeners for its own services.
   `./scripts/dev-start.sh --skip-skills --skip-agent`; the full stack uses
   `./scripts/dev-start.sh` after worktree-local Azure settings are supplied.
 
-`template-materializer.mjs` owns initial files for both templates. The model is
-not allowed to synthesize or manually copy them.
+`template-materializer.mjs` owns initial files for all local templates. The
+model is not allowed to synthesize or manually copy them.
 
 See [DESIGN.md](./DESIGN.md) for the tier catalog, implementation inventory, action
 semantics, safety boundaries, and tracing limitations.

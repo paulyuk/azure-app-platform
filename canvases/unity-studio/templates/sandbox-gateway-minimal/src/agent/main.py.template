@@ -1,0 +1,85 @@
+import json
+import os
+import subprocess
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+DOMAIN = json.loads((ROOT / "config" / "domain.json").read_text())
+EGRESS_ALLOWLIST = json.loads((ROOT / "config" / "egress-allowlist.json").read_text())
+SANDBOX_TOOL = ROOT / "src" / "sandbox" / "tool" / "main.py"
+
+
+def _call_gateway(prompt: str) -> str:
+    """Placeholder for a model call routed through the AI Gateway.
+
+    Replace this with a real request to your Gateway endpoint. The template
+    does not invent a deployment or credentials, so this returns a
+    deterministic stand-in response instead of calling a model.
+    """
+    return f"{DOMAIN['name']} received: {prompt}"
+
+
+def _run_sandbox_tool(payload: dict) -> dict:
+    """Run the ACA Sandbox tool as a fresh subprocess for one request.
+
+    Mirrors the production pattern: the sandbox receives exactly one JSON
+    request on stdin and returns exactly one bounded JSON verdict on stdout,
+    then exits. It never persists state between invocations.
+    """
+    result = subprocess.run(
+        [sys.executable, str(SANDBOX_TOOL)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        return {"error": result.stderr.strip() or "sandbox tool failed"}
+    return json.loads(result.stdout)
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/health":
+            self.send_error(404)
+            return
+        body = json.dumps({
+            "status": "ok",
+            "app": DOMAIN["name"],
+            "egressAllowlist": EGRESS_ALLOWLIST["allowedFqdns"],
+        }).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path != "/invoke":
+            self.send_error(404)
+            return
+        length = int(self.headers.get("Content-Length", "0"))
+        request = json.loads(self.rfile.read(length) or b"{}")
+        message = request.get("message", "")
+        sandbox_payload = request.get("sandboxInput")
+        tool_result = self._run_sandbox_tool_if_requested(sandbox_payload)
+        body = json.dumps({
+            "message": _call_gateway(message),
+            "toolResult": tool_result,
+        }).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _run_sandbox_tool_if_requested(self, sandbox_payload):
+        if sandbox_payload is None:
+            return None
+        return _run_sandbox_tool(sandbox_payload)
+
+
+ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("AGENT_PORT", "8088"))), Handler).serve_forever()

@@ -1,0 +1,14 @@
+name: __APP_SLUG__-agent
+description: "__PURPOSE_JSON__"
+instructions_file: prompts/system.md
+triggers:
+  - type: http
+    route: /invoke
+  - type: timer
+    schedule: "0 */15 * * * *"
+tools:
+  - name: sandbox-tool
+    invocation: subprocess
+    path: ../sandbox/tool/main.py
+gateway:
+  configuration_path: ../../infra-ai-gateway

@@ -3,12 +3,13 @@ import { dirname, join, resolve } from "node:path";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
-import { EMPTY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
+import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
+const DOMAIN_PATTERN = /^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 function requireText(value, label, maxLength) {
   if (typeof value !== "string") {
@@ -94,8 +95,14 @@ export function normalizeWorkspaceRequest(input) {
   if (!SKILL_NAME_PATTERN.test(hostedSkillName)) {
     throw new Error("Hosted Skill name must use lowercase letters, numbers, and hyphens.");
   }
+  const egressAllowDomain = optionalText(input?.templateInputs?.egressAllowDomain, "Egress allow-list domain", 253)
+    ?? "api.lender.example.com";
+  if (!DOMAIN_PATTERN.test(egressAllowDomain)) {
+    throw new Error("Egress allow-list domain must be a valid DNS hostname, e.g. api.lender.example.com.");
+  }
   const templateInputs = {
     hostedSkillName,
+    egressAllowDomain,
     agentInstructions: optionalMultilineText(input?.templateInputs?.agentInstructions, "Agent instructions", 2_000)
       ?? `Help users accomplish this application purpose: ${purpose}`,
   };
@@ -198,6 +205,11 @@ export function buildWorkspaceKickoff(request) {
       ? [
           "Verify `scripts/dev-start.sh`, `scripts/dev-stop.sh`, `scripts/dev-start.ps1`, and `scripts/dev-stop.ps1` exist.",
           "Run `./scripts/dev-start.sh --help`. The credential-free experience is `./scripts/dev-start.sh --skip-skills --skip-agent`; stop it with `./scripts/dev-stop.sh`.",
+        ]
+      : templatePlan.templateId === SANDBOX_GATEWAY_TEMPLATE.id
+      ? [
+          "Verify the generated README, unity.app.yaml, editable domain config, egress allow-list config, agent prompt, and the sandbox tool boundary at `src/sandbox/tool`.",
+          "Run `./scripts/dev-start.sh --help`. Smoke-test the local agent loop with `./scripts/dev-start.sh`, POST a sample payload to `http://localhost:8088/invoke`, then stop it with `./scripts/dev-stop.sh`.",
         ]
       : [
           "Verify the generated README, unity.app.yaml, editable domain config, agent prompt, and exactly one Hosted Skill.",
@@ -491,8 +503,8 @@ export async function requestAppWorkspace({
   }
   if (request.starterKind === "template" || request.journey === "assemble") {
     const catalog = sourceCatalog ?? (
-      request.templateRootId === EMPTY_TEMPLATE.id
-        ? { roots: [], templates: [EMPTY_TEMPLATE] }
+      LOCAL_TEMPLATES.some((template) => template.id === request.templateRootId)
+        ? { roots: [], templates: LOCAL_TEMPLATES }
         : await listSourceCatalog({ workspaceRoot, commandRunner })
     );
     const resourcesByTier = new Map(request.sourceBindings.map((binding) => [

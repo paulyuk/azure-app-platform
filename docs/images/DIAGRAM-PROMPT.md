@@ -40,6 +40,7 @@ place. When in doubt, delete it.
 | File | Tier | Adds |
 | --- | --- | --- |
 | `sandbox-gateway-minimal-building-blocks.svg` | Minimal Building Blocks | — (the core) |
+| `sandbox-gateway-hosted-skills.svg` | Minimal + Hosted Skills | Azure Functions agents runtime hosts the loop |
 | `sandbox-gateway-durable-hitl.svg` | Minimal + Durability & HITL | Durable Task Scheduler |
 | `sandbox-gateway-sre-evals.svg` | Minimal + SRE & Evals | Continuous Evals, SRE band |
 | `sandbox-gateway-full-architecture.svg` | Complete Architecture | all three |
@@ -112,6 +113,7 @@ prose.
 | Colour | Hex | Role |
 | --- | --- | --- |
 | Accent red | `#d7263d` | core / primary |
+| Indigo | `#4f46e5` | Hosted Skills |
 | Blue | `#2563eb` | durability, DTS, HITL |
 | Purple | `#8b5cf6` | evals |
 | Amber | `#b45309` | secure egress |

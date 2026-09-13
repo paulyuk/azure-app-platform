@@ -15,7 +15,15 @@ Templates lead this journey:
    files, and exactly one empty Hosted Skill. It includes POSIX and PowerShell
    whole-app start/stop scripts. The user names the skill; Unity Studio does not
    guess its tools or business behavior.
-2. **Dealer sample** is the complete reference app from the newest eligible
+2. **Sandbox & Gateway (Minimal)** is a checked-in, versioned template covering
+   only the headless Minimal Building Blocks tier of the [Sandbox & Gateway
+   pattern](../../docs/sandbox-gateway-pattern.md): an HTTP/timer-triggered
+   agent loop, an ACA Sandbox tool boundary that receives one request and
+   returns only derived, non-identifying results, and an AI Gateway
+   configuration seam. There is no web or Hosted Skill capability; the user
+   supplies agent instructions and an egress allow-list domain, and Unity
+   Studio does not invent the sandboxed computation.
+3. **Dealer sample** is the complete reference app from the newest eligible
    pinned commit. Eligibility requires the agent manifest, web package, and
    `scripts/dev-start.sh` / `scripts/dev-stop.sh`. Hydration extracts the whole
    commit so tests, infrastructure, docs, shared contracts, and lifecycle scripts
@@ -23,7 +31,7 @@ Templates lead this journey:
    the full startup command remains visible but requires the settings documented
    by the sample.
 
-The empty template can be extended after creation. The finished sample preserves
+Both local templates can be extended after creation. The finished sample preserves
 its domain and is immediately useful for experiencing Unity Studio over a
 working app.
 

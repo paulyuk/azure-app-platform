@@ -358,6 +358,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         templateRootId: "",
         templateInputs: {
           hostedSkillName: "starter-skill",
+          egressAllowDomain: "api.lender.example.com",
           agentInstructions: ""
         },
         tierIds: [],
@@ -670,12 +671,21 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function renderCapabilities() {
         clearStatus();
-        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>Customize the empty template</h1>' +
-          '<p>The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.</p>' +
+        const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const heading = isSandboxGateway ? "Customize the Sandbox &amp; Gateway template" : "Customize the empty template";
+        const intro = isSandboxGateway
+          ? "The template starts with a headless agent loop, an ACA Sandbox tool boundary, and an AI Gateway seam. Define the egress allow-list without asking Unity Studio to guess your tools."
+          : "The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.";
+        const secondField = isSandboxGateway
+          ? '<label class="field">Egress allow-list domain<input id="egress-domain" type="text" maxlength="253" value="' +
+            escape(draft.templateInputs.egressAllowDomain) + '" placeholder="api.lender.example.com"></label>'
+          : '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
+            escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>';
+        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>' + heading + '</h1>' +
+          '<p>' + intro + '</p>' +
           '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
           escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
-          '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
-          escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>' +
+          secondField +
           '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Unity Studio after creation.</p>' +
           '<div class="capability-list">' + draft.tierIds.map((tierId) => {
             const tier = capabilities.find((item) => item.id === tierId);
@@ -687,10 +697,22 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           back: renderDetails,
           next: () => {
             draft.templateInputs.agentInstructions = document.getElementById("agent-instructions").value.trim();
-            draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
-            if (!draft.templateInputs.agentInstructions || !/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
-              error("Enter agent instructions and a lowercase Hosted Skill name using letters, numbers, or hyphens.");
+            if (!draft.templateInputs.agentInstructions) {
+              error("Enter agent instructions.");
               return;
+            }
+            if (isSandboxGateway) {
+              draft.templateInputs.egressAllowDomain = document.getElementById("egress-domain").value.trim();
+              if (!/^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(draft.templateInputs.egressAllowDomain)) {
+                error("Enter a valid egress allow-list domain, e.g. api.lender.example.com.");
+                return;
+              }
+            } else {
+              draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
+              if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
+                error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.");
+                return;
+              }
             }
             draft.step = 3;
             renderReview();

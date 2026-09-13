@@ -1,0 +1,45 @@
+# __APP_NAME__
+
+__PURPOSE__
+
+This is the Unity Sandbox & Gateway (Minimal) template. It is intentionally
+headless — there is no web surface — and includes only the three Minimal
+Building Blocks from the [Sandbox & Gateway pattern](../../docs/sandbox-gateway-pattern.md):
+
+- an agent loop reachable over HTTP (`POST /invoke`), with its prompt in
+  `src/agent/prompts/system.md`;
+- an ACA Sandbox tool boundary at `src/sandbox/tool/` that receives only the
+  minimum fields it needs and returns only derived, non-identifying results —
+  never the raw input back to the caller;
+- an AI Gateway configuration seam for every model call the agent makes.
+
+The template does not invent a domain tool. `src/sandbox/tool/main.py`
+illustrates the PII boundary generically (it reads one JSON object from
+stdin and returns only aggregate statistics); replace its logic with your own
+sandboxed computation without changing the boundary shape.
+
+## Run
+
+```bash
+./scripts/dev-start.sh
+```
+
+Smoke-test it:
+
+```bash
+curl -s -X POST http://localhost:8088/invoke \
+  -H "content-type: application/json" \
+  -d '{"message": "Summarize these three numbers: 10, 20, 30"}'
+```
+
+Stop everything with:
+
+```bash
+./scripts/dev-stop.sh
+```
+
+The startup script uses the Microsoft Python package mirror and starts only
+the local agent process. The sandbox tool runs per-invocation as a
+subprocess, matching the ACA Sandbox pattern (created fresh, receives one
+request, returns one bounded verdict, then exits) rather than running as a
+standalone server.

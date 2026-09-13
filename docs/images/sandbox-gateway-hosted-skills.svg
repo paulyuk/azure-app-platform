@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 730" width="1400" height="730" preserveAspectRatio="xMidYMid meet" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Sandbox &amp; Gateway Pattern — Minimal + Hosted Skills</title>
+
+  <style>
+    :root {
+      --bg:#ffffff; --ink:#16202b; --muted:#64748b; --line:#cbd5e1;
+      --card:#ffffff; --soft:#f1f5f9; --accent:#d7263d; --accent-soft:#fdf2f4;
+      --accent-line:#f0b8c1; --green:#10b981; --green-soft:#ecfdf5;
+      --amber:#b45309; --amber-soft:#fffbeb;
+      --teal:#0f766e; --teal-soft:#f0fdfa; --teal-line:#99f6e4;
+      --indigo:#4f46e5; --indigo-soft:#eef2ff; --indigo-line:#c7d2fe;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0f1620; --ink:#e8eef5; --muted:#93a3b6; --line:#33465c;
+        --card:#16202b; --soft:#1b2733; --accent:#ff6b81; --accent-soft:#24161c;
+        --accent-line:#6d3541; --green:#34d399; --green-soft:#064e3b;
+        --amber:#fbbf24; --amber-soft:#3f2d05;
+        --teal:#2dd4bf; --teal-soft:#042f2c; --teal-line:#115e59;
+        --indigo:#a5b4fc; --indigo-soft:#1e1b4b; --indigo-line:#3730a3;
+      }
+    }
+    .bg    { fill: var(--bg); }
+    .card  { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+    .soft  { fill: var(--soft); stroke: var(--line); stroke-width: 1.5; }
+    .panel { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+    .gate  { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.75; }
+    .chip  { fill: var(--card); stroke: var(--accent-line); stroke-width: 1.25; }
+    .pill  { fill: var(--accent-soft); stroke: var(--accent-line); stroke-width: 1.25; }
+    .trig  { fill: var(--soft); stroke: var(--line); stroke-width: 1.25; }
+    .egress{ fill: var(--amber-soft); stroke: var(--amber); stroke-width: 1.75; }
+    .prim  { fill: var(--teal-soft); stroke: var(--teal); stroke-width: 1.75; }
+    .primchip { fill: var(--card); stroke: var(--teal-line); stroke-width: 1.1; }
+    .addon { fill: var(--indigo-soft); stroke: var(--indigo); stroke-width: 2; stroke-dasharray: 6 5; }
+    .addonsoft { fill: var(--card); stroke: var(--indigo-line); stroke-width: 1.5; }
+    .t     { fill: var(--ink); }
+    .m     { fill: var(--muted); }
+    .a     { fill: var(--accent); }
+    .am    { fill: var(--amber); }
+    .tl    { fill: var(--teal); }
+    .ig    { fill: var(--indigo); }
+    .cap   { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+    .lbl   { font-size: 12px; font-style: italic; }
+    .sub   { font-size: 12.5px; }
+    .flow  { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .flow-amber { fill: none; stroke: var(--amber); stroke-width: 2; }
+    .flow-dash { fill: none; stroke: var(--muted); stroke-width: 1.75; stroke-dasharray: 5 5; }
+    .badge { fill: var(--indigo-soft); stroke: var(--indigo-line); stroke-width: 1.2; }
+    .badgeT{ fill: var(--indigo); font-size: 11px; font-weight: 700; }
+  </style>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--accent)"/>
+    </marker>
+    <marker id="arw-amber" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--amber)"/>
+    </marker>
+    <marker id="arw-muted" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0.6 L10,5 L0,9.4 Z" fill="var(--muted)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="730"/>
+
+  <!-- Title -->
+  <text class="t" x="60" y="58" font-size="27" font-weight="700" letter-spacing="-0.4">Sandbox &amp; Gateway Pattern — Minimal + Hosted Skills</text>
+  <text class="m" x="60" y="86" font-size="14">The agent loop becomes a managed runtime; the sandbox and gateway boundaries are unchanged</text>
+
+  <!-- Column A: Triggers -->
+  <text class="m cap" x="60" y="150">Triggers</text>
+  <rect class="trig" x="60" y="165" width="220" height="60" rx="12"/>
+  <text class="t" x="80" y="201" font-size="15" font-weight="650">HTTP REST</text>
+
+  <rect class="trig" x="60" y="245" width="220" height="60" rx="12"/>
+  <text class="t" x="80" y="281" font-size="15" font-weight="650">Timer Trigger</text>
+
+  <path class="flow" d="M280,195 L320,240" marker-end="url(#arw)"/>
+  <path class="flow-dash" d="M280,275 L320,275" marker-end="url(#arw-muted)"/>
+
+  <!-- Column B: Host Compute, swapped for Hosted Skills -->
+  <text class="m cap" x="320" y="150">Host Compute (Interchangeable)</text>
+  <rect class="addon" x="320" y="165" width="320" height="255" rx="16"/>
+  <text class="ig" x="345" y="200" font-size="19" font-weight="700">+ Hosted Skills</text>
+
+  <rect class="badge" x="345" y="220" width="270" height="32" rx="8"/>
+  <text class="badgeT" x="480" y="240" text-anchor="middle">Azure Functions Agents Runtime</text>
+
+  <rect class="addonsoft" x="345" y="270" width="270" height="130" rx="10"/>
+  <text class="t" x="365" y="300" font-size="14" font-weight="650">Managed Agent Loop (MAF)</text>
+  <text class="m sub" x="365" y="325">• Prompts model via AI Gateway</text>
+  <text class="m sub" x="365" y="347">• Receives tool call requests</text>
+  <text class="m sub" x="365" y="369">• Offloads code to an ACA Sandbox</text>
+
+  <!-- Flow: Hosted Skills -> ACA Sandboxes -->
+  <path class="flow" d="M480,165 L480,110 L850,110 L850,165" marker-end="url(#arw)"/>
+  <text class="m lbl" x="665" y="100" text-anchor="middle">Tool execution (isolated, created on the fly)</text>
+
+  <!-- Flow: Hosted Skills -> AI Gateway -->
+  <path class="flow" d="M640,310 L680,310" marker-end="url(#arw)"/>
+  <text class="m lbl" x="660" y="297" text-anchor="middle" font-size="11">prompts</text>
+
+  <!-- Column C: ACA Sandboxes -->
+  <text class="m cap" x="680" y="150">Tool Execution &amp; Egress</text>
+  <rect class="panel" x="680" y="165" width="340" height="100" rx="16"/>
+  <text class="a" x="705" y="198" font-size="17" font-weight="700">★ ACA Sandboxes</text>
+  <rect class="pill" x="705" y="215" width="160" height="24" rx="12"/>
+  <text class="a" x="785" y="231" font-size="11" font-weight="700" text-anchor="middle">PII Boundary Enforced</text>
+
+  <path class="flow-amber" d="M850,265 L850,283" marker-end="url(#arw-amber)"/>
+  <rect class="egress" x="680" y="283" width="340" height="50" rx="14"/>
+  <text class="am" x="705" y="313" font-size="14" font-weight="700">🔒 Secure Egress Proxy</text>
+
+  <path class="flow-amber" d="M850,333 L850,351" marker-end="url(#arw-amber)"/>
+  <rect class="card" x="680" y="351" width="340" height="50" rx="14"/>
+  <text class="t" x="705" y="381" font-size="14" font-weight="650">External Destination</text>
+
+  <!-- Column C (below): AI Gateway -->
+  <text class="m cap" x="680" y="440">Egress &amp; Model Governance</text>
+  <rect class="gate" x="680" y="455" width="340" height="150" rx="16"/>
+  <text class="a" x="705" y="485" font-size="17" font-weight="700">AI Gateway (APIM)</text>
+
+  <rect class="chip" x="705" y="500" width="140" height="36" rx="8"/>
+  <text class="t" x="775" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Model Routing</text>
+
+  <rect class="chip" x="855" y="500" width="140" height="36" rx="8"/>
+  <text class="t" x="925" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Tools</text>
+
+  <rect class="chip" x="705" y="544" width="140" height="36" rx="8"/>
+  <text class="t" x="775" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Policies</text>
+
+  <rect class="chip" x="855" y="544" width="140" height="36" rx="8"/>
+  <text class="t" x="925" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Enforcement</text>
+
+  <!-- Shared Primitives: full-width bottom bar -->
+  <rect class="prim" x="60" y="640" width="1280" height="60" rx="14"/>
+  <text class="tl" x="85" y="676" font-size="14.5" font-weight="700">★ Shared Primitives</text>
+
+  <rect class="primchip" x="290" y="655" width="90" height="30" rx="8"/>
+  <text class="t" x="335" y="675" font-size="11.5" font-weight="650" text-anchor="middle">Auth</text>
+  <rect class="primchip" x="390" y="655" width="90" height="30" rx="8"/>
+  <text class="t" x="435" y="675" font-size="11.5" font-weight="650" text-anchor="middle">OTEL</text>
+  <rect class="primchip" x="490" y="655" width="90" height="30" rx="8"/>
+  <text class="t" x="535" y="675" font-size="11.5" font-weight="650" text-anchor="middle">Audit</text>
+  <text class="m sub" x="600" y="675">— shared by every tier of this pattern, regardless of host compute choice</text>
+
+</svg>

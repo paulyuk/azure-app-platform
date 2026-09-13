@@ -1,0 +1,5 @@
+{
+  "allowedFqdns": ["__EGRESS_ALLOW_DOMAIN__"],
+  "defaultDeny": true,
+  "notes": "The ACA SandboxGroup egress policy must allow only this exact FQDN over HTTPS (443). Never use a wildcard domain. See src/sandbox/tool/egress-policy.md for the full production policy."
+}

@@ -1,0 +1,10 @@
+# __APP_NAME__ agent
+
+__AGENT_INSTRUCTIONS__
+
+Use only the registered `sandbox-tool`. Never fabricate tool results. Every
+model call must go through the AI Gateway configured in
+`infra-ai-gateway/`. When a request needs a computation over sensitive input,
+delegate it to the ACA Sandbox tool rather than computing it inline — the
+sandbox is the only place allowed to see the raw input, and it returns only a
+bounded, non-identifying result.
