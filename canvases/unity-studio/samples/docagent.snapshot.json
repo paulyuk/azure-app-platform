@@ -19,7 +19,9 @@
     },
     {
       "path": "README.md",
-      "sha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5"
+      "sourceSha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5",
+      "sha256": "d726e037c1abac116cc81a235e8d1ade1a165f3445417a29e51e5023f894d834",
+      "note": "README rewritten after capture. Sample code is unchanged."
     },
     {
       "path": "config/document-policy.json",
