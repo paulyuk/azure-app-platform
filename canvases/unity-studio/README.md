@@ -25,7 +25,7 @@ The top controls are **Build → Run & manage → Map**, followed by an independ
 **Guide** toggle. Build opens first. Each main view fills the workspace rather
 than sharing it with an always-visible map. Guide is a compact vertical rail
 on the far right, with workflow progress and the next useful action. Hide it
-using its collapse button or the Guide toggle to reclaim the full width;
+using its panel-collapse icon or the Guide toggle to reclaim the full width;
 switching views never reopens it or discards editor/message drafts.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.

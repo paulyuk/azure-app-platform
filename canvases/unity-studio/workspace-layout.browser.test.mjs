@@ -53,6 +53,10 @@ test("Build, Run and Map own the workspace independently of the collapsible Guid
     const editor = page.getByRole("textbox", { name: "Agent instructions source", exact: true });
     await editor.waitFor();
     assert.deepEqual(await page.locator(".header-actions > button").allTextContents(), ["Build", "Run & manage", "Map", "Guide"]);
+    const collapse = page.getByRole("button", { name: "Collapse Guide", exact: true });
+    assert.equal(await collapse.textContent(), "");
+    assert.equal(await collapse.locator('svg[aria-hidden="true"]').count(), 1);
+    assert.equal(await page.locator("#action-center .guide-chevron").evaluate((el) => getComputedStyle(el).transform), "none");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     assert.equal(await page.locator("#graph-shell").isVisible(), false);
     assert.equal(await page.locator(".map-view-bar").isVisible(), false);
@@ -66,10 +70,13 @@ test("Build, Run and Map own the workspace independently of the collapsible Guid
     await editor.fill("Unsaved loan agent instructions.");
     await page.locator("#collapse-guide").click();
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
+    assert.equal(await page.locator("#action-center").getAttribute("title"), "Expand Guide");
+    assert.equal(await page.locator("#action-center .guide-chevron").evaluate((el) => getComputedStyle(el).transform), "matrix(-1, 0, 0, 1, 0, 0)");
     assert.equal(await page.locator("#action-center").evaluate((el) => el === document.activeElement), true);
     assert.ok((await page.locator("#details").boundingBox()).width >= 1439);
     assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
     await page.locator("#action-center").click();
+    assert.equal(await page.locator("#action-center").getAttribute("title"), "Collapse Guide");
     assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
 
     await editor.focus();

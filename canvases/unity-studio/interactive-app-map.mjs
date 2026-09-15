@@ -386,6 +386,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
+  const guideIcon = '<svg class="guide-panel-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="1.5"/><path d="M12.5 4v12"/><path class="guide-chevron" d="m6.5 7 3 3-3 3"/></svg>';
 
   return `<!doctype html>
 <html lang="en">
@@ -526,6 +527,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #guide-rail { flex: 0 0 280px; width: 280px; padding: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
     .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
     #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
+    .guide-panel-icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .guide-chevron { transform-origin: 8px 10px; }
+    #action-center { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    #action-center[aria-expanded="false"] .guide-chevron { transform: scaleX(-1); }
+    #collapse-guide { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 5px; flex: none; }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
     #guide-content h3 { margin-top: 14px; }
     #guide-content .journey { margin: 10px 0; }
@@ -765,7 +771,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="build-app" type="button" aria-pressed="false">Build</button>
       <button id="manage-app" type="button" aria-pressed="false">Run &amp; manage</button>
       <button id="map-app" type="button" aria-pressed="false">Map</button>
-      <button id="action-center" type="button" aria-pressed="true" aria-expanded="true" aria-controls="guide-rail">Guide</button>
+      <button id="action-center" type="button" aria-pressed="true" aria-expanded="true" aria-controls="guide-rail">${guideIcon}Guide</button>
     </div>
   </header>
   <nav class="map-view-bar" aria-label="App Map views">
@@ -811,7 +817,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <aside id="guide-rail" aria-label="Guide">
       <div class="guide-heading">
         <h2>Guide</h2>
-        <button id="collapse-guide" type="button" aria-label="Collapse Guide" title="Collapse Guide">Hide</button>
+        <button id="collapse-guide" type="button" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
       </div>
       <div id="guide-content"></div>
     </aside>
@@ -1700,7 +1706,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const toggle = document.querySelector("#action-center");
       toggle.setAttribute("aria-pressed", String(!collapsed));
       toggle.setAttribute("aria-expanded", String(!collapsed));
-      toggle.title = collapsed ? "Show Guide" : "Hide Guide";
+      toggle.title = collapsed ? "Expand Guide" : "Collapse Guide";
       if (restoreFocus) toggle.focus();
       if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
       if (persist) {
