@@ -3,6 +3,14 @@ param([switch]$SkipSkill)
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $RunDir = Join-Path $Root ".dev-run"
+. (Join-Path $PSScriptRoot "load-ports.ps1")
+Import-UnityPorts $Root
+$AgentPort = if ($env:AGENT_PORT) { [int]$env:AGENT_PORT } else { 8088 }
+$WebPort = if ($env:WEB_PORT) { [int]$env:WEB_PORT } else { 3000 }
+$SkillPort = if ($env:SKILL_PORT) { [int]$env:SKILL_PORT } else { 7071 }
+$env:AGENT_PORT = "$AgentPort"
+$env:WEB_PORT = "$WebPort"
+$env:AGENT_URL = "http://127.0.0.1:$AgentPort"
 & (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
 $env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
@@ -25,18 +33,18 @@ $processes = @()
 try {
   if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv is required." }
   $agent = Start-Process uv -ArgumentList "run", "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -PassThru
-  $processes += @{ name = "agent"; port = 8088; pid = $agent.Id }
+  $processes += @{ name = "agent"; port = $AgentPort; pid = $agent.Id }
   $web = Start-Process npm.cmd -ArgumentList "run", "dev" -WorkingDirectory (Join-Path $Root "src/web") -PassThru
-  $processes += @{ name = "web"; port = 3000; pid = $web.Id }
-  Wait-Port "agent" 8088 $agent
-  Wait-Port "web" 3000 $web
+  $processes += @{ name = "web"; port = $WebPort; pid = $web.Id }
+  Wait-Port "agent" $AgentPort $agent
+  Wait-Port "web" $WebPort $web
   if (-not $SkipSkill -and (Get-Command uv -ErrorAction SilentlyContinue) -and (Get-Command func -ErrorAction SilentlyContinue)) {
-    $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "7071" -WorkingDirectory (Join-Path $Root "src/skills/__SKILL_NAME__") -PassThru
-    $processes += @{ name = "skill"; port = 7071; pid = $skill.Id }
-    Wait-Port "skill" 7071 $skill
+    $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "$SkillPort" -WorkingDirectory (Join-Path $Root "src/skills/__SKILL_NAME__") -PassThru
+    $processes += @{ name = "skill"; port = $SkillPort; pid = $skill.Id }
+    Wait-Port "skill" $SkillPort $skill
   }
   $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
-  Write-Host "__APP_NAME__ started: web http://localhost:3000, agent http://localhost:8088"
+  Write-Host "__APP_NAME__ started: web http://localhost:$WebPort, agent http://localhost:$AgentPort"
 } catch {
   $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
   & (Join-Path $PSScriptRoot "dev-stop.ps1")

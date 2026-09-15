@@ -66,20 +66,27 @@ export function deriveRuntimeState(
 
   const readyPorts = new Set(entrypoints.filter((entrypoint) => entrypoint.ready).map((entrypoint) => entrypoint.port));
   const trackedPorts = [...new Set(registry.map((entry) => entry.port))];
-  const attributableReadyPorts = ownershipAvailable ? ownedPorts : readyPorts;
+  const attributableReadyPorts = ownershipAvailable
+    ? new Set([...ownedPorts].filter((port) => readyPorts.has(port))) : readyPorts;
+  const expectedPorts = entrypoints.filter((entrypoint) => entrypoint.expected !== false)
+    .map((entrypoint) => entrypoint.port);
+  const allExpectedReady = expectedPorts.length > 0
+    && expectedPorts.every((port) => attributableReadyPorts.has(port));
   const coreEntrypoints = new Map(entrypoints
     .filter((entrypoint) => ["web", "agent"].includes(String(entrypoint.name).toLowerCase()))
     .map((entrypoint) => [String(entrypoint.name).toLowerCase(), entrypoint]));
   if (
     trackedPorts.length === 0
     && ownershipAvailable
-    && ["web", "agent"].every((name) => ownedPorts.has(coreEntrypoints.get(name)?.port))
+    && allExpectedReady
   ) {
     return { state: "running", recovered: recordedState?.state !== "running" };
   }
-  if (trackedPorts.length > 0 && trackedPorts.every((port) => attributableReadyPorts.has(port))) {
+  if (trackedPorts.length > 0 && allExpectedReady
+    && trackedPorts.every((port) => attributableReadyPorts.has(port))) {
     return { state: "running", recovered: recordedState?.state !== "running" };
   }
+  if (recordedState?.state === "failed") return recordedState;
   if (
     trackedPorts.some((port) => attributableReadyPorts.has(port))
     || (

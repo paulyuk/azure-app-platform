@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 
 const execFileAsync = promisify(execFile);
 const EMPTY_TEMPLATE_ID = "builtin-empty-unity-v1";
@@ -56,6 +57,10 @@ async function replaceTokens(root, tokens) {
       for (const [token, value] of Object.entries(tokens)) {
         content = content.replaceAll(token, value);
       }
+      if (/\.md(?:\.template)?$/.test(path)) {
+        // Source docs link to .template files; generated apps contain the rendered paths.
+        content = content.replace(/(\]\((?![a-z]+:)[^)\s]+)\.template(?=[)#])/gi, "$1");
+      }
       const output = path.endsWith(".template") ? path.slice(0, -".template".length) : path;
       await writeFile(output, content);
       if (output !== path) {
@@ -81,7 +86,11 @@ async function materializeLocalTemplate(plan, destination) {
   try {
     const templateEntries = await readdir(templateRoot);
     await Promise.all(templateEntries.map((entry) =>
-      cp(join(templateRoot, entry), join(staging, entry), { recursive: true, force: true })));
+      cp(join(templateRoot, entry), join(staging, entry), {
+        recursive: true, force: true,
+        filter: (source) => !["__pycache__", ".venv", ".pytest_cache", "node_modules", ".git"].includes(basename(source)),
+      })));
+    await materializePortLoaders(staging);
     const tokens = {
       "__APP_NAME__": appName,
       "__APP_NAME_HTML_JSON__": JSON.stringify(escapeHtml(appName)),
@@ -110,6 +119,9 @@ async function materializeLocalTemplate(plan, destination) {
       tokens["__SKILL_NAME__"] = hostedSkillName;
     }
     await replaceTokens(staging, tokens);
+    if (isSandboxGateway) {
+      await Promise.all(SANDBOX_GATEWAY_TEMPLATE.requiredPaths.map((path) => access(join(staging, path))));
+    }
     const renderedEntries = await readdir(staging);
     await Promise.all(renderedEntries.map((entry) =>
       cp(join(staging, entry), join(destination, entry), { recursive: true, force: true })));
@@ -123,7 +135,9 @@ async function materializeLocalTemplate(plan, destination) {
   return {
     kind: "empty-template",
     destination,
-    requiredFiles: ["README.md", "unity.app.yaml", "scripts/dev-start.sh", "scripts/dev-stop.sh"],
+    requiredFiles: isSandboxGateway
+      ? [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths]
+      : ["README.md", "unity.app.yaml", "scripts/dev-start.sh", "scripts/dev-stop.sh"],
   };
 }
 
@@ -191,6 +205,13 @@ async function defaultCommandRunner(command, args) {
   } catch (error) {
     return { ok: false, stdout: error.stdout || "", stderr: error.stderr || "", error: error.message };
   }
+}
+
+export async function materializePortLoaders(destination) {
+  await Promise.all(["load-ports.sh", "load-ports.ps1"].map((file) => cp(
+    fileURLToPath(new URL(`./templates/shared/${file}`, import.meta.url)),
+    join(destination, "scripts", file),
+  )));
 }
 
 export async function materializeTemplate(plan, {

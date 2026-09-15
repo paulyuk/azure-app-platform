@@ -128,6 +128,15 @@ Discovery returns per-tier implementations, source matches, diagnostics, and
 whether a build path is available. Unsupported or conflicting matches are
 reported rather than converted into invented links or statuses.
 
+A root `unity.app.yaml` inventory is authoritative for app scope. Both the
+`capabilities:` mapping emitted by templates and the legacy `components:` list
+are supported. Discovery, metadata, operation tracing, and edges use the same
+declared paths; undeclared inherited files do not become app implementations.
+Invalid declarations produce diagnostics rather than falling back to broad
+discovery. Nested inventories remain additive when no root inventory exists.
+Manifest-backed headless apps are eligible for Open app without a web component;
+Dealer sample eligibility remains based on the pinned complete sample.
+
 `list_source_roots` builds a separate picker-oriented catalog. Source and root
 IDs are opaque hashes, and selections are resolved against a fresh session-local
 catalog before delegation. Clean projects use commit snapshots. Modified or
@@ -168,7 +177,8 @@ Registration checks and stable instance IDs make studio activation
 deterministic. Validation and RPC failures are surfaced explicitly.
 
 Template creation does not use `session.send()` or a model-generated creation
-prompt. It creates a Git worktree and opens the child session through the
+prompt. It creates a Git worktree with `--no-checkout`, materializes only the
+selected template's files, and opens the child session through the
 host-provided session RPC, preserving the visible project/worktree UX while
 keeping known-file creation deterministic. Assembly remains the deliberate
 model boundary. Add-to-app work reuses that persisted app session; when the
@@ -184,6 +194,26 @@ Studio does not create files, provision resources, run deployments, or modify
 the repository or subscription.
 
 ## Source-derived App Map
+
+### Build and enforcement ownership
+
+Build exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.
+Source edits use a content hash and atomic replacement, reject symlink targets,
+and require a stopped app. The editor preserves drafts until an explicit review
+and save. Every available artifact, including operator policy and tool contracts,
+is editable by the developer in a compact box. Edit in Code resolves an allowlisted,
+non-symlink artifact, then opens the whole worktree and the file in VS Code.
+Returning focus refreshes saved source without overwriting pending inline drafts;
+drafts retain their original base hash even across reloads within the panel.
+The runtime model has no access to this loopback authoring API.
+
+Document tests and invocations use an owned local agent endpoint and omit document
+payloads from command activity. The document validation tool and agent harness, not
+the model, own policy enforcement. Source editing by an authorized developer is a
+different authority from tools available to the running model. A local subprocess
+does not make policy or network access tamper-proof; cloud isolation must be
+configured and verified separately. Existing Dealer deployment files are never
+treated as a valid deployment plan for the document sandbox POC.
 
 `trace_app` reuses repository discovery to create tier and project nodes, then
 derives edges from matched source files. Supported matches can include HTTP clients
@@ -272,12 +302,42 @@ At narrow mobile widths, the request-flow diagram and Guide stack vertically.
 The Guide must not become an overlay that hides the architecture the user is
 trying to understand.
 
-**Run & manage** is the explicit operational surface. It leads with expanded
-local runtime controls, then groups AI model connection, testing and
-troubleshooting, Azure deployment, and deletion into disclosures. The persistent
-runtime badge opens this panel directly. Testing and troubleshooting retain the
-running-agent prompt tester and command output from the previous management
-surface. Command output is collapsible, while the
+**Run & manage** is the explicit operational surface. AI model connection comes
+first, followed by expanded local runtime controls, visible live stdout/stderr, per-component health and
+open-endpoint buttons, and **Invoke agent** with a message.
+An optional document appears beside the message when readiness advertises
+document support. File reading, pasted-text limits, removal, and in-flight state
+are shared by Invoke agent and Test enforcement; Build links to this single Run
+surface rather than maintaining a separate test form. Document and message drafts
+remain in panel memory across polling and mode switches, never in command history.
+Actual command/HTTP
+activity (bounded, redacted before storage, with status and timing) is the sole
+Commands card; separate command-example and troubleshooting cards are omitted. A scoped
+`run-panel-styles.mjs` adapts Functions Studio's panel, form, command, and badge
+treatments without changing the App Map or its global tokens. Agent answers are separate from raw
+responses. Source-discovered Hosted Skills and sandbox implementations are not
+presented as successful tool calls; only response-reported tool evidence is shown.
+The persistent runtime badge opens this panel
+directly, and starting an operation keeps the run panel visible.
+Local port controls persist validated assignments in `.unity-studio/ports.env`.
+Allocation is serialized and checks both live loopback bindings and other
+discovered app profiles. The same settings feed scripts, readiness, and links;
+unsupported startup scripts fail explicitly instead of partially remapping.
+Stopping port owners requires a short-lived server-owned review of PIDs and
+process creation times, followed by explicit confirmation. Only listeners on the
+selected app's ports and their reviewed launcher trees are eligible. Confirmation
+rechecks identities, protects the Studio host ancestry, and verifies freed ports;
+it never escalates automatically to newly respawned owners.
+AI model connection defaults to the saved/current subscription and a valid
+gateway with models; model discovery uses the workspace-wide ARM models
+collection across providers. Saved selections are preserved, stale discovery
+cannot overwrite user choices, and empty gateways cannot be applied.
+Configuration receives the selected model and validates it before the card collapses to a
+model/gateway/subscription summary. Creation remains an explicit specialist
+action. Source projects without managed endpoints appear in Components & endpoints
+as Source only, with Review source, and do not affect readiness. Azure deployment and deletion remain secondary
+disclosures. Home returns to the landing screen, and Guide, Run & manage, and
+Search & layout use a colored active state. The
 desktop details panel is pointer- and keyboard-resizable with its per-app width
 stored locally.
 

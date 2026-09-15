@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 import { discoverRepository, runCommand } from "./discovery.mjs";
+import { readAppLastOpened, sortAppsByLastOpened } from "./app-recency.mjs";
 
 const EXCLUDED_PROJECT_PREFIXES = [
   ".copilot",
@@ -66,7 +67,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   id: "builtin-sandbox-gateway-minimal-v1",
   kind: "empty",
   name: "Sandbox & Gateway (Minimal)",
-  description: "Start with the headless Sandbox & Gateway pattern: an interchangeable agent loop, an ACA Sandbox tool boundary, and an AI Gateway seam.",
+  description: "An agent harness, document validation tool, and model through AI Gateway. Local simulation by default; optional separate ACA sandboxes.",
   capabilityIds: ["agent", "sandbox", "gateway"],
   customization: ["App purpose", "Agent instructions", "Egress allow-list domain"],
   readyToRun: true,
@@ -90,14 +91,30 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
     "unity.app.yaml",
     "config/domain.json",
     "config/egress-allowlist.json",
+    "config/runtime.json",
+    "config/document-policy.json",
     "scripts/dev-start.sh",
     "scripts/dev-stop.sh",
     "scripts/dev-start.ps1",
     "scripts/dev-stop.ps1",
+    "scripts/load-ports.sh",
+    "scripts/load-ports.ps1",
     "src/agent/agent.yaml",
+    "src/agent/main.py",
+    "src/agent/pyproject.toml",
+    "src/agent/Dockerfile",
+    "src/agent/tests/test_runtime.py",
     "src/agent/prompts/system.md",
-    "src/sandbox/tool/main.py",
-    "src/sandbox/tool/egress-policy.md",
+    "src/tools/document-validation/main.py",
+    "src/tools/document-validation/pyproject.toml",
+    "src/tools/document-validation/Dockerfile",
+    "src/tools/document-validation/contract.json",
+    "src/tools/document-validation/tests/test_main.py",
+    "src/tools/document-validation/egress-policy.md",
+    "src/policy/enforcement.py",
+    "docs/demos/loan-application/README.md",
+    "docs/demos/loan-application/HOW-IT-WORKS.md",
+    "examples/loan-application.txt",
     "infra-ai-gateway/README.md",
   ],
   constraints: {
@@ -273,6 +290,8 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     id: sourceId(root, worktree.commit),
     kind: "git-worktree",
     name: await worktreeTitle(root, worktree.branch),
+    lastOpenedAt: await readAppLastOpened(root),
+    declaredApp: repository.componentPaths !== null,
     path: root,
     branch: worktree.branch,
     commit: worktree.commit,
@@ -382,8 +401,8 @@ export async function listSourceCatalog({
   return {
     generatedAt: new Date().toISOString(),
     roots,
-    apps: roots.filter((root) =>
-      root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")),
+    apps: sortAppsByLastOpened(roots.filter((root) =>
+      root.declaredApp || (root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")))),
     templates,
     diagnostics,
   };

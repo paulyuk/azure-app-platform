@@ -292,6 +292,9 @@ test("tier catalog is generic and complete", () => {
   );
   assert.equal(JSON.stringify(PLATFORM_TIERS).toLowerCase().includes("car buying"), false);
   assert.equal(PLATFORM_TIERS.some((tier) => "status" in tier), false);
+  const agent = PLATFORM_TIERS.find((tier) => tier.id === "agent");
+  assert.match(agent.role, /agent harness/);
+  assert.doesNotMatch(agent.role + agent.scaffold.summary, /Foundry/);
 });
 
 test("repository discovery classifies candidates from evidence and skips secrets", async () => {
@@ -613,7 +616,7 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       assert.equal(result.editor?.outcome, "opened-in-vscode");
       assert.equal(result.editorWarning, null);
       assert.equal(commands.some(([command, args]) =>
-        command === "git" && args.includes("worktree") && args.includes("add")), true);
+        command === "git" && args.includes("worktree") && args.includes("add") && args.includes("--no-checkout")), true);
       assert.equal(commands.some(([command]) => command === "code"), true);
       await rm(result.worktreePath, { recursive: true, force: true });
     });
@@ -853,13 +856,13 @@ test("sandbox & gateway minimal materializer creates a headless agent + sandbox 
       },
       sourcePlan: { kind: "empty-template", templateId: "builtin-sandbox-gateway-minimal-v1" },
     }, { destination: root });
-    assert.equal(await readFile(join(root, "src", "sandbox", "tool", "main.py"), "utf8").then(() => true), true);
+    assert.equal(await readFile(join(root, "src", "tools", "document-validation", "main.py"), "utf8").then(() => true), true);
     assert.match(
       await readFile(join(root, "config", "egress-allowlist.json"), "utf8"),
       /api\.lender\.example\.com/,
     );
     assert.match(
-      await readFile(join(root, "src", "sandbox", "tool", "egress-policy.md"), "utf8"),
+      await readFile(join(root, "src", "tools", "document-validation", "egress-policy.md"), "utf8"),
       /api\.lender\.example\.com/,
     );
     assert.match(
@@ -898,9 +901,12 @@ test("empty template materializer creates a runnable editable starter", async ()
     assert.match(await readFile(join(root, "scripts", "dev-stop.sh"), "utf8"), /processes\.posix\.tsv/);
     const powershellStart = await readFile(join(root, "scripts", "dev-start.ps1"), "utf8");
     assert.match(powershellStart, /Start-Process uv -ArgumentList "run", "main\.py"/);
-    assert.match(powershellStart, /name = "agent"; port = 8088; pid = \$agent\.Id/);
-    assert.match(powershellStart, /name = "web"; port = 3000; pid = \$web\.Id/);
-    assert.match(powershellStart, /name = "skill"; port = 7071; pid = \$skill\.Id/);
+    assert.match(powershellStart, /name = "agent"; port = \$AgentPort; pid = \$agent\.Id/);
+    assert.match(powershellStart, /name = "web"; port = \$WebPort; pid = \$web\.Id/);
+    assert.match(powershellStart, /name = "skill"; port = \$SkillPort; pid = \$skill\.Id/);
+    assert.match(powershellStart, /\$env:AGENT_URL = "http:\/\/127\.0\.0\.1:\$AgentPort"/);
+    assert.match(await readFile(join(root, "scripts", "load-ports.sh"), "utf8"), /load_unity_ports/);
+    assert.match(await readFile(join(root, "scripts", "load-ports.ps1"), "utf8"), /Import-UnityPorts/);
     assert.match(await readFile(join(root, "unity.app.yaml"), "utf8"), /claim-lookup/);
     assert.equal(await readFile(join(root, "unrelated.txt"), "utf8"), "__APP_NAME__");
     assert.equal(skillFiles.includes("tests"), true);
@@ -984,8 +990,10 @@ test("sandbox & gateway minimal kickoff verification is headless, not skill-base
       },
       sourcePlan: [{ kind: "empty-template", templateId: "builtin-sandbox-gateway-minimal-v1" }],
   });
-  assert.match(kickoff, /sandbox tool boundary at `src\/sandbox\/tool`/);
-  assert.match(kickoff, /Smoke-test the local agent loop with `\.\/scripts\/dev-start\.sh`/);
+  assert.match(kickoff, /document validation tool at `src\/tools\/document-validation`/);
+  assert.match(kickoff, /Smoke-test the agent harness with `\.\/scripts\/dev-start\.sh`/);
+  assert.match(kickoff, /\.unity-studio\/ports\.env/);
+  assert.doesNotMatch(kickoff, /http:\/\/localhost:8088\/invoke/);
   assert.equal(kickoff.includes("exactly one Hosted Skill"), false);
   assert.equal(kickoff.includes("--skip-skill"), false);
 });
@@ -1206,6 +1214,27 @@ test("VS Code launch uses the direct command and macOS fallback", async () => {
         return { ok: true, stdout: "", stderr: "" };
       },
     });
+
+test("VS Code receives the whole worktree and selected file together", async () => {
+    const calls = [];
+    await openWorkspaceInVsCode({
+      root: "/repo/work tree", file: "/repo/work tree/src/agent/prompts/system.md",
+      commandRunner: async (command, args) => { calls.push([command, args]); return { ok: true }; },
+    });
+    assert.deepEqual(calls, [["code", ["--new-window", "/repo/work tree", "--goto", "/repo/work tree/src/agent/prompts/system.md"]]]);
+    if (process.platform === "darwin") {
+      const fallbackCalls = [];
+      await openWorkspaceInVsCode({
+        root: "/repo/app", file: "/repo/app/config/document-policy.json",
+        commandRunner: async (command, args) => { fallbackCalls.push([command, args]); return { ok: command === "open" }; },
+      });
+      assert.deepEqual(fallbackCalls[1], ["open", ["-a", "Visual Studio Code", "/repo/app", "/repo/app/config/document-policy.json"]]);
+    }
+    await assert.rejects(openWorkspaceInVsCode({
+      root: "/repo/app", file: "/repo/app/config/runtime.json",
+      commandRunner: async () => ({ ok: false, error: "editor unavailable" }),
+    }), /Could not open VS Code/);
+});
     assert.equal(direct.command, "code");
 
     if (process.platform === "darwin") {
@@ -1850,7 +1879,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /if \(event\.key === "ArrowRight"\)/);
   const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
-  assert.match(html, /← Apps/);
+  assert.match(html, />Home<\/button>/);
   assert.match(html, /id="app-status-badge"/);
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
@@ -1861,7 +1890,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, />Guide<\/button>/);
   assert.match(html, />Run &amp; manage<\/button>/);
   assert.match(html, /managementSection\("Local runtime", true\)/);
-  assert.match(html, /Test & troubleshoot/);
+  assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
   assert.match(html, /function appendFlowConnection/);
@@ -1895,19 +1924,24 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
-  assert.match(html, /Test local agent/);
-  assert.match(html, /Enter a prompt while the local agent starts/);
+  assert.match(html, /Invoke agent/);
+  assert.match(html, /Write a message while the agent starts/);
   assert.match(html, /agentPromptDraft = prompt\.value/);
   assert.match(html, /Agent unavailable/);
   assert.match(html, /local agent cannot start until this app has an AI Gateway connection/);
   assert.match(html, /className = "setup-steps"/);
   assert.match(html, /Connect AI Gateway/);
   assert.match(html, /Stop preview/);
-  assert.match(html, /Send test prompt/);
-  assert.match(html, /"\/api\/agent-prompt"/);
+  assert.doesNotMatch(html, /Send test prompt|Agent test prompt/);
+  assert.match(html, /"\/api\/agent-invoke"/);
   assert.match(html, /port: agentEntrypoint\.port/);
-  assert.match(html, /Show command output/);
-  assert.match(html, /Hide command output/);
+  assert.match(html, /data-runtime-output/);
+  assert.match(html, /refreshRunOutput\(\); \}, 1000/);
+  assert.doesNotMatch(html, /Command reference & HTTP examples/);
+  assert.match(html, /renderAgentTester\(runtimeSection\)/);
+  assert.match(html, /subscriptionSelect/);
+  assert.match(html, /connection-summary/);
+  assert.match(html, /updateModeHighlight/);
   assert.match(html, /Command output/);
   assert.match(html, /developer-tool-card/);
   assert.match(html, /id="details-resizer"/);
@@ -1919,7 +1953,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Operations across the request path/);
   assert.match(html, /Progress updates automatically/);
   assert.match(html, /@media \(max-width: 620px\)/);
-  assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(html, /grid-template-rows: minmax\(180px, 2fr\) minmax\(260px, 3fr\)/);
   assert.match(html, /footer > \* \{ min-width: 0/);
   assert.match(html, /inset-block: 0/);

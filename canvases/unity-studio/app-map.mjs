@@ -2,6 +2,7 @@ import { basename, dirname } from "node:path";
 
 import {
   discoverRepository,
+  filesInAppScope,
   loadRepositoryFiles,
   scanRepository,
 } from "./discovery.mjs";
@@ -606,8 +607,9 @@ function addGatewayDetails(nodes, files) {
 
 export async function traceApp({ root = process.cwd() } = {}) {
   const scan = await scanRepository(root);
-  const files = await loadRepositoryFiles(scan);
-  const repository = await discoverRepository(root, { scan, files });
+  const allFiles = await loadRepositoryFiles(scan);
+  const repository = await discoverRepository(root, { scan, files: allFiles });
+  const files = filesInAppScope(allFiles, repository.componentPaths);
   const nodes = repository.candidates.map((candidate) => ({
     ...candidate,
     kind: "project",

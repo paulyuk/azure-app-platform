@@ -1,5 +1,6 @@
 {
   "allowedFqdns": ["__EGRESS_ALLOW_DOMAIN__"],
   "defaultDeny": true,
-  "notes": "The ACA SandboxGroup egress policy must allow only this exact FQDN over HTTPS (443). Never use a wildcard domain. See src/sandbox/tool/egress-policy.md for the full production policy."
+  "documentToolEgressEnabled": false,
+  "notes": "The document validation tool needs no network and must remain egress-disabled. This exact FQDN is reserved for a reviewed future integration only; never use a wildcard. See src/tools/document-validation/egress-policy.md."
 }

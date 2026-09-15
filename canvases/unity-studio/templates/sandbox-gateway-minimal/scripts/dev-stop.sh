@@ -4,6 +4,19 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$ROOT/.dev-run"
 
+for argument in "$@"; do
+  case "$argument" in
+    --help|-h)
+      echo "Usage: ./scripts/dev-stop.sh"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $argument" >&2
+      exit 2
+      ;;
+  esac
+done
+
 kill_tree() {
   local pid="$1" child
   kill -0 "$pid" 2>/dev/null || return 0

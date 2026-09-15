@@ -208,8 +208,8 @@ export function buildWorkspaceKickoff(request) {
         ]
       : templatePlan.templateId === SANDBOX_GATEWAY_TEMPLATE.id
       ? [
-          "Verify the generated README, unity.app.yaml, editable domain config, egress allow-list config, agent prompt, and the sandbox tool boundary at `src/sandbox/tool`.",
-          "Run `./scripts/dev-start.sh --help`. Smoke-test the local agent loop with `./scripts/dev-start.sh`, POST a sample payload to `http://localhost:8088/invoke`, then stop it with `./scripts/dev-stop.sh`.",
+          "Verify the generated README, loan demo docs, unity.app.yaml, runtime and policy config, agent instructions, and the document validation tool at `src/tools/document-validation`.",
+          "Run `./scripts/dev-start.sh --help`. Smoke-test the agent harness with `./scripts/dev-start.sh` and POST /test-document at the ready agent URL. Respect .unity-studio/ports.env (8088 is only the default); do not stop unrelated listeners. Use the PowerShell equivalents on Windows. Test /invoke only after configuring AI Gateway, then stop this app with its dev-stop script.",
         ]
       : [
           "Verify the generated README, unity.app.yaml, editable domain config, agent prompt, and exactly one Hosted Skill.",
@@ -586,6 +586,7 @@ async function createTemplateWorkspace({
     workspaceRoot,
     "worktree",
     "add",
+    "--no-checkout",
     "-b",
     branch,
     destination,
@@ -717,14 +718,16 @@ export async function deleteAppWorkspace({
 
 export async function openWorkspaceInVsCode({
   root,
+  file,
   commandRunner = runCommand,
 }) {
-  const codeResult = await commandRunner("code", ["--new-window", root], { timeout: 10_000 });
+  const args = ["--new-window", root, ...(file ? ["--goto", file] : [])];
+  const codeResult = await commandRunner("code", args, { timeout: 10_000 });
   if (codeResult.ok) {
     return { outcome: "opened-in-vscode", root, command: "code" };
   }
   if (process.platform === "darwin") {
-    const openResult = await commandRunner("open", ["-a", "Visual Studio Code", root], { timeout: 10_000 });
+    const openResult = await commandRunner("open", ["-a", "Visual Studio Code", root, ...(file ? [file] : [])], { timeout: 10_000 });
     if (openResult.ok) {
       return { outcome: "opened-in-vscode", root, command: "open" };
     }

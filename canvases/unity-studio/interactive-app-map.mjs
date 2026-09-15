@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
+import { createDiscoveryTracker } from "./discovery-tracker.mjs";
+import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
+import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 
 const RENDERER_SCHEMA_VERSION = 3;
 const REQUEST_FLOW_GROUPS = [
@@ -434,12 +437,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     header, main, footer { min-width: 0; }
     header {
-      display: flex; align-items: center; gap: 16px; padding: 12px 16px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    .heading { min-width: 220px; flex: 1; }
+    .heading { min-width: min(100%, 280px); flex: 1 1 360px; }
     .heading small { display: block; margin-bottom: 1px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-    .app-title-row { min-width: 0; display: flex; align-items: center; gap: 9px; }
+    .app-title-row { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .app-title-row h1 { flex: 1 1 140px; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
     .runtime-badge {
       flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
@@ -457,7 +461,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
     .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .header-actions { position: relative; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .header-actions { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
     .map-view-bar {
       display: flex; align-items: center;
@@ -485,6 +489,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
+    .header-actions > button, .header-actions .map-tools > summary,
+    #back-apps, #header-runtime-action, #app-status-badge {
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+      height: 34px; min-height: 34px; padding: 0 10px;
+      font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
+    }
+    .header-actions > button, .header-actions .map-tools > summary,
+    #header-runtime-action { border-radius: 6px; }
     button:hover { border-color: var(--accent); }
     .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
     button:focus-visible, input:focus-visible, select:focus-visible {
@@ -585,6 +597,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .command-output[hidden] { display: none; }
+    .header-actions [aria-pressed="true"], .map-tools[open] > summary {
+      background: var(--true-color-blue-muted, #ddf4ff);
+      color: var(--true-color-blue, #0969da);
+      border-color: var(--true-color-blue, #0969da);
+    }
+    .endpoint-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 10px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .endpoint-row strong { font-size: 12px; font-weight: 600; }
+    .endpoint-row code, .endpoint-row small { grid-column: 1 / -1; overflow-wrap: anywhere; font-size: 11px; color: var(--muted); }
+    .endpoint-row button { grid-column: 2; grid-row: 1; min-height: 26px; padding: 3px 8px; font-size: 11px; }
+    .endpoint-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .endpoint-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+    .endpoint-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .endpoint-row[data-ready="true"] .endpoint-status { color: var(--true-color-green, #1a7f37); }
+    .connection-summary { display: block; font-size: 12px; font-weight: normal; margin-top: 4px; overflow-wrap: anywhere; }
+    .live-output { min-height: 200px; }
+    .command-feed { max-height: 320px; overflow: auto; }
+    .command-record { border-left: 3px solid var(--border); padding: 8px; margin: 6px 0; overflow-wrap: anywhere; }
+    .command-record[data-status="running"] { border-color: var(--accent); }
+    .command-record[data-status="failed"] { border-color: var(--danger); }
+    .command-record[data-status="succeeded"] { border-color: var(--true-color-green, #1a7f37); }
     .developer-tool-card {
       display: grid; gap: 9px; margin-top: 12px; padding: 12px;
       border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
@@ -597,8 +629,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .setup-steps li { margin: 3px 0; font-size: 12px; }
     .agent-tester { display: grid; gap: 9px; }
     .agent-tester textarea {
-      width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--border);
-      border-radius: 7px; padding: 9px; color: var(--text); background: var(--surface); font: inherit;
+      width: 100%; min-width: 0; box-sizing: border-box; min-height: 76px; resize: vertical; border: 1px solid var(--border);
+      border-radius: 7px; padding: 9px; color: var(--text); background: var(--surface); font: 12px/1.5 var(--font-sans, system-ui);
     }
     .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
@@ -672,7 +704,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       .heading { min-width: 0; }
       h1 { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
       .header-actions {
-        grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%; margin-left: 0;
       }
       .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
@@ -691,23 +723,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
     }
+    ${RUN_PANEL_CSS}
+    ${BUILD_PANEL_CSS}
   </style>
 </head>
 <body>
   <header>
-    <button id="back-apps" class="back-link" type="button">← Apps</button>
+    <button id="back-apps" class="back-link" type="button">Home</button>
     <div class="heading">
       <small>App Map</small>
       <div class="app-title-row">
-        <h1>${escapeHtml(appName)}</h1>
+        <h1 title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
         <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
         <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       </div>
       <p>See how a request moves through your app.</p>
     </div>
     <div class="header-actions">
-      <button id="action-center" class="primary" type="button">Guide</button>
-      <button id="manage-app" type="button">Run &amp; manage</button>
+      <button id="action-center" type="button" aria-pressed="true">Guide</button>
+      <button id="build-app" type="button" aria-pressed="false">Build</button>
+      <button id="manage-app" type="button" aria-pressed="false">Run &amp; manage</button>
       <details class="map-tools">
         <summary>Search &amp; layout</summary>
         <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
@@ -799,12 +834,48 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const defaultPositions = new Map();
     let runtimeEntrypoints = [];
     let operationalState = { app: null, readiness: null };
+    let portReview = null;
+    let portBusy = false;
+    let portMessage = "";
+    let portError = false;
     let gatewayState = null;
     let operationalFingerprint = "";
     let lifecycleOperation = null;
     let agentPromptDraft = "";
+    let agentResponseText = "The agent response will appear here.";
+    let invokingAgent = false;
+    let agentDocument = null;
+    let documentError = "";
+    let documentLoading = false;
+    let documentReadVersion = 0;
+    let documentTesting = false;
+    let documentResultText = "";
+    let documentAssessment = null;
+    let documentAssessmentEpoch = 0;
+    let latestOutput = "Waiting for command output.";
+    let latestCommands = [];
+    let agentToolActivity = [];
+    let agentRawResponse = "";
+    let outputRefreshing = false;
+    let operationalRefreshing = false;
+    let selectedSubscriptionId = "";
+    const gatewayDiscovery = (${createDiscoveryTracker.toString()})();
+    let selectedGateway = null;
+    let selectedModel = "";
+    let gatewayApplying = false;
+    const autoGatewayAttempts = new Set();
     let layoutMode = "request-flow";
     let panelMode = "action-center";
+    const buildPanel = (${createBuildPanel.toString()})({
+      container: details, root: MODEL.root, request: apiRequest,
+      isActive: () => panelMode === "build",
+      onRun: () => {
+        renderManagePanel();
+        details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
+        details.querySelector('[aria-label="Agent message"]')?.focus();
+      },
+      onModel: () => renderManagePanel({ openGateway: true }),
+    });
     let selectedId = null;
     let selectedEdgeId = null;
     let panState = null;
@@ -1477,6 +1548,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function applySelection() {
+      updateModeHighlight();
       const connected = selectedId ? connectedIds(selectedId) : null;
       for (const [nodeId, element] of nodeElements) {
         element.classList.toggle("selected", nodeId === selectedId);
@@ -1501,6 +1573,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function clearElement(element) {
+      if (element === details) delete details.dataset.mode;
       while (element.firstChild) element.firstChild.remove();
     }
 
@@ -1548,12 +1621,40 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       section.className = "management-section";
       section.open = open;
       const summary = document.createElement("summary");
-      summary.textContent = title;
+      appendText(summary, "span", title, "section-title");
       const body = document.createElement("div");
       body.className = "section-body";
       section.append(summary, body);
       details.append(section);
       return body;
+    }
+
+    function appendField(container, title, control) {
+      const label = document.createElement("label");
+      label.className = "studio-field";
+      appendText(label, "span", title);
+      label.append(control);
+      container.append(label);
+    }
+
+    function updateModeHighlight() {
+      const searching = document.querySelector(".map-tools").open;
+      document.querySelector("#action-center").setAttribute("aria-pressed", String(!searching && panelMode === "action-center"));
+      document.querySelector("#manage-app").setAttribute("aria-pressed", String(!searching && panelMode === "manage"));
+      document.querySelector("#build-app").setAttribute("aria-pressed", String(!searching && panelMode === "build"));
+    }
+
+    function renderBuildPanel() {
+      clearDocumentAssessment();
+      panelMode = "build";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "build";
+      updateModeHighlight();
+      void buildPanel.show();
     }
 
     async function apiRequest(path, options = {}) {
@@ -1636,7 +1737,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       };
       operationalFingerprint = "optimistic:" + operation;
       updateAppStatusBadge();
-      if (panelMode === "action-center") renderActionCenter();
+      renderManagePanel();
       try {
         await apiRequest("/api/app-command", {
           method: "POST",
@@ -1716,6 +1817,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           appendText(card, "strong", activeLabels[appState] || "Updating your app");
           appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
         }
+      } else if (appState === "failed") {
+        appendText(card, "strong", "Last operation failed");
+        appendText(card, "p", operationalState.app.error || "Review command output before retrying.", "error");
+        if (runtimeEntrypoints.some((entry) => entry.ready)) {
+          card.append(keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
+        } else if (operationalState.app.operation === "configuring") {
+          card.append(actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
+        } else {
+          card.append(keyedActionButton("retry-app", "Retry startup", () => runAppOperation("run-local"), true));
+        }
       } else if (operationalState.readiness?.ready) {
         const previewMode = operationalState.readiness.mode === "preview";
         appendText(card, "strong", previewMode ? "Ready to preview" : "Ready to try");
@@ -1779,6 +1890,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
       const previousScrollTop = details.scrollTop;
       panelMode = "action-center";
+      document.querySelector(".map-tools").open = false;
+      updateModeHighlight();
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
@@ -1867,12 +1980,49 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
-    async function loadGatewayControls(container) {
+    async function loadGatewayControls(container, refresh = false) {
+      if (gatewayApplying) {
+        appendText(container, "p", "Applying model connection...");
+        return;
+      }
+      const requestedSubscription = selectedSubscriptionId;
+      const params = new URLSearchParams({ root: MODEL.root });
+      if (requestedSubscription) params.set("subscriptionId", requestedSubscription);
+      if (selectedGateway) {
+        params.set("gatewayName", selectedGateway.name);
+        params.set("resourceGroup", selectedGateway.resourceGroup);
+      }
+      const discovery = gatewayDiscovery.begin(params.toString(),
+        () => apiRequest("/api/gateway-options?" + params), refresh);
       try {
-        gatewayState = await apiRequest("/api/gateway-options?root=" + encodeURIComponent(MODEL.root));
-        if (!container.isConnected || panelMode !== "manage") return;
+        const options = await discovery.promise;
+        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+          !discovery.isCurrent()) return;
+        gatewayState = options;
+        selectedSubscriptionId = options.subscription?.id || "";
+        selectedGateway = options.suggested;
         clearElement(container);
+        for (const warning of options.warnings || []) appendText(container, "p", warning, "error");
         const activeName = gatewayState.active?.name || "";
+        const subscriptionSelect = document.createElement("select");
+        subscriptionSelect.setAttribute("aria-label", "Azure subscription");
+        for (const subscription of gatewayState.subscriptions || []) {
+          const option = document.createElement("option");
+          option.value = subscription.id;
+          option.textContent = subscription.name + (subscription.isDefault ? " (default)" : "");
+          option.selected = subscription.id === gatewayState.subscription?.id;
+          subscriptionSelect.append(option);
+        }
+        appendField(container, "Azure subscription", subscriptionSelect);
+        container.append(actionButton("Refresh subscriptions & gateways", () => {
+          void loadGatewayControls(container, true);
+        }));
+        subscriptionSelect.addEventListener("change", () => {
+          selectedSubscriptionId = subscriptionSelect.value;
+          selectedGateway = null;
+          selectedModel = "";
+          void loadGatewayControls(container);
+        });
         appendText(
           container,
           "p",
@@ -1886,25 +2036,61 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           const empty = document.createElement("option");
           empty.value = "";
           empty.textContent = "Choose an AI Gateway";
+          empty.disabled = true;
           select.append(empty);
-          for (const gateway of gatewayState.gateways) {
+          for (const [index, gateway] of gatewayState.gateways.entries()) {
             const option = document.createElement("option");
-            option.value = gateway.name;
+            option.value = String(index);
             option.textContent = gateway.name +
               (gateway.resourceGroup ? " · " + gateway.resourceGroup : "");
-            option.selected = gateway.name === activeName;
+            option.selected = gateway.name === gatewayState.suggested?.name &&
+              gateway.resourceGroup === gatewayState.suggested?.resourceGroup;
             select.append(option);
           }
-          container.append(select);
+          appendField(container, "AI Gateway", select);
+          select.addEventListener("change", () => {
+            selectedGateway = options.gateways[Number(select.value)];
+            selectedModel = "";
+            void loadGatewayControls(container);
+          });
+          const modelSelect = document.createElement("select");
+          modelSelect.setAttribute("aria-label", "AI model");
+          const models = options.models || [];
+          selectedModel = models.find((model) => model.id === selectedModel)?.id
+            || models.find((model) => model.id === options.active?.model)?.id || models[0]?.id || "";
+          for (const model of models) {
+            const option = document.createElement("option");
+            option.value = model.id;
+            option.textContent = model.label;
+            option.selected = model.id === selectedModel;
+            modelSelect.append(option);
+          }
+          modelSelect.disabled = !models.length;
+          modelSelect.addEventListener("change", () => {
+            selectedModel = modelSelect.value;
+            gatewayDiscovery.invalidate();
+          });
+          appendField(container, "Model", modelSelect);
+          if (!models.length) appendText(container, "p", options.warnings?.length
+            ? "Model inventory could not be verified. Review discovery errors or choose another gateway."
+            : "This gateway has no models. Select another gateway or add a model in AI Gateway Studio.", "error");
           const apply = actionButton(
             activeName ? "Apply or reconfigure" : "Connect gateway",
             async () => {
-              if (!select.value || lifecycleOperation) return;
+              if (!select.value || !modelSelect.value || lifecycleOperation || gatewayApplying) return;
+              gatewayApplying = true;
+              gatewayDiscovery.invalidate();
               apply.disabled = true;
+              subscriptionSelect.disabled = select.disabled = modelSelect.disabled = true;
               try {
+                const gateway = options.gateways[Number(select.value)];
                 const result = await apiRequest("/api/active-gateway", {
                   method: "POST",
-                  body: JSON.stringify({ root: MODEL.root, name: select.value }),
+                  body: JSON.stringify({
+                    root: MODEL.root, name: gateway.name, resourceGroup: gateway.resourceGroup,
+                    subscriptionId: gateway.subscriptionId,
+                    model: modelSelect.value,
+                  }),
                 });
                 gatewayState.active = result.active;
                 if (result.configuration) {
@@ -1916,24 +2102,38 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 } else {
                   await runAppOperation("configure-gateway");
                 }
-                renderActionCenter();
               } catch (error) {
-                apply.disabled = false;
+                operationalState.app = { state: "failed", operation: "configuring", error: error.message };
                 setStatus(error.message, true);
+              } finally {
+                gatewayApplying = false;
+                if (panelMode === "manage") renderManagePanel();
               }
             },
             true,
           );
+          apply.disabled = !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state);
           container.append(apply);
+          const suggested = gatewayState.suggested;
+          const attemptKey = suggested && suggested.subscriptionId + "/" + suggested.resourceGroup + "/" + suggested.name;
+          if (!gatewayState.active && suggested && models.length && !autoGatewayAttempts.has(attemptKey)
+            && !lifecycleOperation && !ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)
+            && operationalState.app?.state !== "running") {
+            autoGatewayAttempts.add(attemptKey);
+            apply.click();
+          }
+        } else {
+          appendText(container, "p", "No AI Gateway found in this subscription. Create one to connect a model.");
         }
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Create or manage gateways", () => renderTierAddPanel(gatewayTier)));
+        container.append(actionButton("Create or manage gateways", () => openTierStudio(gatewayTier)));
       } catch (error) {
-        if (!container.isConnected || panelMode !== "manage") return;
+        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+          !discovery.isCurrent()) return;
         clearElement(container);
         appendText(container, "p", error.message, "error");
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Open guided gateway setup", () => renderTierAddPanel(gatewayTier), true));
+        container.append(actionButton("Open guided gateway setup", () => openTierStudio(gatewayTier), true));
       }
     }
 
@@ -1969,28 +2169,190 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.append(actions);
     }
 
+    function syncAgentInputControls() {
+      const tester = details.querySelector(".agent-tester");
+      if (!tester) return;
+      const busy = invokingAgent || documentTesting || documentLoading;
+      const ready = runtimeEntrypoints.some((entry) => entry.ready && normalized(entry.name) === "agent");
+      const supportsDocuments = Boolean(operationalState.readiness?.documentInput);
+      for (const input of tester.querySelectorAll("textarea, input")) input.disabled = busy;
+      const send = tester.querySelector("[data-invoke-agent]");
+      if (send) send.disabled = !ready || busy || (supportsDocuments && Boolean(documentError));
+      const test = tester.querySelector("[data-test-document]");
+      if (test) test.disabled = !ready || busy || Boolean(documentError) || !agentDocument;
+      const remove = tester.querySelector("[data-remove-document]");
+      if (remove) remove.disabled = invokingAgent || documentTesting;
+    }
+
+    function clearDocumentAssessment() {
+      documentAssessmentEpoch += 1;
+      documentAssessment = null;
+      documentResultText = "";
+      details.querySelector("[data-document-assessment]")?.remove();
+      details.querySelector("[data-document-result]")?.remove();
+    }
+
+    function renderDocumentAssessment(container) {
+      if (!documentAssessment && !documentTesting && !(invokingAgent && agentDocument)) return;
+      const section = document.createElement("section");
+      section.className = "document-assessment";
+      section.dataset.documentAssessment = "true";
+      const state = documentTesting || invokingAgent ? "pending" : documentAssessment.state;
+      section.dataset.state = state;
+      appendText(section, "strong", "Processed document");
+      const badge = appendText(section, "span", state === "approved" ? "Policy checks passed"
+        : state === "rejected" ? "Document rejected" : state === "pending" ? "Checking document..."
+        : "Approval not established", "command-badge");
+      badge.dataset.state = state === "approved" ? "succeeded" : state === "rejected" ? "failed" : "unknown";
+      if (state === "approved") {
+        appendText(section, "p", "Approved for agent processing - sanitized text only. This is the last completed check, not a signed trust credential.");
+        appendText(section, "p", "The original document remains untrusted. Identity, income, creditworthiness, and loan approval are not verified.");
+        const labels = { email: "Email", phone: "Phone", ssn: "SSN", paymentCard: "Payment card" };
+        appendText(section, "small", "Supported patterns redacted: " + Object.entries(documentAssessment.redactions)
+          .map(([key, count]) => (labels[key] || key) + " " + count).join(" · "));
+        if (documentAssessment.truncated) appendText(section, "p", "The processed text was truncated to the output limit; it is not the complete application.");
+        const text = appendText(section, "pre", documentAssessment.sanitizedText, "command-output sanitized-document");
+        text.dataset.approvedDocument = "true";
+      } else if (state === "rejected") {
+        appendText(section, "p", "Not approved for agent processing. " + documentAssessment.reason);
+      } else if (state !== "pending") {
+        appendText(section, "p", "No verified structured approval result is available. Model-written claims do not establish document trust.");
+      }
+      container.append(section);
+    }
+
+    function renderDocumentInput(container) {
+      const capability = operationalState.readiness?.documentInput;
+      if (!capability) return;
+      const input = document.createElement("div");
+      input.className = "document-input";
+      appendText(input, "strong", "Document (optional)");
+      const sourceBadge = appendText(input, "span", "Untrusted source", "command-badge");
+      sourceBadge.dataset.state = "unknown";
+      appendText(input, "p", "Choose text/Markdown or paste below. Up to 64 KiB. Document checks run before the model; use synthetic documents in local mode.");
+      const file = document.createElement("input");
+      file.type = "file";
+      file.accept = capability.extensions.join(",");
+      file.setAttribute("aria-label", "Document file");
+      const name = appendText(input, "small", agentDocument?.name || "No document attached");
+      const text = document.createElement("textarea");
+      text.maxLength = capability.maxBytes;
+      text.value = agentDocument?.content || "";
+      text.placeholder = "Or paste document text";
+      text.setAttribute("aria-label", "Document text");
+      const error = appendText(input, "p", documentError, "error");
+      error.setAttribute("role", "alert");
+      text.addEventListener("input", () => {
+        documentReadVersion += 1;
+        agentDocument = text.value ? { name: agentDocument?.name || "document.txt", content: text.value } : null;
+        documentError = new TextEncoder().encode(text.value).length > capability.maxBytes
+          ? "Use a document no larger than 64 KiB." : "";
+        error.textContent = documentError;
+        name.textContent = agentDocument?.name || "No document attached";
+        clearDocumentAssessment();
+        syncAgentInputControls();
+      });
+      file.addEventListener("change", async () => {
+        const selected = file.files?.[0];
+        if (!selected) return;
+        const version = ++documentReadVersion;
+        agentDocument = null;
+        clearDocumentAssessment();
+        documentError = "";
+        documentLoading = true;
+        syncAgentInputControls();
+        try {
+          if (!capability.extensions.some((extension) => selected.name.toLowerCase().endsWith(extension))) {
+            throw new Error("Choose a .txt or .md document. PDF and Word files are not supported.");
+          }
+          if (selected.size > capability.maxBytes) throw new Error("Use a document no larger than 64 KiB.");
+          const content = await selected.text();
+          if (new TextEncoder().encode(content).length > capability.maxBytes) {
+            throw new Error("Use UTF-8 document text no larger than 64 KiB.");
+          }
+          if (version === documentReadVersion) agentDocument = { name: selected.name, content };
+        } catch (cause) {
+          if (version === documentReadVersion) documentError = "Could not read document: " + cause.message;
+        } finally {
+          if (version === documentReadVersion) {
+            documentLoading = false;
+            if (panelMode === "manage") renderManagePanel();
+          }
+        }
+      });
+      const remove = actionButton("Remove document", () => {
+        documentReadVersion += 1;
+        agentDocument = null;
+        documentError = "";
+        clearDocumentAssessment();
+        documentLoading = false;
+        renderManagePanel();
+      });
+      remove.dataset.removeDocument = "true";
+      input.append(file, text, remove);
+      if (documentLoading) appendText(input, "p", "Reading document...");
+      container.append(input);
+    }
+
+    function renderDocumentTest(container, actions) {
+      if (!operationalState.readiness?.documentInput) return;
+      const test = actionButton("Test enforcement", async () => {
+        const document = agentDocument;
+        clearDocumentAssessment();
+        const epoch = documentAssessmentEpoch;
+        documentTesting = true;
+        documentResultText = "Running document checks without a model call...";
+        renderManagePanel();
+        try {
+          const result = await apiRequest("/api/document-test", {
+            method: "POST", body: JSON.stringify({ root: MODEL.root, document }),
+          });
+          documentResultText = JSON.stringify(result, null, 2);
+          if (epoch === documentAssessmentEpoch) documentAssessment = result.documentAssessment ?? { state: "unverified" };
+          setStatus(result.verdict === "rejected" ? "Document rejected by enforcement." : "Document enforcement completed.",
+            result.verdict === "rejected");
+        } catch (error) {
+          documentResultText = error.message;
+          if (epoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
+          setStatus(error.message, true);
+        } finally {
+          documentTesting = false;
+          if (panelMode === "manage") renderManagePanel();
+        }
+      });
+      test.dataset.testDocument = "true";
+      actions.append(test);
+      renderDocumentAssessment(container);
+      if (documentResultText) {
+        const output = appendText(container, "pre", documentResultText, "command-output");
+        output.dataset.documentResult = "true";
+      }
+    }
+
     function renderAgentTester(container) {
       const tester = document.createElement("div");
       tester.className = "developer-tool-card agent-tester";
-      appendText(tester, "strong", "Test local agent");
+      appendText(tester, "strong", "Invoke agent");
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       if (!agentEntrypoint) {
         const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
+        const needsGateway = !gatewayConfigured && (operationalState.readiness?.mode === "preview"
+          || !operationalState.readiness?.ready);
         const appRunning = operationalState.app?.state === "running";
         appendText(tester, "span", "Agent unavailable", "tool-status");
         appendText(
           tester,
           "p",
-          !gatewayConfigured
+          needsGateway
             ? "The local agent cannot start until this app has an AI Gateway connection."
             : appRunning
               ? "The agent service did not start with the rest of the app."
-              : "The AI Gateway is connected, but the app is not running.",
+              : "Run the app to bring its agent endpoint online.",
         );
         const steps = document.createElement("ol");
         steps.className = "setup-steps";
-        const stepLabels = !gatewayConfigured
+        const stepLabels = needsGateway
           ? [
               ...(appRunning ? ["Stop the web preview."] : []),
               "Connect an AI Gateway.",
@@ -2002,21 +2364,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         for (const label of stepLabels) appendText(steps, "li", label);
         tester.append(steps);
         const prompt = document.createElement("textarea");
+        appendText(tester, "strong", "Message");
         prompt.maxLength = 2000;
         prompt.value = agentPromptDraft;
-        prompt.placeholder = "Enter a prompt while the local agent starts";
-        prompt.setAttribute("aria-label", "Agent test prompt");
+        prompt.placeholder = "Write a message while the agent starts";
+        prompt.setAttribute("aria-label", "Agent message");
         prompt.addEventListener("input", () => {
           agentPromptDraft = prompt.value;
         });
         const actions = document.createElement("div");
         actions.className = "actions";
-        const send = actionButton("Send test prompt", () => {});
+        const send = actionButton("Invoke agent", () => {});
+        send.dataset.invokeAgent = "true";
         send.disabled = true;
         actions.append(send);
-        if (!gatewayConfigured && appRunning) {
+        if (needsGateway && appRunning) {
           actions.append(actionButton("Stop preview", () => runAppOperation("stop-local"), true));
-        } else if (!gatewayConfigured) {
+        } else if (needsGateway) {
           actions.append(actionButton(
             "Connect AI Gateway",
             () => renderManagePanel({ openGateway: true }),
@@ -2027,66 +2391,168 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         } else {
           actions.append(actionButton("Run app", () => runAppOperation("run-local"), true));
         }
-        tester.append(prompt, actions);
+        tester.append(prompt);
+        renderDocumentInput(tester);
+        tester.append(actions);
+        renderDocumentTest(tester, actions);
         container.append(tester);
+        syncAgentInputControls();
         return;
       }
 
       appendText(tester, "span", "Agent ready", "tool-status ready");
       const prompt = document.createElement("textarea");
+      appendText(tester, "strong", "Message");
       prompt.maxLength = 2000;
       prompt.value = agentPromptDraft;
-      prompt.placeholder = "Send a prompt to the running agent";
-      prompt.setAttribute("aria-label", "Agent test prompt");
+      prompt.placeholder = "Send a message to the running agent";
+      prompt.setAttribute("aria-label", "Agent message");
       prompt.addEventListener("input", () => {
         agentPromptDraft = prompt.value;
       });
       const response = document.createElement("pre");
       response.className = "command-output agent-response";
-      response.textContent = "The agent response will appear here.";
+      response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions";
-      const send = actionButton("Send test prompt", async () => {
+      const send = actionButton("Invoke agent", async () => {
         const message = prompt.value.trim();
         if (!message) {
-          setStatus("Enter a prompt for the local agent.", true);
+          setStatus("Enter a message for the local agent.", true);
           prompt.focus();
           return;
         }
         send.disabled = true;
-        response.textContent = "Waiting for the local agent…";
+        invokingAgent = true;
+        clearDocumentAssessment();
+        const assessmentEpoch = documentAssessmentEpoch;
+        syncAgentInputControls();
+        response.textContent = agentResponseText = "Waiting for the local agent…";
         try {
-          const result = await apiRequest("/api/agent-prompt", {
+          const result = await apiRequest("/api/agent-invoke", {
             method: "POST",
             body: JSON.stringify({
               root: MODEL.root,
               port: agentEntrypoint.port,
-              prompt: message,
+              message,
+              ...(operationalState.readiness?.documentInput && agentDocument ? { document: agentDocument } : {}),
             }),
           });
-          response.textContent = typeof result.response === "string"
-            ? result.response
-            : JSON.stringify(result.response, null, 2);
+          agentRawResponse = typeof result.response === "string"
+            ? result.response : JSON.stringify(result.response, null, 2);
+          if (agentDocument && assessmentEpoch === documentAssessmentEpoch) {
+            documentAssessment = result.documentAssessment ?? { state: "unverified" };
+          }
+          agentToolActivity = result.summary?.tools || [];
+          response.textContent = agentResponseText = result.summary
+            ? result.summary.text || "No assistant text was reported. Inspect the raw response below."
+            : agentRawResponse;
           response.scrollTop = 0;
           setStatus("Agent response received.");
         } catch (error) {
-          response.textContent = error.message;
+          if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
+          response.textContent = agentResponseText = error.message;
           setStatus(error.message, true);
         } finally {
+          invokingAgent = false;
           send.disabled = false;
+          const currentResponse = details.querySelector(".agent-response");
+          if (currentResponse) currentResponse.textContent = agentResponseText;
+          const currentSend = details.querySelector("[data-invoke-agent]");
+          if (currentSend) currentSend.disabled = false;
+          if (panelMode === "manage") renderManagePanel();
         }
       }, true);
+      send.dataset.invokeAgent = "true";
+      send.disabled = invokingAgent;
       actions.append(send);
       const agentTier = tierById.get("agent");
       if (agentTier) {
         actions.append(actionButton("Open agent setup", () => openTierStudio(agentTier)));
       }
-      tester.append(prompt, actions, response);
+      tester.append(prompt);
+      renderDocumentInput(tester);
+      tester.append(actions, response);
+      renderDocumentTest(tester, actions);
+      if (agentRawResponse) {
+        const raw = document.createElement("details");
+        appendText(raw, "summary", "Raw agent response");
+        appendText(raw, "pre", agentRawResponse, "command-output");
+        tester.append(raw);
+      }
       container.append(tester);
+      syncAgentInputControls();
+    }
+
+    async function portOperation(operation) {
+      portBusy = true;
+      portMessage = "";
+      portError = false;
+      renderManagePanel();
+      try {
+        const result = await apiRequest("/api/ports/" + operation, {
+          method: "POST",
+          body: JSON.stringify({ root: MODEL.root, reviewId: portReview?.reviewId, confirmed: operation === "stop" }),
+        });
+        portReview = operation === "review-stop" ? result : null;
+        portMessage = operation === "pick" ? "Available ports saved. Run the app to start on these ports."
+          : operation === "stop" ? "Selected ports are free. Apps remain stopped."
+          : result.targets.length ? "" : "These ports are already free.";
+        await Promise.all([refreshOperationalState(), refreshRunOutput()]);
+      } catch (error) {
+        portReview = null;
+        portMessage = error.message;
+        portError = true;
+      } finally {
+        portBusy = false;
+        if (panelMode === "manage") renderManagePanel();
+      }
+    }
+
+    function renderPortControls(parent) {
+      appendText(parent, "h3", "Local ports");
+      appendText(parent, "p", runtimeEntrypoints.map((item) => humanize(item.name) + ": " + item.port).join(" · "));
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const pick = actionButton("Pick available ports", () => portOperation("pick"));
+      pick.disabled = portBusy || ["running", "starting", "stopping", "configuring"].includes(operationalState.app?.state);
+      pick.title = "Stop this app first. Save unused ports for both Run and the startup scripts.";
+      const review = actionButton("Stop apps using these ports", () => portOperation("review-stop"));
+      review.disabled = portBusy || !runtimeEntrypoints.length;
+      actions.append(pick, review);
+      parent.append(actions);
+      if (portBusy) appendText(parent, "p", "Checking ports and process ownership...");
+      if (portMessage) appendText(parent, "p", portMessage, portError ? "error" : "");
+      if (portReview?.targets.length) {
+        const confirmation = document.createElement("div");
+        confirmation.className = "run-card";
+        confirmation.dataset.portReview = "true";
+        appendText(confirmation, "strong", "Review apps to stop");
+        appendText(confirmation, "p", "Stops these processes and their children, including apps from other workspaces. Unsaved in-memory work may be lost.");
+        for (const target of portReview.targets) {
+          appendText(confirmation, "p", "PID " + target.pid + " · " + target.command + " · ports " + target.ports.join(", "));
+        }
+        const confirm = actionButton("Confirm stop", () => portOperation("stop"));
+        confirm.disabled = portBusy;
+        const cancel = actionButton("Cancel", () => { portReview = null; renderManagePanel(); });
+        cancel.disabled = portBusy;
+        confirmation.append(confirm, cancel);
+        parent.append(confirmation);
+      }
     }
 
     function renderManagePanel({ openGateway = false } = {}) {
       panelMode = "manage";
+      updateModeHighlight();
+      const previousScrollTop = details.scrollTop;
+      const previousOutput = details.querySelector("[data-runtime-output]");
+      const outputScrollTop = previousOutput?.scrollTop || 0;
+      const followOutput = !previousOutput ||
+        previousOutput.scrollHeight - previousOutput.scrollTop - previousOutput.clientHeight < 40;
+      const editingLabel = document.activeElement?.getAttribute("aria-label");
+      const editingMessage = ["Agent message", "Document text"].includes(editingLabel);
+      const messageSelection = editingMessage
+        ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
@@ -2094,17 +2560,105 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.empty = "false";
       appendPanelBack();
       appendText(details, "h2", "Run & manage");
+      details.dataset.mode = "manage";
       appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
 
       const appState = operationalState.app?.state;
       const runtimeSection = managementSection("Local runtime", true);
       renderRuntimeAction(runtimeSection);
+      renderPortControls(runtimeSection);
+      if (operationalState.readiness?.agentRuntime) {
+        appendText(runtimeSection, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
+          ? "Selected: Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
+          : "Local document-processing simulation. The tool runs as a subprocess, without OS or network isolation. Use synthetic documents only.");
+        runtimeSection.append(actionButton("Edit instructions & document tools", renderBuildPanel));
+      }
+      if (operationalState.app?.error) appendText(runtimeSection, "p", operationalState.app.error, "error");
+      appendText(runtimeSection, "h3", "Command output");
+      appendText(runtimeSection, "p", "Live stdout and stderr from startup, components, and app operations.");
+      const output = document.createElement("pre");
+      output.className = "command-output live-output";
+      output.dataset.runtimeOutput = "true";
+      output.textContent = latestOutput;
+      runtimeSection.append(output);
+      output.scrollTop = followOutput ? output.scrollHeight : outputScrollTop;
+      void refreshRunOutput();
+      appendText(runtimeSection, "h3", "Components & endpoints");
+      for (const entrypoint of runtimeEntrypoints) {
+        const row = document.createElement("div");
+        row.className = "endpoint-row";
+        row.dataset.ready = String(entrypoint.ready);
+        const label = entrypoint.expected === false && !entrypoint.listening ? "Not started in preview"
+          : entrypoint.healthStatus || (entrypoint.ready ? "Listening" : "Offline");
+        const heading = document.createElement("div");
+        heading.className = "endpoint-heading";
+        appendText(heading, "strong", humanize(entrypoint.name));
+        appendText(heading, "span", label, "endpoint-status");
+        row.append(heading);
+        appendText(row, "code", entrypoint.url);
+        if (entrypoint.healthDetail) appendText(row, "small", entrypoint.healthDetail);
+        const open = actionButton(entrypoint.ready ? "Open " + entrypoint.name : "Waiting", async () => {
+          try {
+            await apiRequest("/api/open-entrypoint", {
+              method: "POST", body: JSON.stringify({ root: MODEL.root, port: entrypoint.port }),
+            });
+          } catch (error) { setStatus(error.message, true); }
+        });
+        open.disabled = !entrypoint.ready;
+        row.append(open);
+        runtimeSection.append(row);
+      }
+      for (const node of MODEL.nodes.filter((node) => node.kind === "project"
+        && ["web", "agent", "skills", "sandbox", "workflows", "connectors"].includes(node.tierId)
+        && !entrypointForNode(node))) {
+        const row = document.createElement("div");
+        row.className = "endpoint-row";
+        row.dataset.sourceOnly = "true";
+        const heading = document.createElement("div");
+        heading.className = "endpoint-heading";
+        appendText(heading, "strong", node.name);
+        appendText(heading, "span", "Source only", "endpoint-status");
+        row.append(heading);
+        appendText(row, "code", node.projectPath);
+        appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
+        row.append(actionButton("Review source", async () => {
+          try {
+            await apiRequest("/api/open-source", {
+              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
+            });
+          } catch (error) { setStatus(error.message, true); }
+        }));
+        runtimeSection.append(row);
+      }
+      renderAgentTester(runtimeSection);
+      renderTools(runtimeSection);
+      const activitySection = managementSection("Commands", true);
+      appendText(activitySection, "p", "Actual Azure, shell, and HTTP operations. Message bodies and credentials are not recorded.");
+      const feed = document.createElement("div");
+      feed.className = "command-feed";
+      feed.dataset.commandFeed = "true";
+      activitySection.append(feed);
+      renderCommandFeed();
       const gatewaySection = managementSection(
         "AI model connection",
         openGateway || !operationalState.readiness?.gatewayConfigured,
       );
+      const readiness = operationalState.readiness;
+      const connectionSummary = document.createElement("span");
+      connectionSummary.className = "connection-summary";
+      connectionSummary.textContent = readiness?.gatewayConfigured
+        ? readiness.model + " · " + readiness.activeGateway.name
+        : readiness?.activeGateway
+          ? readiness.activeGateway.name + " · " + (readiness.model || "Model validation pending")
+          : "Choose a subscription and gateway; model is selected during validation.";
+      const gatewaySummary = gatewaySection.parentElement.querySelector("summary");
+      const connectionState = appendText(gatewaySummary, "span",
+        readiness?.gatewayConfigured ? "Connected" : "Setup needed", "command-badge connection-state");
+      connectionState.dataset.state = readiness?.gatewayConfigured ? "succeeded" : "unknown";
+      gatewaySummary.append(connectionSummary);
+      details.insertBefore(gatewaySection.parentElement, runtimeSection.parentElement);
       const gatewayControls = document.createElement("div");
-      gatewayControls.className = "action-list";
+      gatewayControls.className = "gateway-fields";
       appendText(
         gatewayControls,
         "p",
@@ -2119,71 +2673,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         void loadGatewayControls(gatewayControls);
       }
 
-      const developerSection = managementSection("Test & troubleshoot");
-      const sourceActions = document.createElement("div");
-      sourceActions.className = "actions";
-      sourceActions.append(actionButton("Open source code", async () => {
-        try {
-          await apiRequest("/api/open-source", {
-            method: "POST",
-            body: JSON.stringify({ root: MODEL.root, projectPath: "." }),
-          });
-          setStatus("Opened the app source in VS Code.");
-        } catch (error) {
-          setStatus(error.message, true);
-        }
-      }));
-      renderAgentTester(developerSection);
-      const activity = document.createElement("div");
-      activity.className = "developer-tool-card";
-      appendText(activity, "strong", "Command output");
-      appendText(activity, "p", "Inspect startup and deployment logs when something needs attention.");
-      const output = document.createElement("pre");
-      output.className = "command-output";
-      output.textContent = "No output loaded.";
-      output.hidden = true;
-      const outputActions = document.createElement("div");
-      outputActions.className = "actions";
-      const outputButton = actionButton("Show command output", async () => {
-        if (!output.hidden) {
-          output.hidden = true;
-          outputButton.textContent = "Show command output";
-          return;
-        }
-        outputButton.disabled = true;
-        outputButton.textContent = "Loading output…";
-        try {
-          const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
-          output.textContent = result.lines.join("\\n") || "No command output yet.";
-          output.scrollTop = output.scrollHeight;
-          output.hidden = false;
-          outputButton.textContent = "Hide command output";
-        } catch (error) {
-          setStatus(error.message, true);
-          outputButton.textContent = "Show command output";
-        } finally {
-          outputButton.disabled = false;
-        }
-      });
-      outputActions.append(outputButton);
-      activity.append(outputActions, output);
-      developerSection.append(activity);
-      developerSection.append(sourceActions);
-
       const deploymentSection = managementSection("Azure deployment");
       appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
       const cloudActions = document.createElement("div");
       cloudActions.className = "actions";
-      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+      if (operationalState.readiness?.deploymentBlocker) {
+        appendText(cloudActions, "p", operationalState.readiness.deploymentBlocker);
+        cloudActions.append(actionButton("Review runtime & access", renderBuildPanel));
+      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
       } else {
         cloudActions.append(actionButton("Set up Azure resources", async () => {
           await runAppOperation("provision-cloud");
-          renderActionCenter();
         }));
         cloudActions.append(actionButton("Deploy latest app", async () => {
           await runAppOperation("deploy-cloud");
-          renderActionCenter();
         }));
       }
       deploymentSection.append(cloudActions);
@@ -2201,9 +2705,99 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         dangerActions.append(deleteButton);
       }
       dangerSection.append(dangerActions);
+      details.scrollTop = previousScrollTop;
+      if (editingMessage) {
+        const message = details.querySelector('[aria-label="' + editingLabel + '"]');
+        message?.focus({ preventScroll: true });
+        if (message && messageSelection) message.setSelectionRange(...messageSelection);
+      }
+    }
+
+    async function refreshRunOutput() {
+      if (panelMode !== "manage" || outputRefreshing) return;
+      outputRefreshing = true;
+      try {
+        const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
+        latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
+        latestCommands = result.commands || [];
+        renderCommandFeed();
+        const output = details.querySelector("[data-runtime-output]");
+        if (output && output.textContent !== latestOutput) {
+          const following = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
+          output.textContent = latestOutput;
+          if (following) output.scrollTop = output.scrollHeight;
+        }
+      } catch (error) {
+        const output = details.querySelector("[data-runtime-output]");
+        if (output) output.textContent = "Unable to load output: " + error.message;
+      } finally { outputRefreshing = false; }
+    }
+
+    function renderCommandFeed() {
+      const container = details.querySelector("[data-command-feed]");
+      if (!container) return;
+      const fingerprint = JSON.stringify(latestCommands);
+      if (container.dataset.fingerprint === fingerprint) return;
+      container.dataset.fingerprint = fingerprint;
+      clearElement(container);
+      if (!latestCommands.length) appendText(container, "p", "No operations recorded yet. Run the app or invoke its agent.");
+      for (const record of latestCommands) {
+        const row = document.createElement("div");
+        row.className = "command-record";
+        row.dataset.status = record.status;
+        const heading = document.createElement("div");
+        heading.className = "command-head";
+        appendText(heading, "span", record.kind, "command-badge command-kind");
+        const title = { starting: "Start app", stopping: "Stop app", configuring: "Configure model access",
+          provisioning: "Provision resources", deploying: "Deploy app" }[record.label] || record.label;
+        appendText(heading, "strong", title, "command-title");
+        const badge = appendText(heading, "span", humanize(record.status), "command-badge");
+        badge.dataset.state = record.status;
+        row.append(heading);
+        const metadata = document.createElement("div");
+        metadata.className = "command-meta";
+        appendText(metadata, "span", new Date(record.startedAt).toLocaleTimeString());
+        if (record.durationMs != null) appendText(metadata, "span",
+          record.durationMs < 1000 ? record.durationMs + " ms" : (record.durationMs / 1000).toFixed(1) + " s");
+        if (record.note) appendText(metadata, "span", record.note);
+        row.append(metadata);
+        appendText(row, "pre", record.command, "command-code");
+        container.append(row);
+      }
+    }
+
+    function renderTools(container) {
+      const section = document.createElement("div");
+      section.className = "developer-tool-card";
+      const nodes = MODEL.nodes.filter((node) =>
+        node.kind === "project" && ["skills", "sandbox"].includes(node.tierId));
+      appendText(section, "strong", nodes.some((node) => node.tierId === "skills") ? "Hosted Skills & tools" : "Tools");
+      appendText(section, "p", "Source-discovered implementations; availability is shown separately from tool execution.");
+      for (const node of nodes) {
+        const row = document.createElement("div");
+        row.className = "endpoint-row";
+        const endpoint = entrypointForNode(node);
+        appendText(row, "strong", node.name + " · " + (endpoint?.healthStatus || "Source only"));
+        appendText(row, "code", node.projectPath);
+        row.append(actionButton("Open source", async () => {
+          try {
+            await apiRequest("/api/open-source", {
+              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
+            });
+          } catch (error) { setStatus(error.message, true); }
+        }));
+        section.append(row);
+      }
+      if (!nodes.length) appendText(section, "p", "No Hosted Skill or sandbox implementation was discovered.");
+      appendText(section, "strong", "Tool activity · last response");
+      for (const tool of agentToolActivity) appendText(section, "p", tool.name + " · " + tool.status);
+      if (!agentToolActivity.length) appendText(section, "p", "No tool activity was reported in the last response. This does not prove that no tools ran.");
+      container.append(section);
     }
 
     async function refreshOperationalState() {
+      if (operationalRefreshing) return;
+      operationalRefreshing = true;
       try {
         const [app, readiness] = await Promise.all([
           apiRequest("/api/app-status?root=" + encodeURIComponent(MODEL.root)),
@@ -2213,10 +2807,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           state: app.state,
           ready: readiness.ready,
           guidance: readiness.guidance,
+          gatewayConfigured: readiness.gatewayConfigured,
+          model: readiness.model,
+          gateway: readiness.activeGateway?.name,
+          documentInput: readiness.documentInput,
           entrypoints: (app.entrypoints || []).map((entrypoint) => [
             entrypoint.name,
             entrypoint.port,
             entrypoint.ready,
+            entrypoint.healthStatus,
+            entrypoint.expected,
           ]),
           foreignEntrypoints: (app.foreignEntrypoints || []).map((entrypoint) => entrypoint.port),
         });
@@ -2227,14 +2827,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         updateAppStatusBadge();
         if (changed && panelMode === "action-center") renderActionCenter();
         if (changed && panelMode === "manage") renderManagePanel();
-      } catch {
+      } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
         operationalFingerprint = "unavailable";
         operationalState = { app: null, readiness: null };
         runtimeEntrypoints = [];
         updateAppStatusBadge();
         if (changed && panelMode === "action-center") renderActionCenter();
-      }
+        if (changed && panelMode === "manage") renderManagePanel();
+        setStatus("Unable to refresh app readiness: " + error.message, true);
+      } finally { operationalRefreshing = false; }
     }
 
     async function openTierStudio(tier) {
@@ -2940,7 +3542,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#action-center").addEventListener("click", renderActionCenter);
-    document.querySelector("#manage-app").addEventListener("click", renderManagePanel);
+    document.querySelector("#build-app").addEventListener("click", renderBuildPanel);
+    document.querySelector("#manage-app").addEventListener("click", () => {
+      document.querySelector(".map-tools").open = false;
+      renderManagePanel();
+    });
+    document.querySelector(".map-tools").addEventListener("toggle", updateModeHighlight);
     appStatusBadge.addEventListener("click", renderManagePanel);
     headerRuntimeAction.addEventListener("click", () => {
       if (headerRuntimeAction.disabled) return;
@@ -3016,7 +3623,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     renderActionCenter();
     requestAnimationFrame(() => fitGraph(.48));
     void refreshOperationalState();
-    setInterval(() => { void refreshOperationalState(); }, 5000);
+    setInterval(() => { void refreshOperationalState(); }, 2000);
+    setInterval(() => { void refreshRunOutput(); }, 1000);
   </script>
 </body>
 </html>`;

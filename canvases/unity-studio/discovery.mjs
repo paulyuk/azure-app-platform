@@ -349,6 +349,29 @@ function yamlScalar(value) {
 function parseUnityManifest(file) {
   const components = [];
   const lines = file.content.split(/\r?\n/);
+  const capabilitiesIndex = lines.findIndex((line) => /^\s*capabilities\s*:\s*(?:#.*)?$/.test(line));
+  if (capabilitiesIndex >= 0) {
+    const sectionIndent = lines[capabilitiesIndex].search(/\S/);
+    let entryIndent = null;
+    let entry = null;
+    for (let index = capabilitiesIndex + 1; index < lines.length; index += 1) {
+      const line = lines[index];
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const indent = line.search(/\S/);
+      if (indent <= sectionIndent) break;
+      const heading = /^([a-z][a-z0-9-]*)\s*:\s*(?:#.*)?$/i.exec(trimmed);
+      if (heading && (entryIndent === null || indent === entryIndent)) {
+        entryIndent = indent;
+        entry = { tierId: heading[1], path: null, line: index + 1 };
+        components.push(entry);
+      } else if (entry && indent > entryIndent) {
+        const path = /^path\s*:\s*(.+)$/.exec(trimmed);
+        if (path) entry.path = yamlScalar(path[1]);
+      }
+    }
+    return components;
+  }
   let componentsIndent = null;
   let current = null;
   const finish = () => {
@@ -508,20 +531,42 @@ function groupRepoCandidates(allEvidence, files = []) {
 
 export async function discoverRepository(root, options = {}) {
   const scan = options.scan ?? await scanRepository(root, options);
-  const files = options.files ?? await loadRepositoryFiles(scan, options);
+  const allFiles = options.files ?? await loadRepositoryFiles(scan, options);
+  const rootManifest = allFiles.find((file) => file.path === "unity.app.yaml"
+    && /^(?:capabilities|components)\s*:/m.test(file.content));
+  const manifest = collectUnityManifestResults(rootManifest ? [rootManifest, ...allFiles.filter(
+    (file) => file.name !== "unity.app.yaml",
+  )] : allFiles);
+  const declared = rootManifest ? manifest.matches : null;
+  const componentPaths = declared?.map((item) => item.projectPath) ?? null;
+  const files = filesInAppScope(allFiles, componentPaths);
   const projectRoots = projectRootsFor(files);
-  const manifest = collectUnityManifestResults(files);
   const allEvidence = [
     ...files.flatMap((file) => collectFileEvidence(file, projectRoots)),
     ...manifest.matches,
-  ];
+  ].filter((item) => !declared || declared.some((component) =>
+    component.tierId === item.tierId && pathInComponent(item.projectPath, component.projectPath)));
+  if (rootManifest && !declared.length) manifest.diagnostics.push({
+    code: "empty-app-scope", source: "repository", path: "unity.app.yaml",
+    message: "The app manifest has no valid capability paths. Fix its capabilities before discovering app components.",
+  });
   return {
     source: "repository",
     root: scan.root,
+    componentPaths,
     candidates: groupRepoCandidates(allEvidence, files),
     diagnostics: [...scan.diagnostics, ...manifest.diagnostics],
     scannedFiles: scan.files.length,
   };
+}
+
+function pathInComponent(path, component) {
+  return component === "." || path === component || path.startsWith(`${component}/`);
+}
+
+export function filesInAppScope(files, componentPaths) {
+  return componentPaths === null ? files : files.filter((file) => file.path === "unity.app.yaml"
+    || componentPaths.some((component) => pathInComponent(file.path, component)));
 }
 
 export function createCommandEnvironment(source = process.env) {

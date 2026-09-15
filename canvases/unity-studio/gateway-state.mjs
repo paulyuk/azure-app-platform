@@ -34,6 +34,7 @@ export function normalizeGatewayCandidate(gateway) {
     location: text(gateway?.location),
     subscriptionId: text(resourceId.split("/")[2] || gateway?.subscriptionId),
     endpoint: text(gateway?.properties?.gatewayUrl || gateway?.endpoint),
+    model: text(gateway?.model),
   };
 }
 
@@ -58,9 +59,56 @@ export function gatewayCommandEnvironment(active) {
     AI_GATEWAY_RESOURCE_GROUP: validated.resourceGroup,
     AI_GATEWAY_NAME: validated.name,
     AZURE_AI_GATEWAY_ENDPOINT: validated.endpoint,
-    AZURE_AI_GATEWAY_MODEL: "",
-    AZURE_AI_GATEWAY_MINI_MODEL: "",
+    AZURE_AI_GATEWAY_MODEL: validated.model,
+    AZURE_AI_GATEWAY_MINI_MODEL: validated.model,
   };
+}
+
+export async function discoverGatewayModels(commandRunner, gateway) {
+  const active = validateGatewayCandidate(gateway);
+  const segments = [active.subscriptionId, active.resourceGroup, active.name].map(encodeURIComponent);
+  const uri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/service/${segments[2]}/workspaces/default/models?api-version=2025-09-01-preview`;
+  const items = [];
+  const seen = new Set();
+  let next = uri;
+  while (next) {
+    const target = new URL(next, uri);
+    if (target.origin !== "https://management.azure.com" || target.pathname !== new URL(uri).pathname
+      || target.username || target.password || seen.has(target.href) || seen.size >= 100) {
+      throw new Error("Gateway model discovery returned an invalid continuation URL.");
+    }
+    seen.add(target.href);
+    const result = await commandRunner("az", ["rest", "--method", "get", "--uri", target.href, "-o", "json"]);
+    if (!result.ok) throw new Error(result.stderr || result.error || "Unable to discover gateway models.");
+    const payload = JSON.parse(result.stdout);
+    if (!Array.isArray(payload.value)) throw new Error("Gateway model discovery returned an invalid inventory.");
+    items.push(...payload.value);
+    next = payload.nextLink;
+  }
+  const models = items.map((item) => ({
+    id: text(item.name), label: text(item.properties?.displayName || item.name),
+  })).filter((item) => item.id).sort((a, b) => a.id.localeCompare(b.id));
+  return models;
+}
+
+export async function loadGatewayModelOptions(commandRunner, options, requestedGateway) {
+  const requested = options.gateways.find((gateway) => gateway.name === requestedGateway?.name
+    && gateway.resourceGroup === requestedGateway?.resourceGroup);
+  const candidates = requested || options.active
+    ? [requested || options.suggested].filter(Boolean)
+    : [...options.gateways].sort((a, b) => a.name.localeCompare(b.name));
+  const warnings = [];
+  for (const gateway of candidates) {
+    try {
+      const models = await discoverGatewayModels(commandRunner, gateway);
+      if (models.length || requested || options.active) {
+        return { ...options, suggested: gateway, models, warnings };
+      }
+    } catch (error) {
+      warnings.push(`${gateway.name}: ${error.message}`);
+    }
+  }
+  return { ...options, models: [], warnings };
 }
 
 export function evaluateGatewayReadiness(agentConfiguration, activeGateway, configuring = false) {
@@ -79,11 +127,13 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
     && normalizedEndpoint(endpoint) === normalizedEndpoint(activeGateway.endpoint)
     && /^https:\/\//i.test(endpoint)
     && Boolean(apiKey)
-    && Boolean(model);
+    && Boolean(model)
+    && (!activeGateway.model || activeGateway.model === model);
 
   return {
     ready: gatewayConfigured,
     gatewayConfigured,
+    model: model || null,
     activeGateway: activeGateway ?? null,
     missing: gatewayConfigured
       ? []
@@ -98,6 +148,28 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
           : "The selected gateway needs validation. Reconfigure it before running locally."
         : "Choose an existing AI Gateway. Unity Studio will validate its model route and configure this app automatically.",
   };
+}
+
+export async function discoverGatewayOptions(commandRunner, active, requestedSubscriptionId) {
+  const accountsResult = await commandRunner("az", ["account", "list", "-o", "json"]);
+  if (!accountsResult.ok) throw new Error(accountsResult.stderr || accountsResult.error || "Sign in to Azure to select a subscription.");
+  const subscriptions = JSON.parse(accountsResult.stdout)
+    .filter((account) => account.state === "Enabled")
+    .map(({ id, name, isDefault }) => ({ id, name, isDefault: Boolean(isDefault) }));
+  const subscription = subscriptions.find((item) => item.id === requestedSubscriptionId)
+    ?? (!requestedSubscriptionId && subscriptions.find((item) => item.id === active?.subscriptionId))
+    ?? (!requestedSubscriptionId && subscriptions.find((item) => item.isDefault))
+    ?? (!requestedSubscriptionId && subscriptions[0]);
+  if (!subscription) throw new Error("The selected Azure subscription is unavailable. Sign in or choose an enabled subscription.");
+  const result = await commandRunner("az", ["aigateway", "list", "--subscription", subscription.id, "-o", "json"]);
+  if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
+  const gateways = JSON.parse(result.stdout).map(normalizeGatewayCandidate);
+  const matching = gateways.find((item) => item.name === active?.name
+    && item.resourceGroup === active?.resourceGroup && item.subscriptionId === active?.subscriptionId);
+  const suggested = matching ?? [...gateways]
+    .filter((item) => item.name && item.resourceGroup && item.subscriptionId && /^https:\/\//i.test(item.endpoint))
+    .sort((left, right) => left.name.localeCompare(right.name))[0] ?? null;
+  return { subscriptions, subscription, gateways, active: active ?? null, suggested };
 }
 
 export function requireGatewayReadiness(readiness) {

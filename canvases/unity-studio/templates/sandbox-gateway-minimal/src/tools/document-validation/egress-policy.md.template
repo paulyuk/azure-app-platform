@@ -1,0 +1,25 @@
+# Document validation tool: intended production egress policy
+
+The local subprocess is only a **local process simulation** of the document
+boundary. It is not an Azure isolation boundary. The document validation tool
+must run in its own Azure Container Apps custom-container session pool,
+separate from the Copilot SDK agent pool.
+
+The document pool must:
+
+1. Default-deny all outbound traffic. Document sanitization needs no network.
+2. Never receive GitHub, Copilot, AI Gateway, or model credentials.
+3. Keep managed identity access disabled inside the session
+   (`managedIdentitySettings.lifecycle: None`).
+4. Explicitly deny private address ranges, Azure metadata endpoints, and every
+   public destination, including `__EGRESS_ALLOW_DOMAIN__`. If a future
+   document processor genuinely needs that exact domain, review the threat
+   model before allowing HTTPS (TCP 443); never use a wildcard.
+5. Disable payload capture. Emit only lifecycle events, duration, verdict code,
+   and exit status. Never log document content or sanitized text.
+6. Stop each session after the verdict is read; retain a short platform
+   cooldown only as a failure fallback.
+
+Before a demo, verify from inside the document session that an HTTPS call to
+`__EGRESS_ALLOW_DOMAIN__` and to an unrelated endpoint both fail. Treat either
+successful request as a release blocker.
