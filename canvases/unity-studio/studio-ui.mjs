@@ -935,7 +935,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
           '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
           '<pre id="local-output">Waiting for local app output.</pre></details></div></details>' +
-          '<div class="section-label">Map</div>' +
+          '<div class="section-label">Observe/Map</div>' +
           '<details class="surface app-map-region" open><summary class="surface-head">' +
           '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
           '<div class="surface-body"><div class="map-toolbar"><button type="button" class="icon-button map-expand" id="open-app-map"' +

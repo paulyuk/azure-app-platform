@@ -106,7 +106,7 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
     await page.getByRole("button", { name: "Edit instructions & document tools", exact: true }).click();
-    await page.locator("#details").getByRole("button", { name: "Run & manage", exact: true }).click();
+    await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).click();
     assert.equal(await document.inputValue(), expected.content);
     assert.equal(await message.inputValue(), "Summarize these terms.");
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);

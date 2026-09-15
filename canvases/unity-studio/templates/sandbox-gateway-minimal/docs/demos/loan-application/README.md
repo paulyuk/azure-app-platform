@@ -20,7 +20,7 @@ physical folder and runtime mapping.
    (`builtin-sandbox-gateway-minimal-v1`). Only newly generated apps use the
    folder layout above; existing generated apps keep their old paths until
    deliberately migrated.
-2. Open **Run & manage**, connect or confirm an existing AI Gateway and model,
+2. Open **Run/Debug**, connect or confirm an existing AI Gateway and model,
    and use **Pick available ports** while the app is stopped. Studio saves the
    reviewed value in `.unity-studio/ports.env`; `8088` is only the fallback
    default. If the chosen port is occupied, use **Stop apps using these ports**

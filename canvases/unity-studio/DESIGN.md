@@ -197,7 +197,7 @@ the repository or subscription.
 
 ### Workspace and Guide
 
-The app interface has three main views: Build, Run & manage, and Map. Build is
+The app interface has three main views: Build, Run/Debug, and Observe/Map. Build is
 the initial view. Build and Run use the main content region; the graph and its
 view/search controls are visible only in Map. Map details are a contextual
 inspector, not the container for every app workflow.
@@ -261,7 +261,7 @@ zoom, fit, and reset controls are grouped under **Search & layout** so they do
 not compete with the primary views. Overall runtime state remains visible beside
 the app name as **Not running**, **Local preview**, **Running locally**, or the
 current lifecycle transition. A persistent adjacent action starts or stops the
-local runtime and routes missing prerequisites into **Run & manage**. Each
+local runtime and routes missing prerequisites into **Run/Debug**. Each
 request-flow stage and Implementation
 lane exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
@@ -321,7 +321,7 @@ At narrow mobile widths, the request-flow diagram and Guide stack vertically.
 The Guide must not become an overlay that hides the architecture the user is
 trying to understand.
 
-**Run & manage** is the explicit operational surface. AI model connection comes
+**Run/Debug** is the explicit operational surface. AI model connection comes
 first, followed by expanded local runtime controls, visible live stdout/stderr, per-component health and
 open-endpoint buttons, and **Invoke agent** with a message.
 An optional document appears beside the message when readiness advertises
@@ -355,7 +355,7 @@ Configuration receives the selected model and validates it before the card colla
 model/gateway/subscription summary. Creation remains an explicit specialist
 action. Source projects without managed endpoints appear in Components & endpoints
 as Source only, with Review source, and do not affect readiness. Azure deployment and deletion remain secondary
-disclosures. Home returns to the landing screen, and Guide, Run & manage, and
+disclosures. Home returns to the landing screen, and Guide, Run/Debug, and
 Search & layout use a colored active state. The
 desktop details panel is pointer- and keyboard-resizable with its per-app width
 stored locally.

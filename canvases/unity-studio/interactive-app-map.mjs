@@ -769,8 +769,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     </div>
     <div class="header-actions">
       <button id="build-app" type="button" aria-pressed="false">Build</button>
-      <button id="manage-app" type="button" aria-pressed="false">Run &amp; manage</button>
-      <button id="map-app" type="button" aria-pressed="false">Map</button>
+      <button id="manage-app" type="button" aria-pressed="false">Run/Debug</button>
+      <button id="map-app" type="button" aria-pressed="false">Observe/Map</button>
       <button id="action-center" type="button" aria-pressed="true" aria-expanded="true" aria-controls="guide-rail">${guideIcon}Guide</button>
     </div>
   </header>
@@ -1056,7 +1056,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appStatusBadge.textContent = label;
       appStatusBadge.dataset.tone = tone;
       appStatusBadge.title = "Open local runtime controls";
-      appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run and manage.");
+      appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run/Debug.");
 
       let actionLabel = "Set up";
       let operation = "";
@@ -1658,8 +1658,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function appendPanelBack() {
       const button = panelMode === "manage"
-        ? actionButton("← Run & manage", renderManagePanel)
-        : actionButton("← Back to Map", renderMapPanel);
+        ? actionButton("← Run/Debug", renderManagePanel)
+        : actionButton("← Back to Observe/Map", renderMapPanel);
       button.className = "panel-back";
       details.append(button);
     }
@@ -1694,7 +1694,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       document.querySelector("#manage-app").setAttribute("aria-pressed", String(mode === "manage"));
       document.querySelector("#build-app").setAttribute("aria-pressed", String(mode === "build"));
       document.querySelector("#map-app").setAttribute("aria-pressed", String(mode === "map"));
-      details.setAttribute("aria-label", mode === "map" ? "Map inspector" : mode === "build" ? "Build workspace" : "Run and manage workspace");
+      details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" : mode === "build" ? "Build workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
     }
@@ -2635,7 +2635,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      appendText(details, "h2", "Run & manage");
+      appendText(details, "h2", "Run/Debug");
       details.dataset.mode = "manage";
       appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
 

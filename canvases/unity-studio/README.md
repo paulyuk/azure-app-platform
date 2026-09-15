@@ -21,7 +21,7 @@ studios and may open the resulting worktree in VS Code.
 After creation or selection, the app workspace becomes the primary interface.
 An optional VS Code launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The top controls are **Build → Run & manage → Map**, followed by an independent
+The top controls are **Build → Run/Debug → Observe/Map**, followed by an independent
 **Guide** toggle. Build opens first. Each main view fills the workspace rather
 than sharing it with an always-visible map. Guide is a compact vertical rail
 on the far right, with workflow progress and the next useful action. Hide it
@@ -41,13 +41,13 @@ implementation to the app session. Compact tier illustrations on each component
 card make the architecture easier to scan without replacing source-derived names,
 badges, or status. Guide stays focused on progress and one required action at a
 time.
-Additional recommendations are collapsed. In **Map**, **Request flow** and
+Additional recommendations are collapsed. In **Observe/Map**, **Request flow** and
 **Implementation map** appear in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. Wheel and trackpad gestures
-zoom smoothly anywhere over the map surface. **Run & manage** leads with
+zoom smoothly anywhere over the map surface. **Run/Debug** leads with
 model connection, followed by local runtime controls, command activity,
 Azure deployment, and deletion. Map inspection opens a separate resizable
-details panel; **Back to Map** dismisses it without changing Guide.
+details panel; **Back to Observe/Map** dismisses it without changing Guide.
 Live stdout/stderr, component readiness,
 endpoint buttons, and **Invoke agent** are expanded in the run loop.
 **Local ports** provides **Pick available ports** while the app is stopped.
@@ -64,7 +64,7 @@ machine-wide stop command. Reviews expire after one minute and reject changed
 process identities; Studio and its host ancestors are protected. The operation
 verifies that ports remain free and reports permission errors or respawning apps.
 **AI model connection** is the first card, collapsed to model/gateway and a
-Connected badge after validation. Run & manage uses the Functions Hosted Skills
+Connected badge after validation. Run/Debug uses the Functions Hosted Skills
 Studio visual treatment: soft panels, compact headers and status chips, consistent
 form controls, and themed code blocks. Styles are isolated from the App Map.
 **Commands** shows actual Azure discovery, lifecycle shell commands, and agent
@@ -92,7 +92,7 @@ file together; it never silently saves an inline draft. Returning from Code
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
 Inline edits require **Review changes → Save reviewed changes**; saves reject
 stale versions and require the app to be stopped. Drafts survive switching between
-Build and Run & manage in the same panel.
+Build and Run/Debug in the same panel.
 
 The document contract and operator-owned policy are editable by the developer,
 not the runtime model. JSON syntax is checked when saving from the canvas;
@@ -108,7 +108,7 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run & manage**. Choose a `.txt`/`.md` file up to 64 KiB,
+document together in **Run/Debug**. Choose a `.txt`/`.md` file up to 64 KiB,
 paste text, or remove the document to send only a message. Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.
 Document input appears only for document-capable agents. Drafts survive readiness
@@ -294,7 +294,7 @@ closing Studio does not terminate the operation or discard its diagnostics.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
 running agent offers **Invoke agent** with a message directly under
-**Run & manage → Local runtime**, plus a specialist-studio handoff. Invocation
+**Run/Debug → Local runtime**, plus a specialist-studio handoff. Invocation
 uses the app's supported source-backed HTTP contract, not a guessed endpoint.
 Command output refreshes continuously while this panel is open. TCP-only
 services are labeled Listening, not Healthy; web/agent/Functions HTTP checks

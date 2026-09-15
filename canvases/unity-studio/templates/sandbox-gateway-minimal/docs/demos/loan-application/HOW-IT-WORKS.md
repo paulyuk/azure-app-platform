@@ -55,7 +55,7 @@ from links in the generated Markdown.
 | **document validation tool** | [`src/tools/document-validation/main.py`](../../../src/tools/document-validation/main.py.template); [`contract.json`](../../../src/tools/document-validation/contract.json) alongside it | Plain Python request/document validation and sanitation; JSON defines limits, extensions, and descriptive schemas that Python reads and enforces explicitly |
 | **Shared policy code** | [`src/policy/enforcement.py`](../../../src/policy/enforcement.py); [`config/document-policy.json`](../../../config/document-policy.json) | Python checks used by the harness and tool, not a separate service |
 | **Runtime selection** | [`config/runtime.json`](../../../config/runtime.json.template) | Selects local processing or separately configured ACA custom-container sandboxes; selection does not provision or deploy them |
-| **AI Gateway / model** | **Run & manage → AI model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
+| **AI Gateway / model** | **Run/Debug → AI model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
 
 **Build** provides compact editors for the instructions, document validation
 tool, contract, policy, and runtime settings. **Edit in Code** opens the whole
@@ -127,7 +127,7 @@ model-generated payments remain estimates.
 
 ## What do the Studio actions and labels mean?
 
-**Run & manage** holds one shared message-and-document input. **Test
+**Run/Debug** holds one shared message-and-document input. **Test
 enforcement** runs the document validation tool and loan agent harness result
 check without a model call. **Invoke agent** repeats those checks before calling
 the model. The raw attachment reaches the loan agent harness endpoint and, in
@@ -143,7 +143,7 @@ universal trust, verified identity or income, creditworthiness, loan approval,
 or proof of isolation. Changing input, starting another check, or opening Build
 clears them; pending and rejected results never receive them.
 
-Under **Run & manage → Local ports**, **Pick available ports** writes the
+Under **Run/Debug → Local ports**, **Pick available ports** writes the
 reviewed assignment to `.unity-studio/ports.env`. Startup, readiness, endpoint
 links, and CLI requests use that same value; `8088` is only the default when no
 saved or explicit `AGENT_PORT` exists. **Stop apps using these ports** requires

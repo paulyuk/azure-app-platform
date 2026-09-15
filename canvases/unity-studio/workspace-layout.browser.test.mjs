@@ -52,7 +52,7 @@ test("Build, Run and Map own the workspace independently of the collapsible Guid
     await page.goto(url);
     const editor = page.getByRole("textbox", { name: "Agent instructions source", exact: true });
     await editor.waitFor();
-    assert.deepEqual(await page.locator(".header-actions > button").allTextContents(), ["Build", "Run & manage", "Map", "Guide"]);
+    assert.deepEqual(await page.locator(".header-actions > button").allTextContents(), ["Build", "Run/Debug", "Observe/Map", "Guide"]);
     const collapse = page.getByRole("button", { name: "Collapse Guide", exact: true });
     assert.equal(await collapse.textContent(), "");
     assert.equal(await collapse.locator('svg[aria-hidden="true"]').count(), 1);

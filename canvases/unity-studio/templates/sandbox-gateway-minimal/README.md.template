@@ -118,7 +118,7 @@ It never invokes a model and does not require gateway credentials.
 
 ## Use the app in Unity Studio
 
-**Run & manage** provides one shared message-and-document input. Attach or paste
+**Run/Debug** provides one shared message-and-document input. Attach or paste
 a supported document beside the message, then choose the action that matches
 what you are testing:
 
@@ -139,7 +139,7 @@ document validation tool, contract, policy, and runtime settings. **Edit in Code
 require review and a stopped app. Developer editing does not give the running
 model permission to modify code or policy.
 
-Under **Run & manage → Local ports**, choose **Pick available ports** while the
+Under **Run/Debug → Local ports**, choose **Pick available ports** while the
 app is stopped. Studio saves the reviewed assignment in
 `.unity-studio/ports.env`; the start/stop scripts, readiness checks, endpoint
 links, and CLI examples can all use that value. If a reviewed process already

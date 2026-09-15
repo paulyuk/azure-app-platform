@@ -1888,7 +1888,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Stop app/);
   assert.match(html, /function updateAppStatusBadge/);
   assert.match(html, />Guide<\/button>/);
-  assert.match(html, />Run &amp; manage<\/button>/);
+  assert.match(html, />Run\/Debug<\/button>/);
+  assert.match(html, />Observe\/Map<\/button>/);
   assert.match(html, /managementSection\("Local runtime", true\)/);
   assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);

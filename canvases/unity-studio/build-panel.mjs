@@ -170,8 +170,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       artifacts = state.artifacts;
       loading.remove();
       for (const artifact of artifacts) renderArtifact(artifact);
-      element("p", "Test a message with an optional document in Run & manage.", container);
-      button(container, "Run & manage", onRun);
+      element("p", "Test a message with an optional document in Run/Debug.", container);
+      button(container, "Run/Debug", onRun);
     } catch (cause) { if (isActive() && version === loadVersion) { loading.remove(); error(container, cause.message); } }
   }
   window.addEventListener("focus", () => { if (isActive()) void show(); });
