@@ -8,7 +8,7 @@ pattern. Its landing page keeps three journeys visible:
    customize the supported inputs, review the deterministic materialization
    plan, and create the app in an isolated worktree.
 2. **Open an app** — rediscover apps persisted as repository/worktree
-   pairs, then open their App Map to inspect request flow, implementation inventory,
+   pairs, then open their workspace to build, run, inspect request flow and implementation inventory,
    source, runtime, or specialist studios. This is the local persistence
    mechanism until Unity apps register with a control plane.
 3. **Assemble existing pieces** — explicitly map capabilities to source projects
@@ -18,11 +18,18 @@ The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in VS Code.
 
-After creation or selection, the App Map becomes the primary app interface.
-An optional VS Code launch failure does not roll back the new worktree; App Map
+After creation or selection, the app workspace becomes the primary interface.
+An optional VS Code launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The default surface keeps **Guide**, **Run & manage**, and the request-flow diagram
-visually primary. A persistent badge beside the app name distinguishes
+The top controls are **Build → Run & manage → Map**, followed by an independent
+**Guide** toggle. Build opens first. Each main view fills the workspace rather
+than sharing it with an always-visible map. Guide is a compact vertical rail
+on the far right, with workflow progress and the next useful action. Hide it
+using its collapse button or the Guide toggle to reclaim the full width;
+switching views never reopens it or discards editor/message drafts.
+Guide visibility is remembered per app in the current browser origin.
+On narrow screens it starts collapsed and opens as a dismissible overlay.
+A persistent badge beside the app name distinguishes
 **Not running**, **Local preview**, **Running locally**, and active lifecycle
 transitions; selecting it opens the local runtime controls. A neighboring
 contextual action starts the app or preview, stops a running app, or opens
@@ -34,13 +41,14 @@ implementation to the app session. Compact tier illustrations on each component
 card make the architecture easier to scan without replacing source-derived names,
 badges, or status. Guide stays focused on progress and one required action at a
 time.
-Additional recommendations are collapsed. **Request flow** and **Implementation
-map** remain visible in a dedicated view bar, while search, filters, zoom,
+Additional recommendations are collapsed. In **Map**, **Request flow** and
+**Implementation map** appear in a dedicated view bar, while search, filters, zoom,
 and reset controls live under **Search & layout**. Wheel and trackpad gestures
 zoom smoothly anywhere over the map surface. **Run & manage** leads with
 model connection, followed by local runtime controls, command activity,
-Azure deployment, and deletion. Its desktop panel width is
-adjustable and remembered per app. Live stdout/stderr, component readiness,
+Azure deployment, and deletion. Map inspection opens a separate resizable
+details panel; **Back to Map** dismisses it without changing Guide.
+Live stdout/stderr, component readiness,
 endpoint buttons, and **Invoke agent** are expanded in the run loop.
 **Local ports** provides **Pick available ports** while the app is stopped.
 It checks live IPv4/IPv6 listeners and other discovered apps' assignments, then
@@ -67,8 +75,8 @@ troubleshooting card. The agent's
 readable answer and raw response are separate, and **Hosted Skills & tools**
 distinguishes source-discovered implementations from tool calls reported in the
 last response; a reported call alone is not proof of successful execution.
-**Home** returns to the landing screen; the active Guide,
-Run & manage, or Search & layout control is highlighted.
+**Home** returns to the landing screen. The active main view is highlighted
+independently from Guide visibility; Search & layout does not change that view.
 **Open app** lists the most recently opened apps first and shows their last-opened
 date and time in the browser's local timezone. Opening an App Map records its
 timestamp in `.unity-studio/last-opened.json`, separately from app identity and
@@ -151,6 +159,9 @@ the Dealer sample use a credential-free preview without mistaking another
 worktree's listeners for its own services.
 
 ## First-class templates
+
+For the Minimal template's complete file tree, token conventions, and generation
+contract, see the [maintainer guide](MINIMAL-TEMPLATE.md).
 
 - **Empty Unity app** is a versioned local template with web, agent, gateway,
   editable domain configuration, editable agent instructions, and exactly one

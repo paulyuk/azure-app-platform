@@ -195,6 +195,25 @@ the repository or subscription.
 
 ## Source-derived App Map
 
+### Workspace and Guide
+
+The app interface has three main views: Build, Run & manage, and Map. Build is
+the initial view. Build and Run use the main content region; the graph and its
+view/search controls are visible only in Map. Map details are a contextual
+inspector, not the container for every app workflow.
+
+Guide is a separate 280px right rail with evidence-derived progress and next
+actions. It updates on readiness changes without switching the main view,
+clearing map selection, or replacing Build/Run inputs. Its toggle and collapse
+button are keyboard accessible and return focus to the toggle when closing.
+Collapsed Guide consumes no workspace width. Narrow screens use an overlay,
+collapsed by default unless the user has chosen otherwise.
+
+Guide visibility is a per-app browser-origin preference, separate from map
+layout and source files. An extension restart that changes the loopback origin
+can reset browser preferences. Document and inline-edit drafts stay in memory
+across mode switches but are not persisted by this layout.
+
 ### Build and enforcement ownership
 
 Build exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.

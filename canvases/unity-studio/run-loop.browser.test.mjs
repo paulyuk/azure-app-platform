@@ -65,6 +65,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
         gateways: [gateway], suggested: gateway, active: selected ? gateway : null,
         models: [{ id: "gpt-5-mini", label: "gpt-5-mini" }, { id: "gpt-main", label: "GPT main" }],
       };
+      else if (path === "/api/build-workspace") data = { artifacts: [] };
       else if (path === "/api/active-gateway") {
         selections += 1;
         assert.equal(request.postDataJSON().model, "gpt-5-mini");
@@ -193,12 +194,16 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     assert.equal(await page.locator("#app-status-badge").textContent(), "Needs attention");
     assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "Hello dealer");
     assert.equal(selections, 1);
-    await page.locator(".map-tools > summary").click();
+    await page.locator("#map-app").click();
     await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-pressed") === "false");
     assert.equal(await page.locator("#manage-app").getAttribute("aria-pressed"), "false");
+    await page.locator(".map-tools > summary").click();
+    assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
     await page.locator("#action-center").click();
     assert.equal(await page.locator("#details").getAttribute("data-mode"), null);
-    assert.equal(await page.locator("#action-center").getAttribute("aria-pressed"), "true");
+    assert.equal(await page.locator("#action-center").getAttribute("aria-pressed"), "false");
+    assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
+    await page.locator("#manage-app").click();
     assert.equal(await page.locator(".map-tools").evaluate((element) => element.open), false);
     await page.getByRole("button", { name: "Home", exact: true }).click();
     await page.waitForURL(origin + "/");

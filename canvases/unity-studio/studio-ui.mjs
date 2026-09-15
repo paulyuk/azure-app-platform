@@ -546,7 +546,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderExistingApps() {
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Guide.</p>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +

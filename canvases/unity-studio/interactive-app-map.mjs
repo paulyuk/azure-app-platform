@@ -430,12 +430,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body {
       display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
     header, main, footer { min-width: 0; }
+    body > header { grid-row: 1; }
+    body > nav { grid-row: 2; }
+    body > main { grid-row: 3; }
+    body > footer { grid-row: 4; }
     header {
       display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
@@ -464,7 +469,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .header-actions { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
     .map-view-bar {
-      display: flex; align-items: center;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface);
     }
     .map-tools { position: relative; }
@@ -515,7 +520,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
     .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
     #entry-filter[hidden] { display: none; }
-    main { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 6px var(--details-width, 380px); }
+    main { position: relative; min-height: 0; display: flex; }
+    #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+    body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-columns: minmax(0, 1fr) 6px var(--details-width, 380px); }
+    #guide-rail { flex: 0 0 280px; width: 280px; padding: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
+    #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
+    #guide-content h3 { margin-top: 14px; }
+    #guide-content .journey { margin: 10px 0; }
+    #guide-content .journey-stage { padding-block: 8px; }
+    #workspace > #details { min-height: 0; }
+    body:not([data-workspace="map"]) #graph-shell,
+    body:not([data-workspace="map"]) #details-resizer,
+    body[data-workspace="map"][data-inspecting="false"] #details,
+    body[data-workspace="map"][data-inspecting="false"] #details-resizer { display: none; }
     #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
     #graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
     #graph.panning { cursor: grabbing; }
@@ -588,13 +607,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     #details-resizer:hover, #details-resizer:focus-visible { background: var(--accent); outline: none; }
     body.resizing-details { cursor: col-resize; user-select: none; }
-    aside { min-width: 0; overflow: auto; background: var(--surface); padding: 16px; }
-    aside h2 { margin: 0 0 4px; font-size: 18px; }
-    aside h3 { margin: 18px 0 6px; font-size: 13px; }
-    aside p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-    aside code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
-    aside ul { margin: 4px 0; padding-left: 18px; }
-    aside li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
+    #details, #guide-rail { min-width: 0; background: var(--surface); }
+    #details { overflow: auto; padding: 16px; }
+    :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 18px; }
+    :is(#details, #guide-rail) h3 { margin: 18px 0 6px; font-size: 13px; }
+    :is(#details, #guide-rail) p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    :is(#details, #guide-rail) code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    :is(#details, #guide-rail) ul { margin: 4px 0; padding-left: 18px; }
+    :is(#details, #guide-rail) li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .command-output[hidden] { display: none; }
     .header-actions [aria-pressed="true"], .map-tools[open] > summary {
@@ -691,10 +711,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 900px) {
-      main { grid-template-columns: minmax(0, 1fr); }
+      body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-columns: minmax(0, 1fr); }
       #details-resizer { display: none; }
-      aside { position: absolute; z-index: 4; right: 0; inset-block: 0; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
-      aside[data-empty="true"] { display: none; }
+      body[data-workspace="map"] #details { position: absolute; z-index: 4; right: 0; inset-block: 0; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
+      #guide-rail { position: absolute; z-index: 5; right: 0; inset-block: 0; width: min(280px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
       .heading p { display: none; }
     }
     @media (max-width: 620px) {
@@ -709,6 +729,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
       .map-tools > summary { justify-content: center; }
+      .map-view-bar .map-tools { width: auto; }
+      .map-view-bar { flex-wrap: wrap; }
       .toolbar { width: calc(100vw - 24px); }
       .map-view-bar { padding-inline: 12px; }
       .map-view-switch { width: 100%; min-width: 0; }
@@ -731,18 +753,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <header>
     <button id="back-apps" class="back-link" type="button">Home</button>
     <div class="heading">
-      <small>App Map</small>
+      <small>App workspace</small>
       <div class="app-title-row">
         <h1 title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
         <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
         <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       </div>
-      <p>See how a request moves through your app.</p>
+      <p>Build your app, run it, and inspect how it works.</p>
     </div>
     <div class="header-actions">
-      <button id="action-center" type="button" aria-pressed="true">Guide</button>
       <button id="build-app" type="button" aria-pressed="false">Build</button>
       <button id="manage-app" type="button" aria-pressed="false">Run &amp; manage</button>
+      <button id="map-app" type="button" aria-pressed="false">Map</button>
+      <button id="action-center" type="button" aria-pressed="true" aria-expanded="true" aria-controls="guide-rail">Guide</button>
+    </div>
+  </header>
+  <nav class="map-view-bar" aria-label="App Map views">
+    <div class="map-view-switch" role="tablist" aria-label="App Map view">
+      <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
+      <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
+    </div>
       <details class="map-tools">
         <summary>Search &amp; layout</summary>
         <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
@@ -757,15 +787,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           <button id="reset-layout" type="button">Reset map</button>
         </div>
       </details>
-    </div>
-  </header>
-  <nav class="map-view-bar" aria-label="App Map views">
-    <div class="map-view-switch" role="tablist" aria-label="App Map view">
-      <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
-      <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
-    </div>
   </nav>
   <main>
+    <section id="workspace" aria-label="App workspace">
     <div id="graph-shell">
       <svg id="graph" role="application" aria-label="Interactive source-derived Unity application graph">
         <defs>
@@ -782,7 +806,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <div id="empty-state">No nodes match the current filters.</div>
     </div>
     <div id="details-resizer" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabindex="0"></div>
-    <aside id="details" aria-live="polite" data-empty="false"></aside>
+    <section id="details" aria-label="Workspace content" aria-live="polite" data-empty="false"></section>
+    </section>
+    <aside id="guide-rail" aria-label="Guide">
+      <div class="guide-heading">
+        <h2>Guide</h2>
+        <button id="collapse-guide" type="button" aria-label="Collapse Guide" title="Collapse Guide">Hide</button>
+      </div>
+      <div id="guide-content"></div>
+    </aside>
   </main>
   <footer>
     <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
@@ -815,6 +847,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const nodesLayer = document.querySelector("#nodes");
     const detailsResizer = document.querySelector("#details-resizer");
     const details = document.querySelector("#details");
+    const workspace = document.querySelector("#workspace");
+    const guideRail = document.querySelector("#guide-rail");
+    const guideContent = document.querySelector("#guide-content");
+    const guidePreferenceKey = "unity-workspace:" + MODEL.root + ":guide-collapsed";
+    const savedGuidePreference = localStorage.getItem(guidePreferenceKey);
+    let guideExplicitChoice = savedGuidePreference !== null;
+    let guideCollapsed = savedGuidePreference === "true" || (savedGuidePreference === null && window.innerWidth <= 900);
     const status = document.querySelector("#status");
     const appStatusBadge = document.querySelector("#app-status-badge");
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
@@ -865,7 +904,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let gatewayApplying = false;
     const autoGatewayAttempts = new Set();
     let layoutMode = "request-flow";
-    let panelMode = "action-center";
+    let panelMode = "build";
     const buildPanel = (${createBuildPanel.toString()})({
       container: details, root: MODEL.root, request: apiRequest,
       isActive: () => panelMode === "build",
@@ -885,6 +924,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let suppressNodeClick = null;
     const ACTIVE_LIFECYCLE_STATES = ["starting", "stopping", "configuring", "provisioning", "deploying"];
     let transform = { x: 0, y: 0, scale: 1 };
+    let mapHasFitted = false;
 
     const maxTierNodes = Math.max(1, ...MODEL.tiers.map((tier) => tier.nodeIds.length));
     let worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
@@ -1041,7 +1081,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function detailsWidthMaximum() {
-      return Math.max(320, Math.min(720, window.innerWidth - 360));
+      return Math.max(320, Math.min(720, workspace.clientWidth - 300));
     }
 
     function setDetailsPanelWidth(value, persist = false) {
@@ -1611,7 +1651,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function appendPanelBack() {
-      const button = actionButton("← Guide", renderActionCenter);
+      const button = panelMode === "manage"
+        ? actionButton("← Run & manage", renderManagePanel)
+        : actionButton("← Back to Map", renderMapPanel);
       button.className = "panel-back";
       details.append(button);
     }
@@ -1638,10 +1680,43 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateModeHighlight() {
-      const searching = document.querySelector(".map-tools").open;
-      document.querySelector("#action-center").setAttribute("aria-pressed", String(!searching && panelMode === "action-center"));
-      document.querySelector("#manage-app").setAttribute("aria-pressed", String(!searching && panelMode === "manage"));
-      document.querySelector("#build-app").setAttribute("aria-pressed", String(!searching && panelMode === "build"));
+      const mode = ["build", "manage"].includes(panelMode) ? panelMode : "map";
+      document.body.dataset.workspace = mode;
+      document.body.dataset.inspecting = String(!["build", "manage", "map"].includes(panelMode));
+      document.querySelector(".map-view-bar").hidden = mode !== "map";
+      if (mode !== "map") document.querySelector(".map-tools").open = false;
+      document.querySelector("#manage-app").setAttribute("aria-pressed", String(mode === "manage"));
+      document.querySelector("#build-app").setAttribute("aria-pressed", String(mode === "build"));
+      document.querySelector("#map-app").setAttribute("aria-pressed", String(mode === "map"));
+      details.setAttribute("aria-label", mode === "map" ? "Map inspector" : mode === "build" ? "Build workspace" : "Run and manage workspace");
+      mapContext.hidden = mode !== "map";
+      if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
+    }
+
+    function setGuideCollapsed(collapsed, persist = false) {
+      guideCollapsed = collapsed;
+      const restoreFocus = collapsed && guideRail.contains(document.activeElement);
+      guideRail.hidden = collapsed;
+      const toggle = document.querySelector("#action-center");
+      toggle.setAttribute("aria-pressed", String(!collapsed));
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.title = collapsed ? "Show Guide" : "Hide Guide";
+      if (restoreFocus) toggle.focus();
+      if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
+      if (persist) {
+        guideExplicitChoice = true;
+        try { localStorage.setItem(guidePreferenceKey, String(collapsed)); }
+        catch (error) { setStatus("Could not remember Guide visibility: " + error.message, true); }
+      }
+    }
+
+    function renderMapPanel() {
+      panelMode = "map";
+      selectedId = null;
+      selectedEdgeId = null;
+      clearElement(details);
+      details.dataset.empty = "true";
+      applySelection();
     }
 
     function renderBuildPanel() {
@@ -1886,18 +1961,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderActionCenter() {
+      const details = guideContent;
       const restoreFocus = details.contains(document.activeElement);
       const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
       const previousScrollTop = details.scrollTop;
-      panelMode = "action-center";
-      document.querySelector(".map-tools").open = false;
-      updateModeHighlight();
-      selectedId = null;
-      selectedEdgeId = null;
-      applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      const heading = appendText(details, "h2", "Guide");
+      const heading = appendText(details, "h3", "Workflow progress");
       heading.tabIndex = -1;
       appendText(details, "p", "Unity checks the app and keeps the next useful action here. Progress updates automatically.");
       if (launchNotice) {
@@ -2139,6 +2209,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderDeleteConfirmation() {
       panelMode = "manage";
+      updateModeHighlight();
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
@@ -2558,7 +2629,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      appendPanelBack();
       appendText(details, "h2", "Run & manage");
       details.dataset.mode = "manage";
       appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
@@ -2825,7 +2895,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         operationalState = { app, readiness };
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
-        if (changed && panelMode === "action-center") renderActionCenter();
+        if (changed) renderActionCenter();
         if (changed && panelMode === "manage") renderManagePanel();
       } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
@@ -2833,7 +2903,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         operationalState = { app: null, readiness: null };
         runtimeEntrypoints = [];
         updateAppStatusBadge();
-        if (changed && panelMode === "action-center") renderActionCenter();
+        if (changed) renderActionCenter();
         if (changed && panelMode === "manage") renderManagePanel();
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }
@@ -3193,6 +3263,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderDetails(node) {
       panelMode = "node";
+      updateModeHighlight();
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
@@ -3268,6 +3339,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderEdgeDetails(edge) {
       panelMode = "edge";
+      updateModeHighlight();
       clearElement(details);
       details.dataset.empty = "false";
       appendPanelBack();
@@ -3301,7 +3373,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function selectNode(nodeId) {
       if (selectedId === nodeId) {
-        renderActionCenter();
+        renderMapPanel();
         setStatus("Card focus cleared.");
         return;
       }
@@ -3317,7 +3389,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const edge = MODEL.edges.find((candidate) => candidate.id === edgeId);
       if (!edge) return;
       if (selectedEdgeId === edgeId) {
-        renderActionCenter();
+        renderMapPanel();
         setStatus("Connection focus cleared.");
         return;
       }
@@ -3399,6 +3471,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function fitGraph(minimumScale = .18) {
       const bounds = svg.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      mapHasFitted = true;
       const content = contentBounds();
       const padding = 28;
       const fittedScale = Math.min(1.25, Math.max(.18, Math.min(
@@ -3457,7 +3531,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     detailsResizer.addEventListener("pointermove", (event) => {
       if (detailsResizeState?.pointerId !== event.pointerId) return;
-      setDetailsPanelWidth(window.innerWidth - event.clientX);
+      setDetailsPanelWidth(workspace.getBoundingClientRect().right - event.clientX);
     });
     const finishDetailsResize = (event) => {
       if (detailsResizeState?.pointerId !== event.pointerId) return;
@@ -3477,6 +3551,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       setDetailsPanelWidth(nextWidth, true);
     });
     window.addEventListener("resize", () => {
+      if (!guideExplicitChoice) setGuideCollapsed(window.innerWidth <= 900);
       if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
     });
 
@@ -3527,7 +3602,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         panState = null;
         svg.classList.remove("panning");
         if (clearFocus) {
-          renderActionCenter();
+          renderMapPanel();
           setStatus("Card focus cleared.");
         }
       }
@@ -3541,7 +3616,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
-    document.querySelector("#action-center").addEventListener("click", renderActionCenter);
+    document.querySelector("#action-center").addEventListener("click", () => setGuideCollapsed(!guideCollapsed, true));
+    document.querySelector("#collapse-guide").addEventListener("click", () => setGuideCollapsed(true, true));
+    document.querySelector("#map-app").addEventListener("click", renderMapPanel);
     document.querySelector("#build-app").addEventListener("click", renderBuildPanel);
     document.querySelector("#manage-app").addEventListener("click", () => {
       document.querySelector(".map-tools").open = false;
@@ -3606,7 +3683,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      renderActionCenter();
+      if (document.querySelector(".map-tools").open) {
+        document.querySelector(".map-tools").open = false;
+        document.querySelector(".map-tools > summary").focus();
+      } else if (guideRail.contains(document.activeElement)) {
+        setGuideCollapsed(true, true);
+      } else if (document.body.dataset.workspace === "map" && panelMode !== "map") {
+        renderMapPanel();
+        document.querySelector("#map-app").focus();
+      }
     });
 
     renderEdges();
@@ -3620,8 +3705,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       entryFilter.append(option);
     }
     applyLayout("request-flow", false);
+    setGuideCollapsed(guideCollapsed);
     renderActionCenter();
-    requestAnimationFrame(() => fitGraph(.48));
+    renderBuildPanel();
     void refreshOperationalState();
     setInterval(() => { void refreshOperationalState(); }, 2000);
     setInterval(() => { void refreshRunOutput(); }, 1000);
