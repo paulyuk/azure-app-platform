@@ -30,6 +30,13 @@ the applicant's claims as verified facts.
   workspace. Guide is an optional getting-started rail with progress and next
   actions; Fluent-style panel icons collapse/expand it without losing drafts.
 
+### Create: choose the Minimal template and describe the app
+
+This is the actual creation form; entering these requirements does not deploy
+Azure resources.
+
+![Minimal Sandbox and Gateway template selected with loan-document requirements](../images/unity-studio-preview/template.png)
+
 ### Build, with Guide alongside
 
 Key files and the path into VS Code stay central; the getting-started workflow
@@ -37,28 +44,21 @@ stays on the right.
 
 ![Build workspace with editable agent instructions, document validation tool, Edit in Code actions, and collapsible Guide](../images/unity-studio-preview/build-guide.png)
 
-### Choose the Minimal template and describe the app
-
-This is the actual creation form; entering these requirements does not deploy
-Azure resources.
-
-![Minimal Sandbox and Gateway template selected with loan-document requirements](../images/unity-studio-preview/template.png)
-
-### Run locally and see what happened
+### Run/Debug: run locally and see what happened
 
 Readiness, model connection, local ports, and real startup output are visible
 without keeping a map beside them.
 
 ![Full-width Run/Debug workspace showing a running local agent, port controls, and startup logs](../images/unity-studio-preview/run-runtime.png)
 
-### Send a prompt with an untrusted document
+#### Send a prompt with an untrusted document
 
 The bundled fictional loan application produced a real model response through
 AI Gateway. The response separates applicant claims from missing information.
 
 ![Document input beside the agent prompt with the actual loan-application summary](../images/unity-studio-preview/document-input.png)
 
-### Inspect the processed document
+#### Inspect the processed document
 
 This run redacted the supported email, phone, and SSN patterns. The label applies
 only to the checked, sanitized result, not identity, income, creditworthiness,

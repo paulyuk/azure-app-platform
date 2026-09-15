@@ -9,7 +9,10 @@ test("Studio preview uses locally readable screenshots and current workspace lab
   assert.match(markdown, /Observe\/Map/);
   assert.doesNotMatch(markdown, /<details|<summary|Run & manage/);
   const images = [...markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)];
-  assert.equal(images.length, 6);
+  assert.deepEqual(images.map(([, path]) => path.split("/").at(-1)), [
+    "template.png", "build-guide.png", "run-runtime.png",
+    "document-input.png", "document-output.png", "map.png",
+  ]);
   for (const [, path] of images) {
     assert.match(path, /^\.\.\/images\/unity-studio-preview\/[\w-]+\.png$/);
     const image = await readFile(new URL(path, preview));
