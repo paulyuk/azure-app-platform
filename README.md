@@ -29,6 +29,9 @@ for the complete file tree, editable files, token conventions, and generation
 contract. The [template source](canvases/unity-studio/templates/sandbox-gateway-minimal)
 is separate from the Dealer demo in this repository's `src/`.
 
+See the [finished docagent sample](canvases/unity-studio/samples/README.md) for
+the concrete application output, with local credentials and runtime state excluded.
+
 ## Try it
 
 PR #6 shipped the full POC — the web chat, the `deal-finder` Foundry Hosted
@@ -54,6 +57,12 @@ Find me an EV under $40,000 with at least 250 miles of range
 
 The badge in the header tells you the truth about which agent answered —
 green **"● Live agent"** or amber **"⚠ Mock agent"** — never a guess.
+
+When Unity Studio creates a Dealer workspace, use the repository-level
+`scripts/dev-start.*` launcher instead. Studio saves collision-free ports in
+`.unity-studio/ports.env`; the launcher reads that file as data and prints the
+actual web, agent, skill, and Azurite endpoints. `3000` is only the fallback
+when no saved or environment override exists.
 
 To run against the real `deal-finder` agent and AI Gateway (both terminals,
 plus `azd` provisioning), see [`src/README.md`](src/README.md) for the full

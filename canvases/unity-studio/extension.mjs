@@ -47,7 +47,7 @@ import { assessDocumentResult } from "./document-assessment.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
-  pickAvailablePorts, readPortSettings, stopReviewedPortProcesses,
+  pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
 import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
 import {
@@ -1260,15 +1260,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         if (!await readAppRuntimeProfile(root)) throw new Error("This app needs a persisted runtime profile before its ports can be reassigned.");
         const settings = await pickAvailablePorts(root, await runtimePortCandidates(root), async () => {
           const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
-          const reserved = new Set();
-          for (const app of catalog.apps.filter((app) => app.path !== root)) {
-            const profile = await readAppRuntimeProfile(app.path);
-            for (const port of profile ? [
-              ...(profile.reservedPorts ?? []),
-              ...(profile.entrypoints ?? []).map((entry) => entry.port),
-            ] : [3000, 8088, 7071, 7072, 7073, 7074, 10000, 10001, 10002]) reserved.add(Number(port));
-          }
-          return reserved;
+          return reservedPortsForApps(catalog.apps.map((app) => app.path), root);
         });
         portStopReviews.delete(root);
         appStates.delete(root);

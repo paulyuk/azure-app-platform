@@ -22,6 +22,7 @@ Hosted Skills are referenced by contract/name only here; implementation lives un
 ## Files
 
 - `main.py` - agent entrypoint + gateway/toolbox wiring + `MOCK=1` offline mode
+- `local_ports.py` - validated local agent/MCP port overrides used by Studio
 - `agent.yaml` - Hosted Agent manifest (`kind: hosted`, responses protocol)
 - `azure.yaml` - azd service definition for Foundry-hosted deployment
 - `.env.example` - local configuration template
@@ -62,20 +63,24 @@ curl -sS -X POST http://127.0.0.1:8088/responses \
   | jq -r '.output[] | select(.type=="message") | .content[0].text'
 ```
 
-Model calls always go to the real AI Gateway. **Tool calls also always work**:
+The server uses port `8088` by default and honors `AGENT_PORT`. Model calls
+always go to the real AI Gateway. **Tool calls also always work**:
 if `TOOLBOX_ENDPOINT` is set (a real Foundry Toolbox has been provisioned and
 registered — see `src/skills/README.md`), the agent uses it; otherwise it
 connects to the four Hosted Skills over real MCP at `http://localhost:707{1..4}`
 (see `src/skills/README.md` "Run the Hosted Skills locally" — start each with
-`func start` first). No extra environment switches needed once the skills are
-running. See the repository-root `TESTING.md` for the verified response and
-all PR test paths.
+`func start` first). `INVENTORY_SEARCH_PORT`, `TRADE_IN_VALUE_PORT`,
+`RATE_SHEET_PORT`, and `DEAL_DOC_PORT` override those defaults. The
+repository-level launchers set all five values from
+`.unity-studio/ports.env`, so no manual wiring is needed. See the
+repository-root `TESTING.md` for the verified response and all PR test paths.
 
 ## Manual local configuration
 
 To use a separately provisioned Gateway, copy `.env.example` to `.env` and
 replace the placeholders. By default, `uv run main.py` starts the Responses
-host server on port 8088.
+host server on port 8088; `AGENT_PORT` selects another local port without
+overriding the hosted runtime's standard `PORT` setting.
 
 ## Offline demo rehearsal (`MOCK=1`)
 

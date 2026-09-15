@@ -143,8 +143,10 @@ universal trust, verified identity or income, creditworthiness, loan approval,
 or proof of isolation. Changing input, starting another check, or opening Build
 clears them; pending and rejected results never receive them.
 
-Under **Run/Debug → Local ports**, **Pick available ports** writes the
-reviewed assignment to `.unity-studio/ports.env`. Startup, readiness, endpoint
+Studio assigns unused ports during new-app creation and saves them in
+`.unity-studio/ports.env`, avoiding live listeners and sibling apps' saved ports.
+Under **Run/Debug → Local ports**, **Pick available ports** can change that
+assignment while the app is stopped. Startup, readiness, endpoint
 links, and CLI requests use that same value; `8088` is only the default when no
 saved or explicit `AGENT_PORT` exists. **Stop apps using these ports** requires
 review of the exact listener processes before confirmation.

@@ -50,13 +50,18 @@ Azure deployment, and deletion. Map inspection opens a separate resizable
 details panel; **Back to Observe/Map** dismisses it without changing Guide.
 Live stdout/stderr, component readiness,
 endpoint buttons, and **Invoke agent** are expanded in the run loop.
+New Minimal, Empty, and Dealer apps automatically receive available ports during
+creation, before the child session or VS Code opens. The allocator excludes live
+listeners and saved assignments in sibling worktrees, then persists the new app's
+`.unity-studio/ports.env`. It does not stop or reassign existing apps.
+
 **Local ports** provides **Pick available ports** while the app is stopped.
 It checks live IPv4/IPv6 listeners and other discovered apps' assignments, then
 saves `.unity-studio/ports.env`. Run, readiness, endpoint links, and both
 POSIX/PowerShell startup scripts use those same assignments. This is supported
-by the Empty Unity app and Sandbox & Gateway templates; older or custom scripts
-must implement the port-loading contract first. Ports are not permanently
-reserved: startup still checks for conflicts.
+by the Empty Unity app, Sandbox & Gateway template, and materialized Dealer
+sample; older or custom scripts must implement the port-loading contract first.
+Ports are not permanently reserved: startup still checks for conflicts.
 **Stop apps using these ports** reviews listener PIDs, executables, and ports
 before **Confirm stop**. Only the selected app's port owners and their children
 are targeted, including known launchers from other workspaces. This is not a
@@ -163,6 +168,11 @@ worktree's listeners for its own services.
 For the Minimal template's complete file tree, token conventions, and generation
 contract, see the [maintainer guide](MINIMAL-TEMPLATE.md).
 
+For a finished output to compare with the template, see
+[`samples/docagent/`](samples/docagent/README.md). The peer
+[`samples/`](samples/README.md) directory contains a source-only snapshot of
+the completed loan-document app, not another template.
+
 - **Empty Unity app** is a versioned local template with web, agent, gateway,
   editable domain configuration, editable agent instructions, and exactly one
   intentionally empty Hosted Skill. It includes whole-app `dev-start` and
@@ -185,6 +195,11 @@ contract, see the [maintainer guide](MINIMAL-TEMPLATE.md).
   Studio selects the newest eligible pinned commit containing the web app,
   agent manifest, and whole-app lifecycle scripts, then extracts that entire
   commit into the destination instead of copying scanner matches piecemeal. Its
+  archived lifecycle scripts and agent port wiring are upgraded from packaged,
+  version-checked Dealer assets before port allocation, so older pinned samples
+  receive the same local-port behavior without regenerating the application.
+  Unsupported source layouts fail with a descriptive compatibility error.
+  Its
   credential-free experience starts with
   `./scripts/dev-start.sh --skip-skills --skip-agent`; the full stack uses
   `./scripts/dev-start.sh` after worktree-local Azure settings are supplied.
@@ -194,6 +209,12 @@ model is not allowed to synthesize or manually copy them. New template worktrees
 use `git worktree add --no-checkout`, so local templates start with only their own
 files rather than an overlay on the Dealer app. Templates include their own
 ignore rules for credentials, dependencies, and local runtime state.
+For a complete Dealer sample, materialization copies the pinned archive, calls
+`materializePortLoaders(destination)`, then calls
+`prepareDealerPortOverrides(destination)` from
+`dealer-port-materializer.mjs` before allocating ports. The helper validates
+the known Dealer layout before replacing lifecycle scripts or adapting the
+agent, so an unsupported pinned version is never partially upgraded.
 Generation checks the Sandbox & Gateway catalog's full required-file list.
 Scenario docs live inside the template as the single source of truth, and their
 source links are rewritten to rendered files during materialization.

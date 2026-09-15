@@ -139,6 +139,10 @@ document validation tool, contract, policy, and runtime settings. **Edit in Code
 require review and a stopped app. Developer editing does not give the running
 model permission to modify code or policy.
 
+New apps created in Studio automatically receive available ports before their
+workspace opens. Allocation avoids live listeners and other apps' saved
+assignments without stopping or reassigning those apps.
+
 Under **Run/Debug → Local ports**, choose **Pick available ports** while the
 app is stopped. Studio saves the reviewed assignment in
 `.unity-studio/ports.env`; the start/stop scripts, readiness checks, endpoint

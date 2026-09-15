@@ -1,11 +1,13 @@
 import { basename } from "node:path";
+import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
-import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
+import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
+import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
 
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
@@ -572,6 +574,16 @@ function appSlug(appName) {
   return appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
+async function writeAppIdentity(path, identity) {
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    await rename(temporary, path);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
 async function createTemplateWorkspace({
   session,
   workspaceRoot,
@@ -580,7 +592,7 @@ async function createTemplateWorkspace({
   commandRunner,
 }) {
   const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
-  const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}`;
+  const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
   const worktree = await commandRunner("git", [
     "-C",
     workspaceRoot,
@@ -604,6 +616,22 @@ async function createTemplateWorkspace({
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
     await mkdir(join(destination, ".unity-studio"), { recursive: true });
+    const identity = {
+      name: request.appName,
+      purpose: request.purpose,
+      managedBranch: branch,
+      childSessionId: null,
+      runtime: request.sourcePlan[0]?.startup ?? null,
+    };
+    const identityPath = join(destination, ".unity-studio", "app.json");
+    await writeAppIdentity(identityPath, identity);
+    const portSettings = await pickAvailablePorts(destination, identity.runtime?.entrypoints ?? [], async () => {
+      const listed = await commandRunner("git", ["-C", workspaceRoot, "worktree", "list", "--porcelain"]);
+      if (!listed.ok) {
+        throw new Error(`Could not inspect existing app port assignments: ${listed.stderr || listed.error || "unknown error"}`);
+      }
+      return reservedPortsForApps([workspaceRoot, ...parseWorktrees(listed.stdout).map((tree) => tree.path)], destination);
+    });
     let opened = null;
     if (session?.rpc?.sessions?.open) {
       opened = await session.rpc.sessions.open({
@@ -619,17 +647,8 @@ async function createTemplateWorkspace({
         throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
       }
     }
-    await writeFile(
-      join(destination, ".unity-studio", "app.json"),
-      `${JSON.stringify({
-        name: request.appName,
-        purpose: request.purpose,
-        managedBranch: branch,
-        childSessionId: opened?.sessionId ?? null,
-        runtime: request.sourcePlan[0]?.startup ?? null,
-      }, null, 2)}\n`,
-      { mode: 0o600 },
-    );
+    identity.childSessionId = opened?.sessionId ?? null;
+    await writeAppIdentity(identityPath, identity);
 
     let editor = null;
     let editorWarning = null;
@@ -654,6 +673,7 @@ async function createTemplateWorkspace({
         starterKind: request.starterKind,
         sourcePlan: request.sourcePlan,
         materialized,
+        portSettings,
       },
       specialistCanvases: specialistCanvases(request.tierIds),
       openInVsCode: request.openInVsCode,

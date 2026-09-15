@@ -5,6 +5,7 @@ import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
 
 const execFileAsync = promisify(execFile);
 const EMPTY_TEMPLATE_ID = "builtin-empty-unity-v1";
@@ -178,6 +179,8 @@ async function materializeSample(plan, destination, commandRunner) {
     const sampleEntries = await readdir(extracted);
     await Promise.all(sampleEntries.map((entry) =>
       cp(join(extracted, entry), join(destination, entry), { recursive: true, force: true })));
+    await materializePortLoaders(destination);
+    await prepareDealerPortOverrides(destination);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

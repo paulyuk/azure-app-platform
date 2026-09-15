@@ -5,6 +5,10 @@ The [template source](templates/sandbox-gateway-minimal/) produces a standalone,
 headless app, not an overlay on the Dealer demo in the repository's `src/`.
 There is no web app or Hosted Skills runtime in this template.
 
+For concrete finished output, browse the [docagent sample](samples/docagent/README.md).
+The peer [samples directory](samples/README.md) explains its origin and what
+local state was excluded.
+
 The flow is **message + untrusted document -> agent harness -> document
 validation tool -> checked sanitized result -> model through AI Gateway**.
 The loan application is a worked scenario, not a required app identity.
@@ -116,6 +120,12 @@ payload. The selected port overrides the default `8088`. Changing the template
 does not migrate existing apps or overwrite their instructions and credentials.
 Studio's Build and document-test paths also support the older
 `src/sandbox/tool/` layout.
+
+Studio allocates unused ports during template-workspace creation, before
+opening the child session or VS Code. It saves `.unity-studio/ports.env` using
+the same allocator as **Pick available ports**, checking live listeners and
+persisted sibling-worktree reservations. This applies to Minimal, Empty, and
+Dealer templates. A direct materializer invocation does not allocate ports.
 
 ## Changing the template
 

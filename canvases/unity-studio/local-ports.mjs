@@ -1,11 +1,23 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { runCommand } from "./discovery.mjs";
 import { readProcessRegistry } from "./runtime-state.mjs";
 
-const VARIABLES = { agent: "AGENT_PORT", web: "WEB_PORT", skill: "SKILL_PORT" };
+const VARIABLES = {
+  agent: "AGENT_PORT", web: "WEB_PORT", skill: "SKILL_PORT",
+  "inventory-search": "INVENTORY_SEARCH_PORT", "trade-in-value": "TRADE_IN_VALUE_PORT",
+  "rate-sheet": "RATE_SHEET_PORT", "deal-doc": "DEAL_DOC_PORT",
+  azurite: "AZURITE_BLOB_PORT", "azurite-queue": "AZURITE_QUEUE_PORT", "azurite-table": "AZURITE_TABLE_PORT",
+};
+const SETTING_PATTERN = new RegExp(`^(${Object.values(VARIABLES).join("|")})=([0-9]{4,5})$`);
+const LEGACY_PROFILE = {
+  entrypoints: Object.entries({
+    web: 3000, agent: 8088, "inventory-search": 7071, "trade-in-value": 7072,
+    "rate-sheet": 7073, "deal-doc": 7074, azurite: 10000, "azurite-queue": 10001, "azurite-table": 10002,
+  }).map(([name, port]) => ({ name, port })),
+};
 let allocationQueue = Promise.resolve();
 
 export function parsePortSettings(text) {
@@ -13,10 +25,10 @@ export function parsePortSettings(text) {
   const settings = {};
   const ports = new Set();
   for (const line of text.split(/\r?\n/).filter((line) => line.trim())) {
-    const match = /^(AGENT_PORT|WEB_PORT|SKILL_PORT)=([0-9]{4,5})$/.exec(line);
+    const match = SETTING_PATTERN.exec(line);
     const port = Number(match?.[2]);
     if (!match || port < 1024 || port > 65535 || settings[match[1]] || ports.has(port)) {
-      throw new Error("Port settings must contain unique AGENT_PORT, WEB_PORT, or SKILL_PORT values from 1024 to 65535.");
+      throw new Error("Port settings must contain unique supported port variables with values from 1024 to 65535.");
     }
     settings[match[1]] = port;
     ports.add(port);
@@ -40,6 +52,35 @@ export function applyPortSettings(profile, settings) {
     startEntrypoints: remap(profile.startEntrypoints),
     reservedPorts: profile.reservedPorts?.map((port) => replacements.get(Number(port)) ?? port),
   };
+}
+
+export async function reservedPortsForApps(roots, excludedRoot) {
+  const reserved = new Set();
+  for (const root of new Set(roots.map((path) => resolve(path)))) {
+    if (root === resolve(excludedRoot)) continue;
+    let identity = null;
+    try { identity = JSON.parse(await readFile(join(root, ".unity-studio/app.json"), "utf8")); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (!identity) {
+      const scripts = await Promise.all(["dev-start.sh", "dev-start.ps1"].map(async (name) => {
+        try { return (await stat(join(root, "scripts", name))).isFile(); }
+        catch (error) { if (error.code === "ENOENT") return false; throw error; }
+      }));
+      if (!scripts.some(Boolean)) continue;
+    }
+    const settings = await readPortSettings(root);
+    const profile = applyPortSettings(identity?.runtime ?? LEGACY_PROFILE, settings);
+    for (const port of [
+      ...(profile.reservedPorts ?? []), ...(profile.entrypoints ?? []).map((entry) => entry.port),
+      ...Object.values(settings),
+    ]) {
+      if (!Number.isInteger(Number(port)) || Number(port) < 1024 || Number(port) > 65535) {
+        throw new Error(`Invalid saved port in ${root}; repair its runtime configuration before assigning new ports.`);
+      }
+      reserved.add(Number(port));
+    }
+  }
+  return reserved;
 }
 
 export async function portOverrideSupport(root, entries) {
@@ -95,6 +136,15 @@ export function pickAvailablePorts(root, entries, reserved = new Set()) {
           const release = await holdPort(port);
           if (!release) continue;
           held.push(release);
+          if (typeof reserved === "function") {
+            const latest = new Set(await reserved());
+            for (const saved of latest) used.add(saved);
+            if (latest.has(port)) {
+              await release();
+              held.pop();
+              continue;
+            }
+          }
           used.add(port);
           settings[VARIABLES[entry.name]] = port;
           selected = true;

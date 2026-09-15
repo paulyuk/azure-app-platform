@@ -5,6 +5,8 @@ PR [#15](https://github.com/coreai-microsoft/unity/pull/15) brings these togethe
 around a simple scenario: process an untrusted loan application without treating
 the applicant's claims as verified facts.
 
+[Watch the animated tour](../images/unity-studio-preview/slideshow.gif) (3 seconds per screen).
+
 ## What's new
 
 - **New template: Sandbox & Gateway (Minimal).** A headless starting point with
@@ -24,7 +26,7 @@ the applicant's claims as verified facts.
   are visible as editable files. **Edit in Code** opens the worktree and the
   selected file in VS Code for deeper changes.
 - **Run/Debug makes the result visible.** Start/stop controls, readiness,
-  available-port selection, live command output, endpoint status, agent responses,
+  automatic available-port assignment for new apps, live command output, endpoint status, agent responses,
   and document-check results are in one workspace.
 - **Full canvas for Build, Run/Debug, and Observe/Map.** Each task gets the main
   workspace. Guide is an optional getting-started rail with progress and next

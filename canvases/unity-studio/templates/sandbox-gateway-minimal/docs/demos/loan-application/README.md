@@ -21,10 +21,10 @@ physical folder and runtime mapping.
    folder layout above; existing generated apps keep their old paths until
    deliberately migrated.
 2. Open **Run/Debug**, connect or confirm an existing AI Gateway and model,
-   and use **Pick available ports** while the app is stopped. Studio saves the
-   reviewed value in `.unity-studio/ports.env`; `8088` is only the fallback
-   default. If the chosen port is occupied, use **Stop apps using these ports**
-   to review the exact listeners before **Confirm stop**.
+   and review the automatically assigned port. Studio chooses an available port
+   during creation and saves it in `.unity-studio/ports.env`, without stopping
+   another app. For an older app or a later conflict, **Pick available ports**
+   can reassign ports while this app is stopped; `8088` is only the fallback.
 3. Select **Run app**, wait for the loan agent harness endpoint to become
    healthy, and inspect the visible startup logs.
 4. In the shared **Message** and **Document** input, attach a `.txt`/`.md` file

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview,
-  parsePortSettings, pickAvailablePorts, readPortSettings, stopReviewedPortProcesses,
+  parsePortSettings, pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
 import { materializePortLoaders } from "./template-materializer.mjs";
 import { runCommand } from "./discovery.mjs";
@@ -19,7 +19,10 @@ async function fixture(t) {
   await mkdir(join(root, "scripts"));
   await materializePortLoaders(root);
   for (const file of ["dev-start.sh", "dev-start.ps1"]) {
-    await writeFile(join(root, "scripts", file), "AGENT_PORT WEB_PORT SKILL_PORT load-ports.sh load-ports.ps1");
+    await writeFile(join(root, "scripts", file), [
+      "AGENT_PORT WEB_PORT SKILL_PORT INVENTORY_SEARCH_PORT TRADE_IN_VALUE_PORT RATE_SHEET_PORT DEAL_DOC_PORT",
+      "AZURITE_BLOB_PORT AZURITE_QUEUE_PORT AZURITE_TABLE_PORT load-ports.sh load-ports.ps1",
+    ].join(" "));
   }
   return root;
 }
@@ -38,6 +41,9 @@ test("settings reject executable content, duplicate ports, invalid ranges and ov
     "AGENT_PORT=8088\nWEB_PORT=8088", "AGENT_PORT=8088\nAGENT_PORT=8089", " ".repeat(4097)]) {
     assert.throws(() => parsePortSettings(text), /Port settings/);
   }
+  assert.deepEqual(parsePortSettings("INVENTORY_SEARCH_PORT=7100\nAZURITE_BLOB_PORT=10100\n"), {
+    INVENTORY_SEARCH_PORT: 7100, AZURITE_BLOB_PORT: 10100,
+  });
 });
 
 test("profile mapping preserves metadata and remaps every runtime surface", () => {
@@ -78,20 +84,49 @@ test("POSIX and PowerShell load saved settings as data and reject invalid input"
   const root = await fixture(t);
   await mkdir(join(root, ".unity-studio"));
   const path = join(root, ".unity-studio/ports.env");
-  await writeFile(path, "AGENT_PORT=8095\nWEB_PORT=3015\n");
-  const sh = ["-c", '. "$1/scripts/load-ports.sh"; load_unity_ports "$1" || exit; printf "%s:%s" "$AGENT_PORT" "$WEB_PORT"', "ports", root];
+  await writeFile(path, "AGENT_PORT=8095\nWEB_PORT=3015\nINVENTORY_SEARCH_PORT=7101\nAZURITE_BLOB_PORT=10101\n");
+  const sh = ["-c", '. "$1/scripts/load-ports.sh"; load_unity_ports "$1" || exit; printf "%s:%s:%s:%s" "$AGENT_PORT" "$WEB_PORT" "$INVENTORY_SEARCH_PORT" "$AZURITE_BLOB_PORT"', "ports", root];
   const ps = ["-NoProfile", "-NonInteractive", "-Command",
-    `. '${root}/scripts/load-ports.ps1'; Import-UnityPorts '${root}'; Write-Output "$env:AGENT_PORT\`:$env:WEB_PORT"`];
+    `. '${root}/scripts/load-ports.ps1'; Import-UnityPorts '${root}'; Write-Output "$env:AGENT_PORT\`:$env:WEB_PORT\`:$env:INVENTORY_SEARCH_PORT\`:$env:AZURITE_BLOB_PORT"`];
   for (const [command, args] of [["bash", sh], ["pwsh", ps]]) {
     const result = await runCommand(command, args);
     assert.equal(result.ok, true, result.stderr || result.error);
-    assert.equal(result.stdout, "8095:3015");
+    assert.equal(result.stdout, "8095:3015:7101:10101");
   }
   await writeFile(path, "AGENT_PORT=$(touch /tmp/not-executed)\n");
   for (const [command, args] of [["bash", sh], ["pwsh", ps]]) {
     const result = await runCommand(command, args);
     assert.equal(result.ok, false);
   }
+});
+
+test("saved sibling reservations override defaults without changing the older app", async (t) => {
+  const root = await fixture(t);
+  const other = await fixture(t);
+  await mkdir(join(other, ".unity-studio"));
+  await writeFile(join(other, ".unity-studio/app.json"), JSON.stringify({
+    runtime: { entrypoints: [{ name: "agent", port: 8088 }], reservedPorts: [8088] },
+  }));
+  await writeFile(join(other, ".unity-studio/ports.env"), "AGENT_PORT=8199\n");
+  assert.deepEqual(await reservedPortsForApps([root, other], root), new Set([8199]));
+  assert.equal(await readFile(join(other, ".unity-studio/ports.env"), "utf8"), "AGENT_PORT=8199\n");
+  await writeFile(join(other, ".unity-studio/ports.env"), "AGENT_PORT=invalid\n");
+  await assert.rejects(reservedPortsForApps([root, other], root), /Port settings/);
+});
+
+test("allocation rechecks saved reservations after holding a candidate port", async (t) => {
+  const root = await fixture(t);
+  const probe = createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  let reads = 0;
+  const settings = await pickAvailablePorts(root, [{ name: "agent", port }], async () => {
+    reads += 1;
+    return reads === 1 ? new Set() : new Set([port]);
+  });
+  assert.ok(reads >= 2);
+  assert.notEqual(settings.AGENT_PORT, port);
 });
 
 test("review protects host ancestors and identifies managed launcher trees", () => {

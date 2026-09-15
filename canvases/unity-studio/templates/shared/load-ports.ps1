@@ -5,7 +5,7 @@ function Import-UnityPorts([string] $AppRoot) {
   $Used = @{}
   foreach ($Line in Get-Content $Path) {
     if ([string]::IsNullOrWhiteSpace($Line)) { continue }
-    if ($Line -cnotmatch '^(AGENT_PORT|WEB_PORT|SKILL_PORT)=([0-9]{4,5})$') {
+    if ($Line -cnotmatch '^(AGENT_PORT|WEB_PORT|SKILL_PORT|INVENTORY_SEARCH_PORT|TRADE_IN_VALUE_PORT|RATE_SHEET_PORT|DEAL_DOC_PORT|AZURITE_BLOB_PORT|AZURITE_QUEUE_PORT|AZURITE_TABLE_PORT)=([0-9]{4,5})$') {
       throw "Invalid port settings in .unity-studio/ports.env"
     }
     $Name = $Matches[1]
