@@ -5,7 +5,12 @@ PR [#15](https://github.com/coreai-microsoft/unity/pull/15) brings these togethe
 around a simple scenario: process an untrusted loan application without treating
 the applicant's claims as verified facts.
 
-[Watch the animated tour](../images/unity-studio-preview/slideshow.gif) (3 seconds per screen).
+**Sharing in Teams:** [Watch the 1080p video](../images/unity-studio-preview/teams-tour.mp4)
+or use the [square, captioned GIF](../images/unity-studio-preview/teams-tour.gif).
+Both use cropped details, large captions, and 4-6 second holds (36 seconds total).
+Open the video in a larger player to read the UI; inline preview sizes vary.
+The [original full-screen slideshow](../images/unity-studio-preview/slideshow.gif)
+is also available (3 seconds per screen).
 
 ## What's new
 
