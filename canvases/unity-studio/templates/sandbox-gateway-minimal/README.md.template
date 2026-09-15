@@ -273,6 +273,13 @@ Stop the local agent harness:
 .\scripts\dev-stop.ps1
 ```
 
+The launchers record each process ID together with its OS-reported start
+identity. The stop scripts terminate only an exact identity match and protect
+the current shell and its ancestors. If identity is missing or termination
+cannot be confirmed, `.dev-run` is preserved, the stop command returns
+nonzero, and the next start aborts instead of overwriting ownership. Follow the
+reported remediation, then rerun the stop command before starting again.
+
 ## Optional Copilot SDK and tool sandboxes
 
 Follow the first-party Azure Container Apps custom-container session guidance:

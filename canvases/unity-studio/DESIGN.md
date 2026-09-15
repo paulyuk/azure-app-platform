@@ -197,26 +197,82 @@ the repository or subscription.
 
 ### Workspace and Guide
 
-The app interface has three main views: Build, Run/Debug, and Observe/Map. Build is
-the initial view. Build and Run use the main content region; the graph and its
+The app interface has three main buttons: Build, Run & Debug, and Observe.
+Build introduces **App structure** before the source editors. Its **Edit on
+App Map** action opens the existing map with brief, dismissible guidance and
+highlights on the stage add/connect controls; it does not create a second
+editor or perform a mutation. Guide's Build stage uses the same entry point.
+Connect preserves source-backed review, with an entry point to edit on the map.
+Leaving the map, opening an inspector, or dismissing the guidance removes the
+highlight. Inline Build drafts remain intact across these transitions.
+They share one compact top bar with Unity/home navigation, app identity,
+runtime status and start/stop, Docs, and appearance. There is no separate
+workspace header row at full width. Explicit grid areas keep Docs and appearance
+at the top right. At 960px and below, workspace buttons move together to row two.
+At 680px and below, app identity and runtime controls move to row three, leaving
+the utilities on row one. App names truncate; controls never wrap independently.
+Observe has App Map and Logs views, with the last-used view retained during
+the current visit. Main buttons have a filled selected state, not tab
+underlines; they do not claim readiness or successful execution. Every
+workspace remains accessible before the app runs. Observe's two subordinate
+tabs form a compact, outlined view switcher with map/log icons and a filled
+selected state. They retain selected state, roving focus, and labeled tabpanel relationships.
+Arrow keys, Home, and End move their focus without activation; Enter or Space
+opens the focused view.
+Build is the initial view. Build, Run, and Logs use the main content region; the graph and its
 view/search controls are visible only in Map. Map details are a contextual
 inspector, not the container for every app workflow.
+The inspector opens below the map, never as another right-hand rail. Its
+horizontal divider supports pointer and keyboard resizing, with a separately
+persisted height bounded by the available workspace. Closing restores focus to
+the selected map item. Build, Run, and Logs remain full-height workspaces.
+Map search, filters, other-resource visibility, and reset share a top-right
+floating palette, following the Logic Apps designer reference. Zoom and fit
+are directly accessible; search/layout options open downward.
+The options scroll within the map's available height; wheel input over them
+does not zoom the graph.
 
 Guide is a separate 280px right rail with evidence-derived progress and next
 actions. It updates on readiness changes without switching the main view,
-clearing map selection, or replacing Build/Run inputs. Its toggle and collapse
-button are keyboard accessible and return focus to the toggle when closing.
-Collapsed Guide consumes no workspace width. Narrow screens use an overlay,
-collapsed by default unless the user has chosen otherwise.
+clearing map selection, or replacing Build/Run inputs. Its single toggle lives
+inside the rail, not in the workspace navigation, and retains focus when closing.
+Collapsed Guide occupies 46px and shows stable stage icons with non-color state
+symbols and descriptive tooltips/accessibility labels. Clicking a stage expands
+Guide and focuses its explanation without changing the selected workspace.
+Status refreshes update the shortcuts in place without replacing focused
+buttons. Narrow screens reserve the same strip; expanded Guide overlays the
+workspace, collapsed by default unless the user has chosen otherwise.
 
 Guide visibility is a per-app browser-origin preference, separate from map
 layout and source files. An extension restart that changes the loopback origin
 can reset browser preferences. Document and inline-edit drafts stay in memory
 across mode switches but are not persisted by this layout.
+Live runtime evidence takes precedence over unresolved static source evidence
+in workflow progress. A running app reaches Observe & manage immediately;
+Run is complete, while uncertain Build/Connect evidence remains marked Review.
+Telemetry completeness is an improvement, not the admission rule for viewing
+logs, health, or request paths. Start/stop transitions and failures return the
+current step to Run, and preview-only operation is labeled explicitly.
 
 ### Build and enforcement ownership
 
 Build exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.
+The catalog is app-aware: document-processing apps keep their recognized
+instruction/tool/policy/runtime layout, while Dealer, Empty Unity, and custom apps
+use source-discovered component files within their declared app scope. Inline
+agent instructions remain in their original runtime file; the editor does not
+extract or rewrite Python strings to manufacture a prompt file. Generic artifact
+IDs are bound to file paths, and read, Code-open, and reviewed-save operations
+resolve the same catalog. Inventory changes cannot redirect an existing draft.
+Generic source cards are collapsible; their open state and drafts survive
+in-panel refreshes. Only document-capable profiles show document-test copy and
+runtime selection. Missing expected document files and unsupported/empty
+discovery have distinct explanations, not a blanket "Not implemented" status.
+Discovery coverage is heuristic: a component path does not identify every
+editable artifact or semantic role. Unsupported filenames/frameworks and
+dynamic or external configuration may not be recognized. A future explicit
+artifact contract in the app inventory is a design discussion, not current
+support; see README's discovery limitation and discussion with Paul.
 Source edits use a content hash and atomic replacement, reject symlink targets,
 and require a stopped app. The editor preserves drafts until an explicit review
 and save. Every available artifact, including operator policy and tool contracts,
@@ -246,39 +302,53 @@ The map is a source-code view, not a runtime topology, distributed trace, or
 proof that a request path succeeds.
 
 The App Map is the primary app interface after creation or selection; Unity
-Studio does not insert a separate workspace dashboard. It opens on a
-customer-oriented **Request flow** architecture view. Proven
+Studio does not insert a separate workspace dashboard. **Observe → App Map** has one
+customer-oriented request-flow architecture view. Discovered
 paths move left to right through Experience, Reasoning, Models & capabilities,
 and Connected systems, with observability shown as a cross-cutting operations
-plane. Internal workflow operations and disconnected implementations are not
-mixed into the request path. They remain available in the secondary
-**Implementation** view, which preserves all nine Unity tier swimlanes.
+plane. Disconnected implementations are not mixed into the request path.
+**Show other resources** reveals them in a labeled
+region of the same map, retaining their source-backed relationships and
+inspection actions. Its default is off, with the choice remembered per app in
+the current browser origin. This does not classify resources as unused at runtime:
+stopped services remain in discovered paths, and uncertain links remain uncertain.
 
-Both views use the same directional evidence-backed edges, pan and zoom
-controls, search, and tier filters. The **Request flow** and **Implementation
-map** switch remains visible in a dedicated view bar. Search, filters,
-zoom, fit, and reset controls are grouped under **Search & layout** so they do
-not compete with the primary views. Overall runtime state remains visible beside
+Source-owned workflow operations and events are collapsed into their workflow
+project by default. Explicit containment wins; otherwise a unique matching
+workflow source root establishes ownership. Ambiguous ownership stays ungrouped.
+Expanding a workflow opens a named internal-items region with at most two
+columns, spacious call gutters, and source filenames rather than repeated
+project paths. Collapse restores the pre-expansion camera. This explicit map
+navigation is distinct from opening or resizing an inspector, which stays
+camera-stable. Containment arrows are replaced by grouping; internal call labels
+appear on hover, focus, or selection. Collapsed boundary calls project to the
+owning workflow and equivalent edges share a visible connection while keeping
+each original relationship and its evidence inspectable. Different confidence
+or documentation/source evidence is not combined. Search can find the owner by
+an internal item's name; Inspect can reveal an internal item directly.
+
+The map uses directional evidence-backed edges, pan and zoom controls, search,
+and tier filters. A floating palette keeps zoom and fit directly accessible;
+search, filters, other-resource visibility, and reset are grouped under
+**Search & layout**. These controls occupy map space only, not an extra header
+row. Overall runtime state remains visible beside
 the app name as **Not running**, **Local preview**, **Running locally**, or the
 current lifecycle transition. A persistent adjacent action starts or stops the
 local runtime and routes missing prerequisites into **Run/Debug**. Each
-request-flow stage and Implementation
-lane exposes a contextual **Add component** action. Single-tier locations open
+request-flow stage exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
 evidence-backed relationships, collect an explicit source and destination, and
 show a confirmation before delegating source/configuration work to the app's
 persisted child session. The deterministic Request flow layout is
-not draggable because its position communicates architectural meaning. The
-Implementation view permits vertical reordering inside the evidence-derived
-tier only; a component cannot be moved into another tier. Those positions are
-browser-local and versioned by the authorized app root plus a stable topology
-fingerprint, so changing the graph starts a fresh layout without modifying the
-repository.
+not draggable because its position communicates architectural meaning. Revealing
+other resources extends the map without moving the request-path cards or
+changing source. Filtering out the inspected node or connection closes its
+inspector rather than leaving a hidden selection active.
 
 Selecting a node opens its details and highlights only its immediate graph
 neighborhood. Clicking the selected node again, clicking empty map space, or
-pressing Escape returns to the Guide. Selecting a
+pressing Escape returns to the map without changing Guide visibility. Selecting a
 connection explains how the request moves between the two components and shows
 the exact source evidence, while explicitly distinguishing architecture
 evidence from a successful live distributed trace.
@@ -290,7 +360,28 @@ ready local-endpoint actions continue through the existing authorized loopback
 APIs. The graph renderer introduces no CDN or other external network
 dependency.
 
-Each Implementation tier lane exposes an **Add** handoff. A specialist studio can manage
+The **Observe → Logs** view combines bounded, redacted local service tails with
+service/stream selectors, text search, pause/resume, and explicit refresh.
+Runtime component cards and inspectors open this same workspace with the
+component's service selected; the Logs tab starts with all services,
+including registered supporting services without map cards. Sources resolve
+from the authorized app root and registered service identity, never a
+caller-provided file path. Output stays grouped by service and stream because
+untimestamped lines cannot establish a global chronological order. Automatic
+refresh runs only while Logs is active and unpaused. Navigation cancels pending
+reads and discards stale responses. Service tails remain separate from lifecycle
+command history. Missing capture, partial read failures, and truncation remain
+visible rather than implying a healthy service or an empty cloud log.
+
+`control-styles.mjs` owns the shared action-button and single-line field
+metrics used by Build, Run, Logs, and inspector actions: 32px controls,
+12px text, 6px corners, and consistent padding. Navigation, icon-only controls,
+and text links retain their distinct roles. Inspector actions sit in a wrapping
+row below the source path, not inline with source metadata. Logs scopes its
+heading, metadata, message, and output typography so generic inspector rules
+cannot override its compact presentation; muted text uses the shared theme token.
+
+Each request-flow stage exposes an **Add component** handoff. A specialist studio can manage
 existing or provisioned resources. Requesting a new source capability requires
 an explicit second confirmation, delegates to the existing capability workflow,
 and does not provision or deploy Azure resources. The new card appears only
@@ -300,14 +391,16 @@ The expanded map's default side panel is **Guide**, not an
 infrastructure dashboard. It translates the current graph into a progressive
 **Build → Connect → Run → Observe & manage** journey, presents runtime as the
 immediate action, and shows one evidence-backed improvement at a time. Later
-suggestions remain collapsed. The journey is a non-interactive vertical
-stepper: explanatory text stays visible, connected nodes communicate order,
+suggestions remain collapsed. The journey is a vertical progress view, not a
+second workspace navigator: explanatory text stays visible, connected nodes communicate order,
 and only the current stage is highlighted. Its matching **Next action** card
 appears immediately below the stepper; unavailable runtime work and later
 improvements do not compete with that action. For example, an agent without a
-gateway gets model-connection guidance, unresolved references get an evidence
-review, and an app without telemetry gets a plain-language observability setup
-action. Local readiness and lifecycle state update the Run step through the
+gateway gets model-connection guidance before it can run. Once running, the
+current step is Observe & manage with a direct map/log inspection action;
+uncertain references and missing telemetry remain separate review/improvement
+items, not prerequisites for observing the app. Local readiness and lifecycle
+state update progress through the
 existing APIs, including the stricter gateway validation introduced by later
 Studio changes.
 
@@ -317,9 +410,12 @@ directly mutate the graph, so its completion screen offers **Check for changes**
 to retrace the app. This is the first progressive-guidance layer; future history
 or preference signals may refine ranking but must not weaken evidence requirements.
 
-At narrow mobile widths, the request-flow diagram and Guide stack vertically.
-The Guide must not become an overlay that hides the architecture the user is
-trying to understand.
+Guide has a single expand/collapse control in its own heading, available in
+both the expanded panel and compact status rail. At narrow widths Guide starts
+collapsed and can be opened as an overlay, dismissed using the toggle or Escape.
+The Connect explanation retains its explicit connection-review action.
+Guide visibility remains
+independent of the selected workspace and component.
 
 **Run/Debug** is the explicit operational surface. AI model connection comes
 first, followed by expanded local runtime controls, visible live stdout/stderr, per-component health and
@@ -357,8 +453,8 @@ action. Source projects without managed endpoints appear in Components & endpoin
 as Source only, with Review source, and do not affect readiness. Azure deployment and deletion remain secondary
 disclosures. Home returns to the landing screen, and Guide, Run/Debug, and
 Search & layout use a colored active state. The
-desktop details panel is pointer- and keyboard-resizable with its per-app width
-stored locally.
+bottom details panel is pointer- and keyboard-resizable at all viewport widths,
+with its per-app height stored locally.
 
 ## Safety and limitations
 

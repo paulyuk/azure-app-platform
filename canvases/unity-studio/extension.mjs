@@ -40,7 +40,10 @@ import {
   WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
+import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
+import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
+import { parseLogTail, readAppLogs, readComponentLogs } from "./runtime-logs.mjs";
 import { createCommandActivity, redactActivityText } from "./command-activity.mjs";
 import { summarizeAgentResult } from "./agent-result.mjs";
 import { assessDocumentResult } from "./document-assessment.mjs";
@@ -54,6 +57,8 @@ import {
   resolveAgentInvocation,
   invocationBody,
   probeHttpHealth,
+  endpointKind,
+  normalizeRuntimeEntrypoint,
   buildRunCommandReference,
 } from "./run-contract.mjs";
 import {
@@ -218,7 +223,7 @@ async function runtimePortCandidates(root) {
         .map((entrypoint) => Number(entrypoint?.port)),
     );
     const entrypoints = runtime.entrypoints
-      .map((entrypoint) => ({ name: String(entrypoint?.name || ""), port: Number(entrypoint?.port) }))
+      .map(normalizeRuntimeEntrypoint)
       .filter((entrypoint) =>
         entrypoint.name && Number.isInteger(entrypoint.port) && entrypoint.port > 0 && entrypoint.port <= 65_535);
     for (const port of runtime.reservedPorts ?? []) {
@@ -421,7 +426,7 @@ async function openEntrypoint(root, port) {
   const available = await session.rpc.canvas.list();
   const browser = available.canvases.find((canvas) => canvas.canvasId === "browser");
   if (!browser) throw new Error("Browser canvas is unavailable.");
-  const isSkill = port >= 7071 && port <= 7079;
+  const isSkill = endpointKind(entrypoint) === "function";
   const url = isSkill ? `${entrypoint.url}/runtime/webhooks/mcp` : entrypoint.url;
   return session.rpc.canvas.open({
     extensionId: browser.extensionId,
@@ -826,7 +831,7 @@ async function startAppCommand(root, command, args, state, options = {}) {
     if (activityId) await activity.finish(activityId, { ok: false, note: error.message });
     throw error;
   }
-  const run = { lines: [], logPath, startedAt, state };
+  const run = { lines: [], logPath, startedAt, state, child, cancelled: false };
   appOutput.set(root, run);
   const appendOutput = (chunk) => {
     run.lines.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
@@ -847,13 +852,13 @@ async function startAppCommand(root, command, args, state, options = {}) {
     void (async () => {
       let exitCode = initialExitCode;
       try {
-        await options.onComplete?.({ exitCode, signal });
+        if (!run.cancelled) await options.onComplete?.({ exitCode, signal });
       } catch (error) {
         appendOutput(`Command completion failed: ${error.message}`);
         run.error = error.message;
         exitCode = 1;
       }
-      if (options.completedState && appStates.get(root)?.pid === child.pid) {
+      if (!run.cancelled && options.completedState && appStates.get(root)?.pid === child.pid) {
         appStates.set(root, {
           state: exitCode === 0 ? options.completedState : "failed",
           operation: state,
@@ -865,7 +870,7 @@ async function startAppCommand(root, command, args, state, options = {}) {
       }
       await activity.finish(activityId, {
         ok: exitCode === 0,
-        note: run.error || (signal ? `Signal ${signal}` : `Exit ${exitCode}`),
+        note: run.cancelled ? "Startup cancelled by user." : run.error || (signal ? `Signal ${signal}` : `Exit ${exitCode}`),
       });
     })().catch((error) => {
       appendOutput(`Unable to record command completion: ${error.message}`);
@@ -953,6 +958,13 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
   let releaseAppMutation;
   try {
     authorizeApiRequest(request, url, apiToken, trustedHost);
+    if (url.pathname === "/api/preferences" && ["GET", "POST"].includes(request.method)) {
+      const preferences = request.method === "POST"
+        ? await writeStudioPreferences(await readJsonBody(request))
+        : await readStudioPreferences();
+      sendJson(response, 200, preferences);
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/overview") {
       sendJson(response, 200, getPlatformOverview());
       return;
@@ -985,6 +997,58 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       const runtimeState = await currentAppState(root);
       sendJson(response, 200, runtimeState);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/component-logs") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        const error = new Error("Log root is not an authorized app workspace.");
+        error.statusCode = 403;
+        throw error;
+      }
+      const nodeId = url.searchParams.get("nodeId");
+      if (!nodeId) {
+        const error = new Error("Choose an app component for logs.");
+        error.statusCode = 400;
+        throw error;
+      }
+      const graph = await traceUnityApp({ root });
+      const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+      if (!node) {
+        const error = new Error("The selected app component is no longer available.");
+        error.statusCode = 404;
+        throw error;
+      }
+      if (node.kind !== "project") {
+        const error = new Error("Logs are available only for app components.");
+        error.statusCode = 400;
+        throw error;
+      }
+      sendJson(response, 200, await readComponentLogs(root, node, {
+        nodes: graph.nodes,
+        runtimeProfile: await readAppRuntimeProfile(root),
+        tail: parseLogTail(url.searchParams.get("tail")),
+        cursors: {
+          stdout: url.searchParams.get("stdoutCursor"),
+          stderr: url.searchParams.get("stderrCursor"),
+          combined: url.searchParams.get("combinedCursor"),
+        },
+      }));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/app-logs") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        const error = new Error("Log root is not an authorized app workspace.");
+        error.statusCode = 403;
+        throw error;
+      }
+      const graph = await traceUnityApp({ root });
+      sendJson(response, 200, await readAppLogs(root, {
+        nodes: graph.nodes,
+        runtimeProfile: await readAppRuntimeProfile(root),
+        serviceId: url.searchParams.has("serviceId") ? url.searchParams.get("serviceId") : null,
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/local-readiness") {
@@ -1351,7 +1415,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("App command root is not an authorized app workspace.");
       }
       releaseAppMutation = reserveAppMutation(root, {
-        allowActiveLifecycle: input.operation === "run-local",
+        allowActiveLifecycle: allowsActiveLifecycle(input.operation, appStates.get(root)),
       });
       const current = await currentAppState(root);
       if (input.operation === "run-local") {
@@ -1409,8 +1473,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "stop-local") {
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
+        const startup = appOutput.get(root);
+        if (current.state === "starting" && startup?.state === "starting") {
+          startup.cancelled = true;
+          try { await cancelStartupProcess(startup.child); }
+          catch (error) { startup.cancelled = false; throw error; }
+        }
         sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "stopping", {
           completedState: "stopped",
+          onComplete: async ({ exitCode }) => {
+            if (exitCode !== 0) return;
+            const endpoints = await probeHttpEntrypoints(root);
+            const ownership = await inspectEntrypointOwnership(root, endpoints, await readProcessRegistry(root));
+            const remaining = endpoints.filter((entry) => (entry.listening ?? entry.ready)
+              && (!ownership.available || ownership.ownedPorts.has(entry.port)));
+            if (remaining.length) throw new Error("Stop finished but app services are still listening: " +
+              remaining.map((entry) => entry.name).join(", ") + ". Review output and retry Stop.");
+          },
         }));
         return;
       }
@@ -1499,6 +1578,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const html = renderInteractiveAppMapHtml(await traceUnityApp({ root }), {
         apiToken,
         appName: appIdentity?.name,
+        ...await readStudioPreferences(),
       });
       await recordAppOpened(root);
       response.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -1510,7 +1590,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end(renderStudioHtml(instanceId, apiToken));
+    response.end(renderStudioHtml(instanceId, apiToken, await readStudioPreferences()));
   } catch (error) {
     sendJson(response, error?.statusCode ?? 500, {
       error: error instanceof Error ? error.message : String(error),

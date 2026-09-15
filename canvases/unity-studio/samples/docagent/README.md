@@ -82,6 +82,13 @@ Its older **Run & manage** label is now **Run/Debug**.
 Stop the agent with `./scripts/dev-stop.sh` on macOS/Linux, or
 `.\scripts\dev-stop.ps1` on Windows.
 
+The launchers record each process ID together with its OS-reported start
+identity. The stop scripts terminate only an exact identity match and protect
+the current shell and its ancestors. If identity is missing or termination
+cannot be confirmed, `.dev-run` is preserved, the stop command returns
+nonzero, and the next start aborts instead of overwriting ownership. Follow the
+reported remediation, then rerun the stop command before starting again.
+
 ## Change the sample
 
 | What to change | File |

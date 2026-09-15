@@ -1,3 +1,5 @@
+import { ACTION_BUTTON_STYLE, FORM_CONTROL_STYLE } from "./control-styles.mjs";
+
 // Functions Hosted Skills Studio presentation, scoped away from the App Map.
 export const RUN_PANEL_CSS = `
 #details[data-mode="manage"] {
@@ -27,7 +29,7 @@ export const RUN_PANEL_CSS = `
 #details[data-mode="manage"] h2 { font-size: 20px; letter-spacing: -.3px; margin: 0 0 4px; }
 #details[data-mode="manage"] p { font-size: 12px; line-height: 1.5; color: var(--run-muted); margin: 0 0 10px; }
 #details[data-mode="manage"] h3 { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--run-muted); margin: 18px 0 8px; }
-#details[data-mode="manage"] button { min-height: 30px; border: 1px solid var(--run-line); border-radius: 8px; padding: 6px 10px; font: 600 12px/1.4 var(--font-sans, system-ui); color: var(--run-ink); background: var(--run-surface); }
+#details[data-mode="manage"] button { ${ACTION_BUTTON_STYLE} border: 1px solid var(--run-line); color: var(--run-ink); background: var(--run-surface); }
 #details[data-mode="manage"] button:hover:not(:disabled) { border-color: var(--run-accent); color: var(--run-accent); }
 #details[data-mode="manage"] button.primary { background: var(--run-accent); border-color: var(--run-accent); color: var(--run-surface); }
 #details[data-mode="manage"] button.primary:hover:not(:disabled) { color: var(--run-surface); filter: brightness(1.08); }
@@ -50,6 +52,7 @@ export const RUN_PANEL_CSS = `
 #details[data-mode="manage"] .gateway-fields > p { margin: 0; }
 #details[data-mode="manage"] .studio-field { display: grid; gap: 5px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--run-muted); }
 #details[data-mode="manage"] select, #details[data-mode="manage"] textarea { width: 100%; min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var(--run-line); border-radius: 8px; background: var(--run-surface); color: var(--run-ink); font: 13px/1.5 var(--font-sans, system-ui); }
+#details[data-mode="manage"] select { ${FORM_CONTROL_STYLE} }
 #details[data-mode="manage"] textarea { min-height: 84px; }
 #details[data-mode="manage"] .run-card { background: transparent; border: 0; padding: 0; margin: 0 0 14px; }
 #details[data-mode="manage"] .run-card > strong { font-size: 14px; }
@@ -72,7 +75,6 @@ export const RUN_PANEL_CSS = `
 #details[data-mode="manage"] .developer-tool-card { background: var(--run-surface); border-color: var(--run-line); border-radius: 10px; padding: 14px; gap: 10px; }
 #details[data-mode="manage"] .endpoint-row { border-color: var(--run-line); background: var(--run-surface); border-radius: 9px; }
 #details[data-mode="manage"] .endpoint-row code, #details[data-mode="manage"] .endpoint-row small { color: var(--run-muted); }
-#details[data-mode="manage"] .endpoint-row button { font-size: 11px; padding: 4px 8px; }
 #details[data-mode="manage"] .tool-status, #details[data-mode="manage"] .command-badge { width: fit-content; display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; line-height: 1.4; padding: 2px 7px; border: 1px solid var(--run-line); border-radius: 999px; background: var(--run-surface); color: var(--run-muted); }
 #details[data-mode="manage"] [data-state="succeeded"], #details[data-mode="manage"] .tool-status.ready { color: var(--run-ok); border-color: color-mix(in srgb, var(--run-ok) 35%, var(--run-line)); }
 #details[data-mode="manage"] [data-state="running"] { color: var(--run-accent); border-color: color-mix(in srgb, var(--run-accent) 40%, var(--run-line)); }

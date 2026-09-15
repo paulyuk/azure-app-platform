@@ -23,6 +23,8 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
   let selections = 0;
   let agentPort = 8088;
   const portStops = [];
+  const lifecycleCalls = [];
+  let recovered = false;
   const invocations = [];
   const sourceReviews = [];
   const errors = [];
@@ -50,7 +52,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
       const path = new URL(request.url()).pathname;
       let data;
       if (path === "/api/app-status") data = {
-        state: appState,
+        state: appState, recovered,
         entrypoints: [{ name: "agent", port: agentPort, expected: true, ready: appState === "running",
           healthStatus: appState === "running" ? "Healthy" : "Offline", url: "http://localhost:" + agentPort }],
         foreignEntrypoints: [],
@@ -92,6 +94,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
         data = { stopped: [424242], ports: [agentPort] };
       }
       else if (path === "/api/app-command") {
+        lifecycleCalls.push(request.postDataJSON().operation);
         appState = request.postDataJSON().operation === "run-local" ? "starting" : "stopped";
         data = { outcome: "command-started" };
       } else if (path === "/api/agent-invoke") {
@@ -157,6 +160,13 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     assert.deepEqual(portStops, [{ root: graph.root, reviewId: "review-fixture", confirmed: true }]);
     await page.getByRole("button", { name: "Run app", exact: true }).first().click();
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Starting your app"));
+    assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"), "Cancel startup");
+    assert.equal(await page.locator("#header-runtime-action").isEnabled(), true);
+    await page.locator("#header-runtime-action").click();
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Start app");
+    assert.equal(lifecycleCalls.at(-1), "stop-local");
+    await page.getByRole("button", { name: "Run app", exact: true }).first().click();
+    await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Starting your app"));
     log = "[agent] Connected tools and ready on 8088";
     await page.waitForFunction(() => document.querySelector("[data-runtime-output]")?.textContent.includes("Connected tools"));
     appState = "running";
@@ -174,17 +184,29 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     assert.equal(selections, 1);
     assert.equal(await page.locator(".command-record .command-code").first().evaluate((el) => getComputedStyle(el).minHeight), "0px");
     assert.equal(await page.locator(".command-record .command-code").first().evaluate((el) => getComputedStyle(el).fontSize), "12px");
+    recovered = true;
+    appState = "starting";
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Stop partial startup");
+    assert.equal(await page.locator("#app-status-badge").textContent(), "Partial startup");
+    await page.locator("#header-runtime-action").click();
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Start app");
+    assert.equal(lifecycleCalls.at(-1), "stop-local");
+    recovered = false;
+    appState = "running";
     for (const width of [380, 620, 780, 1000, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(await page.locator("#details").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       assert.ok(await page.locator("header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `Header overflows at ${width}px`);
-      const controls = page.locator('.header-actions > button, .header-actions .map-tools > summary, #back-apps, #header-runtime-action, #app-status-badge');
+      const controls = page.locator('#back-apps, #header-runtime-action, #app-status-badge');
       for (const control of await controls.all()) {
         const appearance = await control.evaluate((el) => ({
           height: el.getBoundingClientRect().height, nowrap: getComputedStyle(el).whiteSpace,
           fits: el.scrollWidth <= el.clientWidth + 1,
         }));
-        assert.deepEqual(appearance, { height: 34, nowrap: "nowrap", fits: true }, `Inconsistent header control at ${width}px`);
+        assert.deepEqual(appearance, { height: 32, nowrap: "nowrap", fits: true }, `Inconsistent header control at ${width}px`);
+      }
+      for (const button of await page.locator(".header-actions > button").all()) {
+        assert.ok(await button.evaluate((el) => el.getBoundingClientRect().height === 32 && el.scrollWidth <= el.clientWidth + 1));
       }
     }
     appState = "failed";
@@ -201,7 +223,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
     await page.locator("#action-center").click();
     assert.equal(await page.locator("#details").getAttribute("data-mode"), null);
-    assert.equal(await page.locator("#action-center").getAttribute("aria-pressed"), "false");
+    assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
     await page.locator("#manage-app").click();
     assert.equal(await page.locator(".map-tools").evaluate((element) => element.open), false);

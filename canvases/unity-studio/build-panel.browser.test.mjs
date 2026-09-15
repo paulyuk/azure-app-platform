@@ -8,6 +8,100 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
+test("Build preserves newer and reverted drafts across pending saves and panel reloads", {
+  skip: !chromium && "Install src/web dependencies to run browser coverage.",
+}, async () => {
+  let artifact = {
+    id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md",
+    available: true, editable: true, content: "Original instructions.", sha: "base",
+  };
+  const writes = [];
+  let releaseSave;
+  let saveStarted;
+  let pendingSave;
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end(`<div id="details"></div><script>
+      const panel = (${createBuildPanel.toString()})({
+        container: document.querySelector("#details"), root: "/fixture", isActive: () => true,
+        onRun() {}, onModel() {}, onStructure() {},
+        request: async (path, options) => (await fetch(path, options)).json()
+      });
+      panel.show();
+    </script>`);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", async (route) => {
+      if (new URL(route.request().url()).pathname === "/api/build-workspace") {
+        await route.fulfill({ json: { artifacts: [artifact], supportsDocuments: true } });
+        return;
+      }
+      assert.equal(new URL(route.request().url()).pathname, "/api/build-file");
+      const input = route.request().postDataJSON();
+      writes.push(input);
+      saveStarted?.();
+      await pendingSave;
+      artifact = { ...artifact, content: input.content, sha: `saved-${writes.length}` };
+      await route.fulfill({ json: artifact });
+    });
+    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    const editor = page.getByRole("textbox", { name: "Agent instructions source" });
+    const review = page.getByRole("button", { name: "Review changes", exact: true });
+    const discard = page.getByRole("button", { name: "Discard draft & reload" });
+    for (const reloadDuringSave of [false, true]) {
+      const original = artifact.content;
+      const reviewed = `Reviewed revision ${writes.length}.`;
+      const baseSha = artifact.sha;
+      const started = new Promise((resolve) => { saveStarted = resolve; });
+      pendingSave = new Promise((resolve) => { releaseSave = resolve; });
+      await editor.fill(reviewed);
+      await review.click();
+      await page.getByRole("button", { name: "Save reviewed changes" }).click();
+      await started;
+      assert.equal(await review.isDisabled(), true);
+      assert.equal(await discard.isDisabled(), true);
+      if (reloadDuringSave) {
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await editor.waitFor();
+        assert.equal(await review.isDisabled(), true);
+      }
+      const newer = reloadDuringSave ? original : "Newer unsaved instructions.";
+      await editor.fill(newer);
+      const response = page.waitForResponse((response) => response.url().endsWith("/api/build-file"));
+      releaseSave();
+      await response;
+      await page.waitForFunction(() => {
+        const button = [...document.querySelectorAll("button")].find((button) => button.textContent === "Review changes");
+        return button && !button.disabled;
+      });
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await editor.waitFor();
+      assert.equal(await editor.inputValue(), newer);
+      assert.equal(writes.at(-1).baseSha, baseSha);
+      assert.equal(writes.at(-1).content, reviewed);
+      assert.equal(await page.getByText(/saved file changed in Code/).count(), 0);
+      const savedSha = artifact.sha;
+      pendingSave = null;
+      saveStarted = null;
+      await review.click();
+      await page.getByRole("button", { name: "Save reviewed changes" }).click();
+      await page.getByText(/Saved\. Restart/).waitFor();
+      assert.equal(writes.at(-1).baseSha, savedSha);
+      assert.equal(writes.at(-1).content, newer);
+    }
+    assert.deepEqual(errors, []);
+  } finally {
+    releaseSave?.();
+    await browser.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("Build exposes compact editors, Code actions, reviewed policy edits and external-edit conflicts", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
@@ -21,10 +115,14 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
   const saved = [];
   const opened = [];
   let codeFails = false;
+  let workspaceFails = false;
+  let supportsDocuments = true;
+  let diagnostics = [];
   const html = `<!doctype html><style>${BUILD_PANEL_CSS}</style><aside id="details" data-mode="build"></aside><script>
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/app", isActive: () => true,
       onRun: () => { document.body.dataset.runRequested = "true"; }, onModel: () => {},
+      onStructure: () => { document.body.dataset.structureRequested = "true"; },
       request: async (path, options) => {
         const response = await fetch(path, options);
         const body = await response.json();
@@ -44,7 +142,11 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       let body;
-      if (path === "/api/build-workspace") body = { artifacts };
+      if (path === "/api/build-workspace" && workspaceFails) {
+        await route.fulfill({ status: 503, json: { error: "Source discovery unavailable." } });
+        return;
+      }
+      if (path === "/api/build-workspace") body = { artifacts, supportsDocuments, diagnostics };
       else if (path === "/api/build-file") {
         const input = route.request().postDataJSON();
         saved.push(input);
@@ -62,6 +164,13 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const instructions = page.locator('[data-artifact="instructions"]');
     await instructions.getByRole("textbox").waitFor();
+    const structure = page.locator(".build-structure");
+    assert.equal(await structure.getByRole("heading", { name: "App structure" }).count(), 1);
+    assert.ok((await structure.boundingBox()).y < (await instructions.boundingBox()).y);
+    await structure.getByRole("button", { name: "Edit on App Map" }).click();
+    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
+    assert.equal(saved.length, 0);
+    assert.equal(opened.length, 0);
     assert.equal(await page.getByRole("textbox").count(), 5);
     for (const editor of await page.getByRole("textbox").all()) {
       assert.equal(await editor.getAttribute("readonly"), null);
@@ -111,6 +220,55 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     assert.equal(await page.getByRole("button", { name: "Invoke agent", exact: true }).count(), 0);
     await instructions.getByRole("button", { name: "Test with a document" }).click();
     assert.equal(await page.locator("body").getAttribute("data-run-requested"), "true");
+    supportsDocuments = false;
+    artifacts.splice(0, artifacts.length, {
+      id: "source-agent", path: "src/agent/main.py", title: "Agent implementation & instructions",
+      description: "Inline instructions and tool registrations.", available: true, editable: true,
+      content: 'INSTRUCTIONS = "Find real inventory."\nagent = Agent(instructions=INSTRUCTIONS)',
+      sha: "dealer-base",
+    }, {
+      id: "source-skill", path: "src/skills/inventory/function_app.py", title: "Inventory tool",
+      description: "Registered inventory skill.", available: true, editable: true,
+      content: "def inventory(): return []", sha: "skill-base",
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const dealer = page.locator('[data-artifact="source-agent"]');
+    await dealer.getByRole("textbox").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Test with a document" }).count(), 0);
+    assert.equal(await page.getByRole("combobox", { name: "Agent runtime" }).count(), 0);
+    assert.equal(await page.locator(".build-warning").count(), 0);
+    assert.equal(await page.getByRole("textbox").count(), 1);
+    const skill = page.locator('[data-artifact="source-skill"]');
+    await skill.locator("summary").click();
+    await skill.getByRole("textbox").fill("def inventory(): return ['real inventory']");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await skill.getByRole("textbox").waitFor();
+    assert.equal(await skill.getByRole("textbox").inputValue(), "def inventory(): return ['real inventory']");
+    assert.equal(await skill.getAttribute("open"), "");
+    assert.match(await dealer.getByRole("textbox").inputValue(), /INSTRUCTIONS/);
+    await dealer.getByRole("button", { name: "Edit in Code", exact: true }).click();
+    await dealer.getByText(/Opened the worktree and file/).waitFor();
+    assert.deepEqual(opened.at(-1), { root: "/app", id: "source-agent" });
+    await dealer.getByRole("textbox").fill('INSTRUCTIONS = "Never invent inventory."\nagent = Agent(instructions=INSTRUCTIONS)');
+    await dealer.getByRole("button", { name: "Review changes" }).click();
+    await dealer.getByRole("button", { name: "Save reviewed changes" }).click();
+    await dealer.getByText(/Saved\. Restart/).waitFor();
+    assert.equal(saved.at(-1).id, "source-agent");
+    assert.equal(saved.at(-1).baseSha, "dealer-base");
+    artifacts.splice(0);
+    diagnostics = [{ path: "unity.app.yaml", message: "Agent path was not found." }];
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByText(/No supported editable source was discovered/).waitFor();
+    assert.equal(await page.getByRole("textbox").count(), 0);
+    assert.equal(await page.getByText("unity.app.yaml: Agent path was not found.", { exact: true }).count(), 1);
+    assert.equal(await page.getByText(/Not implemented in this app/).count(), 0);
+    assert.equal(await structure.getByRole("button", { name: "Edit on App Map" }).isEnabled(), true);
+    workspaceFails = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByText("Source discovery unavailable.", { exact: true }).waitFor();
+    await page.evaluate(() => delete document.body.dataset.structureRequested);
+    await structure.getByRole("button", { name: "Edit on App Map" }).click();
+    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

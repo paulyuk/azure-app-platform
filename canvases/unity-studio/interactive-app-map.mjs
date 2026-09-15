@@ -4,8 +4,14 @@ import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderStudioBrand } from "./studio-brand.mjs";
+import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
+import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
+import { buildOperationGroups } from "./operation-groups.mjs";
+import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
+import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 
-const RENDERER_SCHEMA_VERSION = 3;
+const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
   {
     id: "entry",
@@ -151,14 +157,13 @@ export function buildActionCenterModel(appMap) {
     });
   }
   if (unresolvedCount > 0) {
-    const first = appMap.unresolved[0];
     opportunities.push({
       id: "resolve-connections",
       priority: "attention",
       stage: "connect",
       title: `Review ${unresolvedCount} uncertain ${unresolvedCount === 1 ? "connection" : "connections"}`,
       detail: "Unity found source references whose destination is missing or ambiguous. Inspect the evidence before relying on these paths.",
-      action: { kind: "inspect-node", nodeId: first.from, label: "Review evidence" },
+      action: { kind: "review-connections", label: "Review connections" },
     });
   }
   if (!hasObservability) {
@@ -225,6 +230,40 @@ export function buildActionCenterModel(appMap) {
   };
 }
 
+export function buildJourneyStages(stages, operationalState, activeLifecycleStates) {
+  const appState = operationalState.app?.state;
+  const running = appState === "running";
+  const transitioning = activeLifecycleStates.includes(appState);
+  const runtimeKnown = running || transitioning || appState === "failed" || operationalState.readiness?.ready;
+  let prerequisite = null;
+  return stages.map((stage) => {
+    if (stage.id === "observe") {
+      return { ...stage, state: running ? "active" : "blocked", detail: running
+        ? operationalState.readiness?.mode === "preview"
+          ? "Inspect preview logs and health; full app setup remains"
+          : "Inspect service logs, health, and request paths"
+        : "Available when the app is running" };
+    }
+    if (stage.id === "run") {
+      if (running) return { ...stage, state: "complete", detail: operationalState.readiness?.mode === "preview"
+        ? "Local preview is running, not the full app"
+        : "App is running locally" };
+      if (transitioning) return { ...stage, state: "next", detail: appState.replaceAll("-", " ") + " in progress" };
+      if (appState === "failed") return { ...stage, state: "next", detail: "Inspect runtime output and resolve the failure" };
+      if (operationalState.readiness?.ready) return { ...stage, state: "ready", detail: operationalState.readiness.mode === "preview"
+        ? "Ready to start a local preview"
+        : "Ready to run locally" };
+      if (!prerequisite) return { ...stage, state: operationalState.readiness ? "next" : "runtime",
+        detail: operationalState.readiness ? "Finish guided setup" : "Checking local readiness" };
+    }
+    if (stage.state === "complete") return stage;
+    if (runtimeKnown) return { ...stage, state: "attention" };
+    if (prerequisite) return { ...stage, state: "blocked", detail: "Available after " + prerequisite.label };
+    prerequisite = stage;
+    return stage;
+  });
+}
+
 function flowEdgePresentation(edge, nodeTiers) {
   const documentationOnly = (edge.evidence ?? []).length > 0 &&
     edge.evidence.every((item) => /(?:^|\/)(?:README|docs?\/)|\.md$/i.test(item.path));
@@ -253,7 +292,11 @@ function flowEdgePresentation(edge, nodeTiers) {
 }
 
 export function buildRequestFlowModel(appMap) {
-  const visibleNodes = appMap.nodes.filter((node) => node.kind !== "operation");
+  const operationGroups = buildOperationGroups(appMap.nodes, appMap.edges);
+  const parentById = new Map(operationGroups.flatMap((group) =>
+    group.nodeIds.map((id) => [id, group.parentId])));
+  const projectId = (id) => parentById.get(id) || id;
+  const visibleNodes = appMap.nodes.filter((node) => node.kind !== "operation" && !parentById.has(node.id));
   const nodeTiers = new Map(appMap.nodes.map((node) => [node.id, node.tierId]));
   const entrypointIds = visibleNodes
     .filter((node) => node.tierId === "web")
@@ -267,10 +310,11 @@ export function buildRequestFlowModel(appMap) {
   const queue = [...entrypointIds];
   while (queue.length) {
     const current = queue.shift();
-    for (const edge of appMap.edges.filter((candidate) => candidate.from === current)) {
-      if (reachable.has(edge.to)) continue;
-      reachable.add(edge.to);
-      queue.push(edge.to);
+    for (const edge of appMap.edges.filter((candidate) => projectId(candidate.from) === current)) {
+      const target = projectId(edge.to);
+      if (reachable.has(target)) continue;
+      reachable.add(target);
+      queue.push(target);
     }
   }
   const pathNodes = visibleNodes.filter((node) =>
@@ -289,9 +333,14 @@ export function buildRequestFlowModel(appMap) {
     .filter((node) => node.badges?.some((badge) => badge.kind === "telemetry"))
     .map((node) => node.id);
   const edges = appMap.edges
-    .filter((edge) => pathNodeIds.has(edge.from) && pathNodeIds.has(edge.to))
-    .map((edge) => ({ id: edge.id, ...flowEdgePresentation(edge, nodeTiers) }));
+    .filter((edge) => projectId(edge.from) !== projectId(edge.to) &&
+      pathNodeIds.has(projectId(edge.from)) && pathNodeIds.has(projectId(edge.to)))
+    .map((edge) => ({ id: edge.id, ...flowEdgePresentation({
+      ...edge, from: projectId(edge.from), to: projectId(edge.to),
+    }, nodeTiers) }));
+  const pathEdgeIds = new Set(edges.map((edge) => edge.id));
   return {
+    operationGroups,
     groups,
     operations,
     telemetryNodeIds,
@@ -299,8 +348,14 @@ export function buildRequestFlowModel(appMap) {
     unconnectedNodeIds: visibleNodes
       .filter((node) => !pathNodeIds.has(node.id))
       .map((node) => node.id),
+    otherNodeIds: appMap.nodes.filter((node) => !pathNodeIds.has(node.id)).map((node) => node.id),
+    otherResourceCount: visibleNodes.filter((node) => !pathNodeIds.has(node.id)).length +
+      appMap.nodes.filter((node) => node.kind === "operation" && !parentById.has(node.id)).length,
     entrypointIds,
     edges,
+    otherEdges: appMap.edges
+      .filter((edge) => !pathEdgeIds.has(edge.id))
+      .map((edge) => ({ id: edge.id, ...flowEdgePresentation(edge, nodeTiers) })),
   };
 }
 
@@ -378,7 +433,7 @@ function renderNoScriptFallback(model) {
   }).join("");
 }
 
-export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName } = {}) {
+export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light" } = {}) {
   const model = buildInteractiveAppMapModel(appMap);
   const appName = providedAppName ||
     model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
@@ -387,9 +442,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
   const guideIcon = '<svg class="guide-panel-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="1.5"/><path d="M12.5 4v12"/><path class="guide-chevron" d="m6.5 7 3 3-3 3"/></svg>';
+  const guideStageIcons = {
+    build: '<path d="m8 5-5 5 5 5m4-10 5 5-5 5"/>',
+    connect: '<path d="m8 12 4-4M7 13l-1 1a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0m2 0 1-1a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0"/>',
+    run: '<path d="m6 3 11 7-11 7z"/>',
+    observe: '<path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6"/><circle cx="10" cy="10" r="2.5"/>',
+  };
+  const guideShortcutsHtml = model.actionCenter.stages.map((stage) =>
+    `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status"><svg viewBox="0 0 20 20" aria-hidden="true">${guideStageIcons[stage.id]}</svg><span class="guide-state-icon" aria-hidden="true">…</span></button>`,
+  ).join("");
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-studio-theme="${escapeHtml(theme)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -434,23 +498,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     [hidden] { display: none !important; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body {
-      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
     header, main, footer { min-width: 0; }
     body > header { grid-row: 1; }
-    body > nav { grid-row: 2; }
-    body > main { grid-row: 3; }
-    body > footer { grid-row: 4; }
+    body > main { grid-row: 2; }
+    body > footer { grid-row: 3; }
     header {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 16px;
+      display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-areas: "brand identity workspaces utilities";
+      align-items: center; gap: 10px 16px; padding: 10px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    .heading { min-width: min(100%, 280px); flex: 1 1 360px; }
-    .heading small { display: block; margin-bottom: 1px; color: var(--accent); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-    .app-title-row { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    .app-title-row h1 { flex: 1 1 140px; }
-    h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+    header > .studio-site-nav { grid-area: brand; gap: 8px; }
+    header > .studio-theme-control { grid-area: utilities; justify-self: end; }
+    .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
+    .app-title-row { min-width: 0; display: flex; align-items: center; gap: 8px; }
+    .app-title-row h1 { flex: 1 1 100px; }
+    h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
     .runtime-badge {
       flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
       border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
@@ -466,16 +532,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
     }
     .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
-    .heading p { margin: 2px 0 0; color: var(--muted); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .header-actions { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }
+    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 8px; }
+    .header-actions > button { ${ACTION_BUTTON_STYLE} }
+    .header-actions > button[aria-pressed="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue); }
     .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
-    .map-view-bar {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+    .map-palette {
+      position: absolute; z-index: 3; top: 12px; right: 12px;
+      display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+      box-shadow: 0 4px 16px rgb(0 0 0 / .12); font-size: 12px;
     }
-    .map-tools { position: relative; }
+    .map-palette > button, .map-palette .icon-group button { min-width: 36px; min-height: 36px; padding: 4px; }
+    .map-palette svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .map-tools { position: static; }
     .map-tools > summary {
-      min-height: 32px; display: flex; align-items: center; padding: 4px 10px;
+      min-height: 36px; display: flex; align-items: center; gap: 6px; padding: 4px 8px;
       border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; list-style: none;
     }
     .map-tools > summary::-webkit-details-marker { display: none; }
@@ -483,10 +554,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .map-tools[open] > summary { border-color: var(--accent); }
     .toolbar {
       position: absolute; z-index: 5; top: calc(100% + 8px); right: 0;
-      width: min(720px, calc(100vw - 32px)); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      width: min(300px, calc(100cqw - 24px)); max-height: calc(100cqh - 80px); overflow: auto;
+      display: grid; gap: 12px;
       padding: 12px; border: 1px solid var(--border); border-radius: 8px;
       background: var(--surface); box-shadow: 0 10px 28px rgb(0 0 0 / .18);
     }
+    .toolbar > label:not(.map-inventory-toggle) { display: grid; gap: 4px; }
+    .toolbar input:not([type="checkbox"]), .toolbar select { min-width: 0; width: 100%; }
+    .toolbar > label:has(#entry-filter[hidden]) { display: none; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     input, select, button {
       min-height: 32px; border: 1px solid var(--border); border-radius: 4px;
@@ -495,63 +570,91 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
-    .header-actions > button, .header-actions .map-tools > summary,
     #back-apps, #header-runtime-action, #app-status-badge {
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-      height: 34px; min-height: 34px; padding: 0 10px;
+      height: 32px; min-height: 32px; padding: 0 10px;
       font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
     }
-    .header-actions > button, .header-actions .map-tools > summary,
     #header-runtime-action { border-radius: 6px; }
+    .workspace-tabs > button {
+      ${ACTION_BUTTON_STYLE} flex: 0 0 auto; min-width: 104px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    }
+    .workspace-tabs > button[aria-selected="true"] {
+      background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue);
+    }
+    .workspace-tabs > button:hover { border-color: var(--true-color-blue); color: var(--true-color-blue); }
+    .workspace-tabs > button:focus-visible { outline-offset: 1px; }
+    .workspace-tabs svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    #observe-views {
+      display: flex; flex: 0 0 auto; align-self: flex-start; gap: 4px; margin: 4px 12px; padding: 3px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted);
+    }
+    #structure-guidance {
+      display: flex; flex: 0 0 auto; align-items: center; gap: 12px; margin: 0 12px 8px; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-size: 12px; line-height: 1.5;
+    }
+    #structure-guidance p { flex: 1; min-width: 0; margin: 0; }
+    #structure-guidance:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    #close-structure-guidance { flex: none; width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
     button:hover { border-color: var(--accent); }
     .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
-    button:focus-visible, input:focus-visible, select:focus-visible {
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
     }
     .icon-group { display: inline-flex; }
     .icon-group button { border-radius: 0; min-width: 34px; }
     .icon-group button:first-child { border-radius: 4px 0 0 4px; }
     .icon-group button:last-child { border-radius: 0 4px 4px 0; }
-    .map-view-switch { display: flex; gap: 18px; width: max-content; max-width: 100%; }
-    .map-view-switch button {
-      flex: 0 0 auto; min-height: 40px; padding: 8px 2px 7px;
-      border: 0; border-bottom: 3px solid transparent; border-radius: 0;
-      background: transparent; color: var(--muted); font-weight: 600; white-space: nowrap;
-    }
-    .map-view-switch button:hover { border-bottom-color: var(--border); color: var(--text); }
-    .map-view-switch button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
+    .map-inventory-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; cursor: pointer; }
+    .map-inventory-toggle input { min-width: 16px; min-height: 16px; margin: 0; accent-color: var(--accent); }
+    .flow-region.inventory > rect, .node.outside-flow > rect { stroke-dasharray: 5 4; }
+    .node-operations { cursor: pointer; }
+    .node-operations rect { fill: var(--surface-muted); stroke: var(--border); }
+    .node-operations text { fill: var(--text); font-size: 10px; pointer-events: none; }
+    .node-operations.hidden { display: none; }
+    .node-operations.muted { opacity: .18; }
+    .node-operations:hover rect, .node-operations:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
+    .edge.internal-edge text { display: none; }
+    .edge.internal-edge:hover text, .edge.internal-edge:focus-visible text, .edge.internal-edge.selected text { display: block; }
     #entry-filter[hidden] { display: none; }
     main { position: relative; min-height: 0; display: flex; }
-    #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
-    body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-columns: minmax(0, 1fr) 6px var(--details-width, 380px); }
+    #workspace-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+    #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+    body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
     #guide-rail { flex: 0 0 280px; width: 280px; padding: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    #guide-rail[data-collapsed="true"] { flex-basis: 46px; width: 46px; }
+    #guide-rail[data-collapsed="true"] .guide-heading { padding: 6px 5px; border-bottom: 0; }
+    #guide-rail[data-collapsed="true"] .guide-heading h2 { display: none; }
     .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
     #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
     .guide-panel-icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
     .guide-chevron { transform-origin: 8px 10px; }
-    #action-center { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 6px; border: 0; background: transparent; flex: none; }
+    #action-center:hover { background: var(--surface-muted); }
     #action-center[aria-expanded="false"] .guide-chevron { transform: scaleX(-1); }
-    #collapse-guide { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 5px; flex: none; }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
     #guide-content h3 { margin-top: 14px; }
     #guide-content .journey { margin: 10px 0; }
     #guide-content .journey-stage { padding-block: 8px; }
+    #guide-shortcuts { display: grid; gap: 8px; padding: 4px 4px 12px; overflow: auto; }
+    .guide-shortcut { position: relative; display: grid; place-items: center; width: 36px; min-height: 40px; padding: 7px; border: 0; background: transparent; color: var(--muted); }
+    .guide-shortcut > svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .guide-shortcut:hover { background: var(--surface-muted); color: var(--text); }
+    .guide-shortcut[data-current="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); }
+    .guide-shortcut:focus-visible { outline-offset: -2px; }
+    .guide-state-icon { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; min-width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted); font: 700 10px/1 system-ui; }
+    .guide-shortcut[data-state="complete"] .guide-state-icon { color: var(--true-color-green); }
+    .guide-shortcut[data-state="attention"] .guide-state-icon { color: var(--true-color-orange); }
+    .guide-shortcut[data-current="true"] .guide-state-icon { color: var(--true-color-blue); }
     #workspace > #details { min-height: 0; }
     body:not([data-workspace="map"]) #graph-shell,
     body:not([data-workspace="map"]) #details-resizer,
     body[data-workspace="map"][data-inspecting="false"] #details,
     body[data-workspace="map"][data-inspecting="false"] #details-resizer { display: none; }
-    #graph-shell { position: relative; min-width: 0; overflow: hidden; background: var(--surface-muted); }
+    #graph-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: size; background: var(--surface-muted); }
     #graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
     #graph.panning { cursor: grabbing; }
-    .lane > rect { fill: var(--surface); stroke: var(--border); }
-    .lane-title { fill: var(--text); font-size: 14px; font-weight: 650; }
-    .lane-role { fill: var(--muted); font-size: 10px; }
-    .lane-count { fill: var(--muted); font-size: 11px; }
-    .lane-add { cursor: pointer; }
-    .lane-add rect { fill: var(--surface-muted); stroke: var(--border); }
-    .lane-add text { fill: var(--accent); font-size: 10px; font-weight: 650; pointer-events: none; }
-    .lane-add:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
     .flow-region > rect { fill: var(--surface); stroke: var(--border); }
     .flow-region.operations > rect { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 7 5; }
     .flow-region-title { fill: var(--text); font-size: 14px; font-weight: 650; }
@@ -566,6 +669,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .flow-connect:hover rect, .flow-connect:focus-visible rect { fill: var(--accent); }
     .flow-connect:hover text, .flow-connect:focus-visible text { fill: #fff; }
     .flow-connect:focus-visible { outline: none; }
+    .structure-editing :is(.flow-add, .flow-connect) rect { fill: var(--true-color-blue-muted); stroke: var(--true-color-blue); stroke-width: 2; }
+    .structure-editing :is(.flow-add, .flow-connect) text { fill: var(--true-color-blue); }
     .edge { color: var(--edge-medium); }
     .edge.high { color: var(--edge-high); }
     .edge.low { color: var(--edge-low); }
@@ -578,7 +683,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .edge:focus-visible path, .edge.selected path { stroke: var(--focus); stroke-width: 4; }
     .node { cursor: pointer; }
-    body.implementation-view .node { cursor: ns-resize; }
     .node > rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .12)); }
     .node.project > rect { stroke: var(--accent); }
     .node:focus-visible > rect { stroke: var(--focus); stroke-width: 3; }
@@ -605,14 +709,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       color: var(--muted); font-weight: 600;
     }
     #details-resizer {
-      position: relative; z-index: 3; cursor: col-resize; background: var(--border);
+      position: relative; z-index: 3; cursor: row-resize; background: var(--border);
       touch-action: none;
     }
     #details-resizer::after {
-      position: absolute; inset-block: 0; left: -3px; width: 12px; content: "";
+      position: absolute; inset-inline: 0; top: -3px; height: 12px; content: "";
     }
     #details-resizer:hover, #details-resizer:focus-visible { background: var(--accent); outline: none; }
-    body.resizing-details { cursor: col-resize; user-select: none; }
+    body.resizing-details { cursor: row-resize; user-select: none; }
     #details, #guide-rail { min-width: 0; background: var(--surface); }
     #details { overflow: auto; padding: 16px; }
     :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 18px; }
@@ -623,7 +727,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     :is(#details, #guide-rail) li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .command-output[hidden] { display: none; }
-    .header-actions [aria-pressed="true"], .map-tools[open] > summary {
+    .map-tools[open] > summary {
       background: var(--true-color-blue-muted, #ddf4ff);
       color: var(--true-color-blue, #0969da);
       border-color: var(--true-color-blue, #0969da);
@@ -631,7 +735,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .endpoint-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 10px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
     .endpoint-row strong { font-size: 12px; font-weight: 600; }
     .endpoint-row code, .endpoint-row small { grid-column: 1 / -1; overflow-wrap: anywhere; font-size: 11px; color: var(--muted); }
-    .endpoint-row button { grid-column: 2; grid-row: 1; min-height: 26px; padding: 3px 8px; font-size: 11px; }
+    .endpoint-row button { grid-column: 2; grid-row: 1; }
     .endpoint-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .endpoint-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
     .endpoint-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -660,6 +764,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .agent-response { max-height: 240px; overflow: auto; white-space: pre-wrap; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
     .panel-back { min-height: auto; margin: 0 0 12px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; }
+    body[data-workspace="map"] #details .panel-back { position: sticky; top: 0; float: right; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0 0 8px 16px; padding: 7px; background: var(--surface); border: 1px solid var(--border); }
     .journey { display: grid; grid-template-columns: minmax(0, 1fr); margin: 14px 0 18px; }
     .journey-stage { position: relative; min-width: 0; padding: 10px 10px 12px 34px; }
     .journey-stage::before {
@@ -671,16 +776,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       background: var(--border); content: "";
     }
     .journey-stage.complete:not(:last-child)::after { background: #107c10; }
-    .journey-stage.next, .journey-stage.ready, .journey-stage.running { border-radius: 7px; background: var(--accent-soft); }
+    .journey-stage.next, .journey-stage.ready, .journey-stage.active { border-radius: 7px; background: var(--accent-soft); }
     .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
+    .journey-stage-action { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; white-space: normal; }
+    .journey-stage-action strong { text-decoration: underline; text-underline-offset: 3px; }
+    .journey-stage-action:hover { background: var(--surface-muted); }
     .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
     .journey-state { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-stage.complete::before { border-color: #107c10; background: #107c10; }
     .journey-stage.complete .journey-state { color: #107c10; }
     .journey-stage.next::before, .journey-stage.ready::before { border-color: var(--accent); background: var(--accent); }
     .journey-stage.next .journey-state, .journey-stage.ready .journey-state { color: var(--accent); }
-    .journey-stage.running::before { border-color: #107c10; background: #107c10; box-shadow: 0 0 0 3px rgb(16 124 16 / .18); }
-    .journey-stage.running .journey-state { color: #107c10; }
+    .journey-stage.active::before { border-color: #107c10; background: #107c10; }
+    .journey-stage.active .journey-state { color: #107c10; }
+    .journey-stage.attention::before { border-color: #ca5010; }
     .action-list { display: grid; gap: 9px; }
     .action-card { padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     .action-card.required { border-left: 4px solid var(--danger); }
@@ -691,7 +800,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .action-card p { margin: 5px 0 9px; font-size: 11px; }
     .action-card progress { width: 100%; height: 8px; accent-color: var(--accent); }
     .action-priority { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-    .action-card button { min-height: 28px; font-size: 11px; }
     .run-card { margin-bottom: 14px; }
     .more-guidance { margin-top: 10px; }
     .more-guidance > summary, .management-section > summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
@@ -706,7 +814,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .management-section .actions > button { width: 100%; min-width: 0; white-space: normal; }
     .detail-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
     .detail-badge { border-radius: 999px; background: var(--accent-soft); color: var(--accent); padding: 3px 7px; font-size: 11px; font-weight: 600; }
-    .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+    .studio-action { ${ACTION_BUTTON_STYLE} }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
     .actions button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
     .actions button.setup-action { width: 100%; font-weight: 650; }
     button.danger { border-color: var(--danger); color: var(--danger); }
@@ -716,32 +825,28 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
     }
     footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 960px) {
+      header {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: "brand identity utilities" "workspaces workspaces workspaces";
+      }
+      .header-actions { justify-self: start; }
+    }
     @media (max-width: 900px) {
-      body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-columns: minmax(0, 1fr); }
-      #details-resizer { display: none; }
-      body[data-workspace="map"] #details { position: absolute; z-index: 4; right: 0; inset-block: 0; width: min(360px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
+      #workspace-shell { margin-right: 46px; }
       #guide-rail { position: absolute; z-index: 5; right: 0; inset-block: 0; width: min(280px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
-      .heading p { display: none; }
+    }
+    @media (max-width: 680px) {
+      header {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity";
+        gap: 8px 10px; padding: 8px 12px;
+      }
+      .heading { padding-left: 0; border-left: 0; }
+      .header-actions { width: 100%; }
+      .header-actions > button { flex: 1; min-width: max-content; }
     }
     @media (max-width: 620px) {
-      header {
-        display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; padding: 8px 12px;
-      }
-      .heading { min-width: 0; }
-      h1 { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
-      .header-actions {
-        grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-        width: 100%; margin-left: 0;
-      }
-      .header-actions > button, .map-tools, .map-tools > summary { width: 100%; min-width: 0; }
-      .map-tools > summary { justify-content: center; }
-      .map-view-bar .map-tools { width: auto; }
-      .map-view-bar { flex-wrap: wrap; }
-      .toolbar { width: calc(100vw - 24px); }
-      .map-view-bar { padding-inline: 12px; }
-      .map-view-switch { width: 100%; min-width: 0; }
-      .map-view-switch button { flex: 1; }
-      main { grid-template-rows: minmax(180px, 2fr) minmax(260px, 3fr); }
       aside {
         position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
         border-left: 0; box-shadow: none;
@@ -753,50 +858,63 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     ${RUN_PANEL_CSS}
     ${BUILD_PANEL_CSS}
+    ${COMPONENT_LOGS_CSS}
+    ${APP_LOGS_CSS}
+    ${renderThemeStyles()}
   </style>
 </head>
 <body>
   <header>
-    <button id="back-apps" class="back-link" type="button">Home</button>
+    <div class="studio-site-nav" role="navigation" aria-label="Unity Studio navigation">
+      ${renderStudioBrand()}
+      <button id="back-apps" class="back-link" type="button">Home</button>
+    </div>
     <div class="heading">
-      <small>App workspace</small>
       <div class="app-title-row">
         <h1 title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
         <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
         <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       </div>
-      <p>Build your app, run it, and inspect how it works.</p>
     </div>
-    <div class="header-actions">
-      <button id="build-app" type="button" aria-pressed="false">Build</button>
-      <button id="manage-app" type="button" aria-pressed="false">Run/Debug</button>
-      <button id="map-app" type="button" aria-pressed="false">Observe/Map</button>
-      <button id="action-center" type="button" aria-pressed="true" aria-expanded="true" aria-controls="guide-rail">${guideIcon}Guide</button>
+    <div class="header-actions" role="group" aria-label="App workspaces">
+      <button id="build-app" type="button" aria-pressed="true" aria-controls="workspace-shell">Build</button>
+      <button id="manage-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Run &amp; Debug</button>
+      <button id="map-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Observe</button>
     </div>
+    ${renderThemeToggle(theme)}
   </header>
-  <nav class="map-view-bar" aria-label="App Map views">
-    <div class="map-view-switch" role="tablist" aria-label="App Map view">
-      <button id="request-flow-view" type="button" role="tab" aria-selected="true" aria-controls="graph-shell">Request flow</button>
-      <button id="implementation-view" type="button" role="tab" aria-selected="false" aria-controls="graph-shell" tabindex="-1">Implementation map</button>
+  <main>
+    <section id="workspace-shell" role="region" aria-labelledby="build-app">
+    <div id="observe-views" class="workspace-tabs" role="tablist" aria-label="Observe views" hidden>
+      <button id="map-view" role="tab" type="button" aria-selected="true" aria-controls="workspace"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="7" y="2" width="6" height="4" rx="1"/><rect x="2" y="14" width="6" height="4" rx="1"/><rect x="12" y="14" width="6" height="4" rx="1"/><path d="M10 6v4M5 14v-4h10v4"/></svg>App Map</button>
+      <button id="logs-app" role="tab" type="button" aria-selected="false" aria-controls="workspace" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2" y="2" width="16" height="16" rx="2"/><path d="M5 6h1m3 0h6M5 10h1m3 0h6M5 14h1m3 0h6"/></svg>Logs</button>
     </div>
+    <section id="structure-guidance" aria-label="App structure guidance" tabindex="-1" hidden>
+      <p><strong>Edit app structure.</strong> Use <strong>+ Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
+      <button id="close-structure-guidance" type="button" aria-label="Dismiss app structure guidance" title="Dismiss app structure guidance"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+    </section>
+    <section id="workspace" aria-label="App workspace">
+    <div id="graph-shell">
+      <nav class="map-palette" aria-label="App Map controls">
       <details class="map-tools">
-        <summary>Search &amp; layout</summary>
-        <div class="toolbar" role="toolbar" aria-label="Advanced App Map controls">
-          <label><span class="visually-hidden">Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
-          <label><span class="visually-hidden">Search nodes</span><input id="search" type="search" placeholder="Find a component…" aria-label="Search nodes"></label>
-          <label><span class="visually-hidden">Filter by tier</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All component types</option>${tierOptions}</select></label>
-          <div class="icon-group" aria-label="Zoom controls">
-            <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-            <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
-          </div>
-          <button id="fit" type="button">Fit map</button>
+        <summary><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 5 5"/></svg>Search &amp; layout</summary>
+        <div class="toolbar" role="group" aria-label="Search and layout options">
+          <label><span>Search nodes</span><input id="search" type="search" placeholder="Find a component…" aria-label="Search nodes"></label>
+          <label><span>Component type</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All component types</option>${tierOptions}</select></label>
+          <label><span>Request entry point</span><select id="entry-filter" aria-label="Request entry point"><option value="">All request paths</option></select></label>
+          <label class="map-inventory-toggle" title="Include resources outside discovered request paths. Expand workflow cards for their internal items. This is source evidence, not live usage.">
+            <input id="show-other-resources" type="checkbox" aria-controls="graph-shell">
+            <span>Show other resources (<span id="other-resource-count">${model.requestFlow.otherResourceCount}</span>)</span>
+          </label>
           <button id="reset-layout" type="button">Reset map</button>
         </div>
       </details>
-  </nav>
-  <main>
-    <section id="workspace" aria-label="App workspace">
-    <div id="graph-shell">
+      <div class="icon-group" aria-label="Zoom controls">
+        <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+        <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+      </div>
+      <button id="fit" type="button" aria-label="Fit map" title="Fit map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button>
+      </nav>
       <svg id="graph" role="application" aria-label="Interactive source-derived Unity application graph">
         <defs>
           <marker id="arrow-high" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L9,3.5 L0,7 z" fill="var(--edge-high)"></path></marker>
@@ -811,14 +929,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       </svg>
       <div id="empty-state">No nodes match the current filters.</div>
     </div>
-    <div id="details-resizer" role="separator" aria-label="Resize details panel" aria-orientation="vertical" tabindex="0"></div>
+    <div id="details-resizer" role="separator" aria-label="Resize details panel" aria-orientation="horizontal" aria-controls="details" tabindex="0"></div>
     <section id="details" aria-label="Workspace content" aria-live="polite" data-empty="false"></section>
+    </section>
     </section>
     <aside id="guide-rail" aria-label="Guide">
       <div class="guide-heading">
         <h2>Guide</h2>
-        <button id="collapse-guide" type="button" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
+        <button id="action-center" type="button" aria-expanded="true" aria-controls="guide-content" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
       </div>
+      <div id="guide-shortcuts" role="group" aria-label="Guide progress" hidden>${guideShortcutsHtml}</div>
       <div id="guide-content"></div>
     </aside>
   </main>
@@ -831,10 +951,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     "use strict";
     const MODEL = ${safeJson(model)};
     const API_TOKEN = ${safeJson(apiToken)};
+    const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
+    const mountAppLogs = (${createAppLogsPanel.toString()});
+    let appLogs = null;
     let launchNotice = new URLSearchParams(location.search).get("notice") || "";
     const NS = "http://www.w3.org/2000/svg";
-    const LANE_WIDTH = 248;
-    const LANE_GAP = 24;
     const WORLD_PADDING = 24;
     const LANE_HEADER = 62;
     const NODE_WIDTH = 206;
@@ -864,16 +985,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const appStatusBadge = document.querySelector("#app-status-badge");
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
     const mapContext = document.querySelector("#map-context");
+    const structureGuidance = document.querySelector("#structure-guidance");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
     const entryFilter = document.querySelector("#entry-filter");
-    const requestFlowButton = document.querySelector("#request-flow-view");
-    const implementationButton = document.querySelector("#implementation-view");
+    const otherResourcesToggle = document.querySelector("#show-other-resources");
+    const otherResourcesKey = "unity-workspace:" + MODEL.root + ":show-other-resources";
+    otherResourcesToggle.checked = localStorage.getItem(otherResourcesKey) === "true";
     const resetLayoutButton = document.querySelector("#reset-layout");
     const nodeById = new Map(MODEL.nodes.map((node) => [node.id, node]));
     const tierById = new Map(MODEL.tiers.map((tier) => [tier.id, tier]));
-    const flowEdgeById = new Map(MODEL.requestFlow.edges.map((edge) => [edge.id, edge]));
+    const flowEdgeById = new Map([...MODEL.requestFlow.edges, ...MODEL.requestFlow.otherEdges].map((edge) => [edge.id, edge]));
+    const otherNodeIds = new Set(MODEL.requestFlow.otherNodeIds);
+    const operationGroups = new Map(MODEL.requestFlow.operationGroups.map((group) => [group.parentId, group]));
+    const operationParents = new Map(MODEL.requestFlow.operationGroups.flatMap((group) =>
+      group.nodeIds.map((id) => [id, group.parentId])));
+    const otherResourceIds = MODEL.requestFlow.otherNodeIds.filter((id) => !operationParents.has(id));
+    const expandedOperations = new Set();
+    const operationCameras = new Map();
+    const operationRegions = new Map();
+    const operationToggleElements = new Map();
+    const edgeBundles = new Map();
     const nodeElements = new Map();
+    const nodeLogElements = new Map();
     const edgeElements = new Map();
     const positions = new Map();
     const defaultPositions = new Map();
@@ -909,8 +1043,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedModel = "";
     let gatewayApplying = false;
     const autoGatewayAttempts = new Set();
-    let layoutMode = "request-flow";
     let panelMode = "build";
+    let observeView = "map";
     const buildPanel = (${createBuildPanel.toString()})({
       container: details, root: MODEL.root, request: apiRequest,
       isActive: () => panelMode === "build",
@@ -920,21 +1054,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
       onModel: () => renderManagePanel({ openGateway: true }),
+      onStructure: renderStructureMap,
     });
     let selectedId = null;
     let selectedEdgeId = null;
     let panState = null;
-    let dragState = null;
     let detailsResizeState = null;
-    let detailsPanelWidth = 380;
-    let suppressNodeClick = null;
+    let detailsPanelHeight = 300;
     const ACTIVE_LIFECYCLE_STATES = ["starting", "stopping", "configuring", "provisioning", "deploying"];
     let transform = { x: 0, y: 0, scale: 1 };
     let mapHasFitted = false;
 
-    const maxTierNodes = Math.max(1, ...MODEL.tiers.map((tier) => tier.nodeIds.length));
-    let worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
-    let worldHeight = Math.max(MIN_WORLD_HEIGHT, LANE_HEADER + 40 + maxTierNodes * NODE_STEP);
+    let worldWidth = 0;
+    let worldHeight = MIN_WORLD_HEIGHT;
+    let operationsY = 0;
+    let operationsBottom = 0;
+    let inventoryY = 0;
+    let inventoryBottom = 0;
 
     function svgElement(name, attributes = {}) {
       const element = document.createElementNS(NS, name);
@@ -1035,8 +1171,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         label = previewMode ? "Local preview" : "Running locally";
         tone = previewMode ? "warning" : "success";
       } else if (appState === "starting") {
-        label = "Starting locally";
-        tone = "busy";
+        label = operationalState.app.recovered ? "Partial startup" : "Starting locally";
+        tone = operationalState.app.recovered ? "warning" : "busy";
       } else if (appState === "stopping") {
         label = "Stopping";
         tone = "busy";
@@ -1067,6 +1203,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (appState === "running") {
         actionLabel = "Stop app";
         operation = "stop-local";
+      } else if (appState === "starting") {
+        actionLabel = operationalState.app.recovered ? "Stop partial startup" : "Cancel startup";
+        operation = "stop-local";
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         actionLabel = appState === "starting"
           ? "Starting…"
@@ -1086,18 +1225,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
     }
 
-    function detailsWidthMaximum() {
-      return Math.max(320, Math.min(720, workspace.clientWidth - 300));
+    function detailsHeightMaximum() {
+      return Math.max(80, Math.floor(workspace.clientHeight * .6));
     }
 
-    function setDetailsPanelWidth(value, persist = false) {
-      detailsPanelWidth = Math.round(Math.max(320, Math.min(detailsWidthMaximum(), value)));
-      document.documentElement.style.setProperty("--details-width", detailsPanelWidth + "px");
-      detailsResizer.setAttribute("aria-valuemin", "320");
-      detailsResizer.setAttribute("aria-valuemax", String(detailsWidthMaximum()));
-      detailsResizer.setAttribute("aria-valuenow", String(detailsPanelWidth));
+    function setDetailsPanelHeight(value, persist = false) {
+      const maximum = detailsHeightMaximum();
+      const minimum = Math.min(180, maximum);
+      detailsPanelHeight = Math.round(Math.max(minimum, Math.min(maximum, value)));
+      document.documentElement.style.setProperty("--details-height", detailsPanelHeight + "px");
+      detailsResizer.setAttribute("aria-valuemin", String(minimum));
+      detailsResizer.setAttribute("aria-valuemax", String(maximum));
+      detailsResizer.setAttribute("aria-valuenow", String(detailsPanelHeight));
       if (persist) {
-        localStorage.setItem(MODEL.layoutKey + ":details-width", String(detailsPanelWidth));
+        try { localStorage.setItem(MODEL.layoutKey + ":details-height", String(detailsPanelHeight)); }
+        catch (error) { setStatus("Could not remember inspector height: " + error.message, true); }
       }
     }
 
@@ -1109,45 +1251,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       viewport.setAttribute("transform", "translate(" + transform.x + " " + transform.y + ") scale(" + transform.scale + ")");
     }
 
-    function worldPoint(event) {
-      const bounds = svg.getBoundingClientRect();
-      return {
-        x: (event.clientX - bounds.left - transform.x) / transform.scale,
-        y: (event.clientY - bounds.top - transform.y) / transform.scale,
-      };
-    }
-
     function setStatus(message, isError = false) {
       status.textContent = message;
       status.classList.toggle("error", isError);
-    }
-
-    function implementationLayout() {
-      worldWidth = WORLD_PADDING * 2 + MODEL.tiers.length * LANE_WIDTH + (MODEL.tiers.length - 1) * LANE_GAP;
-      worldHeight = Math.max(MIN_WORLD_HEIGHT, LANE_HEADER + 40 + maxTierNodes * NODE_STEP);
-      MODEL.tiers.forEach((tier, tierIndex) => {
-        tier.nodeIds.forEach((nodeId, nodeIndex) => {
-          defaultPositions.set(nodeId, {
-            x: WORLD_PADDING + tierIndex * (LANE_WIDTH + LANE_GAP) + (LANE_WIDTH - NODE_WIDTH) / 2,
-            y: LANE_HEADER + 34 + nodeIndex * NODE_STEP,
-          });
-        });
-      });
-      let saved = {};
-      const storageKey = MODEL.layoutKey + ":implementation";
-      try {
-        saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
-      } catch {
-        localStorage.removeItem(storageKey);
-      }
-      for (const node of MODEL.nodes) {
-        const candidate = saved[node.id];
-        const fallback = defaultPositions.get(node.id);
-        positions.set(node.id, constrainPosition(
-          node.id,
-          Number.isFinite(candidate?.y) ? candidate : fallback,
-        ));
-      }
     }
 
     function requestFlowLayout() {
@@ -1162,7 +1268,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       worldWidth = WORLD_PADDING * 2 +
         MODEL.requestFlow.groups.reduce((total, group) => total + flowGroupWidth(group), 0) +
         (MODEL.requestFlow.groups.length - 1) * FLOW_REGION_GAP;
-      worldHeight = flowBodyHeight + operationsHeight + FLOW_REGION_GAP + WORLD_PADDING;
+      operationsY = flowBodyHeight + FLOW_REGION_GAP;
+      operationsBottom = operationsY + operationsHeight;
+      inventoryY = operationsBottom + FLOW_REGION_GAP;
+      worldHeight = operationsBottom + WORLD_PADDING;
       MODEL.requestFlow.groups.forEach((group, groupIndex) => {
         group.nodeIds.forEach((nodeId, nodeIndex) => {
           const columns = flowGroupColumns(group);
@@ -1180,9 +1289,38 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const slotWidth = (worldWidth - WORLD_PADDING * 2) / 4;
         defaultPositions.set(nodeId, {
           x: WORLD_PADDING + column * slotWidth + (slotWidth - NODE_WIDTH) / 2,
-          y: flowBodyHeight + FLOW_REGION_GAP + 52 + row * NODE_STEP,
+          y: operationsY + 52 + row * NODE_STEP,
         });
       });
+      if (otherResourcesToggle.checked && otherResourceIds.length) {
+        const columns = Math.max(1, Math.floor((worldWidth - WORLD_PADDING * 2 - 64 + FLOW_CARD_GAP) / (NODE_WIDTH + FLOW_CARD_GAP)));
+        otherResourceIds.forEach((nodeId, index) => {
+          defaultPositions.set(nodeId, {
+            x: WORLD_PADDING + 32 + (index % columns) * (NODE_WIDTH + FLOW_CARD_GAP),
+            y: inventoryY + 72 + Math.floor(index / columns) * NODE_STEP,
+          });
+        });
+        worldHeight = inventoryY + 72 + Math.ceil(otherResourceIds.length / columns) * NODE_STEP + WORLD_PADDING;
+      }
+      inventoryBottom = worldHeight;
+      operationRegions.clear();
+      const requestPath = selectedRequestPath();
+      for (const group of operationGroups.values()) {
+        if (!expandedOperations.has(group.parentId) ||
+          !(otherResourcesToggle.checked && otherNodeIds.has(group.parentId) || requestPath.has(group.parentId))) continue;
+        const columns = Math.min(2, group.nodeIds.length);
+        const contentWidth = columns * NODE_WIDTH + (columns - 1) * 80;
+        const bounds = {
+          x: (worldWidth - contentWidth - 128) / 2, y: worldHeight + 32, width: contentWidth + 128,
+          height: 80 + Math.ceil(group.nodeIds.length / columns) * (NODE_HEIGHT + 72),
+        };
+        operationRegions.set(group.parentId, bounds);
+        group.nodeIds.forEach((id, index) => defaultPositions.set(id, {
+          x: (worldWidth - contentWidth) / 2 + (index % columns) * (NODE_WIDTH + 80),
+          y: bounds.y + 80 + Math.floor(index / columns) * (NODE_HEIGHT + 72),
+        }));
+        worldHeight = bounds.y + bounds.height + WORLD_PADDING;
+      }
       for (const node of MODEL.nodes) {
         positions.set(node.id, defaultPositions.get(node.id) || {
           x: WORLD_PADDING,
@@ -1204,58 +1342,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return WORLD_PADDING + MODEL.requestFlow.groups
         .slice(0, groupIndex)
         .reduce((x, group) => x + flowGroupWidth(group) + FLOW_REGION_GAP, 0);
-    }
-
-    function constrainPosition(nodeId, point) {
-      const lanePosition = defaultPositions.get(nodeId);
-      return {
-        x: lanePosition.x,
-        y: Math.max(LANE_HEADER + 34, Math.min(worldHeight - WORLD_PADDING - NODE_HEIGHT, point.y)),
-      };
-    }
-
-    function savePositions() {
-      const serialized = Object.fromEntries([...positions].map(([id, point]) => [id, {
-        x: Math.round(point.x * 10) / 10,
-        y: Math.round(point.y * 10) / 10,
-      }]));
-      localStorage.setItem(MODEL.layoutKey + ":implementation", JSON.stringify(serialized));
-    }
-
-    function renderLanes() {
-      MODEL.tiers.forEach((tier, index) => {
-        const x = WORLD_PADDING + index * (LANE_WIDTH + LANE_GAP);
-        const group = svgElement("g", { class: "lane", "data-tier-id": tier.id });
-        group.append(svgElement("rect", { x, y: WORLD_PADDING, width: LANE_WIDTH, height: worldHeight - WORLD_PADDING * 2, rx: 8 }));
-        const title = svgElement("text", { x: x + 14, y: WORLD_PADDING + 24, class: "lane-title" });
-        title.textContent = tier.name;
-        group.append(title);
-        const count = svgElement("text", { x: x + LANE_WIDTH - 14, y: WORLD_PADDING + 24, class: "lane-count", "text-anchor": "end" });
-        count.textContent = tier.nodeIds.length + (tier.nodeIds.length === 1 ? " node" : " nodes");
-        group.append(count);
-        const role = svgElement("text", { x: x + 14, y: WORLD_PADDING + 43, class: "lane-role" });
-        role.textContent = shorten(tier.role, 38);
-        group.append(role);
-        const add = svgElement("g", {
-          class: "lane-add",
-          tabindex: "0",
-          role: "button",
-          "aria-label": "Add capability to " + tier.name,
-        });
-        add.append(svgElement("rect", { x: x + LANE_WIDTH - 58, y: WORLD_PADDING + 31, width: 44, height: 20, rx: 4 }));
-        const addText = svgElement("text", { x: x + LANE_WIDTH - 36, y: WORLD_PADDING + 45, "text-anchor": "middle" });
-        addText.textContent = "+ Add";
-        add.append(addText);
-        add.addEventListener("pointerdown", (event) => event.stopPropagation());
-        add.addEventListener("click", () => renderTierAddPanel(tier));
-        add.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          renderTierAddPanel(tier);
-        });
-        group.append(add);
-        lanesLayer.append(group);
-      });
     }
 
     function appendFlowAdd(parent, x, y, label, tierIds) {
@@ -1319,9 +1405,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderFlowRegions() {
-      const operationsY = worldHeight -
-        (72 + Math.max(1, Math.ceil(MODEL.requestFlow.operations.length / 4)) * NODE_STEP) -
-        WORLD_PADDING;
       MODEL.requestFlow.groups.forEach((group, index) => {
         const x = flowGroupX(index);
         const region = svgElement("g", { class: "flow-region", "data-flow-group": group.id });
@@ -1359,7 +1442,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         x: WORLD_PADDING,
         y: operationsY,
         width: worldWidth - WORLD_PADDING * 2,
-        height: worldHeight - operationsY - WORLD_PADDING,
+        height: operationsBottom - operationsY,
         rx: 10,
       }));
       const title = svgElement("text", {
@@ -1383,17 +1466,96 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendFlowAdd(
         operations,
         (worldWidth - 88) / 2,
-        worldHeight - WORLD_PADDING - 38,
+        operationsBottom - 38,
         "Operations",
         ["sre"],
       );
       lanesLayer.append(operations);
+      if (otherResourcesToggle.checked && otherResourceIds.length) {
+        const inventory = svgElement("g", { class: "flow-region inventory", "data-flow-group": "other-resources" });
+        inventory.append(svgElement("rect", {
+          x: WORLD_PADDING, y: inventoryY,
+          width: worldWidth - WORLD_PADDING * 2,
+          height: inventoryBottom - inventoryY - WORLD_PADDING, rx: 10,
+        }));
+        const heading = svgElement("text", { x: WORLD_PADDING + 16, y: inventoryY + 25, class: "flow-region-title" });
+        heading.textContent = "Outside the request flow";
+        inventory.append(heading);
+        const caption = svgElement("text", { x: WORLD_PADDING + 16, y: inventoryY + 46, class: "flow-region-role" });
+        caption.textContent = "Disconnected resources · expand workflow cards for internal items · not a live usage assessment";
+        inventory.append(caption);
+        lanesLayer.append(inventory);
+      }
+      for (const [parentId, bounds] of operationRegions) {
+        const region = svgElement("g", {
+          class: "flow-region", "data-operation-region": parentId,
+          role: "group", "aria-label": "Internal items for " + nodeById.get(parentId).name,
+        });
+        region.append(svgElement("rect", { ...bounds, rx: 10 }));
+        const title = svgElement("text", { x: bounds.x + 16, y: bounds.y + 28, class: "flow-region-title" });
+        title.textContent = shorten(nodeById.get(parentId).name, 42);
+        region.append(title);
+        const hint = svgElement("text", { x: bounds.x + 16, y: bounds.y + 48, class: "flow-region-role" });
+        hint.textContent = operationGroups.get(parentId).nodeIds.length + " internal items";
+        region.append(hint);
+        appendOperationToggle(region, parentId, bounds.x + bounds.width - 158, bounds.y + 36);
+        lanesLayer.append(region);
+      }
+    }
+
+    function toggleOperations(parentId) {
+      const collapse = expandedOperations.has(parentId);
+      if (collapse) expandedOperations.delete(parentId);
+      else {
+        operationCameras.set(parentId, { ...transform });
+        expandedOperations.add(parentId);
+      }
+      applyLayout(false);
+      if (collapse && operationCameras.has(parentId)) {
+        transform = operationCameras.get(parentId);
+        operationCameras.delete(parentId);
+        applyTransform();
+      } else if (operationRegions.has(parentId)) {
+        fitGraph(.18, operationRegions.get(parentId));
+      }
+      const focusTarget = collapse ? operationToggleElements.get(parentId)
+        : [...document.querySelectorAll("[data-operation-region]")]
+          .find((region) => region.dataset.operationRegion === parentId)?.querySelector(".node-operations");
+      focusTarget?.focus({ preventScroll: true });
+    }
+
+    function appendOperationToggle(container, parentId, x = 12, y = 70) {
+      const toggle = svgElement("g", {
+        class: "node-operations", tabindex: "0", role: "button", "data-operation-toggle": parentId,
+      });
+      toggle.append(svgElement("rect", { x, y, width: 136, height: 22, rx: 4 }));
+      toggle.append(svgElement("text", { x: x + 68, y: y + 15, "text-anchor": "middle" }));
+      toggle.addEventListener("pointerdown", (event) => event.stopPropagation());
+      toggle.addEventListener("click", (event) => { event.stopPropagation(); toggleOperations(parentId); });
+      toggle.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        toggleOperations(parentId);
+      });
+      container.append(toggle);
+      updateOperationToggle(toggle, parentId);
+      return toggle;
+    }
+
+    function updateOperationToggle(toggle, parentId) {
+      const expanded = expandedOperations.has(parentId);
+      toggle.setAttribute("aria-expanded", String(expanded));
+      toggle.setAttribute("aria-label", (expanded ? "Collapse" : "Expand") + " internal items for " + nodeById.get(parentId).name);
+      toggle.querySelector("text").textContent = (expanded ? "Hide " : "Show ") +
+        operationGroups.get(parentId).nodeIds.length + " internal items";
     }
 
     function renderNodes() {
       for (const node of MODEL.nodes) {
+        const hasLogs = node.kind === "project" && SERVICE_LOG_TIERS.has(node.tierId);
         const group = svgElement("g", {
-          class: "node " + node.kind,
+          class: "node " + node.kind + (otherNodeIds.has(node.id) ? " outside-flow" : ""),
           tabindex: "0",
           role: "button",
           "aria-label": node.name + ", " + humanize(node.kind) + ", " + node.confidence + " confidence",
@@ -1403,23 +1565,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const title = svgElement("title");
         title.textContent = node.name + " — " + node.projectPath;
         group.append(title);
-        appendNodeVisual(group, node.tierId);
+        if (!operationParents.has(node.id)) appendNodeVisual(group, node.tierId);
         const name = svgElement("text", { x: 12, y: 23, class: "node-title" });
-        name.textContent = shorten(node.name, 21);
+        name.textContent = shorten(node.name, operationParents.has(node.id) ? 28 : 21);
         group.append(name);
         const kind = svgElement("text", { x: 12, y: 42, class: "node-meta", "data-role": "kind" });
         kind.textContent = humanize(node.kind) + " · " + node.confidence + " confidence";
         group.append(kind);
         const project = svgElement("text", { x: 12, y: 61, class: "node-meta" });
-        project.textContent = shorten(node.projectPath, 34);
+        project.textContent = shorten(operationParents.has(node.id) && node.evidence[0]
+          ? node.evidence[0].path.split("/").pop() + ":" + node.evidence[0].line
+          : node.projectPath, 34);
         group.append(project);
-        if (node.badges.length) {
+        if (node.badges.length && !operationGroups.has(node.id)) {
           const badges = svgElement("text", { x: 12, y: 82, class: "node-badge" });
-          badges.textContent = shorten(node.badges.map((badge) => badge.label).join(" · "), 37);
+          badges.textContent = shorten(node.badges.map((badge) => badge.label).join(" · "), hasLogs ? 25 : 37);
           group.append(badges);
         }
         group.addEventListener("click", () => {
-          if (suppressNodeClick === node.id) return;
           selectNode(node.id);
         });
         group.addEventListener("keydown", (event) => {
@@ -1431,20 +1594,35 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         group.addEventListener("pointerdown", (event) => {
           if (event.button !== 0) return;
           event.stopPropagation();
-          if (layoutMode !== "implementation") return;
-          const point = worldPoint(event);
-          const position = positions.get(node.id);
-          dragState = {
-            pointerId: event.pointerId,
-            nodeId: node.id,
-            offsetX: point.x - position.x,
-            offsetY: point.y - position.y,
-            moved: false,
-          };
-          group.setPointerCapture(event.pointerId);
         });
         nodesLayer.append(group);
         nodeElements.set(node.id, group);
+        if (operationGroups.has(node.id)) {
+          operationToggleElements.set(node.id, appendOperationToggle(nodesLayer, node.id));
+        }
+        if (hasLogs) {
+          const logs = svgElement("g", {
+            class: "node-logs", role: "button", tabindex: "0",
+            "aria-label": "Service logs for " + node.name,
+          });
+          logs.append(svgElement("rect", { x: NODE_WIDTH - 54, y: 70, width: 44, height: 22, rx: 4 }));
+          const text = svgElement("text", { x: NODE_WIDTH - 32, y: 85, "text-anchor": "middle" });
+          text.textContent = "Logs";
+          logs.append(text);
+          const openLogs = (event) => {
+            event.stopPropagation();
+            renderLogsPanel(node.id);
+          };
+          logs.addEventListener("click", openLogs);
+          logs.addEventListener("pointerdown", (event) => event.stopPropagation());
+          logs.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            openLogs(event);
+          });
+          nodesLayer.append(logs);
+          nodeLogElements.set(node.id, logs);
+        }
       }
     }
 
@@ -1477,68 +1655,61 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updatePresentation() {
-      document.body.classList.toggle("implementation-view", layoutMode === "implementation");
-      requestFlowButton.setAttribute("aria-selected", String(layoutMode === "request-flow"));
-      implementationButton.setAttribute("aria-selected", String(layoutMode === "implementation"));
-      requestFlowButton.tabIndex = layoutMode === "request-flow" ? 0 : -1;
-      implementationButton.tabIndex = layoutMode === "implementation" ? 0 : -1;
-      entryFilter.hidden = layoutMode !== "request-flow" || MODEL.requestFlow.entrypointIds.length < 2;
-      resetLayoutButton.textContent = layoutMode === "request-flow" ? "Reset view" : "Reset layout";
-      mapContext.textContent = layoutMode === "request-flow"
-        ? "Evidence-backed request flow · dashed paths need confirmation"
-        : "Source-derived implementation inventory · not runtime health";
+      entryFilter.hidden = MODEL.requestFlow.entrypointIds.length < 2;
+      mapContext.textContent = "Source-derived request flow · not live usage";
       for (const node of MODEL.nodes) {
         const element = nodeElements.get(node.id);
         const kind = element.querySelector('[data-role="kind"]');
         const tier = tierById.get(node.tierId);
-        kind.textContent = layoutMode === "request-flow"
-          ? (tier?.name || node.tierId) + " · " + node.confidence + " confidence"
-          : humanize(node.kind) + " · " + node.confidence + " confidence";
+        kind.textContent = operationParents.has(node.id)
+          ? humanize(node.kind)
+          : shorten((tier?.name || node.tierId) + " · " +
+          (otherNodeIds.has(node.id)
+            ? node.kind === "operation" ? "internal operation" : "outside flow"
+            : node.confidence + " confidence"), 28);
       }
       for (const edge of MODEL.edges) {
         const group = edgeElements.get(edge.id);
         const label = edgeElements.get(edge.id).querySelector("text");
         const flow = flowEdgeById.get(edge.id);
-        const confidence = layoutMode === "request-flow" && flow
-          ? flow.confidence
-          : edge.confidence;
+        const confidence = flow?.confidence || edge.confidence;
         group.classList.remove("high", "medium", "low");
         group.classList.add(confidence);
         group.setAttribute(
           "aria-label",
-          (layoutMode === "request-flow" && flow ? flow.label : humanize(edge.kind)) +
+          (flow?.label || humanize(edge.kind)) +
             ", " + confidence + " confidence",
         );
         group.querySelector("path").setAttribute("marker-end", "url(#arrow-" + confidence + ")");
-        label.textContent = layoutMode === "request-flow" && flow
+        label.textContent = flow
           ? (flow.step ? flow.step + ". " : "") + flow.label
           : humanize(edge.kind) + " · " + edge.confidence;
       }
+      for (const toggle of document.querySelectorAll("[data-operation-toggle]")) {
+        updateOperationToggle(toggle, toggle.dataset.operationToggle);
+      }
     }
 
-    function applyLayout(nextMode, shouldFit = true) {
-      layoutMode = nextMode;
+    function applyLayout(shouldFit = true) {
       defaultPositions.clear();
       positions.clear();
       clearElement(lanesLayer);
-      if (layoutMode === "request-flow") {
-        requestFlowLayout();
-        renderFlowRegions();
-      } else {
-        implementationLayout();
-        renderLanes();
-      }
-      selectedId = null;
-      selectedEdgeId = null;
+      requestFlowLayout();
+      renderFlowRegions();
       updatePresentation();
       updateGeometry();
       applyFilters();
-      if (shouldFit) requestAnimationFrame(() => fitGraph(layoutMode === "request-flow" ? .48 : .58));
+      if (shouldFit) requestAnimationFrame(() => fitGraph(.48));
+    }
+
+    function displayedNodeId(id) {
+      const parentId = operationParents.get(id);
+      return parentId && !expandedOperations.has(parentId) ? parentId : id;
     }
 
     function edgeGeometry(edge) {
-      const from = positions.get(edge.from);
-      const to = positions.get(edge.to);
+      const from = positions.get(displayedNodeId(edge.from));
+      const to = positions.get(displayedNodeId(edge.to));
       if (!from || !to) return null;
       const fromCenter = { x: from.x + NODE_WIDTH / 2, y: from.y + NODE_HEIGHT / 2 };
       const toCenter = { x: to.x + NODE_WIDTH / 2, y: to.y + NODE_HEIGHT / 2 };
@@ -1546,7 +1717,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       let start;
       let end;
       let path;
-      if (Math.abs(dx) > NODE_WIDTH * .7) {
+      if (operationParents.get(edge.from) && operationParents.get(edge.from) === operationParents.get(edge.to) &&
+          Math.abs(dx) < 1 && Math.abs(to.y - from.y) > NODE_HEIGHT + 72) {
+        const gutter = from.x - 36;
+        start = { x: from.x, y: fromCenter.y };
+        end = { x: to.x, y: toCenter.y };
+        path = "M " + start.x + " " + start.y + " H " + gutter + " V " + end.y + " H " + end.x;
+        return { path, labelX: gutter, labelY: (start.y + end.y) / 2 };
+      } else if (Math.abs(dx) > NODE_WIDTH * .7) {
         const forward = dx > 0;
         start = { x: forward ? from.x + NODE_WIDTH : from.x, y: fromCenter.y };
         end = { x: forward ? to.x : to.x + NODE_WIDTH, y: toCenter.y };
@@ -1572,6 +1750,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       for (const [nodeId, element] of nodeElements) {
         const position = positions.get(nodeId);
         element.setAttribute("transform", "translate(" + position.x + " " + position.y + ")");
+        nodeLogElements.get(nodeId)?.setAttribute("transform", element.getAttribute("transform"));
+        operationToggleElements.get(nodeId)?.setAttribute("transform", element.getAttribute("transform"));
       }
       for (const edge of MODEL.edges) {
         const geometry = edgeGeometry(edge);
@@ -1587,8 +1767,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function connectedIds(nodeId) {
       const ids = new Set([nodeId]);
       for (const edge of MODEL.edges) {
-        if (edge.from === nodeId) ids.add(edge.to);
-        if (edge.to === nodeId) ids.add(edge.from);
+        if (displayedNodeId(edge.from) === nodeId) ids.add(displayedNodeId(edge.to));
+        if (displayedNodeId(edge.to) === nodeId) ids.add(displayedNodeId(edge.from));
       }
       return ids;
     }
@@ -1604,22 +1784,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         element.classList.toggle(
           "muted",
           Boolean(connected) && !connected.has(nodeId) ||
-            Boolean(edge) && edge.from !== nodeId && edge.to !== nodeId,
+            Boolean(edge) && displayedNodeId(edge.from) !== nodeId && displayedNodeId(edge.to) !== nodeId,
         );
+        nodeLogElements.get(nodeId)?.classList.toggle("muted", element.classList.contains("muted"));
+        operationToggleElements.get(nodeId)?.classList.toggle("muted", element.classList.contains("muted"));
       }
       for (const edge of MODEL.edges) {
         const element = edgeElements.get(edge.id);
         element.classList.toggle("selected", edge.id === selectedEdgeId);
         element.classList.toggle(
           "muted",
-          Boolean(selectedId) && edge.from !== selectedId && edge.to !== selectedId ||
+          Boolean(selectedId) && displayedNodeId(edge.from) !== selectedId && displayedNodeId(edge.to) !== selectedId ||
             Boolean(selectedEdgeId) && edge.id !== selectedEdgeId,
         );
       }
     }
 
     function clearElement(element) {
-      if (element === details) delete details.dataset.mode;
+      if (element === details) {
+        appLogs?.dispose();
+        appLogs = null;
+        delete details.dataset.mode;
+        details.scrollTop = 0;
+      }
       while (element.firstChild) element.firstChild.remove();
     }
 
@@ -1645,7 +1832,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = label;
-      if (primary) button.className = "primary";
+      button.className = primary ? "studio-action primary" : "studio-action";
       button.addEventListener("click", handler);
       return button;
     }
@@ -1659,9 +1846,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function appendPanelBack() {
       const button = panelMode === "manage"
         ? actionButton("← Run/Debug", renderManagePanel)
-        : actionButton("← Back to Observe/Map", renderMapPanel);
+        : actionButton("", closeMapDetails);
+      if (panelMode !== "manage") {
+        button.setAttribute("aria-label", "Close details");
+        button.title = "Close details";
+        button.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+      }
       button.className = "panel-back";
       details.append(button);
+    }
+
+    function closeMapDetails() {
+      const target = panelMode === "connections" && !guideCollapsed
+        ? guideContent.querySelector('[data-action-key="review-connections"]')
+        : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId) || document.querySelector("#map-app");
+      renderMapPanel();
+      target.focus({ preventScroll: true });
     }
 
     function managementSection(title, open = false) {
@@ -1686,29 +1886,47 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateModeHighlight() {
-      const mode = ["build", "manage"].includes(panelMode) ? panelMode : "map";
+      const mode = ["build", "manage", "logs"].includes(panelMode) ? panelMode : "map";
+      if (panelMode !== "map") setStructureGuidance(false);
+      const observing = mode === "map" || mode === "logs";
+      if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
-      document.body.dataset.inspecting = String(!["build", "manage", "map"].includes(panelMode));
-      document.querySelector(".map-view-bar").hidden = mode !== "map";
+      document.body.dataset.inspecting = String(!["build", "manage", "logs", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
-      document.querySelector("#manage-app").setAttribute("aria-pressed", String(mode === "manage"));
-      document.querySelector("#build-app").setAttribute("aria-pressed", String(mode === "build"));
-      document.querySelector("#map-app").setAttribute("aria-pressed", String(mode === "map"));
-      details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" : mode === "build" ? "Build workspace" : "Run/Debug workspace");
+      const activeControl = observing ? "map-app" : mode === "build" ? "build-app" : "manage-app";
+      document.querySelector("#workspace-shell").setAttribute("aria-labelledby", activeControl);
+      for (const button of document.querySelectorAll(".header-actions > button")) {
+        button.setAttribute("aria-pressed", String(button.id === activeControl));
+      }
+      document.querySelector("#observe-views").hidden = !observing;
+      for (const tab of document.querySelectorAll("#observe-views > [role='tab']")) {
+        const selected = (tab.id === "logs-app") === (observeView === "logs");
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      }
+      workspace.setAttribute("role", observing ? "tabpanel" : "region");
+      if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
+      else workspace.removeAttribute("aria-labelledby");
+      details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
+        mode === "build" ? "Build workspace" : mode === "logs" ? "Logs workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
+      updateObserveAction();
     }
 
     function setGuideCollapsed(collapsed, persist = false) {
       guideCollapsed = collapsed;
-      const restoreFocus = collapsed && guideRail.contains(document.activeElement);
-      guideRail.hidden = collapsed;
+      const restoreFocus = collapsed && guideContent.contains(document.activeElement);
+      guideRail.dataset.collapsed = String(collapsed);
+      guideContent.hidden = collapsed;
+      document.querySelector("#guide-shortcuts").hidden = !collapsed;
       const toggle = document.querySelector("#action-center");
-      toggle.setAttribute("aria-pressed", String(!collapsed));
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.title = collapsed ? "Expand Guide" : "Collapse Guide";
-      if (restoreFocus) toggle.focus();
-      if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
+      toggle.setAttribute("aria-label", toggle.title);
+      for (const shortcut of document.querySelectorAll("[data-guide-stage]")) shortcut.setAttribute("aria-expanded", String(!collapsed));
+      if (restoreFocus) toggle.focus({ preventScroll: true });
+      setDetailsPanelHeight(detailsPanelHeight);
       if (persist) {
         guideExplicitChoice = true;
         try { localStorage.setItem(guidePreferenceKey, String(collapsed)); }
@@ -1717,12 +1935,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderMapPanel() {
+      setStructureGuidance(false);
       panelMode = "map";
       selectedId = null;
       selectedEdgeId = null;
       clearElement(details);
       details.dataset.empty = "true";
       applySelection();
+    }
+
+    function setStructureGuidance(visible) {
+      structureGuidance.hidden = !visible;
+      graphShell.classList.toggle("structure-editing", visible);
+    }
+
+    function renderStructureMap() {
+      renderMapPanel();
+      setStructureGuidance(true);
+      structureGuidance.focus({ preventScroll: true });
     }
 
     function renderBuildPanel() {
@@ -1736,6 +1966,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.mode = "build";
       updateModeHighlight();
       void buildPanel.show();
+    }
+
+    function renderLogsPanel(nodeId = null) {
+      panelMode = "logs";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "logs";
+      appLogs = mountAppLogs({
+        parent: details, nodeId, isActive: () => panelMode === "logs",
+        load: ({ serviceId, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
+          (serviceId ? "&serviceId=" + encodeURIComponent(serviceId) : ""), { signal }),
+      });
     }
 
     async function apiRequest(path, options = {}) {
@@ -1763,32 +2008,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function effectiveJourneyStages() {
-      const stages = MODEL.actionCenter.stages.map((stage) => {
-        if (stage.id !== "run") return stage;
-        const appState = operationalState.app?.state;
-        if (appState === "running") {
-          return { ...stage, state: "running", detail: "App is running locally" };
-        }
-        if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-          return { ...stage, state: "next", detail: humanize(appState) + " in progress" };
-        }
-        if (operationalState.readiness?.ready) {
-          return { ...stage, state: "ready", detail: "Ready to run locally" };
-        }
-        if (operationalState.readiness) {
-          return { ...stage, state: "next", detail: "Finish guided setup" };
-        }
-        return stage;
-      });
-      let nextAssigned = false;
-      return stages.map((stage, index) => {
-        if (stage.state === "complete" || stage.state === "running") return stage;
-        if (!nextAssigned) {
-          nextAssigned = true;
-          return stage;
-        }
-        return { ...stage, state: "blocked", detail: "Available after " + stages[index - 1].label };
-      });
+      return (${buildJourneyStages.toString()})(MODEL.actionCenter.stages, operationalState, ACTIVE_LIFECYCLE_STATES);
     }
 
     async function runAppOperation(operation) {
@@ -1888,6 +2108,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             progress.setAttribute("aria-label", String(readyCount) + " of " + String(totalCount) + " services ready");
             card.append(progress);
           }
+          card.append(keyedActionButton("cancel-startup", "Cancel startup", () => runAppOperation("stop-local")));
         } else {
           const activeLabels = {
             stopping: "Stopping your app",
@@ -1939,15 +2160,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function runOpportunityAction(opportunity) {
+      if (opportunity.action.kind === "review-connections") {
+        renderConnectionsPanel();
+        return;
+      }
       if (opportunity.action.kind === "add-tier") {
         const tier = MODEL.tiers.find((candidate) => candidate.id === opportunity.action.tierId);
         if (tier) renderTierAddPanel(tier);
         return;
       }
       if (opportunity.action.kind === "inspect-node" && nodeById.has(opportunity.action.nodeId)) {
-        if (layoutMode === "request-flow" && !MODEL.requestFlow.nodeIds.includes(opportunity.action.nodeId)) {
-          applyLayout("implementation");
+        const parentId = operationParents.get(opportunity.action.nodeId);
+        if (parentId) expandedOperations.add(parentId);
+        if (otherNodeIds.has(parentId || opportunity.action.nodeId)) {
+          otherResourcesToggle.checked = true;
         }
+        search.value = "";
+        tierFilter.value = "";
+        entryFilter.value = "";
+        applyLayout(false);
         selectNode(opportunity.action.nodeId);
       }
     }
@@ -1966,10 +2197,73 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return card;
     }
 
+    function renderConnectionsPanel() {
+      panelMode = "connections";
+      if (window.innerWidth <= 900) setGuideCollapsed(true);
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "connections";
+      appendPanelBack();
+      const heading = appendText(details, "h2", "Connection review");
+      heading.tabIndex = -1;
+      appendText(details, "p", "These checks come from source discovery, not live requests. An uncertain connection does not mean a running service has failed.");
+      const actions = appendText(details, "div", "", "actions");
+      actions.append(actionButton("Edit connections on App Map", renderStructureMap));
+      const checks = MODEL.actionCenter.opportunities.filter((item) =>
+        item.stage === "connect" && item.id !== "resolve-connections");
+      if (checks.length) {
+        appendText(details, "h3", "Connection checks");
+        const list = appendText(details, "div", "", "action-list");
+        for (const check of checks) list.append(opportunityCard(check));
+      }
+      if (MODEL.unresolved.length) {
+        appendText(details, "h3", "Uncertain connections (" + MODEL.unresolved.length + ")");
+        const list = appendText(details, "div", "", "action-list");
+        for (const reference of MODEL.unresolved) {
+          const source = nodeById.get(reference.from);
+          const card = appendText(list, "div", "", "action-card");
+          appendText(card, "strong", (source?.name || reference.from) + " → " + reference.reference);
+          appendText(card, "p", "Studio could not identify a single destination from the source evidence.");
+          if (reference.evidence) {
+            appendText(card, "code", reference.evidence.path + ":" + reference.evidence.line);
+          }
+          if (reference.candidates?.length) {
+            appendText(card, "p", "Possible destinations: " + reference.candidates
+              .map((id) => nodeById.get(id)?.name || id).join(", "));
+          }
+          if (source) card.append(actionButton("Inspect " + source.name, () => runOpportunityAction({
+            action: { kind: "inspect-node", nodeId: source.id },
+          })));
+        }
+      }
+      if (!checks.length && !MODEL.unresolved.length) {
+        appendText(details, "p", "No source connection issues found.");
+      }
+      heading.focus({ preventScroll: true });
+    }
+
+    function updateObserveAction() {
+      const card = guideContent.querySelector("[data-observe-action]");
+      if (!card) return;
+      const action = card.querySelector('[data-action-key="observe-map"]');
+      if (!["build", "manage", "logs"].includes(panelMode)) {
+        action?.remove();
+      } else if (!action) {
+        card.append(keyedActionButton("observe-map", "Open App Map", () => {
+          renderMapPanel();
+          document.querySelector("#map-app").focus({ preventScroll: true });
+        }, true));
+      }
+    }
+
     function renderActionCenter() {
       const details = guideContent;
       const restoreFocus = details.contains(document.activeElement);
       const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
+      const focusedStage = restoreFocus ? document.activeElement?.dataset?.stage : null;
       const previousScrollTop = details.scrollTop;
       clearElement(details);
       details.dataset.empty = "false";
@@ -1990,8 +2284,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const stages = effectiveJourneyStages();
       const currentStage = stages.find((stage) =>
         stage.state === "next" || stage.state === "ready" ||
-        stage.state === "running" || stage.state === "runtime");
-      const currentOpportunity = currentStage
+        stage.state === "active" || stage.state === "runtime");
+      updateGuideShortcuts(stages, currentStage);
+      const currentOpportunity = currentStage && currentStage.id !== "observe"
         ? MODEL.actionCenter.opportunities.find((opportunity) => opportunity.stage === currentStage.id)
         : null;
       const journey = document.createElement("div");
@@ -2001,17 +2296,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       for (const stage of stages) {
         const item = document.createElement("div");
         item.className = "journey-stage " + stage.state;
+        item.dataset.stage = stage.id;
+        item.tabIndex = -1;
         item.setAttribute("role", "listitem");
-        if (stage.state === "next" || stage.state === "ready" || stage.state === "running") {
+        if (stage === currentStage) {
           item.setAttribute("aria-current", "step");
         }
-        appendText(item, "span", stage.state === "complete"
-          ? "Complete"
-          : stage.state === "running" ? "Running" : stage.state === "ready"
-            ? "Ready" : stage.state === "blocked" ? "Later" : stage.state === "runtime" ? "Checking" : "Next", "journey-state");
-        appendText(item, "strong", stage.label);
+        let content = item;
+        if (stage.id === "build" || stage.id === "connect") {
+          content = stage.id === "build"
+            ? keyedActionButton("edit-app-structure", "", renderStructureMap)
+            : keyedActionButton("review-connections", "", renderConnectionsPanel);
+          content.className = "journey-stage-action";
+          content.setAttribute("aria-label", stage.id === "build" ? "Build: edit app structure" : "Connect: review connections");
+          item.append(content);
+        }
+        appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
+        appendText(content, "strong", stage.label);
         appendText(
-          item,
+          content,
           "span",
           stage === currentStage && currentOpportunity ? currentOpportunity.title + " below" : stage.detail,
           "journey-detail",
@@ -2021,7 +2324,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.append(journey);
 
       appendText(details, "h3", "Next action");
-      if (currentStage?.id === "run" || !currentOpportunity) {
+      if (currentStage?.id === "observe") {
+        const card = appendText(details, "div", "", "action-card recommended");
+        card.dataset.observeAction = "true";
+        appendText(card, "strong", "Observe the running app");
+        appendText(card, "p", "Select a component to inspect its source, or open Logs for service output. Runtime controls remain in Run/Debug.");
+        updateObserveAction();
+      } else if (currentStage?.id === "run" || !currentOpportunity) {
         renderRuntimeAction(details);
       } else {
         const list = document.createElement("div");
@@ -2039,7 +2348,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const more = document.createElement("details");
         more.className = "more-guidance";
         const summary = document.createElement("summary");
-        summary.textContent = "Later improvements (" + remaining.length + ")";
+        summary.textContent = "Other checks & improvements (" + remaining.length + ")";
         const moreList = document.createElement("div");
         moreList.className = "action-list";
         for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
@@ -2051,8 +2360,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const replacement = focusedAction
           ? [...details.querySelectorAll("[data-action-key]")]
             .find((element) => element.dataset.actionKey === focusedAction)
-          : null;
+          : focusedStage ? details.querySelector('[data-stage="' + focusedStage + '"]') : null;
         (replacement || heading).focus({ preventScroll: true });
+      }
+    }
+
+    function journeyStateLabel(state) {
+      return { complete: "Complete", active: "Current", attention: "Review", ready: "Ready",
+        blocked: "Later", runtime: "Checking", next: "Next" }[state] || "Checking";
+    }
+
+    function updateGuideShortcuts(stages, currentStage) {
+      const symbols = { complete: "✓", attention: "!", active: "●", ready: "✓", next: "→", blocked: "–", runtime: "…" };
+      for (const stage of stages) {
+        const button = document.querySelector('[data-guide-stage="' + stage.id + '"]');
+        button.dataset.state = stage.state;
+        button.dataset.current = String(stage === currentStage);
+        button.title = stage.label + ": " + journeyStateLabel(stage.state) + ". " + stage.detail;
+        button.setAttribute("aria-label", button.title);
+        button.querySelector(".guide-state-icon").textContent = symbols[stage.state] || "…";
       }
     }
 
@@ -2619,9 +2945,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderManagePanel({ openGateway = false } = {}) {
+      const previousScrollTop = panelMode === "manage" ? details.scrollTop : 0;
       panelMode = "manage";
       updateModeHighlight();
-      const previousScrollTop = details.scrollTop;
       const previousOutput = details.querySelector("[data-runtime-output]");
       const outputScrollTop = previousOutput?.scrollTop || 0;
       const followOutput = !previousOutput ||
@@ -2881,6 +3207,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ]);
         const nextFingerprint = JSON.stringify({
           state: app.state,
+          recovered: app.recovered,
+          error: app.error,
           ready: readiness.ready,
           guidance: readiness.guidance,
           gatewayConfigured: readiness.gatewayConfigured,
@@ -3280,6 +3608,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       project.textContent = node.projectPath;
       details.append(project);
 
+      const actions = appendText(details, "div", "", "actions");
+      if (operationGroups.has(node.id)) {
+        appendText(details, "h3", "Workflow internals");
+        appendText(details, "p", operationGroups.get(node.id).nodeIds.length + " internal items are grouped under this workflow.");
+        const internalActions = appendText(details, "div", "", "actions");
+        for (const id of operationGroups.get(node.id).nodeIds) {
+          const child = nodeById.get(id);
+          internalActions.append(actionButton("Inspect " + child.name, () => runOpportunityAction({
+            action: { kind: "inspect-node", nodeId: id },
+          })));
+        }
+      }
+
       if (node.badges.length) {
         const badges = document.createElement("div");
         badges.className = "detail-badges";
@@ -3310,8 +3651,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendList(details, unresolved.map((item) => item.reference + " · " + item.evidence.path + ":" + item.evidence.line), "");
       }
 
-      const actions = document.createElement("div");
-      actions.className = "actions";
       if (node.kind === "project") {
         actions.append(actionButton("Open source", async () => {
           try {
@@ -3324,6 +3663,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             setStatus(error.message, true);
           }
         }, true));
+      }
+      if (node.kind === "project" && SERVICE_LOG_TIERS.has(node.tierId)) {
+        actions.append(actionButton("View service logs", () => renderLogsPanel(node.id)));
       }
       actions.append(actionButton("Open tier studio", () => openTierStudio(tier)));
       const entrypoint = entrypointForNode(node);
@@ -3340,7 +3682,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           }
         }));
       }
-      details.append(actions);
     }
 
     function renderEdgeDetails(edge) {
@@ -3375,6 +3716,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         item.path + ":" + item.line + " · " + humanize(item.rule) + " · " +
           (item.confidence || edge.confidence) + " confidence",
       ), "No direct source evidence recorded.");
+      const bundle = edgeBundles.get(edge.id) || [];
+      if (bundle.length > 1) {
+        appendText(details, "h3", "Grouped connections (" + bundle.length + ")");
+        appendList(details, bundle.map((item) =>
+          (nodeById.get(item.from)?.name || item.from) + " → " + (nodeById.get(item.to)?.name || item.to) +
+          " · " + item.evidence.map((source) => source.path + ":" + source.line).join(", ")), "");
+      }
     }
 
     function selectNode(nodeId) {
@@ -3413,17 +3761,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function selectedRequestPath() {
-      if (layoutMode !== "request-flow" || !entryFilter.value) {
+      if (!entryFilter.value) {
         return new Set(MODEL.requestFlow.nodeIds);
       }
       const reachable = new Set([entryFilter.value, ...MODEL.requestFlow.operations]);
       const queue = [entryFilter.value];
+      const owner = (id) => operationParents.get(id) || id;
       while (queue.length) {
         const current = queue.shift();
-        for (const edge of MODEL.edges.filter((candidate) => candidate.from === current)) {
-          if (reachable.has(edge.to)) continue;
-          reachable.add(edge.to);
-          queue.push(edge.to);
+        for (const edge of MODEL.edges.filter((candidate) => owner(candidate.from) === current)) {
+          const target = owner(edge.to);
+          if (reachable.has(target)) continue;
+          reachable.add(target);
+          queue.push(target);
         }
       }
       return reachable;
@@ -3434,33 +3784,75 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const tierId = tierFilter.value;
       const requestPath = selectedRequestPath();
       let visibleCount = 0;
+      const matchesQuery = (node) => normalized([
+        node.name, node.projectPath, node.kind, ...node.badges.map((badge) => badge.label),
+      ].join(" ")).includes(query);
       for (const node of MODEL.nodes) {
-        const searchable = normalized([node.name, node.projectPath, node.kind, ...node.badges.map((badge) => badge.label)].join(" "));
-        const visibleInMode = layoutMode === "implementation" || requestPath.has(node.id);
+        const parentId = operationParents.get(node.id);
+        const ownerId = parentId || node.id;
+        const visibleInMode = (!parentId || expandedOperations.has(parentId)) &&
+          ((otherResourcesToggle.checked && otherNodeIds.has(ownerId)) ||
+          (requestPath.has(ownerId) && !otherNodeIds.has(ownerId)));
         const visible = visibleInMode &&
           (!tierId || node.tierId === tierId) &&
-          (!query || searchable.includes(query));
+          (!query || matchesQuery(node) || operationGroups.get(node.id)?.nodeIds
+            .some((id) => matchesQuery(nodeById.get(id))));
         nodeElements.get(node.id).classList.toggle("hidden", !visible);
+        nodeLogElements.get(node.id)?.classList.toggle("hidden", !visible);
+        operationToggleElements.get(node.id)?.classList.toggle("hidden", !visible);
+        if (visible && parentId) {
+          const title = nodeElements.get(node.id).querySelector(".node-title");
+          let limit = 28;
+          do { title.textContent = shorten(node.name, limit--); }
+          while (limit > 4 && title.getComputedTextLength() > NODE_WIDTH - 24);
+        }
         if (visible) visibleCount += 1;
       }
       const visibleIds = visibleNodeIds();
+      for (const region of document.querySelectorAll("[data-operation-region]")) {
+        const group = operationGroups.get(region.dataset.operationRegion);
+        region.classList.toggle("hidden", !visibleIds.has(group.parentId) &&
+          !group.nodeIds.some((id) => visibleIds.has(id)));
+      }
+      edgeBundles.clear();
+      const representatives = new Map();
       for (const edge of MODEL.edges) {
-        const visibleInMode = layoutMode === "implementation" || flowEdgeById.has(edge.id);
+        const from = displayedNodeId(edge.from);
+        const to = displayedNodeId(edge.to);
+        const containsInternal = edge.kind === "contains" && operationParents.get(edge.to) === edge.from;
+        const visible = from !== to && !containsInternal && visibleIds.has(from) && visibleIds.has(to);
+        const flow = flowEdgeById.get(edge.id);
+        const key = JSON.stringify([from, to, edge.kind, flow?.confidence || edge.confidence, flow?.evidenceKind]);
+        const representative = representatives.get(key);
+        if (visible) {
+          if (representative) edgeBundles.get(representative).push(edge);
+          else { representatives.set(key, edge.id); edgeBundles.set(edge.id, [edge]); }
+        }
         edgeElements.get(edge.id).classList.toggle(
           "hidden",
-          !visibleInMode || !visibleIds.has(edge.from) || !visibleIds.has(edge.to),
+          !visible || Boolean(representative),
         );
+        edgeElements.get(edge.id).classList.toggle("internal-edge", Boolean(operationParents.get(edge.from)) &&
+          operationParents.get(edge.from) === operationParents.get(edge.to));
       }
-      document.querySelector("#empty-state").style.display = visibleCount ? "none" : "grid";
-      if (layoutMode === "request-flow") {
-        const unconnected = MODEL.requestFlow.unconnectedNodeIds.length;
-        setStatus(
-          visibleCount + " components on proven request paths" +
-            (unconnected ? " · " + unconnected + " more in Implementation" : "") + ".",
-        );
-      } else {
-        setStatus(visibleCount + " components in the implementation map.");
+      updatePresentation();
+      for (const [id, bundle] of edgeBundles) {
+        if (bundle.length > 1) edgeElements.get(id).querySelector("text").textContent += " (" + bundle.length + ")";
       }
+      const emptyState = document.querySelector("#empty-state");
+      emptyState.style.display = visibleCount ? "none" : "grid";
+      emptyState.textContent = !MODEL.requestFlow.nodeIds.length && otherNodeIds.size && !otherResourcesToggle.checked
+        ? "No request path discovered. Show other resources to inspect the app inventory."
+        : "No nodes match the current filters.";
+      const selectedEdge = MODEL.edges.find((edge) => edge.id === selectedEdgeId);
+      if ((selectedId && !visibleIds.has(selectedId)) ||
+          (selectedEdge && edgeElements.get(selectedEdge.id).classList.contains("hidden"))) {
+        renderMapPanel();
+      }
+      setStatus(visibleCount + " components shown" +
+        (!otherResourcesToggle.checked && otherResourceIds.length
+          ? " · " + otherResourceIds.length + " other resources hidden" : "") +
+        (operationParents.size ? " · workflow internals expand on demand" : "") + ".");
       applySelection();
     }
 
@@ -3475,21 +3867,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     }
 
-    function fitGraph(minimumScale = .18) {
+    function fitGraph(minimumScale = .18, content = contentBounds()) {
       const bounds = svg.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
       mapHasFitted = true;
-      const content = contentBounds();
       const padding = 28;
+      const usableHeight = Math.max(1, bounds.height - 64);
       const fittedScale = Math.min(1.25, Math.max(.18, Math.min(
         (bounds.width - padding * 2) / content.width,
-        (bounds.height - padding * 2) / content.height,
+        (usableHeight - padding * 2) / content.height,
       )));
       const scale = Math.max(minimumScale, fittedScale);
       transform = {
         scale,
         x: scale > fittedScale ? padding - content.x * scale : (bounds.width - content.width * scale) / 2 - content.x * scale,
-        y: (bounds.height - content.height * scale) / 2 - content.y * scale,
+        y: (usableHeight - content.height * scale) / 2 - content.y * scale,
       };
       applyTransform();
     }
@@ -3523,43 +3915,47 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       zoomBy(Math.exp(-boundedDelta * WHEEL_ZOOM_SENSITIVITY), event.clientX, event.clientY);
     }
 
-    const savedDetailsWidth = Number(localStorage.getItem(MODEL.layoutKey + ":details-width"));
-    if (Number.isFinite(savedDetailsWidth) && savedDetailsWidth > 0) {
-      setDetailsPanelWidth(savedDetailsWidth);
+    const savedDetailsHeight = Number(localStorage.getItem(MODEL.layoutKey + ":details-height"));
+    if (Number.isFinite(savedDetailsHeight) && savedDetailsHeight > 0) {
+      setDetailsPanelHeight(savedDetailsHeight);
     } else {
-      setDetailsPanelWidth(detailsPanelWidth);
+      setDetailsPanelHeight(detailsPanelHeight);
     }
     detailsResizer.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || window.innerWidth <= 900) return;
+      if (event.button !== 0) return;
+      event.preventDefault();
       detailsResizeState = { pointerId: event.pointerId };
       detailsResizer.setPointerCapture(event.pointerId);
       document.body.classList.add("resizing-details");
     });
     detailsResizer.addEventListener("pointermove", (event) => {
       if (detailsResizeState?.pointerId !== event.pointerId) return;
-      setDetailsPanelWidth(workspace.getBoundingClientRect().right - event.clientX);
+      setDetailsPanelHeight(workspace.getBoundingClientRect().bottom - event.clientY);
     });
     const finishDetailsResize = (event) => {
       if (detailsResizeState?.pointerId !== event.pointerId) return;
       detailsResizeState = null;
       document.body.classList.remove("resizing-details");
-      setDetailsPanelWidth(detailsPanelWidth, true);
+      setDetailsPanelHeight(detailsPanelHeight, true);
     };
     detailsResizer.addEventListener("pointerup", finishDetailsResize);
     detailsResizer.addEventListener("pointercancel", finishDetailsResize);
     detailsResizer.addEventListener("keydown", (event) => {
-      let nextWidth = null;
-      if (event.key === "ArrowLeft") nextWidth = detailsPanelWidth + 24;
-      if (event.key === "ArrowRight") nextWidth = detailsPanelWidth - 24;
-      if (event.key === "Home") nextWidth = 380;
-      if (nextWidth === null) return;
+      let nextHeight = null;
+      if (event.key === "ArrowUp") nextHeight = detailsPanelHeight + 24;
+      if (event.key === "ArrowDown") nextHeight = detailsPanelHeight - 24;
+      if (event.key === "Home") nextHeight = 180;
+      if (event.key === "End") nextHeight = detailsHeightMaximum();
+      if (nextHeight === null) return;
       event.preventDefault();
-      setDetailsPanelWidth(nextWidth, true);
+      setDetailsPanelHeight(nextHeight, true);
     });
     window.addEventListener("resize", () => {
       if (!guideExplicitChoice) setGuideCollapsed(window.innerWidth <= 900);
-      if (window.innerWidth > 900) setDetailsPanelWidth(detailsPanelWidth);
     });
+    new ResizeObserver(() => {
+      setDetailsPanelHeight(detailsPanelHeight);
+    }).observe(workspace);
 
     svg.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
@@ -3575,17 +3971,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       svg.classList.add("panning");
     });
     svg.addEventListener("pointermove", (event) => {
-      if (dragState?.pointerId === event.pointerId) {
-        const point = worldPoint(event);
-        const position = positions.get(dragState.nodeId);
-        const next = constrainPosition(dragState.nodeId, {
-          x: point.x - dragState.offsetX,
-          y: point.y - dragState.offsetY,
-        });
-        if (Math.abs(next.x - position.x) > 1 || Math.abs(next.y - position.y) > 1) dragState.moved = true;
-        positions.set(dragState.nodeId, next);
-        updateGeometry();
-      } else if (panState?.pointerId === event.pointerId) {
+      if (panState?.pointerId === event.pointerId) {
         if (Math.abs(event.clientX - panState.x) > 3 || Math.abs(event.clientY - panState.y) > 3) {
           panState.moved = true;
         }
@@ -3595,14 +3981,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     });
     svg.addEventListener("pointerup", (event) => {
-      if (dragState?.pointerId === event.pointerId) {
-        if (dragState.moved) {
-          savePositions();
-          suppressNodeClick = dragState.nodeId;
-          setTimeout(() => { suppressNodeClick = null; }, 0);
-        }
-        dragState = null;
-      }
       if (panState?.pointerId === event.pointerId) {
         const clearFocus = !panState.moved && (selectedId || selectedEdgeId);
         panState = null;
@@ -3614,23 +3992,64 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     });
     svg.addEventListener("pointercancel", (event) => {
-      if (dragState?.pointerId === event.pointerId) dragState = null;
       if (panState?.pointerId === event.pointerId) panState = null;
       svg.classList.remove("panning");
     });
-    graphShell.addEventListener("wheel", handleMapWheel, { passive: false, capture: true });
+    svg.addEventListener("wheel", handleMapWheel, { passive: false });
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#action-center").addEventListener("click", () => setGuideCollapsed(!guideCollapsed, true));
-    document.querySelector("#collapse-guide").addEventListener("click", () => setGuideCollapsed(true, true));
-    document.querySelector("#map-app").addEventListener("click", renderMapPanel);
+    document.querySelector("#map-app").addEventListener("click", () => {
+      if (["map", "logs"].includes(document.body.dataset.workspace)) return;
+      if (observeView === "logs") renderLogsPanel();
+      else renderMapPanel();
+    });
+    document.querySelector("#map-view").addEventListener("click", renderMapPanel);
+    const dismissStructureGuidance = () => {
+      setStructureGuidance(false);
+      document.querySelector("#map-view").focus({ preventScroll: true });
+    };
+    document.querySelector("#close-structure-guidance").addEventListener("click", dismissStructureGuidance);
+    structureGuidance.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      dismissStructureGuidance();
+    });
+    document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
     document.querySelector("#build-app").addEventListener("click", renderBuildPanel);
     document.querySelector("#manage-app").addEventListener("click", () => {
       document.querySelector(".map-tools").open = false;
       renderManagePanel();
     });
+    for (const tabs of document.querySelectorAll(".workspace-tabs")) {
+      tabs.addEventListener("keydown", (event) => {
+        const items = [...tabs.querySelectorAll("[role='tab']")];
+        const index = items.indexOf(event.target);
+        if (index < 0) return;
+        const next = event.key === "ArrowRight" ? (index + 1) % items.length
+          : event.key === "ArrowLeft" ? (index + items.length - 1) % items.length
+            : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : null;
+        if (next === null) return;
+        event.preventDefault();
+        for (const [position, tab] of items.entries()) tab.tabIndex = position === next ? 0 : -1;
+        items[next].focus({ preventScroll: true });
+      });
+    }
+    for (const shortcut of document.querySelectorAll("[data-guide-stage]")) {
+      shortcut.addEventListener("click", () => {
+        setGuideCollapsed(false, true);
+        const stage = guideContent.querySelector('[data-stage="' + shortcut.dataset.guideStage + '"]');
+        guideContent.scrollTop += stage.getBoundingClientRect().top - guideContent.getBoundingClientRect().top - 12;
+        stage.focus({ preventScroll: true });
+      });
+    }
     document.querySelector(".map-tools").addEventListener("toggle", updateModeHighlight);
+    document.addEventListener("pointerdown", (event) => {
+      const tools = document.querySelector(".map-tools");
+      if (tools.open && !tools.contains(event.target)) tools.open = false;
+    });
     appStatusBadge.addEventListener("click", renderManagePanel);
     headerRuntimeAction.addEventListener("click", () => {
       if (headerRuntimeAction.disabled) return;
@@ -3642,39 +4061,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderManagePanel({ openGateway: true });
     });
     document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));
-    requestFlowButton.addEventListener("click", () => {
-      if (layoutMode === "request-flow") return;
-      applyLayout("request-flow");
-      setStatus("Showing the evidence-backed request flow.");
-    });
-    implementationButton.addEventListener("click", () => {
-      if (layoutMode === "implementation") return;
-      applyLayout("implementation");
-      setStatus("Showing the complete source-derived implementation map.");
-    });
-    const viewTabs = [requestFlowButton, implementationButton];
-    viewTabs.forEach((button, index) => {
-      button.addEventListener("keydown", (event) => {
-        let nextIndex = null;
-        if (event.key === "ArrowLeft") nextIndex = (index - 1 + viewTabs.length) % viewTabs.length;
-        if (event.key === "ArrowRight") nextIndex = (index + 1) % viewTabs.length;
-        if (event.key === "Home") nextIndex = 0;
-        if (event.key === "End") nextIndex = viewTabs.length - 1;
-        if (nextIndex === null) return;
-        event.preventDefault();
-        viewTabs[nextIndex].focus();
-        viewTabs[nextIndex].click();
-      });
+    otherResourcesToggle.addEventListener("change", () => {
+      applyLayout();
+      try { localStorage.setItem(otherResourcesKey, String(otherResourcesToggle.checked)); }
+      catch (error) { setStatus("Could not remember resource visibility: " + error.message, true); }
     });
     resetLayoutButton.addEventListener("click", () => {
-      if (layoutMode === "implementation") {
-        localStorage.removeItem(MODEL.layoutKey + ":implementation");
-        applyLayout("implementation");
-        setStatus("Implementation layout reset.");
-        return;
-      }
       fitGraph(.48);
-      setStatus("Request flow view reset.");
+      setStatus("App Map view reset.");
     });
     search.addEventListener("input", applyFilters);
     tierFilter.addEventListener("change", applyFilters);
@@ -3695,8 +4089,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (guideRail.contains(document.activeElement)) {
         setGuideCollapsed(true, true);
       } else if (document.body.dataset.workspace === "map" && panelMode !== "map") {
-        renderMapPanel();
-        document.querySelector("#map-app").focus();
+        closeMapDetails();
       }
     });
 
@@ -3710,13 +4103,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       option.textContent = "Starting at " + node.name;
       entryFilter.append(option);
     }
-    applyLayout("request-flow", false);
+    applyLayout(false);
     setGuideCollapsed(guideCollapsed);
     renderActionCenter();
     renderBuildPanel();
     void refreshOperationalState();
     setInterval(() => { void refreshOperationalState(); }, 2000);
     setInterval(() => { void refreshRunOutput(); }, 1000);
+    ${renderThemeClientScript(apiToken)}
   </script>
 </body>
 </html>`;

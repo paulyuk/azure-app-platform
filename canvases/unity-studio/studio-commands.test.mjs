@@ -311,6 +311,33 @@ test("repository discovery classifies candidates from evidence and skips secrets
   });
 });
 
+test("browser snapshots and runtime output cannot create phantom components or disconnect the request flow", async () => {
+  await withFixture(GENERIC_APP, async (root) => {
+    const before = await traceApp({ root });
+    const generatedDirectories = [
+      ".playwright-mcp", ".playwright", "playwright-report", "test-results",
+      ".dev-run", "surface/test-results",
+    ];
+    for (const directory of generatedDirectories) {
+      await mkdir(join(root, directory), { recursive: true });
+      await writeFile(join(root, directory, "snapshot.yml"), [
+        "page: Agent instructions",
+        "source: |",
+        "  from agent_framework import Agent",
+        "  agent = Agent(instructions='Summarize')",
+        "  endpoint = AZURE_AI_GATEWAY_ENDPOINT",
+        "  fetch(AGENT_URL + '/responses')",
+      ].join("\n"));
+    }
+    const after = await traceApp({ root });
+    assert.deepEqual(after.nodes.map((node) => node.id), before.nodes.map((node) => node.id));
+    assert.deepEqual(after.edges, before.edges);
+    assert.deepEqual(buildRequestFlowModel(after).nodeIds, buildRequestFlowModel(before).nodeIds);
+    assert.equal(after.nodes.flatMap((node) => node.evidence ?? [])
+      .some((item) => generatedDirectories.some((path) => item.path.startsWith(path + "/"))), false);
+  });
+});
+
 test("repository evidence is grouped by the nearest project root with line provenance", async () => {
   await withFixture({
     "surface/package.json": JSON.stringify({ dependencies: { next: "1.0.0" } }),
@@ -1276,7 +1303,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.match(html, /captureDetails\(\);\s*draft\.templateRootId = input\.value/);
     assert.match(html, /"app-name"\)\.addEventListener\("input"/);
     assert.match(html, /"purpose"\)\.addEventListener\("input"/);
-    assert.match(html, /\.journey\.primary span \{ color: #f0ebff; \}/);
+    assert.doesNotMatch(html, /journey primary|\.journey\.primary/);
     assert.match(html, /\.capability, \.review-row \{ display: grid; gap: 4px; \}/);
     assert.match(html, /\.review-row small \{ display: block; color: var\(--studio-muted\);/);
     assert.equal(html.includes('id="top-back"'), true);
@@ -1623,7 +1650,7 @@ test("interactive App Map model keeps the tier contract and versioned topology l
   assert.deepEqual(model.tiers.map((tier) => tier.id), PLATFORM_TIERS.map((tier) => tier.id));
   assert.equal(model.tiers.find((tier) => tier.id === "web").nodeIds[0], "project:web");
   assert.equal(model.edges.length, 1);
-  assert.match(model.layoutKey, /^unity-studio:app-map-layout:v3:/);
+  assert.match(model.layoutKey, /^unity-studio:app-map-layout:v4:/);
   assert.deepEqual(model.requestFlow.entrypointIds, ["project:web"]);
   assert.deepEqual(
     model.requestFlow.groups.map((group) => [group.id, group.nodeIds]),
@@ -1810,6 +1837,7 @@ test("request flow hides implementation operations and preserves evidence-backed
   const flow = buildRequestFlowModel(graph);
   assert.deepEqual(flow.entrypointIds, ["web"]);
   assert.equal(flow.nodeIds.includes("activity"), false);
+  assert.ok(flow.otherNodeIds.includes("activity"));
   assert.deepEqual(flow.operations, ["sre"]);
   assert.deepEqual(flow.edges, [
     { id: "request", label: "Request", step: 1, confidence: "high", evidenceKind: "source" },
@@ -1867,16 +1895,13 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
   assert.match(html, /role="application" aria-label="Interactive source-derived Unity application graph"/);
-  assert.match(html, /role="toolbar" aria-label="Advanced App Map controls"/);
+  assert.match(html, /role="group" aria-label="Search and layout options"/);
   assert.match(html, /prefers-reduced-motion/);
-  assert.match(html, /MODEL\.layoutKey \+ ":implementation"/);
-  assert.match(html, />Request flow<\/button>/);
-  assert.match(html, />Implementation map<\/button>/);
-  assert.match(html, /<nav class="map-view-bar" aria-label="App Map views">/);
-  assert.match(html, /class="map-view-switch" role="tablist" aria-label="App Map view"/);
-  assert.match(html, /role="tab" aria-selected="true" aria-controls="graph-shell"/);
-  assert.match(html, /\.map-view-switch button\[aria-selected="true"\]/);
-  assert.match(html, /if \(event\.key === "ArrowRight"\)/);
+  assert.match(html, /<nav class="map-palette" aria-label="App Map controls">/);
+  assert.match(html, /id="show-other-resources" type="checkbox" aria-controls="graph-shell"/);
+  assert.match(html, /Outside the request flow/);
+  assert.doesNotMatch(html, /implementation-view|request-flow-view|collapse-guide|:implementation/);
+  assert.match(html, /if \(event\.key === "ArrowUp"\)/);
   const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, />Home<\/button>/);
@@ -1887,9 +1912,12 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Start preview/);
   assert.match(html, /Stop app/);
   assert.match(html, /function updateAppStatusBadge/);
-  assert.match(html, />Guide<\/button>/);
-  assert.match(html, />Run\/Debug<\/button>/);
-  assert.match(html, />Observe\/Map<\/button>/);
+  assert.match(html, /aria-label="Collapse Guide"/);
+  assert.match(html, /id="guide-shortcuts"/);
+  assert.match(html, /role="group" aria-label="App workspaces"/);
+  assert.match(html, /role="tablist" aria-label="Observe views"/);
+  assert.match(html, />Run &amp; Debug<\/button>/);
+  assert.match(html, />Observe<\/button>/);
   assert.match(html, /managementSection\("Local runtime", true\)/);
   assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
@@ -1904,7 +1932,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /function handleMapWheel/);
   assert.match(html, /event\.deltaMode === WheelEvent\.DOM_DELTA_LINE/);
   assert.match(html, /Math\.exp\(-boundedDelta \* WHEEL_ZOOM_SENSITIVITY\)/);
-  assert.match(html, /graphShell\.addEventListener\("wheel", handleMapWheel, \{ passive: false, capture: true \}\)/);
+  assert.match(html, /svg\.addEventListener\("wheel", handleMapWheel, \{ passive: false \}\)/);
   assert.match(html, /text\.textContent = "Connect →"/);
   assert.match(html, /function renderConnectionPanel/);
   assert.match(html, /"\/api\/connection-request"/);
@@ -1912,14 +1940,14 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /addText\.textContent = "\+ Add component"/);
   assert.match(html, /const FLOW_ACTION_FOOTER = 48/);
   assert.match(html, /operationsY - FLOW_REGION_GAP - 38/);
-  assert.match(html, /worldHeight - WORLD_PADDING - 38/);
+  assert.match(html, /operationsBottom - 38/);
   assert.match(html, /"aria-label": "Add component to " \+ label/);
   assert.match(html, /renderAddToAppPanel\(tierIds, label\)/);
   assert.doesNotMatch(html, /guideActions/);
   assert.match(html, /function renderAddToAppPanel/);
   assert.match(html, /Choose a component that belongs in this part of the request flow/);
   assert.match(html, /Add another/);
-  assert.match(html, /<summary>Search &amp; layout<\/summary>/);
+  assert.match(html, /Search &amp; layout<\/summary>/);
   assert.match(html, /Run and test locally, connect model access, deploy to Azure/);
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
@@ -1946,7 +1974,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Command output/);
   assert.match(html, /developer-tool-card/);
   assert.match(html, /id="details-resizer"/);
-  assert.match(html, /MODEL\.layoutKey \+ ":details-width"/);
+  assert.match(html, /MODEL\.layoutKey \+ ":details-height"/);
   assert.match(html, /aria-valuenow/);
   assert.match(html, /"\/api\/gateway-options/);
   assert.match(html, /"\/api\/active-gateway"/);
@@ -1954,8 +1982,13 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Operations across the request path/);
   assert.match(html, /Progress updates automatically/);
   assert.match(html, /@media \(max-width: 620px\)/);
-  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(html, /grid-template-rows: minmax\(180px, 2fr\) minmax\(260px, 3fr\)/);
+  assert.match(html, /grid-template-areas: "brand identity workspaces utilities"/);
+  assert.match(html, /grid-template-areas: "brand identity utilities" "workspaces workspaces workspaces"/);
+  assert.match(html, /grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity"/);
+  assert.match(html, /id="logs-app"/);
+  assert.match(html, /function renderLogsPanel/);
+  assert.match(html, /\/api\/app-logs\?root=/);
+  assert.match(html, /grid-template-rows: minmax\(0, 1fr\) 6px var\(--details-height, 300px\)/);
   assert.match(html, /footer > \* \{ min-width: 0/);
   assert.match(html, /inset-block: 0/);
   assert.match(html, /new URLSearchParams\(location\.search\)\.get\("notice"\)/);
@@ -1969,7 +2002,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Stop partial startup/);
   assert.match(html, /Next action/);
   assert.match(html, /currentOpportunity\.title \+ " below"/);
-  assert.match(html, /Later improvements/);
+  assert.match(html, /Other checks & improvements/);
   assert.match(html, /function renderEdgeDetails/);
   assert.equal(
     script.indexOf("function renderEdgeDetails") < script.indexOf("function selectEdge"),
@@ -1978,8 +2011,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.doesNotMatch(html, /addEventListener\("dblclick"/);
   assert.match(html, /if \(selectedId === nodeId\)/);
   assert.match(html, /const clearFocus = !panState\.moved/);
-  assert.match(html, /aria-label": "Add capability to "/);
-  assert.match(html, /x: lanePosition\.x/);
+  assert.match(html, /aria-label": "Add component to "/);
+  assert.doesNotMatch(html, /function implementationLayout|dragState/);
   assert.match(html, /"\/api\/open-source"/);
   assert.match(html, /"\/api\/tier-action"/);
   assert.match(html, /setupButton\.textContent = "Opening setup…"/);
@@ -2000,9 +2033,12 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /item\.setAttribute\("aria-current", "step"\)/);
   assert.match(html, /\.journey-stage:not\(:last-child\)::after/);
   assert.match(html, /\.journey \{ display: grid; grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(html, /stage\.state === "running" \? "Running"/);
-  assert.match(html, /let nextAssigned = false/);
-  assert.match(html, /detail: "Available after " \+ stages\[index - 1\]\.label/);
+  assert.match(html, /journeyStateLabel\(stage\.state\)/);
+  assert.match(html, /active: "Current"/);
+  assert.match(html, /function buildJourneyStages/);
+  assert.match(html, /Available when the app is running/);
+  assert.match(html, /function updateObserveAction/);
+  assert.match(html, /Connect: review connections/);
   assert.match(html, /stage === currentStage && currentOpportunity \? currentOpportunity\.title \+ " below" : stage\.detail/);
   assert.match(html, /Check for changes/);
   assert.match(html, /Confirm capability request/);

@@ -4,7 +4,27 @@
   "templateId": "builtin-sandbox-gateway-minimal-v1",
   "sourceBaseCommit": "3144815c1a4f02ef9fef9e9d902741b245f0d3fc",
   "capturedAt": "2026-09-15T00:50:46.364Z",
-  "sourceState": "Generated working-tree output; sourceBaseCommit identifies the template checkout, not a commit of this generated app.",
+  "sourceState": "Generated working-tree output captured at capturedAt; sourceBaseCommit identifies the template checkout, not a commit of this generated app. The files named in followupChanges were amended afterward in this repository and are not unchanged output from that capture.",
+  "followupChanges": [
+    {
+      "amendedAt": "2026-09-15T17:51:43.916Z",
+      "kind": "lifecycle-safety-fix",
+      "description": "Repository follow-up adding process start identities, shell ancestor protection, bounded verified termination, retained retry ownership, and startup refusal after failed cleanup.",
+      "paths": [
+        "README.md",
+        "scripts/dev-start.ps1",
+        "scripts/dev-start.sh",
+        "scripts/dev-stop.ps1",
+        "scripts/dev-stop.sh"
+      ]
+    },
+    {
+      "kind": "readme-rewrite",
+      "sourceCommit": "d500e7465623830c8d5cac778870fbee5cf1f80f",
+      "description": "Plain-English README rewrite from PR #18, retaining the later lifecycle-safety guidance.",
+      "paths": ["README.md"]
+    }
+  ],
   "excluded": [
     "Credentials and .env files",
     "Virtual environments and caches",
@@ -20,8 +40,8 @@
     {
       "path": "README.md",
       "sourceSha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5",
-      "sha256": "d726e037c1abac116cc81a235e8d1ade1a165f3445417a29e51e5023f894d834",
-      "note": "README rewritten after capture. Sample code is unchanged."
+      "sha256": "479875694f02011ccd42c6ad31dc3292065bf2cb95a83aa24e3ce4ad7bbeb1b9",
+      "note": "README rewritten after capture, retaining lifecycle-safety guidance. Script fixes are recorded separately in followupChanges."
     },
     {
       "path": "config/document-policy.json",
@@ -57,19 +77,19 @@
     },
     {
       "path": "scripts/dev-start.ps1",
-      "sha256": "014bf9d21bca93f9b016a6e4c7ad86f3078e2868a09cfa77b589f0d72281c501"
+      "sha256": "34bab78b2e44784ff694a25b37a8b7aa25cf73483070eb1af2ca450115290fc4"
     },
     {
       "path": "scripts/dev-start.sh",
-      "sha256": "950eb8dafa69dfe7a7ff8c641094608eb5c41f3e25a85184d70b48ed124a5e17"
+      "sha256": "a1ee573f2a6f94657d427a1768b67bf079ae3e226c00edc7e9d3aa5c89de1b0b"
     },
     {
       "path": "scripts/dev-stop.ps1",
-      "sha256": "d61febe686a4327bc5251a34e05dff402676918050eab40f47ba2aec93fe10eb"
+      "sha256": "cd50922cc3bccbb210dc31171893193571b22fc090ce6c03c87c4bf0582c73a1"
     },
     {
       "path": "scripts/dev-stop.sh",
-      "sha256": "61a54a4d158137c41826a05606590d2c2638c6cfeed3a8ef7d7a94c86c19c43c"
+      "sha256": "fb829b7f430a5e7201b467fc7c5b006bbdd518a8328371488f8aaf7c85ad685d"
     },
     {
       "path": "scripts/load-ports.ps1",

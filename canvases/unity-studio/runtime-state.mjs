@@ -19,7 +19,17 @@ function isAppOperationActive(state) {
   return TRANSIENT_APP_STATES.has(state);
 }
 
-function normalizeRegistryEntry(entry) {
+function optionalRegistryMetadata(entry) {
+  const metadata = {};
+  for (const field of ["log", "errlog", "projectPath", "startedAt"]) {
+    if (typeof entry?.[field] === "string" && entry[field].trim()) {
+      metadata[field] = entry[field].trim();
+    }
+  }
+  return metadata;
+}
+
+function normalizeRegistryEntry(entry, includeMetadata = false) {
   const name = String(entry?.name || "");
   const port = Number(entry?.port ?? KNOWN_PROCESS_PORTS.get(name.toLowerCase()));
   if (!entry?.name || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
@@ -27,16 +37,25 @@ function normalizeRegistryEntry(entry) {
     name,
     port,
     pid: Number.isInteger(Number(entry.pid)) && Number(entry.pid) > 0 ? Number(entry.pid) : null,
+    ...(includeMetadata ? optionalRegistryMetadata(entry) : {}),
   };
 }
 
-export async function readProcessRegistry(root, read = readFile) {
+export async function readProcessRegistry(root, read = readFile, { includeMetadata = false } = {}) {
   const entries = [];
   try {
     const contents = await read(`${root}/.dev-run/processes.posix.tsv`, "utf8");
     for (const line of contents.split(/\r?\n/)) {
-      const [name, port, pid] = line.split("\t");
-      const entry = normalizeRegistryEntry({ name, port, pid });
+      const [name, port, pid, fourth, fifth, sixth] = line.split("\t");
+      const extendedLogRecord = Boolean(fifth || sixth || /\.(?:log|jsonl)$/i.test(fourth || ""));
+      const entry = normalizeRegistryEntry({
+        name,
+        port,
+        pid,
+        ...(extendedLogRecord
+          ? { log: fourth, errlog: fifth, projectPath: sixth }
+          : { startedAt: fourth }),
+      }, includeMetadata);
       if (entry) entries.push(entry);
     }
   } catch (error) {
@@ -46,7 +65,7 @@ export async function readProcessRegistry(root, read = readFile) {
   try {
     const contents = JSON.parse(await read(`${root}/.dev-run/processes.json`, "utf8"));
     for (const item of Array.isArray(contents) ? contents : [contents]) {
-      const entry = normalizeRegistryEntry(item);
+      const entry = normalizeRegistryEntry(item, includeMetadata);
       if (entry) entries.push(entry);
     }
   } catch (error) {

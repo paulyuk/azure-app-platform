@@ -12,6 +12,7 @@ $AgentPort = if ($env:AGENT_PORT) { [int]$env:AGENT_PORT } else { 8088 }
 $AgentRuntime = $null
 
 foreach ($Argument in @($RuntimeArguments)) {
+  if (-not $Argument) { continue }
   switch ($Argument) {
     "--agent-runtime=local" { $AgentRuntime = "local" }
     "--agent-runtime=copilot-sdk-sandbox" { $AgentRuntime = "copilot-sdk-sandbox" }
@@ -37,7 +38,10 @@ try {
   & uv run main.py @SelectedRuntimeArguments --check-runtime
   if ($LASTEXITCODE -ne 0) { throw "Runtime configuration failed; see the error above." }
 } finally { Pop-Location }
-& (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
+& (Join-Path $PSScriptRoot "dev-stop.ps1")
+if ($LASTEXITCODE -ne 0) {
+  throw "Startup aborted because the previous tracked process could not be stopped. Resolve the reported process and rerun dev-stop.ps1; the existing registry was preserved."
+}
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
 if (Get-NetTCPConnection -LocalPort $AgentPort -State Listen -ErrorAction SilentlyContinue) {
   throw "Port $AgentPort is in use by another process. Stop that app first."
@@ -83,13 +87,20 @@ try {
     -RedirectStandardOutput (Join-Path $RunDir "agent.stdout.log") `
     -RedirectStandardError (Join-Path $RunDir "agent.stderr.log") `
     -PassThru
-  $processes += @{ name = "agent"; port = $AgentPort; pid = $agent.Id }
+  try {
+    $StartedAt = $agent.StartTime.ToUniversalTime().ToString("O")
+  } catch {
+    $StartedAt = $null
+  }
+  $processes += @{ name = "agent"; port = $AgentPort; pid = $agent.Id; startedAt = $StartedAt }
   $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
+  if (-not $StartedAt) {
+    throw "Could not record process start identity for PID $($agent.Id). Automatic cleanup is unsafe; verify and stop that process manually, then remove $RunDir."
+  }
   Wait-Port "agent" $AgentPort $agent
   Write-Host "Inspect /health for the selected runtime. Local execution is not ACA isolation."
   Write-Host "docs-agent5 started: agent http://localhost:$AgentPort"
 } catch {
-  $processes | ConvertTo-Json | Set-Content (Join-Path $RunDir "processes.json")
   & (Join-Path $PSScriptRoot "dev-stop.ps1")
   throw
 }

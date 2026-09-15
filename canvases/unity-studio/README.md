@@ -1,7 +1,18 @@
 # Unity Studio
 
+The workspace uses one compact top bar for the Unity logo/home navigation,
+app name, runtime status and start/stop, workspace buttons, **Docs**, and the
+light/dark toggle. Docs and appearance remain at the top right at every width.
+At narrower widths, all three workspace buttons move together to a second row;
+on the smallest canvases, app identity and runtime controls occupy a third row.
+Long app names truncate rather than displacing controls. Studio defaults to light; the saved appearance applies
+to the landing page and all workspaces, including after a provider restart.
+This user-level preference lives under
+`$COPILOT_HOME/extensions/unity-studio/artifacts/preferences.json`
+(`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
+
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page keeps three journeys visible:
+pattern. Its landing page keeps three equally styled, neutral journey cards visible:
 
 1. **Create a new app** — choose the editable **Empty Unity app**, the headless
    **Sandbox & Gateway (Minimal)** template, or the complete **Dealer sample**,
@@ -21,19 +32,33 @@ studios and may open the resulting worktree in VS Code.
 After creation or selection, the app workspace becomes the primary interface.
 An optional VS Code launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The top controls are **Build → Run/Debug → Observe/Map**, followed by an independent
-**Guide** toggle. Build opens first. Each main view fills the workspace rather
-than sharing it with an always-visible map. Guide is a compact vertical rail
-on the far right, with workflow progress and the next useful action. Hide it
-using its panel-collapse icon or the Guide toggle to reclaim the full width;
-switching views never reopens it or discards editor/message drafts.
+The main buttons are **Build → Run & Debug → Observe**, with a filled selected
+state marking the current workspace. Build opens first. Observe contains **App Map** and
+**Logs** views and remembers the last one used during the current visit.
+Build's **App structure → Edit on App Map** opens that same map, with a
+dismissible hint highlighting the existing add-component and connection
+controls. The Guide's Build action opens it too; Connect retains its source
+review and offers **Edit connections on App Map**. These entry points do not
+change files, start the app, or discard inline drafts.
+Every workspace remains accessible regardless of readiness: this is not a
+locked wizard. The two Observe views use a compact, outlined switcher with
+map/log icons, a filled selected state, and keyboard tab navigation.
+Each view fills the workspace rather than sharing it
+with an always-visible map. Guide owns workflow progress and the next useful
+action, independently of the active workspace. Its inline toggle collapses the panel
+to a 46px status rail at the far right instead of disappearing.
+The rail retains Build, Connect, Run, and Observe icons with checkmarks,
+attention indicators, and descriptive tooltips. Selecting an icon expands
+Guide at that stage's explanation without changing workspaces.
+There is no separate Guide button in the top navigation;
+switching views never reopens Guide or discards editor/message drafts.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.
 A persistent badge beside the app name distinguishes
 **Not running**, **Local preview**, **Running locally**, and active lifecycle
 transitions; selecting it opens the local runtime controls. A neighboring
 contextual action starts the app or preview, stops a running app, or opens
-required setup. Each request-flow stage and Implementation lane exposes a
+required setup. Each request-flow stage exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
@@ -41,15 +66,60 @@ implementation to the app session. Compact tier illustrations on each component
 card make the architecture easier to scan without replacing source-derived names,
 badges, or status. Guide stays focused on progress and one required action at a
 time.
-Additional recommendations are collapsed. In **Observe/Map**, **Request flow** and
-**Implementation map** appear in a dedicated view bar, while search, filters, zoom,
-and reset controls live under **Search & layout**. Wheel and trackpad gestures
+Additional recommendations are collapsed. **Observe → App Map** has one request-flow
+map. Once the app is running, Guide marks Run complete and makes
+**Observe & manage** current. **Open App Map** is offered from the other main
+workspaces, not when the map or its inspector is already visible. Clicking
+**Connect** opens a read-only connection review in the bottom inspector, with
+source locations, possible destinations, and actions to inspect affected
+components or resolve missing connections.
+Uncertain source connections remain review items, not a gate on observing a
+live app. Starting, stopping, failures, and previews retain explicit runtime
+context; this does not claim full telemetry coverage or a successful agent test.
+**Show other resources** reveals disconnected resources in a separate region
+of that same map; it starts off and is remembered
+per app in the current browser origin. This is a source-derived distinction,
+not a claim that those resources are unused in production. Stopped services stay
+on discovered request paths, and documentation-only links retain their uncertainty.
+Workflow operations and events are grouped under their source-backed owning
+workflow. **Show internal items** expands them into a separate, named region;
+collapse returns to the overview. Cross-boundary calls connect to the workflow
+while collapsed, with duplicate connections grouped without losing their source
+evidence. Containment is conveyed by the group, not a fan of redundant arrows.
+Search also matches collapsed internal items through their owner. Ambiguous
+ownership stays ungrouped rather than assigning an operation speculatively.
+Map controls float at the top right of the map rather than occupying
+another header row or competing with the bottom inspector.
+The compact palette exposes zoom and **Fit map**; **Search & layout** opens
+downward with search, component/request-path filters, **Show other resources**,
+and reset.
+Wheel and trackpad gestures
 zoom smoothly anywhere over the map surface. **Run/Debug** leads with
 model connection, followed by local runtime controls, command activity,
 Azure deployment, and deletion. Map inspection opens a separate resizable
-details panel; **Back to Observe/Map** dismisses it without changing Guide.
+bottom details panel, keeping the map's full width beside Guide. Drag the
+horizontal divider or use its Up/Down keys to resize it; **Close details** or
+Escape dismisses it without changing Guide. The inspector's height is
+remembered and bounded to leave the map visible, including in compact panes.
+New inspector content starts at the top. Opening, closing, or resizing the
+inspector does not pan or zoom the map; use the map controls to adjust the view.
 Live stdout/stderr, component readiness,
 endpoint buttons, and **Invoke agent** are expanded in the run loop.
+**Observe → Logs** is a dedicated view for all captured local service output, including
+registered supporting services such as Azurite. Runtime component cards and their
+inspectors open the same workspace with that service selected. Service and stream
+filters, text search, **Pause**, **Resume**, and **Refresh** narrow a bounded recent
+tail. Output is grouped by service and stream, not presented as a fabricated
+global timeline. Automatic reads stop when paused or when you leave Logs.
+Missing capture, partial read errors, and truncation are explicit. Lifecycle
+command history remains in Run/Debug; Logs does not substitute command output
+for missing service logs or fetch cloud logs.
+Reads are bounded to 24 services, 1,200 lines, and 256 KiB across the response,
+with at most 80 catalog entries; clipping is disclosed in the view.
+Build, Run, Logs, and inspector actions share compact 32px controls with the same
+typography, padding, and corner radius. Inspector actions form a wrapping row
+below the source path; Logs uses the same field sizing, heading hierarchy,
+muted metadata, and service-panel treatment as the other workspaces.
 New Minimal, Empty, and Dealer apps automatically receive available ports during
 creation, before the child session or VS Code opens. The allocator excludes live
 listeners and saved assignments in sibling worktrees, then persists the new app's
@@ -89,17 +159,55 @@ runtime settings. Apps without recorded history appear last, labeled Not recorde
 inventory and readiness polling do not change the timestamp.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
-**Build** separates agent behavior from tool enforcement. Its cards identify the
-exact instruction, document-tool, contract, policy, and runtime files. Every
-available file has a compact editable source box and an **Edit in Code** button
+**Build** selects artifacts from the app's own source and `unity.app.yaml` scope,
+not one universal template checklist. Dealer exposes its inline instructions in
+`src/agent/main.py`, actual Hosted Skills, web source, and other discovered
+implementations. Empty Unity exposes its prompt, starter runtime, and declared
+skill. Custom component paths reuse the same source discovery as the App Map.
+Source cards are collapsible, with the first file expanded by default, so larger
+apps do not open dozens of editors at once. Unknown apps get an explicit
+discovery/empty-state message rather than unrelated "Not implemented" cards.
+Every available file has a compact editable source box and an **Edit in Code** button
 with a VS Code icon. The button opens the whole app worktree and the selected
 file together; it never silently saves an inline draft. Returning from Code
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
 Inline edits require **Review changes → Save reviewed changes**; saves reject
 stale versions and require the app to be stopped. Drafts survive switching between
-Build and Run/Debug in the same panel.
+Build and Run/Debug in the same panel. Edits made while a reviewed save is pending
+remain unsaved drafts against the newly saved version, including when the panel
+is reopened before the save completes.
 
-The document contract and operator-owned policy are editable by the developer,
+**Known discovery limitation (for design discussion):** this is best-effort
+recognition, not a universal file catalog or language-aware parser. Component
+directories can be arbitrary when mapped in `unity.app.yaml`, but Build selects
+known per-tier filenames and source files matched by existing framework/code
+patterns. A manifest path alone does not enumerate every file or identify its
+role. Unfamiliar frameworks, filenames, external prompt/configuration storage,
+or dynamically loaded implementations can be missed. Scans are also bounded
+and skip dependencies, generated output, known `.env`/`local.settings.json`
+files, and test files.
+The document-processing profile still recognizes its specific canonical and
+legacy layouts. "Not discovered" must not be interpreted as "not implemented."
+
+**Discussion with Paul:** should an app explicitly declare Build artifacts
+(path, role, component, editor/validation type), with discovery used only as a
+fallback? That would make custom-app coverage deterministic while preserving
+app-root authorization and reviewed-save protections. This explicit-artifact
+contract is a proposed direction, not an implemented capability.
+
+Generated browser snapshots, Playwright reports, test results, and local runtime
+state are excluded from source discovery. Captured UI text must not create
+phantom components or make a real connection appear ambiguous. The map is
+source-derived and remains connected when the app is stopped.
+
+The document-processing app retains its instruction, validation-tool, contract,
+policy, and runtime cards, including the legacy tool layout. Only this app
+profile gets document-test actions and the ACA sandbox runtime selector.
+Genuinely missing expected files are labeled as missing files, not as proof that
+a capability is unimplemented. An unrelated `config/runtime.json` does not enable
+document input or block deployment of Dealer, Empty, or custom apps.
+
+For document-processing apps, the document contract and operator-owned policy are editable by the developer,
 not the runtime model. JSON syntax is checked when saving from the canvas;
 Python runtime validation remains authoritative.
 The running agent must not receive a tool for changing either policy or tool
@@ -284,12 +392,13 @@ troubleshooting—not known-file creation.
   source locations, unresolved references, and diagnostics. Open its expanded
   Browser canvas to see a left-to-right **Request flow** across the experience,
   reasoning, models and capabilities, connected systems, and cross-cutting
-  operations. Only evidence-backed paths are shown; disconnected components and
-  workflow internals remain in the secondary **Implementation** tier view.
+  operations. Discovered request paths are shown by default; **Show other
+  resources** reveals disconnected components and workflow internals without
+  switching to a different map or moving the request-path cards.
   Search or filter nodes, inspect connection evidence, highlight one-hop
   relationships, and open safe navigation actions with one click. Click the
   selected card again or click empty map space to return to the Guide.
-  An Implementation tier's **Add** action can open its specialist studio or
+  A request-flow stage's **Add component** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
   **Connect** controls between adjacent stages expose existing evidence and a
   confirmation-gated path to create or improve real source wiring.
@@ -321,6 +430,16 @@ Command output refreshes continuously while this panel is open. TCP-only
 services are labeled Listening, not Healthy; web/agent/Functions HTTP checks
 report their actual health, and all expected services must be ready before
 the app is considered running.
+Hosted Skills retain their Functions health checks and MCP links after port
+reassignment. Runtime profiles can declare `kind: "function"` (or `type: "function"`)
+for custom-named Functions endpoints; existing Dealer skill names
+remain compatible without metadata.
+
+**Cancel startup** stays available in the header and Run/Debug while services
+are starting. It terminates the tracked startup command before running cleanup,
+so the launcher cannot continue starting services afterward. If the launcher is
+already gone but components remain, the header shows **Partial startup** with
+**Stop partial startup**, rather than an indefinitely disabled Starting button.
 
 Model connection defaults to the saved subscription, or the active Azure CLI
 subscription, and a valid gateway in that subscription. A new default selection

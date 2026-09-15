@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
+import { discoverRepository, parseUnityManifest, scanRepository } from "./discovery.mjs";
+import { getTierDefinition } from "./tier-definitions.mjs";
 
-const ARTIFACTS = [
+const DOCUMENT_ARTIFACTS = [
   { id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model.", editable: true },
   { id: "tool", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code.", editable: true },
   { id: "contract", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions.", editable: true },
@@ -12,11 +14,150 @@ const ARTIFACTS = [
 const MAX_BYTES = 96 * 1024;
 const saveQueues = new Map();
 const sha = (text) => createHash("sha256").update(text).digest("hex");
+const CODE_FILE = /\.(?:py|[cm]?[jt]sx?|cs|go|java|rs)$/i;
+const SOURCE_FILES = {
+  agent: ["prompts/system.md", "main.py", "agent.yaml"],
+  skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json"],
+  workflows: ["function_app.py", "host.json"],
+  sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md"],
+  web: ["server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
+};
+
+async function existingPath(root, path, directory = false) {
+  const candidate = join(root, path);
+  let info;
+  try { info = await lstat(candidate); }
+  catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  if (info.isSymbolicLink() || await realpath(candidate) !== join(await realpath(root), path)) {
+    throw new Error(directory
+      ? "Build artifact must be a directory inside the selected app, not a symlink."
+      : "Build artifacts must stay inside the selected app, not symlinks.");
+  }
+  if (directory ? !info.isDirectory() : !info.isFile()) {
+    throw new Error(`Expected a ${directory ? "directory" : "file"} for Build artifact ${path}.`);
+  }
+  return true;
+}
+
+function parseAppScope(content) {
+  if (!/^(?:capabilities|components)\s*:/m.test(content)) {
+    throw new Error("Unity app inventory must declare capabilities or components before Build can select source.");
+  }
+  const components = parseUnityManifest({ path: "unity.app.yaml", content });
+  for (const item of components) {
+    if (!getTierDefinition(item.tierId) || !item.path || isAbsolute(item.path) ||
+        win32.isAbsolute(item.path) || item.path.split(/[\\/]/).includes("..")) {
+      throw new Error("Fix the Unity app inventory: each capability needs a known tier and an app-relative path.");
+    }
+  }
+  return components.map((item) => item.path.replaceAll("\\", "/").replace(/\/+$/, "") || ".");
+}
+
+async function appScope(root) {
+  if (!await existingPath(root, "unity.app.yaml")) return null;
+  return parseAppScope(await readFile(await artifactPath(root, { path: "unity.app.yaml" }), "utf8"));
+}
+
+function inScope(path, scope) {
+  return scope === null || scope.some((component) =>
+    component === "." || path === component || path.startsWith(component + "/"));
+}
+
+async function isDocumentApp(root, scope = undefined) {
+  if (scope === undefined) scope = await appScope(root);
+  const directories = ["src/tools/document-validation", "src/sandbox/tool"];
+  if (!inScope("src/agent", scope) || !directories.some((directory) => inScope(directory, scope))) return false;
+  for (const directory of directories) {
+    if (inScope(directory, scope) && await existingPath(root, directory, true)) return true;
+  }
+  return inScope("src/agent", scope) &&
+    await existingPath(root, "config/document-policy.json");
+}
+
+function sourceArtifact(path, candidate) {
+  const tier = getTierDefinition(candidate.tierId);
+  const name = basename(candidate.projectPath);
+  const file = basename(path);
+  let title = `${tier?.mapLabel || tier?.name || "Component"} source`;
+  let description = "Implementation discovered in this app. Review source changes before saving.";
+  if (path.endsWith("/prompts/system.md")) {
+    title = "Agent instructions";
+    description = "Instruction source in this app. Its presence does not prove the runtime loads it.";
+  } else if (candidate.tierId === "agent" && CODE_FILE.test(path)) {
+    title = "Agent implementation & instructions";
+    description = "Agent runtime code, including any inline instructions and tool registrations defined here.";
+  } else if (file === "agent.yaml") {
+    title = "Agent manifest";
+  } else if (file === "agents.config.yaml") {
+    title = "Hosted skill configuration";
+  } else if (file === "function_app.py") {
+    title = candidate.tierId === "workflows" ? "Workflow implementation" : "Hosted skill entry point";
+  } else if (file === "Dockerfile") {
+    title = "Container build";
+  } else if (file === "egress-policy.md") {
+    title = "Egress policy";
+  } else if (file === "contract.json") {
+    title = "Tool contract";
+  } else if (file === "host.json") {
+    title = "Functions host configuration";
+  } else if (file === "package.json") {
+    title = "Web app configuration";
+  }
+  return {
+    id: `source-${sha(path).slice(0, 20)}`, path,
+    title: name && name !== "." ? `${title} · ${name}` : title,
+    description, editable: true,
+  };
+}
+
+async function buildCatalog(root) {
+  const scope = await appScope(root);
+  if (await isDocumentApp(root, scope)) {
+    return { kind: "document", supportsDocuments: true, artifacts: DOCUMENT_ARTIFACTS, diagnostics: [] };
+  }
+  const scan = await scanRepository(root);
+  const discovery = await discoverRepository(root, { scan });
+  const files = new Set(scan.files.map((file) => file.path));
+  const selected = new Map();
+  for (const candidate of discovery.candidates) {
+    const paths = new Set([
+      ...(SOURCE_FILES[candidate.tierId] ?? []).map((name) =>
+        candidate.projectPath === "." ? name : `${candidate.projectPath}/${name}`),
+      ...candidate.evidence.filter((item) => CODE_FILE.test(item.path)).map((item) => item.path),
+    ]);
+    for (const path of paths) {
+      if (!files.has(path) || !inScope(path, scope) || selected.has(path)) continue;
+      selected.set(path, sourceArtifact(path, candidate));
+    }
+  }
+  if (files.has("unity.app.yaml")) {
+    selected.set("unity.app.yaml", {
+      id: "app-inventory", title: "App inventory", path: "unity.app.yaml",
+      description: "Capability paths, interfaces, and relationships declared by this app.", editable: true,
+    });
+  }
+  if (files.has("config/domain.json") && discovery.candidates.length) {
+    const path = "config/domain.json";
+    selected.set(path, { id: `source-${sha(path).slice(0, 20)}`, title: "App configuration", path,
+      description: "Domain configuration used by the app template.", editable: true });
+  }
+  return {
+    kind: "source", supportsDocuments: false, artifacts: [...selected.values()],
+    diagnostics: discovery.diagnostics,
+  };
+}
+
+async function buildArtifact(root, id) {
+  const catalog = await buildCatalog(root);
+  return catalog.artifacts.find((item) => item.id === id);
+}
 
 async function appArtifact(root, artifact) {
   if (!["tool", "contract"].includes(artifact.id)) return artifact;
+  const scope = await appScope(root);
+  const directories = ["src/tools/document-validation", "src/sandbox/tool"].filter((directory) => inScope(directory, scope));
   // Choose the whole layout, not individual files, so partial migrations fail visibly.
-  for (const toolDirectory of ["src/tools/document-validation", "src/sandbox/tool"]) {
+  for (const toolDirectory of directories) {
     const directory = join(root, toolDirectory);
     let info;
     try {
@@ -31,12 +172,15 @@ async function appArtifact(root, artifact) {
     }
     return { ...artifact, path: artifact.path.replace("src/tools/document-validation", toolDirectory) };
   }
-  return artifact;
+  return { ...artifact, path: artifact.path.replace("src/tools/document-validation", directories[0] ?? "src/tools/document-validation") };
 }
 
 async function artifactPath(root, artifact) {
   const canonicalRoot = await realpath(root);
   const path = resolve(canonicalRoot, artifact.path);
+  if ((await lstat(path)).isSymbolicLink()) {
+    throw new Error("Build artifacts must be regular files inside the selected app, not symlinks.");
+  }
   const actual = await realpath(path);
   const local = relative(canonicalRoot, actual);
   if (actual !== path || local.startsWith("..") || (await lstat(path)).isSymbolicLink()) {
@@ -54,23 +198,25 @@ async function readArtifact(root, artifact) {
     const content = await readFile(path, "utf8");
     return { ...artifact, available: true, content, sha: sha(content) };
   } catch (error) {
-    if (error.code === "ENOENT") return { ...artifact, available: false, detail: "Not implemented in this app yet." };
+    if (error.code === "ENOENT") return { ...artifact, available: false, detail: "Expected file is missing from this app. Restore it or review the app configuration." };
     throw error;
   }
 }
 
 export async function readBuildWorkspace(root) {
-  return { artifacts: await Promise.all(ARTIFACTS.map((artifact) => readArtifact(root, artifact))) };
+  const catalog = await buildCatalog(root);
+  return { ...catalog, artifacts: await Promise.all(catalog.artifacts.map((artifact) => readArtifact(root, artifact))) };
 }
 
 export async function resolveBuildArtifactPath(root, id) {
-  const artifact = ARTIFACTS.find((item) => item.id === id);
+  const artifact = await buildArtifact(root, id);
   if (!artifact) throw new Error("Choose a known Build artifact.");
   return artifactPath(root, await appArtifact(root, artifact));
 }
 
 export async function readBuildRuntime(root) {
-  const artifact = await readArtifact(root, ARTIFACTS.find((item) => item.id === "runtime"));
+  if (!await isDocumentApp(root)) return null;
+  const artifact = await readArtifact(root, DOCUMENT_ARTIFACTS.find((item) => item.id === "runtime"));
   if (!artifact.available) return null;
   const config = JSON.parse(artifact.content);
   if (!config || !["local", "copilot-sdk-sandbox"].includes(config.agentRuntime)) {
@@ -88,11 +234,12 @@ export async function documentDeploymentBlocker(root) {
 }
 
 export async function saveBuildArtifact(root, input) {
-  const artifact = ARTIFACTS.find((item) => item.id === input?.id);
+  const artifact = await buildArtifact(root, input?.id);
   if (!artifact?.editable) throw new Error("This build artifact is not editable here.");
   if (typeof input.content !== "string" || !input.content.trim() || Buffer.byteLength(input.content) > MAX_BYTES || input.content.includes("\0")) {
     throw new Error("Provide nonempty UTF-8 source up to 96 KiB.");
   }
+  if (artifact.id === "app-inventory") parseAppScope(input.content);
   if (artifact.path.endsWith(".json")) {
     const config = JSON.parse(input.content);
     if (!config || Array.isArray(config) || typeof config !== "object") throw new Error("Provide a JSON object for this Build artifact.");
@@ -103,6 +250,12 @@ export async function saveBuildArtifact(root, input) {
   const canonicalRoot = await realpath(root);
   const previous = saveQueues.get(canonicalRoot) ?? Promise.resolve();
   const next = previous.then(async () => {
+    const currentArtifact = await buildArtifact(canonicalRoot, input.id);
+    if (!currentArtifact || currentArtifact.path !== artifact.path) {
+      const error = new Error("The app's Build inventory changed. Reload and review the selected file before saving.");
+      error.statusCode = 409;
+      throw error;
+    }
     const path = await artifactPath(canonicalRoot, await appArtifact(canonicalRoot, artifact));
     const current = await readFile(path, "utf8");
     if (sha(current) !== input.baseSha) {

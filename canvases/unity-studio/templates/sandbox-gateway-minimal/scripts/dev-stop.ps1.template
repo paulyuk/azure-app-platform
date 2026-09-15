@@ -3,8 +3,9 @@ param(
   [string[]] $RuntimeArguments
 )
 
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 foreach ($Argument in @($RuntimeArguments)) {
+  if (-not $Argument) { continue }
   switch ($Argument) {
     "--help" {
       Write-Host "Usage: .\scripts\dev-stop.ps1"
@@ -24,13 +25,156 @@ foreach ($Argument in @($RuntimeArguments)) {
 $Root = Split-Path -Parent $PSScriptRoot
 $RunDir = Join-Path $Root ".dev-run"
 $State = Join-Path $RunDir "processes.json"
+$NextState = Join-Path $RunDir "processes.next.json"
+
+function Write-StopError {
+  param([string] $Message)
+  [Console]::Error.WriteLine($Message)
+}
+
+function Get-ProcessStartIdentity {
+  param([int] $ProcessId)
+  $Process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if (-not $Process) {
+    return $null
+  }
+  try {
+    return $Process.StartTime.ToUniversalTime().ToString("O")
+  } catch {
+    throw "Could not read start identity for PID $ProcessId."
+  }
+}
+
+function Stop-ExactProcessTree {
+  param(
+    [int] $ProcessId,
+    [string] $ExpectedStart
+  )
+
+  if ((Get-ProcessStartIdentity $ProcessId) -ne $ExpectedStart) {
+    return $true
+  }
+  try {
+    & taskkill.exe /PID $ProcessId /T /F 2>$null | Out-Null
+  } catch { }
+  for ($Attempt = 0; $Attempt -lt 20; $Attempt++) {
+    if ((Get-ProcessStartIdentity $ProcessId) -ne $ExpectedStart) {
+      return $true
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  return (Get-ProcessStartIdentity $ProcessId) -ne $ExpectedStart
+}
+
+$ProtectedPids = @{}
+$AncestorLookupFailed = $false
+$AncestorPid = [int]$PID
+while ($AncestorPid -gt 0 -and -not $ProtectedPids.ContainsKey($AncestorPid)) {
+  $ProtectedPids[$AncestorPid] = $true
+  try {
+    $Ancestor = Get-CimInstance Win32_Process -Filter "ProcessId=$AncestorPid" -ErrorAction Stop
+    $AncestorPid = [int]$Ancestor.ParentProcessId
+  } catch {
+    $AncestorLookupFailed = $true
+    break
+  }
+}
+
+$Remaining = @()
+$StoppedPids = @{}
+$Failed = $false
+$StoppedAny = $false
+
 if (Test-Path $State) {
-  $items = Get-Content $State | ConvertFrom-Json
-  foreach ($item in @($items)) {
-    if (Get-Process -Id $item.pid -ErrorAction SilentlyContinue) {
-      & taskkill.exe /PID $item.pid /T /F | Out-Null
+  try {
+    $Items = @(Get-Content $State -Raw | ConvertFrom-Json)
+  } catch {
+    Write-StopError "Could not read $State. No process was signaled; repair or remove the registry manually."
+    exit 1
+  }
+
+  foreach ($Item in $Items) {
+    $TrackedPid = 0
+    if (-not $Item.pid -or -not [int]::TryParse("$($Item.pid)", [ref]$TrackedPid) -or $TrackedPid -le 1) {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] invalid tracked PID '$($Item.pid)'. Verify it manually, then repair or remove $State."
+      $Failed = $true
+      continue
+    }
+
+    try {
+      $CurrentStart = Get-ProcessStartIdentity $TrackedPid
+    } catch {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] could not verify start identity for PID $TrackedPid. Refusing to signal it; the registry was preserved."
+      $Failed = $true
+      continue
+    }
+    if (-not $CurrentStart) {
+      continue
+    }
+    $RecordedStart = if ($Item.startedAt -is [DateTime]) {
+      $Item.startedAt.ToUniversalTime().ToString("O")
+    } else {
+      [string]$Item.startedAt
+    }
+    $Item.startedAt = $RecordedStart
+    if (-not $RecordedStart) {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] PID $TrackedPid has no recorded start identity. Refusing to signal it; verify and stop it manually, then remove $State."
+      $Failed = $true
+      continue
+    }
+    if ($CurrentStart -ne $RecordedStart) {
+      Write-Host "[$($Item.name)] skipped stale PID $TrackedPid because its start identity changed (PID was reused)."
+      continue
+    }
+    if ($AncestorLookupFailed) {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] could not verify shell ancestors. Refusing to signal PID $TrackedPid; the registry was preserved."
+      $Failed = $true
+      continue
+    }
+    if ($ProtectedPids.ContainsKey($TrackedPid)) {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] refusing to stop PID $TrackedPid because it is this PowerShell process or an ancestor. The registry was preserved."
+      $Failed = $true
+      continue
+    }
+    if ($StoppedPids.ContainsKey($TrackedPid)) {
+      continue
+    }
+
+    try {
+      $Stopped = Stop-ExactProcessTree -ProcessId $TrackedPid -ExpectedStart $RecordedStart
+    } catch {
+      $Stopped = $false
+    }
+    if ($Stopped) {
+      $StoppedPids[$TrackedPid] = $true
+      $StoppedAny = $true
+      Write-Host "[$($Item.name)] stopped tracked PID $TrackedPid."
+    } else {
+      $Remaining += $Item
+      Write-StopError "[$($Item.name)] failed to stop PID $TrackedPid after bounded taskkill polling. The registry was preserved for retry."
+      $Failed = $true
     }
   }
 }
-Remove-Item -Recurse -Force $RunDir
-Write-Host "__APP_NAME__ stopped."
+
+if ($Failed) {
+  @($Remaining) | ConvertTo-Json | Set-Content $NextState
+  Move-Item -Force $NextState $State
+  Write-StopError "__APP_NAME__ stop incomplete; resolve the errors above and rerun dev-stop.ps1."
+  exit 1
+}
+
+if (Test-Path $RunDir) {
+  Remove-Item -Recurse -Force $RunDir
+}
+if ($StoppedAny) {
+  Write-Host "__APP_NAME__ stopped."
+} else {
+  Write-Host "__APP_NAME__ was not running."
+}
+exit 0

@@ -5,8 +5,11 @@ import {
   buildRunCommandReference,
   invocationBody,
   probeHttpHealth,
+  endpointKind,
+  normalizeRuntimeEntrypoint,
   resolveAgentInvocation,
 } from "./run-contract.mjs";
+import { applyPortSettings } from "./local-ports.mjs";
 
 function sourceReader(source, suffix = "/src/agent/main.py") {
   return async (path) => {
@@ -192,6 +195,31 @@ test("Functions Running status is healthy and unknown endpoints remain listening
     healthStatus: "Listening (health unknown)",
     healthDetail: "No HTTP health contract is defined for this endpoint.",
   });
+});
+
+test("reassigned and legacy Hosted Skills retain Functions health and endpoint routing", async () => {
+  const profile = applyPortSettings({
+    entrypoints: [{ name: "inventory-search", port: 7071, kind: "function" }],
+  }, { INVENTORY_SEARCH_PORT: 17080 });
+  const candidates = [
+    ...profile.entrypoints,
+    ...["inventory-search", "trade-in-value", "rate-sheet", "deal-doc"]
+      .map((name) => ({ name, port: 7080 })),
+    { name: "custom-hosted-tool", port: 24000, type: "function" },
+    { name: "custom-skill", port: 24001, kind: "skill" },
+  ].map(normalizeRuntimeEntrypoint);
+  assert.equal(candidates[0].port, 17080);
+  for (const candidate of candidates) {
+    assert.equal(endpointKind(candidate), "function");
+    const result = await probeHttpHealth(candidate, async (url) => {
+      assert.equal(url, `http://127.0.0.1:${candidate.port}/admin/host/status`);
+      return { ok: true, status: 200, json: async () => ({ state: "Error" }) };
+    });
+    assert.equal(result.healthy, false);
+    assert.equal(result.healthStatus, "Unhealthy");
+  }
+  assert.equal(endpointKind(normalizeRuntimeEntrypoint({ name: "web", port: 7080 })), "web");
+  assert.equal(endpointKind(normalizeRuntimeEntrypoint({ name: "custom-storage", port: 18000 })), "other");
 });
 
 test("builds exact lifecycle commands, shell POST examples, and JSON request data", () => {

@@ -33,7 +33,7 @@ export const EMPTY_TEMPLATE = Object.freeze({
     entrypoints: [
       { name: "web", port: 3000 },
       { name: "agent", port: 8088 },
-      { name: "skill", port: 7071 },
+      { name: "skill", port: 7071, kind: "function" },
     ],
     startEntrypoints: [
       { name: "web", port: 3000 },
@@ -385,10 +385,10 @@ export async function listSourceCatalog({
         entrypoints: [
           { name: "web", port: 3000 },
           { name: "agent", port: 8088 },
-          { name: "inventory-search", port: 7071 },
-          { name: "trade-in-value", port: 7072 },
-          { name: "rate-sheet", port: 7073 },
-          { name: "deal-doc", port: 7074 },
+          { name: "inventory-search", port: 7071, kind: "function" },
+          { name: "trade-in-value", port: 7072, kind: "function" },
+          { name: "rate-sheet", port: 7073, kind: "function" },
+          { name: "deal-doc", port: 7074, kind: "function" },
           { name: "azurite", port: 10000 },
           { name: "azurite-queue", port: 10001 },
           { name: "azurite-table", port: 10002 },

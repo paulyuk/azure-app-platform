@@ -1,4 +1,6 @@
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
+import { renderStudioBrand } from "./studio-brand.mjs";
+import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -73,14 +75,14 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderStudioHtml(instanceId, apiToken = "") {
+export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } = {}) {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
     name: tier.name,
     role: tier.role,
   }));
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-studio-theme="${escapeHtml(theme)}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -158,7 +160,6 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
       .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
       .journey span { color: var(--text-color-muted, #59636e); }
-      .journey.primary span { color: #f0ebff; }
       .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
@@ -333,9 +334,15 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         .component-status { grid-template-columns: 1fr; }
         .surface-head { align-items: flex-start; flex-direction: column; }
       }
+      ${renderThemeStyles()}
+      .studio-site-nav { max-width: 840px; margin: 0 auto 24px; }
     </style>
   </head>
   <body>
+    <nav class="studio-site-nav" aria-label="Unity Studio navigation">
+      ${renderStudioBrand()}
+      ${renderThemeToggle(theme)}
+    </nav>
     <main>
       <div id="app"></div>
       <div id="status" role="status" aria-live="polite"></div>
@@ -505,7 +512,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<h1>What would you like to do?</h1>' +
           '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
           '<div class="journeys">' +
-          '<button type="button" class="journey primary" id="new-app"><strong>Create a new app</strong>' +
+          '<button type="button" class="journey" id="new-app"><strong>Create a new app</strong>' +
           '<span>Describe what you want to build and start from a proven template.</span></button>' +
           '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
           '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
@@ -1305,6 +1312,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       }
 
       renderLanding();
+      ${renderThemeClientScript(apiToken)}
     </script>
   </body>
 </html>`;

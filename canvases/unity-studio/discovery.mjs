@@ -7,8 +7,11 @@ import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 
 const EXCLUDED_DIRECTORIES = new Set([
   ".git",
+  ".dev-run",
   ".next",
   ".nuxt",
+  ".playwright",
+  ".playwright-mcp",
   ".pytest_cache",
   ".tox",
   ".venv",
@@ -17,7 +20,9 @@ const EXCLUDED_DIRECTORIES = new Set([
   "dist",
   "node_modules",
   "obj",
+  "playwright-report",
   "target",
+  "test-results",
   "venv",
 ]);
 
@@ -346,7 +351,7 @@ function yamlScalar(value) {
   return trimmed.split(/\s+#/, 1)[0].trim();
 }
 
-function parseUnityManifest(file) {
+export function parseUnityManifest(file) {
   const components = [];
   const lines = file.content.split(/\r?\n/);
   const capabilitiesIndex = lines.findIndex((line) => /^\s*capabilities\s*:\s*(?:#.*)?$/.test(line));

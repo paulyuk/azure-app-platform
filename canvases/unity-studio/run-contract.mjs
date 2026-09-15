@@ -137,7 +137,7 @@ export function invocationBody(contract, message, document) {
   return body;
 }
 
-function endpointKind(candidate, port) {
+export function endpointKind(candidate, port = Number(candidate?.port)) {
   const name = String(candidate?.name || "").trim().toLowerCase();
   const declaredKind = String(candidate?.kind || candidate?.type || "").trim().toLowerCase();
   if (name === "web" || declaredKind === "web") return "web";
@@ -146,11 +146,20 @@ function endpointKind(candidate, port) {
     declaredKind === "skill"
     || declaredKind === "function"
     || name === "skill"
+    || ["inventory-search", "trade-in-value", "rate-sheet", "deal-doc"].includes(name)
     || (port >= 7071 && port <= 7079)
   ) {
     return "function";
   }
   return "other";
+}
+
+export function normalizeRuntimeEntrypoint(entrypoint) {
+  return {
+    name: String(entrypoint?.name || ""),
+    port: Number(entrypoint?.port),
+    kind: endpointKind(entrypoint),
+  };
 }
 
 function statusResult(healthy, healthStatus, healthDetail) {

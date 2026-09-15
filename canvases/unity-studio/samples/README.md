@@ -15,10 +15,12 @@ The folder includes the agent, document validation tool, settings, tests,
 start/stop scripts, and a fake loan application. It does **not** include
 credentials, installed packages, logs, or saved ports.
 
-The code and lockfile still match the captured app. The main README has been
-rewritten for readers and now links to the shared Minimal pattern diagram.
-The [file record](docagent.snapshot.json) keeps the source details and file
-hashes, including the README's original and updated hashes.
+The agent, tool code, and lockfile still match the captured app. The start/stop
+scripts have later safety fixes, and the main README has been rewritten for
+readers with a link to the shared Minimal pattern diagram.
+The [file record](docagent.snapshot.json) keeps the source details, current
+file hashes, and these follow-up changes separately from the original capture.
+Its base commit identifies the template checkout, not the finished app.
 
 Run your own copy using the README. Nothing here starts automatically or
 changes the original running demo.

@@ -41,11 +41,28 @@ export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
 command -v uv >/dev/null || { echo "uv is required." >&2; exit 1; }
 command -v curl >/dev/null || { echo "curl is required for HTTP readiness." >&2; exit 1; }
 (cd "$ROOT/src/agent" && uv run main.py "$@" --check-runtime)
-"$ROOT/scripts/dev-stop.sh" >/dev/null
+if ! "$ROOT/scripts/dev-stop.sh"; then
+  echo "Startup aborted because the previous tracked process could not be stopped. Resolve the reported process and rerun dev-stop.sh; the existing registry was preserved." >&2
+  exit 1
+fi
 mkdir -p "$RUN_DIR"
 
 port_listening() {
   (echo >/dev/tcp/127.0.0.1/"$1") >/dev/null 2>&1
+}
+
+process_started_at() {
+  ps -p "$1" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+record_process() {
+  local name="$1" port="$2" pid="$3" started_at
+  started_at="$(process_started_at "$pid")"
+  printf '%s\t%s\t%s\t%s\n' "$name" "$port" "$pid" "$started_at" >"$RUN_DIR/processes.posix.tsv"
+  if [[ -z "$started_at" ]]; then
+    echo "[$name] could not record process start identity for PID $pid. Automatic cleanup is unsafe; verify and stop that process manually, then remove $RUN_DIR." >&2
+    return 1
+  fi
 }
 
 wait_port() {
@@ -78,7 +95,9 @@ fi
   exec env AGENT_PORT="$AGENT_PORT" uv run main.py "$@"
 ) >"$RUN_DIR/agent.log" 2>&1 &
 agent_pid=$!
-printf "agent\t%s\t%s\n" "$AGENT_PORT" "$agent_pid" >"$RUN_DIR/processes.posix.tsv"
+if ! record_process agent "$AGENT_PORT" "$agent_pid"; then
+  exit 1
+fi
 
 wait_port agent "$AGENT_PORT" "$agent_pid"
 
