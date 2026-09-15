@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$ROOT/.dev-run"
+. "$ROOT/scripts/load-ports.sh"
+load_unity_ports "$ROOT"
 WEB_PORT="${WEB_PORT:-3000}"
 AGENT_PORT="${AGENT_PORT:-8088}"
 SKILL_PORT="${SKILL_PORT:-7071}"

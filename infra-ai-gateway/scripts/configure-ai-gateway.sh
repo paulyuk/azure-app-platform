@@ -38,9 +38,17 @@ else
   gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-$(azd_value AZURE_AI_GATEWAY_MINI_MODEL)}"
 fi
 if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
+  echo "Discovering models on AI Gateway ${gateway_name}..." >&2
   model_names="$(az rest --method get \
-    --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/modelProviders/foundry/models?api-version=${AI_GATEWAY_API_VERSION}" \
-    --query 'value[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
+    --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/models?api-version=${AI_GATEWAY_API_VERSION}" \
+    --query 'value[].name' -o tsv | tr '\t' '\n')" || {
+      echo "Unable to discover models on the selected gateway. Check Azure access and retry." >&2
+      exit 1
+    }
+  if [ -z "$model_names" ]; then
+    echo "No models are configured on ${gateway_name}. Add a model in AI Gateway Studio or select another gateway." >&2
+    exit 1
+  fi
   first_model="$(printf '%s\n' "$model_names" | sed -n '1p')"
   mini_model="$(printf '%s\n' "$model_names" | grep -i 'mini' | sed -n '1p' || true)"
   full_model="$(printf '%s\n' "$model_names" | grep -iv 'mini' | sed -n '1p' || true)"
@@ -82,8 +90,9 @@ request_body="$(uv run --project "${REPO_ROOT}/src/agent" python -c \
   'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
   "$gateway_model")"
 ready=false
+echo "Validating model ${gateway_model} on gateway ${gateway_name}..."
 for attempt in $(seq 1 20); do
-  response="$(curl -sS -w $'\n%{http_code}' \
+  response="$(curl --connect-timeout 10 --max-time 30 -sS -w $'\n%{http_code}' \
     -X POST "${gateway_url%/}/default/models/openai/v1/responses" \
     -H "Api-Key: ${gateway_api_key}" \
     -H "Content-Type: application/json" \

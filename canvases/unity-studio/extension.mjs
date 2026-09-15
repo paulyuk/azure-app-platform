@@ -41,11 +41,28 @@ import {
 } from "./studio-commands.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
+import { createCommandActivity, redactActivityText } from "./command-activity.mjs";
+import { summarizeAgentResult } from "./agent-result.mjs";
+import { assessDocumentResult } from "./document-assessment.mjs";
+import { recordAppOpened } from "./app-recency.mjs";
+import {
+  applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
+  pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
+} from "./local-ports.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
+import {
+  resolveAgentInvocation,
+  invocationBody,
+  probeHttpHealth,
+  buildRunCommandReference,
+} from "./run-contract.mjs";
 import {
   evaluateGatewayReadiness,
+  discoverGatewayModels,
+  loadGatewayModelOptions,
   gatewayCommandEnvironment,
-  normalizeGatewayCandidate,
   validateGatewayCandidate,
+  discoverGatewayOptions,
 } from "./gateway-state.mjs";
 
 const servers = new Map();
@@ -56,10 +73,34 @@ const gatewayWriteQueues = new Map();
 let session;
 const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
 const pendingAppMutations = new Set();
+const commandActivities = new Map();
+const portStopReviews = new Map();
 
 function commandLogDirectory(root) {
   const rootHash = createHash("sha256").update(root).digest("hex").slice(0, 20);
   return `${tmpdir()}/unity-studio-command-logs/${rootHash}`;
+}
+
+function commandActivity(root) {
+  if (!commandActivities.has(root)) {
+    commandActivities.set(root, createCommandActivity(`${commandLogDirectory(root)}/activity.json`));
+  }
+  return commandActivities.get(root);
+}
+
+function trackedAzureRunner(root) {
+  return async (command, args) => {
+    const activity = commandActivity(root);
+    const id = await activity.start({ kind: "az", label: "Azure discovery", command: [command, ...args].join(" ") });
+    try {
+      const result = await runCommand(command, args);
+      await activity.finish(id, { ok: result.ok, note: result.ok ? "" : result.stderr || result.error });
+      return result;
+    } catch (error) {
+      await activity.finish(id, { ok: false, note: error.message });
+      throw error;
+    }
+  };
 }
 
 async function readRuntimeOutput(root) {
@@ -101,13 +142,14 @@ async function readRuntimeOutput(root) {
     }
   }
   lines.push(...(run?.lines ?? []));
-  return lines.slice(-400);
+  return lines.slice(-400).map(redactActivityText);
 }
 
 async function readAppRuntimeProfile(root) {
   try {
     const identity = JSON.parse(await readFile(`${root}/.unity-studio/app.json`, "utf8"));
-    return identity?.runtime && typeof identity.runtime === "object" ? identity.runtime : null;
+    return identity?.runtime && typeof identity.runtime === "object"
+      ? applyPortSettings(identity.runtime, await readPortSettings(root)) : null;
   } catch (error) {
     if (error.code === "ENOENT") return null;
     throw error;
@@ -225,11 +267,13 @@ async function runtimePortCandidates(root) {
 async function probeHttpEntrypoints(root) {
   const candidates = await runtimePortCandidates(root);
   for (const entry of await readProcessRegistry(root)) {
-    candidates.push({ name: entry.name, port: entry.port });
+    if (!candidates.some((candidate) => candidate.port === entry.port)) {
+      candidates.push({ name: entry.name, port: entry.port });
+    }
   }
   const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.port, candidate])).values()];
   return Promise.all(uniqueCandidates.map(async (candidate) => {
-    const ready = await new Promise((resolve) => {
+    const listening = await new Promise((resolve) => {
       const socket = createConnection({ host: "127.0.0.1", port: candidate.port });
       const finish = (value) => {
         socket.destroy();
@@ -239,7 +283,13 @@ async function probeHttpEntrypoints(root) {
       socket.once("connect", () => finish(true));
       socket.once("error", () => finish(false));
     });
-    return { ...candidate, url: `http://localhost:${candidate.port}`, ready };
+    const health = listening
+      ? await probeHttpHealth(candidate)
+      : { healthy: false, healthStatus: "Offline" };
+    return {
+      ...candidate, url: `http://localhost:${candidate.port}`, listening,
+      ready: listening && health.healthy !== false, ...health,
+    };
   }));
 }
 
@@ -395,9 +445,9 @@ async function openExpandedAppMap(root, trustedHost, apiToken) {
   });
 }
 
-async function promptLocalAgent(root, prompt, requestedPort) {
+async function promptLocalAgent(root, prompt, requestedPort, document) {
   if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 2_000) {
-    throw new Error("Enter a prompt up to 2,000 characters.");
+    throw new Error("Enter a message up to 2,000 characters.");
   }
   if (
     requestedPort !== undefined &&
@@ -418,18 +468,32 @@ async function promptLocalAgent(root, prompt, requestedPort) {
     error.statusCode = 409;
     throw error;
   }
-  const response = await fetch(`${agent.url}/responses`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input: prompt.trim(), stream: false }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  const body = await response.text();
-  if (!response.ok) throw new Error(`Agent returned HTTP ${response.status}: ${body.slice(0, 500)}`);
+  const contract = await resolveAgentInvocation(root, agent.port);
+  const activity = commandActivity(root);
+  const id = await activity.start({ kind: "http", label: "Invoke agent", command: `POST ${contract.url}` });
+  let status;
   try {
-    return { response: JSON.parse(body) };
-  } catch {
-    return { response: body };
+    const response = await fetch(contract.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invocationBody(contract, prompt.trim(), document)),
+      signal: AbortSignal.timeout(120_000),
+    });
+    status = response.status;
+    const body = await response.text();
+    if (!response.ok) throw new Error(`Agent returned HTTP ${response.status}: ${body.slice(0, 500)}`);
+    let result;
+    try { result = JSON.parse(body); } catch { result = body; }
+    await activity.finish(id, { ok: true, note: `HTTP ${status}` });
+    return {
+      response: result, summary: summarizeAgentResult(result),
+      ...(document !== undefined && contract.route === "/invoke" && ownership.available
+        && ownership.ownedPorts.has(agent.port)
+        ? { documentAssessment: assessDocumentResult(result) } : {}),
+    };
+  } catch (error) {
+    await activity.finish(id, { ok: false, note: status ? `HTTP ${status}` : "HTTP request failed or timed out." });
+    throw error;
   }
 }
 
@@ -531,9 +595,13 @@ async function localReadiness(root) {
   const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
   const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
   const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
+  const buildRuntime = await readBuildRuntime(root);
   return {
     ...gatewayReadiness,
     ready,
+    agentRuntime: buildRuntime?.agentRuntime ?? null,
+    documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
+    deploymentBlocker: await documentDeploymentBlocker(root),
     mode: previewMode ? "preview" : "full",
     missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
     guidance: previewMode
@@ -547,20 +615,35 @@ async function hasGatewayConfiguration(root) {
 }
 
 async function currentAppState(root) {
+  if (!appStates.has(root)) {
+    const active = await loadActiveGateway(root, { refresh: true });
+    if (active?.configurationStatus === "failed") {
+      appStates.set(root, {
+        state: "failed", operation: "configuring",
+        error: "The last model connection failed. Review command output and choose an available gateway/model.",
+      });
+    }
+  }
   const entrypoints = await probeHttpEntrypoints(root);
   const registry = await readProcessRegistry(root);
-  const ownership = await inspectEntrypointOwnership(root, entrypoints, registry);
+  const ownership = await inspectEntrypointOwnership(root, entrypoints.map((entry) => ({
+    ...entry, ready: entry.listening ?? entry.ready,
+  })), registry);
+  const ownedEntrypoints = entrypoints.map((entry) => {
+    const foreign = ownership.available && (entry.listening ?? entry.ready) && !ownership.ownedPorts.has(entry.port);
+    return foreign ? { ...entry, ready: false, healthStatus: "In use by another app" } : entry;
+  });
   const runtimeState = deriveRuntimeState(
     appStates.get(root),
     registry,
-    entrypoints,
+    ownedEntrypoints,
     { ownershipAvailable: ownership.available, ownedPorts: ownership.ownedPorts },
   );
   appStates.set(root, runtimeState);
   const foreignEntrypoints = ownership.available
-    ? entrypoints.filter((entrypoint) => entrypoint.ready && !ownership.ownedPorts.has(entrypoint.port))
+    ? entrypoints.filter((entrypoint) => (entrypoint.listening ?? entrypoint.ready) && !ownership.ownedPorts.has(entrypoint.port))
     : [];
-  return { ...runtimeState, entrypoints, foreignEntrypoints };
+  return { ...runtimeState, entrypoints: ownedEntrypoints, foreignEntrypoints };
 }
 
 function requireIdleApp(root, { allowActiveLifecycle = false } = {}) {
@@ -585,13 +668,13 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maxBytes = 64 * 1024) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 64 * 1024) {
-      throw new Error("Request body exceeds 64 KiB.");
+    if (size > maxBytes) {
+      throw new Error(`Request body exceeds ${maxBytes / 1024} KiB.`);
     }
     chunks.push(chunk);
   }
@@ -672,8 +755,8 @@ async function resolveLifecycleCommand(root, operation) {
         runtime.requiresGatewayForFullStart !== true || readiness?.mode === "preview"
       ) ? runtime.startArgs ?? [] : [];
       return { command: "bash", args: [scriptPath, ...profileArgs] };
-    } catch {
-      // Try the other platform-specific script before surfacing a useful error.
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
   }
   throw new Error(`No ${operation === "run-local" ? "dev-start" : "dev-stop"} script was found.`);
@@ -702,7 +785,8 @@ async function syncGatewayConfigScript(root, workspaceRoot) {
   const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
   const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
   await access(sourcePath);
-  await access(`${root}/infra-ai-gateway/scripts`);
+  await access(`${root}/infra-ai-gateway`);
+  await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
   await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
 }
 
@@ -715,21 +799,32 @@ async function startAppCommand(root, command, args, state, options = {}) {
     delete commandEnvironment[key];
   }
   Object.assign(commandEnvironment, options.env ?? {});
+  if (state === "starting") {
+    const settings = await readPortSettings(root);
+    Object.assign(commandEnvironment, Object.fromEntries(Object.entries(settings).map(([name, port]) => [name, String(port)])));
+    if (settings.AGENT_PORT) commandEnvironment.AGENT_URL = `http://127.0.0.1:${settings.AGENT_PORT}`;
+  }
   const startedAt = Date.now();
+  const activity = commandActivity(root);
   const logDirectory = commandLogDirectory(root);
   const logPath = `${logDirectory}/${startedAt}-${state}.log`;
   await mkdir(logDirectory, { recursive: true, mode: 0o700 });
   const logHandle = await open(logPath, "a", 0o600);
   let child;
+  let activityId;
   try {
+    activityId = await activity.start({ kind: "shell", label: state, command: [command, ...args].join(" ") });
+    await logHandle.write(`> ${[command, ...args].join(" ")}\n`);
     child = spawn(command, args, {
       cwd: options.cwd ?? root,
       env: commandEnvironment,
       detached: true,
       stdio: ["ignore", logHandle.fd, logHandle.fd],
     });
-  } finally {
+  } catch (error) {
     await logHandle.close();
+    if (activityId) await activity.finish(activityId, { ok: false, note: error.message });
+    throw error;
   }
   const run = { lines: [], logPath, startedAt, state };
   appOutput.set(root, run);
@@ -754,7 +849,8 @@ async function startAppCommand(root, command, args, state, options = {}) {
       try {
         await options.onComplete?.({ exitCode, signal });
       } catch (error) {
-        appendOutput(`Unable to persist command completion: ${error.message}`);
+        appendOutput(`Command completion failed: ${error.message}`);
+        run.error = error.message;
         exitCode = 1;
       }
       if (options.completedState && appStates.get(root)?.pid === child.pid) {
@@ -763,13 +859,21 @@ async function startAppCommand(root, command, args, state, options = {}) {
           operation: state,
           exitCode,
           signal,
+          error: run.error ?? (exitCode === 0 ? undefined : `Command exited with ${exitCode ?? signal}. Review command output.`),
           updatedAt: new Date().toISOString(),
         });
       }
-    })();
+      await activity.finish(activityId, {
+        ok: exitCode === 0,
+        note: run.error || (signal ? `Signal ${signal}` : `Exit ${exitCode}`),
+      });
+    })().catch((error) => {
+      appendOutput(`Unable to record command completion: ${error.message}`);
+    });
   });
   child.unref();
   appStates.set(root, { state, operation: state, pid: child.pid, updatedAt: new Date().toISOString() });
+  await logHandle.close();
   return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state };
 }
 
@@ -788,6 +892,8 @@ async function startGatewayConfiguration(root, gateway, workspaceRoot, configura
     cwd: gatewayConfig.cwd,
     env: {
       ...gatewayCommandEnvironment(active),
+      UV_INDEX_URL: process.env.UV_INDEX_URL || process.env.UV_DEFAULT_INDEX || "https://packagefeedproxy.microsoft.io/pypi/simple/",
+      UV_DEFAULT_INDEX: process.env.UV_DEFAULT_INDEX || process.env.UV_INDEX_URL || "https://packagefeedproxy.microsoft.io/pypi/simple/",
       UNITY_GATEWAY_CONFIGURATION_ID: configurationId,
     },
     onComplete: async ({ exitCode, signal }) => {
@@ -893,25 +999,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       const active = await loadActiveGateway(root, { refresh: true });
-      const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
-      if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
-      let gateways;
-      try {
-        gateways = JSON.parse(result.stdout);
-      } catch {
-        throw new Error("Azure CLI returned invalid AI Gateway data.");
-      }
-      const activeResource = active && gateways.find((gateway) => gateway.name === active.name);
-      if (activeResource) {
-        activeGateways.set(root, {
-          ...active,
-          ...normalizeGatewayCandidate(activeResource),
-        });
-      }
-      sendJson(response, 200, {
-        active: activeGateways.get(root) ?? null,
-        gateways: gateways.map(normalizeGatewayCandidate),
-      });
+      const options = await discoverGatewayOptions(
+        trackedAzureRunner(root), active, url.searchParams.get("subscriptionId"),
+      );
+      sendJson(response, 200, await loadGatewayModelOptions(trackedAzureRunner(root), options, {
+        name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
+      }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/active-gateway") {
@@ -926,12 +1019,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         error.statusCode = 409;
         throw error;
       }
-      const result = await runCommand("az", ["aigateway", "list", "-o", "json"]);
-      if (!result.ok) throw new Error(result.stderr || result.error || "Unable to verify AI Gateways.");
-      const gateways = JSON.parse(result.stdout);
-      const gateway = gateways.find((candidate) => candidate.name === input.name);
+      const { gateways } = await discoverGatewayOptions(
+        trackedAzureRunner(root), await loadActiveGateway(root, { refresh: true }), input.subscriptionId,
+      );
+      const gateway = gateways.find((candidate) => candidate.name === input.name
+        && (!input.resourceGroup || candidate.resourceGroup === input.resourceGroup));
       if (!gateway) throw new Error("The selected AI Gateway is no longer available.");
-      const configuration = await startGatewayConfiguration(root, gateway, workspaceRoot);
+      const models = await discoverGatewayModels(trackedAzureRunner(root), gateway);
+      const model = input.model ? models.find((item) => item.id === input.model) : models[0];
+      if (!model) throw new Error(models.length
+        ? "The selected model is no longer available. Refresh the model connection."
+        : "This gateway has no models. Select another gateway or add a model in AI Gateway Studio.");
+      const configuration = await startGatewayConfiguration(root, { ...gateway, model: model.id }, workspaceRoot);
       sendJson(response, 202, {
         outcome: "gateway-selected",
         active: await loadActiveGateway(root),
@@ -944,7 +1043,42 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App output root is not an authorized app workspace.");
       }
-      sendJson(response, 200, { lines: await readRuntimeOutput(root) });
+      const [lines, commands] = await Promise.all([
+        readRuntimeOutput(root), commandActivity(root).list(),
+      ]);
+      sendJson(response, 200, { lines, commands });
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/run-commands") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Command root is not an authorized app workspace.");
+      const [start, stop, candidates] = await Promise.all([
+        resolveLifecycleCommand(root, "run-local"),
+        resolveLifecycleCommand(root, "stop-local"),
+        runtimePortCandidates(root),
+      ]);
+      const agent = candidates.find((entry) => entry.name.toLowerCase() === "agent");
+      let invocation = null;
+      let invocationError = "";
+      if (agent) {
+        try {
+          invocation = await resolveAgentInvocation(root, agent.port);
+        } catch (error) {
+          invocationError = error.message;
+        }
+      }
+      const reference = buildRunCommandReference({ root, start, stop, invocation });
+      if (invocationError) reference.guidance = invocationError;
+      try {
+        await access(`${root}/azure.yaml`);
+        reference.commands.push(
+          { label: "Provision Azure resources", command: "azd provision" },
+          { label: "Deploy app to Azure", command: "azd up" },
+        );
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      sendJson(response, 200, reference);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/open-entrypoint") {
@@ -955,11 +1089,13 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, { outcome: "canvas-opened", canvas: await openEntrypoint(root, input.port) });
       return;
     }
-    if (request.method === "POST" && url.pathname === "/api/agent-prompt") {
-      const input = await readJsonBody(request);
+    if (request.method === "POST" && ["/api/agent-invoke", "/api/agent-prompt"].includes(url.pathname)) {
+      const input = await readJsonBody(request, 128 * 1024);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Agent root is not an authorized app workspace.");
-      sendJson(response, 200, await promptLocalAgent(root, input.prompt, input.port));
+      sendJson(response, 200, await promptLocalAgent(
+        root, url.pathname === "/api/agent-invoke" ? input.message : input.prompt, input.port, input.document,
+      ));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
@@ -1097,6 +1233,117 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, await openWorkspaceInVsCode({ root: sourceRoot }));
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/open-build-file") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      const file = await resolveBuildArtifactPath(root, input.id);
+      sendJson(response, 200, await openWorkspaceInVsCode({ root, file }));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/build-workspace") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      sendJson(response, 200, await readBuildWorkspace(root));
+      return;
+    }
+    if (request.method === "POST" && ["/api/ports/pick", "/api/ports/review-stop", "/api/ports/stop"].includes(url.pathname)) {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Port control root is not an authorized app workspace.");
+      releaseAppMutation = reserveAppMutation(root);
+      const candidates = await probeHttpEntrypoints(root);
+      const ports = [...new Set(candidates.map((item) => item.port))];
+      if (url.pathname === "/api/ports/pick") {
+        const current = await currentAppState(root);
+        if (["running", "starting"].includes(current.state)) throw new Error("Stop this app before changing its ports.");
+        if (!await readAppRuntimeProfile(root)) throw new Error("This app needs a persisted runtime profile before its ports can be reassigned.");
+        const settings = await pickAvailablePorts(root, await runtimePortCandidates(root), async () => {
+          const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
+          return reservedPortsForApps(catalog.apps.map((app) => app.path), root);
+        });
+        portStopReviews.delete(root);
+        appStates.delete(root);
+        const activity = commandActivity(root);
+        const id = await activity.start({ kind: "configuration", label: "Pick available ports", command: "Write .unity-studio/ports.env" });
+        await activity.finish(id, { ok: true, note: Object.entries(settings).map(([name, port]) => `${name}=${port}`).join(", ") });
+        sendJson(response, 200, { settings, entrypoints: await runtimePortCandidates(root) });
+      } else if (url.pathname === "/api/ports/review-stop") {
+        const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
+        const launchers = await managedLaunchers(catalog.roots.map((app) => app.path));
+        const review = makePortStopReview(ports, await inspectPortProcesses(ports), launchers);
+        const reviewId = randomUUID();
+        portStopReviews.set(root, { reviewId, review, launchers });
+        sendJson(response, 200, {
+          reviewId, ports: review.ports,
+          targets: review.targets.map(({ pid, command, ports }) => ({ pid, command, ports })),
+        });
+      } else {
+        const pending = portStopReviews.get(root);
+        if (input.confirmed !== true || !pending || pending.reviewId !== input.reviewId) throw new Error("Review the affected apps and confirm before stopping port owners.");
+        portStopReviews.delete(root);
+        if (JSON.stringify([...ports].sort((a, b) => a - b)) !== JSON.stringify(pending.review.ports)) throw new Error("App ports changed. Review them again.");
+        const activity = commandActivity(root);
+        const id = await activity.start({
+          kind: "process", label: "Stop apps using these ports",
+          command: `${process.platform === "win32" ? "taskkill /T /F" : "SIGTERM"}: reviewed PIDs ${pending.review.targets.map((item) => item.pid).join(", ") || "(none)"}`,
+        });
+        try {
+          const stopped = await stopReviewedPortProcesses(pending.review);
+          await forgetStoppedLaunchers(pending.launchers, stopped.terminatedPids);
+          appStates.delete(root);
+          await activity.finish(id, { ok: true, note: `Ports free: ${ports.join(", ")}` });
+          sendJson(response, 200, stopped);
+        } catch (error) {
+          await activity.finish(id, { ok: false, note: error.message });
+          throw error;
+        }
+      }
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/build-file") {
+      const input = await readJsonBody(request, 768 * 1024);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      releaseAppMutation = reserveAppMutation(root);
+      const state = await currentAppState(root);
+      if (state.state === "running" || state.state === "preview" || transientAppStates.has(state.state)) {
+        const error = new Error("Stop the app before saving source or runtime changes, then restart to use the reviewed version.");
+        error.statusCode = 409;
+        throw error;
+      }
+      sendJson(response, 200, await saveBuildArtifact(root, input));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/document-test") {
+      const input = await readJsonBody(request, 128 * 1024);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Document test root is not an authorized app workspace.");
+      await resolveBuildArtifactPath(root, "contract");
+      const agent = (await probeHttpEntrypoints(root)).find((entry) => entry.name === "agent" && entry.healthy);
+      if (!agent) throw new Error("Run the app first, then test document enforcement.");
+      const ownership = await inspectEntrypointOwnership(root, [agent], await readProcessRegistry(root));
+      if (!ownership.available || !ownership.ownedPorts.has(agent.port)) throw new Error("Cannot verify that the agent endpoint belongs to this app.");
+      const endpoint = `http://127.0.0.1:${agent.port}/test-document`;
+      const activity = commandActivity(root);
+      const id = await activity.start({ kind: "http", label: "Test document enforcement", command: `POST ${endpoint}` });
+      try {
+        const result = await fetch(endpoint, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ document: input.document }), signal: AbortSignal.timeout(120_000),
+        });
+        const body = await result.json();
+        if (!result.ok && !(result.status === 422 && body.verdict === "rejected")) {
+          throw new Error(`Document test returned HTTP ${result.status}: ${body.error?.message || "Tool execution failed."}`);
+        }
+        await activity.finish(id, { ok: true, note: `HTTP ${result.status}; enforcement ${body.verdict || "completed"} (not a model call).` });
+        sendJson(response, 200, { ...body, documentAssessment: assessDocumentResult(body) });
+      } catch (error) {
+        await activity.finish(id, { ok: false, note: "Document enforcement failed; payload omitted from logs." });
+        throw error;
+      }
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/app-command") {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
@@ -1143,6 +1390,15 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         const lifecycle = await resolveLifecycleCommand(root, input.operation);
         sendJson(response, 202, await startAppCommand(root, lifecycle.command, lifecycle.args, "starting", {
           completedState: "running",
+          onComplete: async ({ exitCode }) => {
+            if (exitCode !== 0) return;
+            const endpoints = await probeHttpEntrypoints(root);
+            const ownership = await inspectEntrypointOwnership(root, endpoints, await readProcessRegistry(root));
+            const missing = endpoints.filter((entry) => entry.expected !== false
+              && (!entry.ready || (ownership.available && !ownership.ownedPorts.has(entry.port))));
+            if (missing.length) throw new Error("Startup finished but required services are not ready: " +
+              missing.map((entry) => entry.name + " (" + (entry.healthStatus || "offline") + ")").join(", "));
+          },
         }));
         return;
       }
@@ -1174,6 +1430,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {
+        const blocker = await documentDeploymentBlocker(root);
+        if (blocker) throw new Error(blocker);
         const command = input.operation === "provision-cloud" ? "provision" : "up";
         sendJson(response, 202, await startAppCommand(
           root,
@@ -1238,11 +1496,13 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         additionalRoots: [...authorizedRoots],
       });
       const appIdentity = catalog.apps.find((app) => app.path === root);
-      response.setHeader("Content-Type", "text/html; charset=utf-8");
-      response.end(renderInteractiveAppMapHtml(await traceUnityApp({ root }), {
+      const html = renderInteractiveAppMapHtml(await traceUnityApp({ root }), {
         apiToken,
         appName: appIdentity?.name,
-      }));
+      });
+      await recordAppOpened(root);
+      response.setHeader("Content-Type", "text/html; charset=utf-8");
+      response.end(html);
       return;
     }
     if (request.method !== "GET" || url.pathname !== "/") {
@@ -1328,6 +1588,7 @@ const workspaceInputSchema = {
       properties: {
         hostedSkillName: { type: "string", minLength: 1, maxLength: 40 },
         agentInstructions: { type: "string", minLength: 1, maxLength: 2000 },
+        egressAllowDomain: { type: "string", minLength: 1, maxLength: 253 },
       },
       additionalProperties: false,
     },

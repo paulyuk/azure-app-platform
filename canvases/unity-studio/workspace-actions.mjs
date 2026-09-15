@@ -1,14 +1,17 @@
 import { basename } from "node:path";
+import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
-import { EMPTY_TEMPLATE, listSourceCatalog, resolveSourcePlan } from "./source-catalog.mjs";
+import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
+import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
 
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
+const DOMAIN_PATTERN = /^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 function requireText(value, label, maxLength) {
   if (typeof value !== "string") {
@@ -94,8 +97,14 @@ export function normalizeWorkspaceRequest(input) {
   if (!SKILL_NAME_PATTERN.test(hostedSkillName)) {
     throw new Error("Hosted Skill name must use lowercase letters, numbers, and hyphens.");
   }
+  const egressAllowDomain = optionalText(input?.templateInputs?.egressAllowDomain, "Egress allow-list domain", 253)
+    ?? "api.lender.example.com";
+  if (!DOMAIN_PATTERN.test(egressAllowDomain)) {
+    throw new Error("Egress allow-list domain must be a valid DNS hostname, e.g. api.lender.example.com.");
+  }
   const templateInputs = {
     hostedSkillName,
+    egressAllowDomain,
     agentInstructions: optionalMultilineText(input?.templateInputs?.agentInstructions, "Agent instructions", 2_000)
       ?? `Help users accomplish this application purpose: ${purpose}`,
   };
@@ -198,6 +207,11 @@ export function buildWorkspaceKickoff(request) {
       ? [
           "Verify `scripts/dev-start.sh`, `scripts/dev-stop.sh`, `scripts/dev-start.ps1`, and `scripts/dev-stop.ps1` exist.",
           "Run `./scripts/dev-start.sh --help`. The credential-free experience is `./scripts/dev-start.sh --skip-skills --skip-agent`; stop it with `./scripts/dev-stop.sh`.",
+        ]
+      : templatePlan.templateId === SANDBOX_GATEWAY_TEMPLATE.id
+      ? [
+          "Verify the generated README, loan demo docs, unity.app.yaml, runtime and policy config, agent instructions, and the document validation tool at `src/tools/document-validation`.",
+          "Run `./scripts/dev-start.sh --help`. Smoke-test the agent harness with `./scripts/dev-start.sh` and POST /test-document at the ready agent URL. Respect .unity-studio/ports.env (8088 is only the default); do not stop unrelated listeners. Use the PowerShell equivalents on Windows. Test /invoke only after configuring AI Gateway, then stop this app with its dev-stop script.",
         ]
       : [
           "Verify the generated README, unity.app.yaml, editable domain config, agent prompt, and exactly one Hosted Skill.",
@@ -491,8 +505,8 @@ export async function requestAppWorkspace({
   }
   if (request.starterKind === "template" || request.journey === "assemble") {
     const catalog = sourceCatalog ?? (
-      request.templateRootId === EMPTY_TEMPLATE.id
-        ? { roots: [], templates: [EMPTY_TEMPLATE] }
+      LOCAL_TEMPLATES.some((template) => template.id === request.templateRootId)
+        ? { roots: [], templates: LOCAL_TEMPLATES }
         : await listSourceCatalog({ workspaceRoot, commandRunner })
     );
     const resourcesByTier = new Map(request.sourceBindings.map((binding) => [
@@ -560,6 +574,16 @@ function appSlug(appName) {
   return appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
+async function writeAppIdentity(path, identity) {
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    await rename(temporary, path);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
 async function createTemplateWorkspace({
   session,
   workspaceRoot,
@@ -568,12 +592,13 @@ async function createTemplateWorkspace({
   commandRunner,
 }) {
   const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
-  const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}`;
+  const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
   const worktree = await commandRunner("git", [
     "-C",
     workspaceRoot,
     "worktree",
     "add",
+    "--no-checkout",
     "-b",
     branch,
     destination,
@@ -591,6 +616,22 @@ async function createTemplateWorkspace({
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
     await mkdir(join(destination, ".unity-studio"), { recursive: true });
+    const identity = {
+      name: request.appName,
+      purpose: request.purpose,
+      managedBranch: branch,
+      childSessionId: null,
+      runtime: request.sourcePlan[0]?.startup ?? null,
+    };
+    const identityPath = join(destination, ".unity-studio", "app.json");
+    await writeAppIdentity(identityPath, identity);
+    const portSettings = await pickAvailablePorts(destination, identity.runtime?.entrypoints ?? [], async () => {
+      const listed = await commandRunner("git", ["-C", workspaceRoot, "worktree", "list", "--porcelain"]);
+      if (!listed.ok) {
+        throw new Error(`Could not inspect existing app port assignments: ${listed.stderr || listed.error || "unknown error"}`);
+      }
+      return reservedPortsForApps([workspaceRoot, ...parseWorktrees(listed.stdout).map((tree) => tree.path)], destination);
+    });
     let opened = null;
     if (session?.rpc?.sessions?.open) {
       opened = await session.rpc.sessions.open({
@@ -606,17 +647,8 @@ async function createTemplateWorkspace({
         throw new Error(`The child session could not be created: ${opened.status ?? "unknown status"}.`);
       }
     }
-    await writeFile(
-      join(destination, ".unity-studio", "app.json"),
-      `${JSON.stringify({
-        name: request.appName,
-        purpose: request.purpose,
-        managedBranch: branch,
-        childSessionId: opened?.sessionId ?? null,
-        runtime: request.sourcePlan[0]?.startup ?? null,
-      }, null, 2)}\n`,
-      { mode: 0o600 },
-    );
+    identity.childSessionId = opened?.sessionId ?? null;
+    await writeAppIdentity(identityPath, identity);
 
     let editor = null;
     let editorWarning = null;
@@ -641,6 +673,7 @@ async function createTemplateWorkspace({
         starterKind: request.starterKind,
         sourcePlan: request.sourcePlan,
         materialized,
+        portSettings,
       },
       specialistCanvases: specialistCanvases(request.tierIds),
       openInVsCode: request.openInVsCode,
@@ -705,14 +738,16 @@ export async function deleteAppWorkspace({
 
 export async function openWorkspaceInVsCode({
   root,
+  file,
   commandRunner = runCommand,
 }) {
-  const codeResult = await commandRunner("code", ["--new-window", root], { timeout: 10_000 });
+  const args = ["--new-window", root, ...(file ? ["--goto", file] : [])];
+  const codeResult = await commandRunner("code", args, { timeout: 10_000 });
   if (codeResult.ok) {
     return { outcome: "opened-in-vscode", root, command: "code" };
   }
   if (process.platform === "darwin") {
-    const openResult = await commandRunner("open", ["-a", "Visual Studio Code", root], { timeout: 10_000 });
+    const openResult = await commandRunner("open", ["-a", "Visual Studio Code", root, ...(file ? [file] : [])], { timeout: 10_000 });
     if (openResult.ok) {
       return { outcome: "opened-in-vscode", root, command: "open" };
     }

@@ -4,11 +4,19 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
 
 const execFileAsync = promisify(execFile);
-const TEMPLATE_ROOT = fileURLToPath(new URL("./templates/empty-unity-app", import.meta.url));
+const EMPTY_TEMPLATE_ID = "builtin-empty-unity-v1";
+const SANDBOX_GATEWAY_TEMPLATE_ID = "builtin-sandbox-gateway-minimal-v1";
+const TEMPLATE_ROOTS = {
+  [EMPTY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/empty-unity-app", import.meta.url)),
+  [SANDBOX_GATEWAY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/sandbox-gateway-minimal", import.meta.url)),
+};
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
+const DOMAIN_PATTERN = /^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 function requireText(value, label, pattern, maxLength) {
   if (
@@ -50,6 +58,10 @@ async function replaceTokens(root, tokens) {
       for (const [token, value] of Object.entries(tokens)) {
         content = content.replaceAll(token, value);
       }
+      if (/\.md(?:\.template)?$/.test(path)) {
+        // Source docs link to .template files; generated apps contain the rendered paths.
+        content = content.replace(/(\]\((?![a-z]+:)[^)\s]+)\.template(?=[)#])/gi, "$1");
+      }
       const output = path.endsWith(".template") ? path.slice(0, -".template".length) : path;
       await writeFile(output, content);
       if (output !== path) {
@@ -59,15 +71,12 @@ async function replaceTokens(root, tokens) {
   }
 }
 
-async function materializeEmpty(plan, destination) {
+async function materializeLocalTemplate(plan, destination) {
+  const templateId = plan.sourcePlan?.templateId ?? EMPTY_TEMPLATE_ID;
+  const isSandboxGateway = templateId === SANDBOX_GATEWAY_TEMPLATE_ID;
+  const templateRoot = TEMPLATE_ROOTS[templateId] ?? TEMPLATE_ROOTS[EMPTY_TEMPLATE_ID];
   const appName = requireText(plan.appName, "app name", APP_NAME_PATTERN, 80);
   const purpose = requireText(plan.purpose, "app purpose", null, 500);
-  const hostedSkillName = requireText(
-    plan.templateInputs?.hostedSkillName ?? "starter-skill",
-    "Hosted Skill name",
-    SKILL_NAME_PATTERN,
-    40,
-  );
   const agentInstructions = requireText(
     plan.templateInputs?.agentInstructions ?? `Help users accomplish: ${purpose}`,
     "agent instructions",
@@ -76,11 +85,14 @@ async function materializeEmpty(plan, destination) {
   );
   const staging = await mkdtemp(join(tmpdir(), "unity-empty-"));
   try {
-    const templateEntries = await readdir(TEMPLATE_ROOT);
+    const templateEntries = await readdir(templateRoot);
     await Promise.all(templateEntries.map((entry) =>
-      cp(join(TEMPLATE_ROOT, entry), join(staging, entry), { recursive: true, force: true })));
-    await rename(join(staging, "src", "skills", "__SKILL__"), join(staging, "src", "skills", hostedSkillName));
-    await replaceTokens(staging, {
+      cp(join(templateRoot, entry), join(staging, entry), {
+        recursive: true, force: true,
+        filter: (source) => !["__pycache__", ".venv", ".pytest_cache", "node_modules", ".git"].includes(basename(source)),
+      })));
+    await materializePortLoaders(staging);
+    const tokens = {
       "__APP_NAME__": appName,
       "__APP_NAME_HTML_JSON__": JSON.stringify(escapeHtml(appName)),
       "__APP_SLUG__": appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
@@ -88,8 +100,29 @@ async function materializeEmpty(plan, destination) {
       "__PURPOSE__": purpose,
       "__PURPOSE_HTML_JSON__": JSON.stringify(escapeHtml(purpose)),
       "__AGENT_INSTRUCTIONS__": agentInstructions,
-      "__SKILL_NAME__": hostedSkillName,
-    });
+    };
+    if (isSandboxGateway) {
+      const egressAllowDomain = requireText(
+        plan.templateInputs?.egressAllowDomain ?? "api.lender.example.com",
+        "egress allow-list domain",
+        DOMAIN_PATTERN,
+        253,
+      );
+      tokens["__EGRESS_ALLOW_DOMAIN__"] = egressAllowDomain;
+    } else {
+      const hostedSkillName = requireText(
+        plan.templateInputs?.hostedSkillName ?? "starter-skill",
+        "Hosted Skill name",
+        SKILL_NAME_PATTERN,
+        40,
+      );
+      await rename(join(staging, "src", "skills", "__SKILL__"), join(staging, "src", "skills", hostedSkillName));
+      tokens["__SKILL_NAME__"] = hostedSkillName;
+    }
+    await replaceTokens(staging, tokens);
+    if (isSandboxGateway) {
+      await Promise.all(SANDBOX_GATEWAY_TEMPLATE.requiredPaths.map((path) => access(join(staging, path))));
+    }
     const renderedEntries = await readdir(staging);
     await Promise.all(renderedEntries.map((entry) =>
       cp(join(staging, entry), join(destination, entry), { recursive: true, force: true })));
@@ -103,7 +136,9 @@ async function materializeEmpty(plan, destination) {
   return {
     kind: "empty-template",
     destination,
-    requiredFiles: ["README.md", "unity.app.yaml", "scripts/dev-start.sh", "scripts/dev-stop.sh"],
+    requiredFiles: isSandboxGateway
+      ? [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths]
+      : ["README.md", "unity.app.yaml", "scripts/dev-start.sh", "scripts/dev-stop.sh"],
   };
 }
 
@@ -144,6 +179,8 @@ async function materializeSample(plan, destination, commandRunner) {
     const sampleEntries = await readdir(extracted);
     await Promise.all(sampleEntries.map((entry) =>
       cp(join(extracted, entry), join(destination, entry), { recursive: true, force: true })));
+    await materializePortLoaders(destination);
+    await prepareDealerPortOverrides(destination);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -173,13 +210,20 @@ async function defaultCommandRunner(command, args) {
   }
 }
 
+export async function materializePortLoaders(destination) {
+  await Promise.all(["load-ports.sh", "load-ports.ps1"].map((file) => cp(
+    fileURLToPath(new URL(`./templates/shared/${file}`, import.meta.url)),
+    join(destination, "scripts", file),
+  )));
+}
+
 export async function materializeTemplate(plan, {
   destination = process.cwd(),
   commandRunner = defaultCommandRunner,
 } = {}) {
   const resolvedDestination = resolve(destination);
   if (plan?.sourcePlan?.kind === "empty-template") {
-    return materializeEmpty(plan, resolvedDestination);
+    return materializeLocalTemplate(plan, resolvedDestination);
   }
   if (plan?.sourcePlan?.kind === "complete-sample") {
     return materializeSample(plan, resolvedDestination, commandRunner);

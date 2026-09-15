@@ -55,6 +55,12 @@ processes — run each in its own terminal.** By default the web app
 falls back to the built-in mock scenario generator if it's not reachable.
 So starting only the web app still gives a fully standalone mock demo:
 
+For a Unity Studio-created Dealer workspace, prefer `scripts/dev-start.sh` or
+`scripts/dev-start.ps1` from the repository root. Those launchers read the
+validated `.unity-studio/ports.env`, wire every component together, and print
+the selected URLs. The manual commands in this document use the fallback
+ports.
+
 ```bash
 # Terminal — web app (no Azure required); works standalone via mock fallback
 cd src/web
@@ -220,8 +226,10 @@ Functions:
 ```
 
 `src/agent/main.py` auto-connects to all four over MCP at
-`http://localhost:707{1..4}/runtime/webhooks/mcp` — no extra agent-side
-config needed once they're running. See [`skills/README.md`](skills/README.md) for the full file layout and an
+`http://localhost:707{1..4}/runtime/webhooks/mcp` by default. The root
+launcher supplies `INVENTORY_SEARCH_PORT`, `TRADE_IN_VALUE_PORT`,
+`RATE_SHEET_PORT`, and `DEAL_DOC_PORT` when Studio allocates different
+ports. See [`skills/README.md`](skills/README.md) for the full file layout and an
 MCP `tools/list` smoke test you can run against a single skill directly.
 
 ### Exercising the agent
@@ -256,8 +264,10 @@ uv run main.py
 ```
 
 This starts an HTTP server implementing the Responses protocol on
-`http://127.0.0.1:8088` — the agent has no interactive CLI/REPL, so talk to
-it with `curl` from a separate terminal:
+`http://127.0.0.1:8088` by default. Set `AGENT_PORT` to override it; the
+repository launcher does that automatically for a Studio-allocated
+workspace. The agent has no interactive CLI/REPL, so talk to it with `curl`
+from a separate terminal:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8088/responses \

@@ -1,0 +1,6 @@
+{
+  "allowedFqdns": ["__EGRESS_ALLOW_DOMAIN__"],
+  "defaultDeny": true,
+  "documentToolEgressEnabled": false,
+  "notes": "The document validation tool needs no network and must remain egress-disabled. This exact FQDN is reserved for a reviewed future integration only; never use a wildcard. See src/tools/document-validation/egress-policy.md."
+}

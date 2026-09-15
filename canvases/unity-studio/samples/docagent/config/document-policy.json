@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "maxDocumentBytes": 65536,
+  "maxSanitizedCharacters": 8000,
+  "rejectInstructionOverrides": true,
+  "requiredRedactions": ["email", "phone", "ssn", "paymentCard"]
+}

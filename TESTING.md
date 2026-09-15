@@ -34,6 +34,25 @@ The script starts in-memory Azurite, all four Hosted Skills/MCP servers, the
 deal-finder agent, then the web app. It waits for each layer before starting
 the next one and prints every endpoint and log path.
 
+Unity Studio-created workspaces have a `.unity-studio/ports.env` file. The
+launchers load it as data and honor these names:
+
+```text
+WEB_PORT
+AGENT_PORT
+INVENTORY_SEARCH_PORT
+TRADE_IN_VALUE_PORT
+RATE_SHEET_PORT
+DEAL_DOC_PORT
+AZURITE_BLOB_PORT
+AZURITE_QUEUE_PORT
+AZURITE_TABLE_PORT
+```
+
+The defaults remain `3000`, `8088`, `7071`–`7074`, and `10000`–`10002` when
+neither the saved file nor the environment provides overrides. Do not source
+`ports.env`; let `scripts/load-ports.*` validate and import it.
+
 From the repository root, use one terminal for the long-running stack.
 
 Windows (PowerShell):
@@ -48,7 +67,8 @@ macOS/Linux:
 ./scripts/dev-start.sh
 ```
 
-Open <http://localhost:3000> and use:
+Open the web URL printed by the launcher (by default
+<http://localhost:3000>) and use:
 
 > Find me an EV under $40,000 with at least 250 miles of range
 
@@ -60,7 +80,9 @@ MCP tool discovery succeeds. Azurite also runs with
 
 Logs are under `.dev-run/logs/`. The agent log should report
 `CONNECTED, discovered 1 tool(s)` for each of the four skills. Stop and clean
-up all tracked processes and known ports from another terminal.
+up only this workspace's ownership-tracked process trees from another
+terminal. The stop scripts never sweep ports or terminate another app's
+listener.
 
 Windows (PowerShell):
 
@@ -156,6 +178,10 @@ stores the secret in the gitignored azd environment, and writes a mode-`0600`
 
 Use this only when diagnosing an individual layer. The rapid-path scripts
 above automate the same commands and are the normal test path.
+The commands below show the default ports and assume there is no
+`.unity-studio/ports.env`. For a Studio-allocated workspace, use the root
+launcher and the endpoints it prints so the web backend URL, MCP URLs, and
+custom Azurite connection string stay consistent.
 
 Each Hosted Skill needs a gitignored `local.settings.json`. Repeat this
 one-time configuration in each of the four skill folders. `uv run` creates
@@ -221,7 +247,7 @@ uv run main.py
 ```
 
 The agent log should print `CONNECTED, discovered 1 tool(s)` for each skill
-before reporting that the Responses server is listening on port `8088`.
+before reporting the selected Responses server port (`8088` by default).
 
 #### Terminal 7: direct agent smoke test
 

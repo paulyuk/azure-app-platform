@@ -24,6 +24,7 @@ from agent_framework import (
 from agent_framework.openai import OpenAIChatClient
 from agent_framework_foundry_hosting import FoundryToolbox, ResponsesHostServer
 from azure.identity import DefaultAzureCredential
+from local_ports import agent_listen_port, agent_port_override, local_skill_ports
 
 DEFAULT_GATEWAY_MODEL = "gpt-latest"
 DEFAULT_GATEWAY_MINI_MODEL = "gpt-mini-latest"
@@ -136,12 +137,7 @@ def _foundry_toolbox() -> FoundryToolbox:
 # Functions apps on the serverless agents runtime), each on its own port, each
 # exposing itself as a real MCP tool at /runtime/webhooks/mcp. See
 # `src/skills/README.md` "Run the Hosted Skills locally" for how to start them.
-LOCAL_SKILL_PORTS: dict[str, int] = {
-    "inventory-search": 7071,
-    "trade-in-value": 7072,
-    "rate-sheet": 7073,
-    "deal-doc": 7074,
-}
+LOCAL_SKILL_PORTS = local_skill_ports()
 
 
 def _local_skill_tools() -> list:
@@ -295,8 +291,11 @@ def main() -> None:
         raise
 
     agent = build_agent()
-    logger.info("Agent built. Starting Responses host server on http://127.0.0.1:8088 ...")
-    ResponsesHostServer(agent).run()
+    logger.info(
+        "Agent built. Starting Responses host server on http://127.0.0.1:%d ...",
+        agent_listen_port(),
+    )
+    ResponsesHostServer(agent).run(port=agent_port_override())
 
 
 if __name__ == "__main__":

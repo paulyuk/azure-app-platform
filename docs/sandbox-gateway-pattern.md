@@ -37,6 +37,35 @@ present at every tier, independent of which host compute you picked.
 
 ---
 
+## + Hosted Skills
+
+![Minimal + Hosted Skills](images/sandbox-gateway-hosted-skills.svg)
+
+**Add when** you want the agent loop managed for you rather than hand-written.
+
+This is not a new tier bolted onto the side — it is the Host Compute column
+swapped out. The Azure Functions agents runtime hosts the loop (MAF) instead of
+your own code. Everything else is identical: tool calls still redirect to an
+ACA Sandbox created on the fly, model calls still go through AI Gateway.
+
+That is the point of drawing it. Host compute was always advertised as
+interchangeable, and this is the proof — the boundaries did not move.
+
+Anirudh's spikes walk exactly this ladder:
+
+| Demo | Loop runs in | Everything else |
+| --- | --- | --- |
+| Simple | Function App hosting MAF ([`larohra/functions-adc-tools-hand-spike`](https://github.com/larohra/functions-adc-tools-hand-spike)) | sandbox + gateway |
+| Hosted Skills | the agents runtime ([PR #200](https://github.com/Azure/azure-functions-agents-runtime/pull/200)) | unchanged |
+| Hosted Skills + Durable | the agents runtime, checkpointed per turn ([branch](https://github.com/Azure/azure-functions-agents-runtime/tree/larohra/durable-loop-leadership-demo)) | unchanged |
+
+The third row is this diagram combined with the durability tier below.
+Checkpointing every turn — rather than only at the end of the prompt — is what
+makes a multi-hour agent run survive a machine failure, and it is also what
+makes HITL possible inside Hosted Skills.
+
+---
+
 ## + Durability & Human-In-The-Loop
 
 ![Minimal + Durability & HITL](images/sandbox-gateway-durable-hitl.svg)
@@ -83,8 +112,8 @@ readable. This is a destination, not a starting point.
 
 - **Solid border** — core. Present in every tier.
 - **Dashed border** — add-on. Removable without breaking the core.
-- **Colour** — role, not decoration: red = core, blue = durability, purple =
-  evals, amber = egress, teal = shared primitives, green = interchangeable host.
+- **Colour** — role, not decoration: red = core, indigo = hosted skills, blue =
+  durability, purple = evals, amber = egress, teal = shared primitives.
 - **★** — the two elements that define the pattern: sandboxes and shared
   primitives.
 

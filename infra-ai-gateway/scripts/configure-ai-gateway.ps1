@@ -42,7 +42,11 @@ $explicitGatewaySelection = $env:UNITY_GATEWAY_SELECTION -eq '1'
 $gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MODEL' } else { '' }
 $gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' } else { '' }
 if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
-    $modelNames = @((az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/modelProviders/foundry/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv) -split '\s+' | Where-Object { $_ })
+    Write-Host "Discovering models on AI Gateway $gatewayName..."
+    $modelInventory = az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to discover models on the selected gateway. Check Azure access and retry.' }
+    $modelNames = @(($modelInventory -join "`n") -split '\s+' | Where-Object { $_ })
+    if ($modelNames.Count -eq 0) { throw "No models are configured on $gatewayName. Add a model in AI Gateway Studio or select another gateway." }
     $miniModel = $modelNames | Where-Object { $_ -match 'mini' } | Select-Object -First 1
     $fullModel = $modelNames | Where-Object { $_ -notmatch 'mini' } | Select-Object -First 1
     if ([string]::IsNullOrEmpty($gatewayMiniModel) -and $modelNames.Count -gt 0) {
@@ -85,6 +89,7 @@ $requestBody = @{
 
 $ready = $false
 $status = 'unavailable'
+Write-Host "Validating model $gatewayModel on gateway $gatewayName..."
 for ($attempt = 1; $attempt -le 20; $attempt++) {
     $hasReadableMessage = $false
     try {
@@ -93,6 +98,7 @@ for ($attempt = 1; $attempt -le 20; $attempt++) {
             -Headers @{ 'Api-Key' = $gatewayApiKey; 'Content-Type' = 'application/json' } `
             -Body $requestBody `
             -UseBasicParsing `
+            -TimeoutSec 30 `
             -SkipHttpErrorCheck
         $status = $response.StatusCode
         $payload = $response.Content | ConvertFrom-Json

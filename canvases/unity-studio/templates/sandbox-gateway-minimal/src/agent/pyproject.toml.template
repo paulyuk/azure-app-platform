@@ -1,0 +1,16 @@
+[project]
+name = "__APP_SLUG__-agent"
+version = "0.1.0"
+description = "__PURPOSE_JSON__"
+requires-python = "==3.13.*"
+dependencies = [
+  "azure-identity>=1.25.3,<2",
+  "github-copilot-sdk>=1.0.13,<2",
+  "python-dotenv>=1,<2",
+]
+
+[dependency-groups]
+dev = []
+
+[tool.uv]
+package = false

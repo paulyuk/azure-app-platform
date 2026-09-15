@@ -1,0 +1,365 @@
+# docs-agent5
+
+process untrusted documents for a loan agent, redact PII and certify trust for downstream approval processing.
+
+This headless Unity starter implements a bounded document-processing flow with
+an AI Gateway seam. The generic implementation labels are **agent**, **agent
+harness**, **document validation tool**, and **model**. For a worked industry
+scenario, see the [loan application demo](docs/demos/loan-application/README.md)
+and its [implementation walkthrough](docs/demos/loan-application/HOW-IT-WORKS.md).
+The generated app also includes a
+[portable fictional loan document](examples/loan-application.txt).
+
+## What is real, and what is simulated
+
+The default `agentRuntime` is `local`:
+
+- the agent harness is a plain Python local HTTP service in `src/agent/`;
+- the agent uses a direct Gateway HTTP model client in that same folder;
+- `POST /invoke` executes the document validation tool in a fresh **local child
+  process** from `src/tools/document-validation/`. This is a process-boundary
+  simulation, **not isolation**;
+- The child process receives a scrubbed environment without known GitHub,
+  Copilot, or model credential variables.
+- Approved sanitized output is sent to the configured AI Gateway. There is no
+  fake or echo response. Missing gateway configuration returns HTTP 503.
+
+The optional `--agent-runtime=copilot-sdk-sandbox` mode keeps the agent harness
+local and is fail-closed:
+
+- the Python document validation tool runs in one configured Azure Container
+  Apps (ACA) custom-container sandbox;
+- the Python agent and bundled Copilot runtime run in a different ACA
+  custom-container sandbox;
+- the agent uses the Python GitHub Copilot SDK in `mode="empty"`, with no
+  built-in shell, filesystem, MCP, skill, or sub-agent tools;
+- its only optional custom tool returns the already-approved document result;
+- both ACA sessions are explicitly stopped after each request;
+- missing endpoints, non-HTTPS endpoints, or the same endpoint for both pools
+  stop startup with a remediation error. There is no local fallback.
+
+The model remains remote and is reached through AI Gateway in either mode. This
+is not a Foundry hosted agent and does not use the Azure Functions runtime.
+Selecting a mode only chooses configured runtime behavior; it does not
+provision, deploy, or verify Azure resources.
+
+## Physical folders and runtime contract
+
+| Diagram name | App files | Technology and job |
+| --- | --- | --- |
+| **agent harness** | `src/agent/main.py` | Plain Python `AgentHarness` and local HTTP service; accepts requests, calls the tool, independently checks tool results and final model output |
+| **agent** | Same `src/agent/main.py`; `src/agent/prompts/system.md` | Direct Gateway HTTP client, or optional Python Copilot SDK adapter; the Markdown file contains behavior instructions |
+| **document validation tool** | `src/tools/document-validation/main.py`; `contract.json` alongside it | Reusable plain Python request/document validation and sanitation; JSON defines limits, extensions, and descriptive schemas that Python reads and enforces explicitly |
+| **Shared policy code** | `src/policy/enforcement.py`; `config/document-policy.json` | Deterministic checks shared by the tool and the agent harness; operator policy is not a model argument |
+| **Runtime selection** | `config/runtime.json` | Gateway environment bindings, ACA routes, timeouts, and local or optional sandbox runtime selection |
+| **AI Gateway / model** | `infra-ai-gateway/`; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
+
+```text
+message + optional untrusted document
+  |
+  v
+agent harness                              src/agent/main.py
+  |
+  +--> document validation tool            src/tools/document-validation/main.py
+  |      reads contract.json explicitly
+  |      uses shared policy code           src/policy/enforcement.py
+  |        and settings                    config/document-policy.json
+  |
+  |    Rejected? Stop. No model call.
+  |    Approved? Return bounded sanitized text and redaction counts.
+  v
+agent harness: independently check the returned result
+  |
+  v
+agent -> AI Gateway -> selected remote model
+  |      instructions                     src/agent/prompts/system.md
+  v
+agent harness: check model output -> response
+```
+
+### HTTP API
+
+`GET /health` returns runtime evidence without making a model call.
+
+`POST /invoke` accepts:
+
+```json
+{
+  "message": "Summarize the approved document.",
+  "document": {
+    "name": "notes.md",
+    "content": "# Notes\nContact demo.user@example.com"
+  }
+}
+```
+
+The bounded compatibility form `sandboxInput` remains available only for a
+string, `{ "text": "..." }`, or `{ "name": "...", "content": "..." }`.
+The old arbitrary numeric aggregate payload is rejected explicitly.
+
+Successful responses contain:
+
+```json
+{
+  "message": "The real gateway or Copilot SDK response.",
+  "verdict": "approved",
+  "toolResult": {},
+  "runtime": {
+    "agentRuntime": "local",
+    "documentToolRuntime": "local-process-simulation",
+    "rawDocumentSentToAgent": false
+  }
+}
+```
+
+`POST /test-document` runs only the document tool. It accepts either `{}` for
+the built-in safe fixture or `{ "document": { "name": "...", "content": "..." } }`.
+It never invokes a model and does not require gateway credentials.
+
+## Use the app in Unity Studio
+
+**Run & manage** provides one shared message-and-document input. Attach or paste
+a supported document beside the message, then choose the action that matches
+what you are testing:
+
+- **Test enforcement** calls the document validation tool and the agent
+  harness's result checks without calling the model.
+- **Invoke agent** reruns those checks, and only then sends the approved
+  sanitized text plus the message to the model.
+
+For an approved result, Studio may show the scoped workflow labels **Policy checks passed** and **Approved for agent processing -- sanitized text only**.
+They apply only to the displayed sanitized text and structured result from that
+check. They are not a universal trust decision, identity or fact verification,
+credit decision, proof of isolation, or statement that the raw document is
+safe. Pending and rejected results do not receive the labels, and changing the
+input clears them.
+
+**Build** provides compact editors for the allowlisted agent instructions,
+document validation tool, contract, policy, and runtime settings. **Edit in Code** opens the whole generated worktree and the selected file. Inline changes
+require review and a stopped app. Developer editing does not give the running
+model permission to modify code or policy.
+
+Under **Run & manage → Local ports**, choose **Pick available ports** while the
+app is stopped. Studio saves the reviewed assignment in
+`.unity-studio/ports.env`; the start/stop scripts, readiness checks, endpoint
+links, and CLI examples can all use that value. If a reviewed process already
+owns the selected port, **Stop apps using these ports** shows the exact
+listeners before **Confirm stop**. Port `8088` is only the default when no saved
+or explicit `AGENT_PORT` exists.
+
+## Document boundary
+
+Only `.txt`, `.md`, and `.markdown` UTF-8 text is accepted. The current limits
+are defined in `src/tools/document-validation/contract.json` (64 KiB input and
+8,000 sanitized output characters by default). Unsupported extensions,
+binary/control content, oversized content, path-like names, and malformed
+contracts are rejected without echoing the input.
+
+The deterministic sanitizer redacts common:
+
+- email addresses;
+- phone-number shapes;
+- US Social Security number shapes;
+- payment-card candidates that pass the Luhn checksum.
+
+This is intentionally a focused POC. It is **not complete PII detection** and
+does **not perform malware scanning**. Sanitized text remains untrusted data;
+the agent instructions require it to ignore directions embedded in the text.
+Known instruction-override patterns are rejected in code before any model call.
+The agent harness rechecks sanitized output and model replies against the policy.
+These bounded pattern checks do not detect every prompt injection or every
+kind of PII. Neither document content nor model tool arguments can disable them.
+Cloud images run as non-root with read-only application code and policy.
+Operator policy/code changes require review, tests, and rebuilt images.
+
+The JSON contract and policy are configuration inputs read explicitly with
+Python's `json` module. The Python implementation validates fields, types,
+limits, extensions, policy, and tool results. The contract's `$defs` are
+descriptive schemas, not an automatically executing JSON Schema or policy
+engine; changing a schema definition alone does not rewrite Python validation.
+
+## Local Python agent harness
+
+Configure an OpenAI-compatible endpoint routed through your AI Gateway. Use
+one supported authentication option.
+Unity Studio's existing `src/agent/.env` is loaded automatically without
+overriding process environment variables. `AZURE_AI_GATEWAY_ENDPOINT`,
+`AZURE_AI_GATEWAY_MODEL`, and `AZURE_AI_GATEWAY_API_KEY` remain supported.
+The gateway root is expanded to `/default/models/openai/v1`; the default wire
+API is Responses. Explicit `AI_GATEWAY_*` variables take precedence.
+Without a command-line flag, startup respects `config/runtime.json`.
+
+Run these commands from the generated app root. They load the port selected in
+Studio; if `.unity-studio/ports.env` does not exist, they explicitly use the
+default `8088`. To choose a port without Studio, set `AGENT_PORT` to the same
+value before starting.
+
+### macOS/Linux
+
+```bash
+export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
+. ./scripts/load-ports.sh
+load_unity_ports "$PWD"
+export AGENT_PORT="${AGENT_PORT:-8088}"
+export AI_GATEWAY_BASE_URL="https://<gateway-host>/<openai-compatible-base>"
+export AI_GATEWAY_MODEL="gpt-5.6-sol"
+export AI_GATEWAY_API_KEY="<gateway-key>"
+./scripts/dev-start.sh --agent-runtime=local
+```
+
+### PowerShell 7
+
+```powershell
+$env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
+$env:UV_DEFAULT_INDEX = if ($env:UV_DEFAULT_INDEX) { $env:UV_DEFAULT_INDEX } else { $env:UV_INDEX_URL }
+. .\scripts\load-ports.ps1
+Import-UnityPorts (Get-Location).Path
+$env:AGENT_PORT = if ($env:AGENT_PORT) { $env:AGENT_PORT } else { "8088" }
+$env:AI_GATEWAY_BASE_URL = "https://<gateway-host>/<openai-compatible-base>"
+$env:AI_GATEWAY_MODEL = "gpt-5.6-sol"
+$env:AI_GATEWAY_API_KEY = "<gateway-key>"
+.\scripts\dev-start.ps1 --agent-runtime=local
+```
+
+For managed identity instead of a key, set
+`AI_GATEWAY_USE_AZURE_IDENTITY=true`; the configured identity needs access to
+the model endpoint. `infra-ai-gateway/README.md` lists all supported variables.
+
+Tool-only smoke test:
+
+### macOS/Linux
+
+```bash
+curl -sS -X POST "http://127.0.0.1:${AGENT_PORT}/test-document" -H "content-type: application/json" -d '{}'
+```
+
+### PowerShell 7
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:${env:AGENT_PORT}/test-document" -ContentType "application/json" -Body "{}"
+```
+
+End-to-end request:
+
+### macOS/Linux
+
+```bash
+curl -sS -X POST "http://127.0.0.1:${AGENT_PORT}/invoke" -H "content-type: application/json" -d '{"message":"Summarize the approved document.","document":{"name":"notes.md","content":"# Notes\nContact demo.user@example.com"}}'
+```
+
+### PowerShell 7
+
+```powershell
+$body = @{ message = "Summarize the approved document."; document = @{ name = "notes.md"; content = "# Notes`nContact demo.user@example.com" } } | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:${env:AGENT_PORT}/invoke" -ContentType "application/json" -Body $body
+```
+
+Stop the local agent harness:
+
+### macOS/Linux
+
+```bash
+./scripts/dev-stop.sh
+```
+
+### PowerShell 7
+
+```powershell
+.\scripts\dev-stop.ps1
+```
+
+## Optional Copilot SDK and tool sandboxes
+
+Follow the first-party Azure Container Apps custom-container session guidance:
+
+- [Custom container sessions](https://learn.microsoft.com/azure/container-apps/sessions-custom-container)
+- [Use dynamic sessions](https://learn.microsoft.com/azure/container-apps/sessions-usage)
+- [Session pools](https://learn.microsoft.com/azure/container-apps/session-pool)
+
+The local agent harness uses a Microsoft Entra token for
+`https://dynamicsessions.io/.default`. Its identity needs the **Azure
+ContainerApps Session Executor** role on both pools.
+
+1. Build and push two different images from the materialized app root:
+
+```shell
+docker build -f src/tools/document-validation/Dockerfile -t <registry>/docs-agent5-document:<unique-tag> .
+docker build -f src/agent/Dockerfile -t <registry>/docs-agent5-agent:<unique-tag> .
+```
+
+2. Create two ACA **custom-container** session pools with target port `8080`
+   and startup/liveness probes on `/health`.
+   - Document pool: use the document image, egress disabled, no secrets, and no
+     session access to managed identity.
+   - Agent pool: use the agent image. Allow only the gateway traffic required
+     by your design. Configure gateway credentials or a managed identity only
+     here.
+   - Use unique image tags because ACA session pools cache images.
+
+3. Put these variables on the local agent harness process, not in the document
+   validation pool. Selecting the runtime still does not create either pool,
+   build or push images, assign roles, or deploy the app:
+
+### macOS/Linux
+
+```bash
+export DOCUMENT_TOOL_SESSION_POOL_ENDPOINT="https://<document-pool>.<environment>.<region>.azurecontainerapps.io"
+export COPILOT_AGENT_SESSION_POOL_ENDPOINT="https://<agent-pool>.<environment>.<region>.azurecontainerapps.io"
+./scripts/dev-start.sh --agent-runtime=copilot-sdk-sandbox
+```
+
+### PowerShell 7
+
+```powershell
+$env:DOCUMENT_TOOL_SESSION_POOL_ENDPOINT = "https://<document-pool>.<environment>.<region>.azurecontainerapps.io"
+$env:COPILOT_AGENT_SESSION_POOL_ENDPOINT = "https://<agent-pool>.<environment>.<region>.azurecontainerapps.io"
+.\scripts\dev-start.ps1 --agent-runtime=copilot-sdk-sandbox
+```
+
+The agent image needs the `AI_GATEWAY_*` values described above. If it uses
+`AI_GATEWAY_USE_AZURE_IDENTITY=true`, deliberately enable its session-pool
+identity and grant only gateway/model access. Never apply that identity or
+those variables to the document pool.
+
+The local harness calls each pool's configured application route with a
+cryptographically random `identifier`, then calls
+`/.management/stopSession`. The agent request contains only `message` and the
+approved `toolResult`; `document` and `sandboxInput` are rejected by the agent
+worker. The remote model is still reached through AI Gateway. Neither worker is
+a Foundry hosted agent or an Azure Functions app.
+
+## Tests
+
+The tests do not call Azure or a model. They use the real local document child
+process and mocked ACA transports.
+
+### macOS/Linux
+
+```bash
+export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
+(cd src/tools/document-validation && uv run tests/test_main.py)
+(cd src/agent && uv run tests/test_runtime.py)
+```
+
+### PowerShell 7
+
+```powershell
+$env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
+$env:UV_DEFAULT_INDEX = if ($env:UV_DEFAULT_INDEX) { $env:UV_DEFAULT_INDEX } else { $env:UV_INDEX_URL }
+Push-Location src/tools/document-validation
+uv run tests/test_main.py
+Pop-Location
+Push-Location src/agent
+uv run tests/test_runtime.py
+Pop-Location
+```
+
+Cloud isolation remains unverified until both images are deployed to distinct
+ACA session pools and `/health`, `/test-document`, and `/invoke` are exercised
+against those resources.
+
+Only newly generated apps use the `src/tools/document-validation/` layout.
+Existing generated apps keep their prior paths until they are deliberately
+regenerated or migrated with their runtime references, scripts, and tests.

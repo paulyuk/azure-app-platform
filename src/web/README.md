@@ -22,6 +22,12 @@ npm run dev
 
 Open http://localhost:3000.
 
+In a Unity Studio-created Dealer workspace, run the repository-level
+`scripts/dev-start.*` launcher and open the URL it prints instead. The
+launcher supplies the allocated `WEB_PORT` to Next.js and sets server-only
+`AGENT_URL` from the allocated `AGENT_PORT`; `3000` and `8088` remain the
+fallbacks for manual runs.
+
 > By default (`NEXT_PUBLIC_MOCK` unset) the app tries the real agent first
 > and falls back to mock responses if it's not reachable — see below. Set
 > `NEXT_PUBLIC_MOCK=1` to always mock, or `NEXT_PUBLIC_MOCK=0` to always

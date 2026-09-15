@@ -76,11 +76,20 @@ persisted in the worktree; stopping Azurite discards it.
 client requests an API version newer than the installed Azurite release
 recognizes.
 
+The repository launchers also support Studio-allocated
+`AZURITE_BLOB_PORT`, `AZURITE_QUEUE_PORT`, and `AZURITE_TABLE_PORT` values.
+When any ports are allocated, they start all three Azurite services on those
+ports and write an explicit `AzureWebJobsStorage` connection string into each
+gitignored `local.settings.json`; `UseDevelopmentStorage=true` cannot describe
+custom emulator ports. The launchers never print the connection string.
+
 Each skill requires Python 3.13, is its own uv project, and runs as its own `func start` process on
 its own port (`inventory-search` → `7071`, `trade-in-value` → `7072`,
 `rate-sheet` → `7073`, `deal-doc` → `7074` — matches `LOCAL_SKILL_PORTS` in
-`src/agent/main.py`). Run from inside each skill folder and let uv create and
-sync `.venv` from `pyproject.toml`:
+`src/agent/main.py`). Those are defaults; the repository launchers honor
+`INVENTORY_SEARCH_PORT`, `TRADE_IN_VALUE_PORT`, `RATE_SHEET_PORT`, and
+`DEAL_DOC_PORT`. Run from inside each skill folder and let uv create and sync
+`.venv` from `pyproject.toml`:
 
 ```bash
 cd src/skills/<skill>

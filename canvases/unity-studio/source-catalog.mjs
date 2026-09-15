@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 import { discoverRepository, runCommand } from "./discovery.mjs";
+import { readAppLastOpened, sortAppsByLastOpened } from "./app-recency.mjs";
 
 const EXCLUDED_PROJECT_PREFIXES = [
   ".copilot",
@@ -40,7 +41,92 @@ export const EMPTY_TEMPLATE = Object.freeze({
     ],
     reservedPorts: [3000, 8088, 7071],
   },
+  requiredPaths: [
+    "README.md",
+    "unity.app.yaml",
+    "config/domain.json",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "src/web",
+    "src/agent/agent.yaml",
+    "src/agent/prompts/system.md",
+    "src/skills/<hosted-skill>",
+    "src/skills/<hosted-skill>/tests/test_contract.py",
+  ],
+  constraints: {
+    hostedSkillCount: 1,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+  },
 });
+
+export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
+  id: "builtin-sandbox-gateway-minimal-v1",
+  kind: "empty",
+  name: "Sandbox & Gateway (Minimal)",
+  description: "An agent harness, document validation tool, and model through AI Gateway. Local simulation by default; optional separate ACA sandboxes.",
+  capabilityIds: ["agent", "sandbox", "gateway"],
+  customization: ["App purpose", "Agent instructions", "Egress allow-list domain"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+    startArgs: [],
+    startPowerShellArgs: [],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    startEntrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    reservedPorts: [8088],
+  },
+  requiredPaths: [
+    "README.md",
+    "unity.app.yaml",
+    "config/domain.json",
+    "config/egress-allowlist.json",
+    "config/runtime.json",
+    "config/document-policy.json",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "scripts/load-ports.sh",
+    "scripts/load-ports.ps1",
+    "src/agent/agent.yaml",
+    "src/agent/main.py",
+    "src/agent/pyproject.toml",
+    "src/agent/Dockerfile",
+    "src/agent/tests/test_runtime.py",
+    "src/agent/prompts/system.md",
+    "src/tools/document-validation/main.py",
+    "src/tools/document-validation/pyproject.toml",
+    "src/tools/document-validation/Dockerfile",
+    "src/tools/document-validation/contract.json",
+    "src/tools/document-validation/tests/test_main.py",
+    "src/tools/document-validation/egress-policy.md",
+    "src/policy/enforcement.py",
+    "docs/demos/loan-application/README.md",
+    "docs/demos/loan-application/HOW-IT-WORKS.md",
+    "examples/loan-application.txt",
+    "infra-ai-gateway/README.md",
+  ],
+  constraints: {
+    hostedSkillCount: 0,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+    sandboxToolBoundary: true,
+  },
+});
+
+export const LOCAL_TEMPLATES = Object.freeze([EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE]);
 
 const RUNNABLE_SAMPLE_PATHS = Object.freeze([
   "scripts/dev-start.sh",
@@ -204,6 +290,8 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     id: sourceId(root, worktree.commit),
     kind: "git-worktree",
     name: await worktreeTitle(root, worktree.branch),
+    lastOpenedAt: await readAppLastOpened(root),
+    declaredApp: repository.componentPaths !== null,
     path: root,
     branch: worktree.branch,
     commit: worktree.commit,
@@ -275,7 +363,7 @@ export async function listSourceCatalog({
         root.pinnedImplementations.some((item) => item.tierId === tierId)))
     .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
   const templates = [
-    EMPTY_TEMPLATE,
+    ...LOCAL_TEMPLATES,
     ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
       kind: "sample",
@@ -313,8 +401,8 @@ export async function listSourceCatalog({
   return {
     generatedAt: new Date().toISOString(),
     roots,
-    apps: roots.filter((root) =>
-      root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")),
+    apps: sortAppsByLastOpened(roots.filter((root) =>
+      root.declaredApp || (root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")))),
     templates,
     diagnostics,
   };
@@ -330,36 +418,17 @@ export function resolveSourcePlan(catalog, input) {
 
   let bindings = [];
   if (input?.starterKind === "template") {
-    const template = input.templateRootId === EMPTY_TEMPLATE.id
-      ? EMPTY_TEMPLATE
-      : catalog.templates.find((item) => item.id === input.templateRootId);
-    if (template?.kind === "empty") {
+    const template = LOCAL_TEMPLATES.find((item) => item.id === input.templateRootId)
+      ?? catalog.templates.find((item) => item.id === input.templateRootId);
+    if (template && LOCAL_TEMPLATES.some((item) => item.id === template.id)) {
       return [{
         kind: "empty-template",
         templateId: template.id,
         templateVersion: 1,
         snapshotMode: "blueprint",
         capabilityIds: template.capabilityIds,
-        requiredPaths: [
-          "README.md",
-          "unity.app.yaml",
-          "config/domain.json",
-          "scripts/dev-start.sh",
-          "scripts/dev-stop.sh",
-          "scripts/dev-start.ps1",
-          "scripts/dev-stop.ps1",
-          "src/web",
-          "src/agent/agent.yaml",
-          "src/agent/prompts/system.md",
-          "src/skills/<hosted-skill>",
-          "src/skills/<hosted-skill>/tests/test_contract.py",
-        ],
-        constraints: {
-          hostedSkillCount: 1,
-          inventDomainTools: false,
-          editableDomainConfiguration: true,
-          wholeAppScriptsRequired: true,
-        },
+        requiredPaths: template.requiredPaths,
+        constraints: template.constraints,
         startup: template.startup,
       }];
     }

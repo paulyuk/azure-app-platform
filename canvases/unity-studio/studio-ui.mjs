@@ -358,6 +358,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         templateRootId: "",
         templateInputs: {
           hostedSkillName: "starter-skill",
+          egressAllowDomain: "api.lender.example.com",
           agentInstructions: ""
         },
         tierIds: [],
@@ -534,7 +535,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
         });
         document.getElementById("open-app").addEventListener("click", async () => {
           try {
-            await loadSources();
+            await loadSources(true);
             renderExistingApps();
           } catch (cause) {
             error(cause.message);
@@ -545,11 +546,16 @@ export function renderStudioHtml(instanceId, apiToken = "") {
       function renderExistingApps() {
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to open its request flow and Guide.</p>' +
+          '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
             '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
-            ' discovered tier(s)</small></button><button type="button" class="icon-button danger" data-delete-existing-app="' +
+            ' discovered tier(s)</small><small class="app-last-opened">' +
+            (item.lastOpenedAt
+              ? 'Last opened <time datetime="' + escape(item.lastOpenedAt) + '">' +
+                escape(new Date(item.lastOpenedAt).toLocaleString()) + '</time>'
+              : 'Last opened: Not recorded') +
+            '</small></button><button type="button" class="icon-button danger" data-delete-existing-app="' +
             escape(item.path) + '" aria-label="Delete ' + escape(item.name) + '" title="Delete app">' +
             '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1.5h6l.6 1.5H14v1H2V3h2.4L5 1.5Zm-2 4h10l-.6 9H3.6l-.6-9Zm3 1v6h1V6.5H6Zm3 0v6h1V6.5H9Z"/></svg></button></div>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
@@ -588,8 +594,8 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '</span></span></label>').join("") + '</div>';
       }
 
-      async function loadSources() {
-        if (sources) return;
+      async function loadSources(refresh = false) {
+        if (sources && !refresh) return;
         setBusy(true, "Finding source projects in Git worktrees…");
         try {
           sources = await request("/api/sources");
@@ -670,12 +676,21 @@ export function renderStudioHtml(instanceId, apiToken = "") {
 
       function renderCapabilities() {
         clearStatus();
-        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>Customize the empty template</h1>' +
-          '<p>The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.</p>' +
+        const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const heading = isSandboxGateway ? "Customize the Sandbox &amp; Gateway template" : "Customize the empty template";
+        const intro = isSandboxGateway
+          ? "The template starts with a headless agent loop, an ACA Sandbox tool boundary, and an AI Gateway seam. Define the egress allow-list without asking Unity Studio to guess your tools."
+          : "The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.";
+        const secondField = isSandboxGateway
+          ? '<label class="field">Egress allow-list domain<input id="egress-domain" type="text" maxlength="253" value="' +
+            escape(draft.templateInputs.egressAllowDomain) + '" placeholder="api.lender.example.com"></label>'
+          : '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
+            escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>';
+        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>' + heading + '</h1>' +
+          '<p>' + intro + '</p>' +
           '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
           escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
-          '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
-          escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>' +
+          secondField +
           '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Unity Studio after creation.</p>' +
           '<div class="capability-list">' + draft.tierIds.map((tierId) => {
             const tier = capabilities.find((item) => item.id === tierId);
@@ -687,10 +702,22 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           back: renderDetails,
           next: () => {
             draft.templateInputs.agentInstructions = document.getElementById("agent-instructions").value.trim();
-            draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
-            if (!draft.templateInputs.agentInstructions || !/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
-              error("Enter agent instructions and a lowercase Hosted Skill name using letters, numbers, or hyphens.");
+            if (!draft.templateInputs.agentInstructions) {
+              error("Enter agent instructions.");
               return;
+            }
+            if (isSandboxGateway) {
+              draft.templateInputs.egressAllowDomain = document.getElementById("egress-domain").value.trim();
+              if (!/^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(draft.templateInputs.egressAllowDomain)) {
+                error("Enter a valid egress allow-list domain, e.g. api.lender.example.com.");
+                return;
+              }
+            } else {
+              draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
+              if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
+                error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.");
+                return;
+              }
             }
             draft.step = 3;
             renderReview();
@@ -908,7 +935,7 @@ export function renderStudioHtml(instanceId, apiToken = "") {
           '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
           '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
           '<pre id="local-output">Waiting for local app output.</pre></details></div></details>' +
-          '<div class="section-label">Map</div>' +
+          '<div class="section-label">Observe/Map</div>' +
           '<details class="surface app-map-region" open><summary class="surface-head">' +
           '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
           '<div class="surface-body"><div class="map-toolbar"><button type="button" class="icon-button map-expand" id="open-app-map"' +
@@ -997,19 +1024,19 @@ export function renderStudioHtml(instanceId, apiToken = "") {
              const agentReady = (state.entrypoints || []).some((entrypoint) => entrypoint.port === 8088 && entrypoint.ready);
              const componentActions = document.getElementById("component-actions");
              if (agentReady && !componentActions.querySelector(".agent-tester")) {
-               componentActions.innerHTML = '<div class="agent-tester"><strong>Try the local agent</strong>' +
-                 '<textarea id="agent-prompt" maxlength="2000" placeholder="Send a prompt to the running agent"></textarea>' +
-                 '<div><button type="button" id="send-agent-prompt">Send prompt</button> ' +
+               componentActions.innerHTML = '<div class="agent-tester"><strong>Invoke agent</strong>' +
+                 '<textarea id="agent-prompt" maxlength="2000" placeholder="Send a message to the running agent"></textarea>' +
+                 '<div><button type="button" id="send-agent-prompt">Invoke agent</button> ' +
                  '<button type="button" id="open-agent-studio">Open agent studio</button></div>' +
                  '<pre class="agent-response" id="agent-response"></pre></div>';
                document.getElementById("send-agent-prompt").addEventListener("click", async () => {
                  const prompt = document.getElementById("agent-prompt").value.trim();
-                 if (!prompt) return error("Enter a prompt for the local agent.");
+                 if (!prompt) return error("Enter a message for the local agent.");
                  setBusy(true, "Waiting for the local agent…");
                  try {
-                   const reply = await request("/api/agent-prompt", {
+                   const reply = await request("/api/agent-invoke", {
                      method: "POST",
-                     body: JSON.stringify({ root: result.worktreePath, prompt })
+                     body: JSON.stringify({ root: result.worktreePath, message: prompt })
                    });
                    document.getElementById("agent-response").textContent =
                      typeof reply.response === "string" ? reply.response : JSON.stringify(reply.response, null, 2);
