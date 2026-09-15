@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "sourceApp": "docs-agent5",
+  "templateId": "builtin-sandbox-gateway-minimal-v1",
+  "sourceBaseCommit": "3144815c1a4f02ef9fef9e9d902741b245f0d3fc",
+  "capturedAt": "2026-09-15T00:50:46.364Z",
+  "sourceState": "Generated working-tree output; sourceBaseCommit identifies the template checkout, not a commit of this generated app.",
+  "excluded": [
+    "Credentials and .env files",
+    "Virtual environments and caches",
+    "Logs and process state",
+    "Machine-specific .unity-studio metadata and saved ports",
+    "Inherited repository files"
+  ],
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "25a3e935d36296abb8abbad9d0fb79b96632061e7cee2fbc1a2be42f3d66decb"
+    },
+    {
+      "path": "README.md",
+      "sha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5"
+    },
+    {
+      "path": "config/document-policy.json",
+      "sha256": "6a2efe9afdd2e89bee99b38ac3bdcd70dc90f5ca3b76cb1a143adaec6c48d015"
+    },
+    {
+      "path": "config/domain.json",
+      "sha256": "062a8036d9a02feb6b605ed3539ea8a060b44ad6eb1bc1190f4475b68e00ef84"
+    },
+    {
+      "path": "config/egress-allowlist.json",
+      "sha256": "db23cf33b59ab1f902527d1bf66577a5e0d5da1dc16f073ac6573e6df8f8ba89"
+    },
+    {
+      "path": "config/runtime.json",
+      "sha256": "ea5dd401172fcc932de52e3d18ce12f3fdb14b063f01054b2bb931e44a0792d4"
+    },
+    {
+      "path": "docs/demos/loan-application/HOW-IT-WORKS.md",
+      "sha256": "b456a380fcf5c9ee73332d4a48accd20008343aa072cd48ce65cf3dbf6f2af57"
+    },
+    {
+      "path": "docs/demos/loan-application/README.md",
+      "sha256": "0e740639251360ed8c248aea2599daa43124a176353804d2173378ed507864e0"
+    },
+    {
+      "path": "examples/loan-application.txt",
+      "sha256": "e80e5b521fdc5c05d85799c9d51e892b373fe3093dd171877811c78fb28b1511"
+    },
+    {
+      "path": "infra-ai-gateway/README.md",
+      "sha256": "ed78477eefef59d81f30ebb7df7721350d23d0d894ac5aa31f3289a3f336cb0c"
+    },
+    {
+      "path": "scripts/dev-start.ps1",
+      "sha256": "014bf9d21bca93f9b016a6e4c7ad86f3078e2868a09cfa77b589f0d72281c501"
+    },
+    {
+      "path": "scripts/dev-start.sh",
+      "sha256": "950eb8dafa69dfe7a7ff8c641094608eb5c41f3e25a85184d70b48ed124a5e17"
+    },
+    {
+      "path": "scripts/dev-stop.ps1",
+      "sha256": "d61febe686a4327bc5251a34e05dff402676918050eab40f47ba2aec93fe10eb"
+    },
+    {
+      "path": "scripts/dev-stop.sh",
+      "sha256": "61a54a4d158137c41826a05606590d2c2638c6cfeed3a8ef7d7a94c86c19c43c"
+    },
+    {
+      "path": "scripts/load-ports.ps1",
+      "sha256": "5986d735da0387666323c6cd9c78b03020e191ab9b01326b7b9e8bc0eb43fb73"
+    },
+    {
+      "path": "scripts/load-ports.sh",
+      "sha256": "e2e1c71347f39c9d1a929619c5ce5429ee0e4a7fb056117c84cd78f42b2edc5a"
+    },
+    {
+      "path": "src/agent/Dockerfile",
+      "sha256": "6a0247ae625d8b7f0aee5ccb84104157754b2f7c09feaf8ca143ea2351e5fe9f"
+    },
+    {
+      "path": "src/agent/agent.yaml",
+      "sha256": "a4f468ca71bc9aa4d3b704b856ecc102b54019278fdba4e527171bd0945e0de2"
+    },
+    {
+      "path": "src/agent/main.py",
+      "sha256": "6f6134a1655bb4006ef4ec7bcdb8817c7249f5ab4886a1bb772752beedbe551b"
+    },
+    {
+      "path": "src/agent/prompts/system.md",
+      "sha256": "806fe7f760626b44eb58e22f6fd7f9a60b3cec388bb90042db786b19edca5934"
+    },
+    {
+      "path": "src/agent/pyproject.toml",
+      "sha256": "297e2144c8f83ba1b557544498f75ea48a041465af1b7adb7d78ada5f9154705"
+    },
+    {
+      "path": "src/agent/tests/test_runtime.py",
+      "sha256": "362423f232993e14b426ca2b4ad2acbb980fb4667b0e964889535986a1be3d19"
+    },
+    {
+      "path": "src/agent/uv.lock",
+      "sha256": "0157cc5f14af957d2d03f99584f6e05c49b93fd163b2c39c6c270e3f345f6a23"
+    },
+    {
+      "path": "src/policy/enforcement.py",
+      "sha256": "3ec975d4107d130b8b6bb40f11c7865ba383f8a953e7546a754c771664931fd6"
+    },
+    {
+      "path": "src/tools/document-validation/Dockerfile",
+      "sha256": "b98d965180952274383e8e597cbf8ee5798ddfe85d6ef97d4096a8f7c51849be"
+    },
+    {
+      "path": "src/tools/document-validation/contract.json",
+      "sha256": "c81580bd6e4983943bf88e328c83194d2f61bfe8aa7bb6598b71e0778ee5ee9f"
+    },
+    {
+      "path": "src/tools/document-validation/egress-policy.md",
+      "sha256": "0dcb315b6e3ceff0b5876b3a7228093883f8971ab4717e83b7e123afd0520ca8"
+    },
+    {
+      "path": "src/tools/document-validation/main.py",
+      "sha256": "1e468e45ac09b5097d9a773524e9c7581359da22947c8eb5294f2cb7b12aae37"
+    },
+    {
+      "path": "src/tools/document-validation/pyproject.toml",
+      "sha256": "2f51c06ba50a6bb487e5b26fe58f61154dfae4fa31b9d264f7a3025870d93c4c"
+    },
+    {
+      "path": "src/tools/document-validation/tests/test_main.py",
+      "sha256": "356c6ddf913ab161b9a36107faef45ee3ef5cdf049dc0407122ffd5e850a10d0"
+    },
+    {
+      "path": "unity.app.yaml",
+      "sha256": "09abba6d1b47ed8a1a531724d8c350ba34a01cced26a7f995dc95fe9396ecbd3"
+    }
+  ]
+}

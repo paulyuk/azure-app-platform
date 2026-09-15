@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:unity:document-validation:1.0",
+  "title": "Document validation tool contract",
+  "contractVersion": "1.0",
+  "allowedExtensions": [
+    ".md",
+    ".markdown",
+    ".txt"
+  ],
+  "limits": {
+    "maxRequestBytes": 131072,
+    "maxDocumentBytes": 65536,
+    "maxDocumentCharacters": 50000,
+    "maxSanitizedCharacters": 8000,
+    "maxNameCharacters": 120
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "document"
+      ],
+      "properties": {
+        "operation": {
+          "const": "sanitize-v1"
+        },
+        "document": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "content"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "content": {
+              "type": "string",
+              "maxLength": 50000
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "verdict",
+            "reasonCode",
+            "document",
+            "analysis",
+            "safety"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "1.0"
+            },
+            "verdict": {
+              "const": "approved"
+            },
+            "reasonCode": {
+              "const": "sanitized"
+            },
+            "document": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "sanitizedText",
+                "truncated"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "text",
+                    "markdown"
+                  ]
+                },
+                "sanitizedText": {
+                  "type": "string",
+                  "maxLength": 8000
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "analysis": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "characters",
+                "words",
+                "lines",
+                "markdownHeadings",
+                "redactions"
+              ],
+              "properties": {
+                "characters": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "words": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "lines": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "markdownHeadings": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "redactions": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "email",
+                    "phone",
+                    "ssn",
+                    "paymentCard"
+                  ],
+                  "properties": {
+                    "email": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "phone": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ssn": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "paymentCard": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            },
+            "safety": {
+              "$ref": "#/$defs/safety"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "verdict",
+            "reasonCode",
+            "message",
+            "safety"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "1.0"
+            },
+            "verdict": {
+              "const": "rejected"
+            },
+            "reasonCode": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "safety": {
+              "$ref": "#/$defs/safety"
+            }
+          }
+        }
+      ]
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "piiDetection",
+        "malwareScanned",
+        "rawDocumentReturned"
+      ],
+      "properties": {
+        "piiDetection": {
+          "const": "limited-deterministic-patterns"
+        },
+        "malwareScanned": {
+          "const": false
+        },
+        "rawDocumentReturned": {
+          "const": false
+        }
+      }
+    }
+  }
+}

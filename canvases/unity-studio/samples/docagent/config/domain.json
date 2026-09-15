@@ -1,0 +1,6 @@
+{
+  "name": "docs-agent5",
+  "purpose": "process untrusted documents for a loan agent, redact PII and certify trust for downstream approval processing.",
+  "concepts": [],
+  "notes": "Add domain vocabulary here without changing framework code."
+}

@@ -1,0 +1,14 @@
+name: docs-agent5-agent
+description: "process untrusted documents for a loan agent, redact PII and certify trust for downstream approval processing."
+# Discovery metadata only; main.py implements HTTP serving and reads runtime.json.
+instructions_file: prompts/system.md
+triggers:
+  - type: http
+    route: /invoke
+tools:
+  - name: document-validation
+    # Default local mode. config/runtime.json selects the optional ACA transport.
+    invocation: subprocess
+    path: ../tools/document-validation/main.py
+gateway:
+  configuration_path: ../../infra-ai-gateway
