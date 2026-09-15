@@ -24,6 +24,27 @@
 - Use model reasoning only for semantic customization, user-defined tool
   contracts, cross-project integration, and troubleshooting.
 
+## Canvas plugin portability
+
+- Installing/enabling a plugin in GitHub Copilot must be enough to open its
+  canvas. Never require a manual `npm install`, build, or bootstrap step.
+- Use the host-provided `@github/copilot-sdk`; do not declare or install a
+  separate SDK dependency. Prefer Node built-ins. Ship any other runtime code
+  and browser assets in the plugin; do not load them from a CDN or checkout
+  `node_modules`.
+- Resolve shipped assets relative to `import.meta.url` using `fileURLToPath`,
+  not the current directory, an absolute developer path, or the source repo.
+  The current workspace is the user's app, not the installed plugin.
+- Keep the plugin manifest, launcher skill, and install/recovery docs aligned.
+  Use native plugin discovery; do not link payloads into user extension folders.
+- Separate canvas startup from generated-app dependency restoration. App setup
+  may restore its own dependencies, but must do so through the documented
+  setup/start flow with clear prerequisites and errors.
+- Preserve macOS/Linux and Windows/PowerShell parity. For packaging or runtime
+  changes, run `node --test canvases/unity-studio/plugin-portability.test.mjs`.
+  Keep its isolated payload free of `node_modules` and its working directory
+  unrelated to the source checkout; do not weaken isolation to make it pass.
+
 ## Python package policy
 
 - Never fetch Python packages from `files.pythonhosted.org` or the public PyPI

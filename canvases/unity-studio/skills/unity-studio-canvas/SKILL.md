@@ -25,13 +25,14 @@ When this skill is selected:
 
 If `open_canvas` reports that the canvas is not registered or unavailable:
 
-1. Resolve this skill's base directory and run the plugin root's
-   `bootstrap-extension.mjs` file two directories above it.
+1. Confirm the Unity Studio plugin is installed and enabled.
 2. Call `extensions_reload`.
 3. Retry `open_canvas` once with the same canvas and instance IDs.
 
-The bootstrap only links this installed plugin payload into the user's Copilot
-extension directory. It refuses to replace an existing path.
+The plugin manifest registers the extension directly. Do not run `npm install`,
+build the canvas, or link/copy its payload into a user extension directory.
+The host supplies the Copilot SDK; the plugin ships its other runtime assets.
+Generated apps have a separate setup/start flow for their own dependencies.
 
 If the retry still fails, tell the user to reinstall the plugin, reload
 extensions, start a fresh chat or child session, and retry the same prompt. Do

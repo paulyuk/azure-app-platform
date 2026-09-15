@@ -357,5 +357,25 @@ The canvas also carries a plugin manifest and launcher skill under:
 skills/unity-studio-canvas/SKILL.md
 ```
 
-When installed as a plugin, `bootstrap-extension.mjs` links the payload into the
-user's Copilot extension directory without replacing an existing path.
+The manifest's `"extensions": "."` registers the installed payload directly.
+Install and enable the plugin, then open Unity Studio: no manual `npm install`,
+build, or bootstrap step is required. The host supplies the Copilot SDK. Runtime
+modules and template assets ship inside this folder and resolve relative to
+their module, not the user's working directory. Generated apps restore their
+own dependencies through their separate setup/start flows.
+
+If the canvas is unavailable, confirm the plugin is enabled, reload extensions,
+and retry once. If it remains unavailable, inspect the extension log and repair
+the installation; do not create a second copy under the user extensions folder.
+
+Maintainers: run the dependency-free packaging smoke check with Node 24:
+
+```shell
+node --test canvases/unity-studio/plugin-portability.test.mjs
+```
+
+It copies only the plugin payload into a path containing spaces, excludes
+`node_modules`, rejects non-bundled imports, opens the actual loopback UI from an
+unrelated workspace, and materializes both local templates. Only the SDK host
+registration boundary is stubbed; this does not replace testing actual plugin
+installation in GitHub Copilot. CI runs it on Linux, macOS, and Windows.
