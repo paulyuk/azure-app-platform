@@ -33,7 +33,7 @@ test("installed payload opens and materializes templates without checkout depend
 
     const { stdout } = await execute(process.execPath, ["--input-type=module", "--eval", `
       import assert from "node:assert/strict";
-      import { access, realpath } from "node:fs/promises";
+      import { access, readFile, realpath } from "node:fs/promises";
       import { isBuiltin, registerHooks } from "node:module";
       import { join, sep } from "node:path";
       import { pathToFileURL } from "node:url";
@@ -73,6 +73,44 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(response.status, 200);
         const html = await response.text();
         assert.match(html, /Create a new app/);
+        assert.equal(new URL(opened.url).searchParams.get("intro"), "1");
+        assert.match(html, /id="skip-studio-intro"/);
+        for (const name of ["unity-symbol.png", "unity-intro.mp4"]) {
+          const assetUrl = new URL("/assets/" + name, opened.url);
+          const asset = await fetch(assetUrl);
+          const expected = await readFile(join(payload, "assets", name));
+          assert.equal(asset.status, 200);
+          assert.equal(asset.headers.get("content-type"), name.endsWith(".png") ? "image/png" : "video/mp4");
+          assert.equal(asset.headers.get("content-length"), String(expected.length));
+          assert.deepEqual(Buffer.from(await asset.arrayBuffer()), expected);
+          const head = await fetch(assetUrl, { method: "HEAD" });
+          assert.equal(head.status, 200);
+          assert.equal(head.headers.get("content-length"), String(expected.length));
+          assert.equal((await head.arrayBuffer()).byteLength, 0);
+          for (const [range, start, end] of [
+            ["bytes=0-1", 0, 1], ["bytes=20-", 20, expected.length - 1],
+            ["bytes=-16", expected.length - 16, expected.length - 1],
+            ["bytes=0-999999999", 0, expected.length - 1],
+          ]) {
+            const partial = await fetch(assetUrl, { headers: { Range: range } });
+            assert.equal(partial.status, 206);
+            assert.equal(partial.headers.get("content-range"), "bytes " + start + "-" + end + "/" + expected.length);
+            assert.deepEqual(Buffer.from(await partial.arrayBuffer()), expected.subarray(start, end + 1));
+          }
+          for (const range of ["bytes=5-2", "bytes=-0", "bytes=-", "bytes=999999999-", "bytes=0-1,4-5", "invalid"]) {
+            const invalid = await fetch(assetUrl, { headers: { Range: range } });
+            assert.equal(invalid.status, 416);
+            assert.equal(invalid.headers.get("content-range"), "bytes */" + expected.length);
+            await invalid.arrayBuffer();
+          }
+        }
+        for (const path of ["/assets/extension.mjs", "/assets/%2e%2e%2fextension.mjs"]) {
+          const missing = await fetch(new URL(path, opened.url));
+          assert.equal(missing.status, 404);
+          await missing.arrayBuffer();
+        }
+        const home = await fetch(new URL("/", opened.url));
+        assert.doesNotMatch(await home.text(), /id="skip-studio-intro"/);
         assert.doesNotMatch(html, /<(?:script|link|img)\\b[^>]+(?:src|href)=["'](?:https?:)?\\/\\//i);
       } finally {
         await canvas.onClose(context);

@@ -1,5 +1,6 @@
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
-import { renderStudioBrand } from "./studio-brand.mjs";
+import { renderStudioBrand, renderStudioWelcomeBrand } from "./studio-brand.mjs";
+import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScript } from "./studio-intro.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
@@ -75,7 +76,7 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } = {}) {
+export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false } = {}) {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
     name: tier.name,
@@ -335,7 +336,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } 
         .surface-head { align-items: flex-start; flex-direction: column; }
       }
       ${renderThemeStyles()}
+      ${renderStudioIntroStyles()}
       .studio-site-nav { max-width: 840px; margin: 0 auto 24px; }
+      body:has(.studio-welcome-brand) > .studio-site-nav { justify-content: flex-end; }
+      body:has(.studio-welcome-brand) > .studio-site-nav .studio-brand { display: none; }
+      .studio-welcome-brand { display: flex; align-items: center; gap: 20px; margin: 32px 0; }
+      .studio-welcome-brand img { flex: none; width: 96px; height: auto; }
+      .studio-wordmark { color: var(--studio-ink); font-size: clamp(36px, 7vw, 48px); font-weight: 600; line-height: 1.1; letter-spacing: -.03em; }
+      .studio-welcome-brand .studio-tagline { margin: 8px 0 0; font-size: 13px; color: var(--studio-muted); }
+      @media (max-width: 400px) {
+        .studio-welcome-brand { gap: 16px; margin: 24px 0; }
+        .studio-welcome-brand img { width: 72px; }
+      }
     </style>
   </head>
   <body>
@@ -344,9 +356,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } 
       ${renderThemeToggle(theme)}
     </nav>
     <main>
+      <div class="studio-intro-notice" role="status"></div>
       <div id="app"></div>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
+    ${intro ? renderStudioIntro() : ""}
     <script>
       const apiToken = ${JSON.stringify(apiToken)};
       const capabilities = ${JSON.stringify(capabilities)};
@@ -508,7 +522,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } 
       function renderLanding() {
         draft.journey = null;
         clearStatus();
-        app.innerHTML = '<div class="eyebrow">Unity Studio</div>' +
+        app.innerHTML = ${JSON.stringify(renderStudioWelcomeBrand())} +
           '<h1>What would you like to do?</h1>' +
           '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
           '<div class="journeys">' +
@@ -1312,6 +1326,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light" } 
       }
 
       renderLanding();
+      ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken)}
     </script>
   </body>

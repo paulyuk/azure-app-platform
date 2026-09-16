@@ -1,5 +1,22 @@
 # Unity Studio
 
+Opening the canvas plays the bundled, muted 12-second Unity logo animation.
+The intro always uses a black background, independent of the saved appearance,
+with only a small floating **Skip** button and no footer. Skip is available
+immediately; Escape also skips it. Finishing or skipping the intro reveals the
+start page in the user's selected light or dark theme without changing the saved
+preference, using the same transparent Unity symbol as the workspace header
+and the **Unity — The self-aware app platform** branding. Returning Home or
+reloading the page does not replay the intro; opening the canvas again does.
+Reduced-motion preferences bypass playback. If autoplay is blocked or the video
+fails or stalls, Studio opens the start page with an explanatory notice.
+The PNG and MP4 ship with the plugin and are served locally, with no CDN,
+Downloads-folder dependency, or additional install step.
+
+The start page shows the large Unity logo and tagline only; the compact header
+branding appears on inner screens instead. Docs and the appearance toggle remain
+available at the top right on every screen.
+
 The workspace uses one compact top bar for the Unity logo/home navigation,
 app name, runtime status and start/stop, workspace buttons, **Docs**, and the
 light/dark toggle. Docs and appearance remain at the top right at every width.
