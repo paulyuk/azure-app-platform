@@ -40,6 +40,7 @@ import {
   WORKSPACE_TIER_IDS,
 } from "./studio-commands.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
+import { serveStudioAsset } from "./studio-assets.mjs";
 import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
@@ -958,6 +959,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
   let releaseAppMutation;
   try {
     authorizeApiRequest(request, url, apiToken, trustedHost);
+    if (await serveStudioAsset(request, response, url.pathname)) return;
     if (url.pathname === "/api/preferences" && ["GET", "POST"].includes(request.method)) {
       const preferences = request.method === "POST"
         ? await writeStudioPreferences(await readJsonBody(request))
@@ -1590,7 +1592,9 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end(renderStudioHtml(instanceId, apiToken, await readStudioPreferences()));
+    response.end(renderStudioHtml(instanceId, apiToken, {
+      ...await readStudioPreferences(), intro: url.searchParams.get("intro") === "1",
+    }));
   } catch (error) {
     sendJson(response, error?.statusCode ?? 500, {
       error: error instanceof Error ? error.message : String(error),
@@ -1619,7 +1623,7 @@ async function startServer(instanceId, workspaceRoot) {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
   trustedHost = `127.0.0.1:${port}`;
-  return { server, url: `http://${trustedHost}/`, workspaceRoot };
+  return { server, url: `http://${trustedHost}/?intro=1`, workspaceRoot };
 }
 
 function canvasError(error) {

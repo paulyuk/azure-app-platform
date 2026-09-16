@@ -85,7 +85,7 @@ export function renderThemeStyles() {
     }
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
-    .studio-logo { flex: 0 0 auto; width: 28px; height: 28px; }
+    .studio-logo { flex: 0 0 auto; width: 32px; height: 28px; object-fit: contain; }
     .studio-brand:focus-visible, .studio-theme-control a:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; border-radius: 4px; }
     .studio-theme-control { display: flex; align-items: center; gap: 10px; position: relative; }
     .studio-theme-control .studio-docs { color: var(--studio-muted); font-size: 12px; text-decoration: none; }
