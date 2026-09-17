@@ -5,16 +5,17 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] h2 { margin:0; font-size:16px; }
 #details[data-mode="build"] p { color:var(--text-color-muted,#6a6775); font-size:12px; }
 #details[data-mode="build"] .build-workspace { --build-explorer-width:220px; position:relative; display:grid; grid-template-columns:var(--build-explorer-width) 8px minmax(0,1fr); flex:1; min-height:320px; }
-#details[data-mode="build"] .build-workspace[data-files-visible="false"],
 #details[data-mode="build"] .build-workspace[data-compact="true"] { grid-template-columns:minmax(0,1fr); }
+#details[data-mode="build"] .build-workspace[data-files-visible="false"] { grid-template-columns:40px minmax(0,1fr); }
+#details[data-mode="build"] .build-workspace[data-files-visible="false"] .build-editor { grid-column:2; grid-row:1; }
 #details[data-mode="build"] .build-explorer { min-width:0; min-height:0; overflow:auto; background:var(--surface-muted,var(--background-color-default,#fff)); }
 #details[data-mode="build"] .build-explorer-header { position:sticky; top:0; z-index:1; padding:12px; background:inherit; }
 #details[data-mode="build"] .build-explorer-title { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 #details[data-mode="build"] .build-explorer h3 { min-width:0; margin:0; font-size:12px; }
 #details[data-mode="build"] .build-files-toggle { flex:none; width:28px; min-width:28px; height:28px; min-height:28px; padding:5px; }
+#details[data-mode="build"] .build-explorer-title .build-files-toggle { margin-inline-start:auto; }
 #details[data-mode="build"] .build-files-toggle svg { width:16px; height:16px; flex:none; }
-#details[data-mode="build"] .build-explorer-reopen { position:absolute; inset-block-start:8px; inset-inline-start:8px; z-index:2; }
-#details[data-mode="build"] .build-workspace[data-files-visible="false"] .build-editor { padding-top:52px; }
+#details[data-mode="build"] .build-explorer-reopen { grid-column:1; grid-row:1; display:flex; flex-direction:column; align-items:center; box-sizing:border-box; min-height:0; padding:12px 0; border-inline-end:1px solid var(--border-color-default,#ddd); background:var(--surface-muted,var(--background-color-default,#fff)); }
 #details[data-mode="build"] .build-splitter { position:relative; min-width:8px; cursor:col-resize; touch-action:none; user-select:none; }
 #details[data-mode="build"] .build-splitter::before { content:""; position:absolute; inset-block:0; inset-inline-start:50%; width:1px; background:var(--border-color-default,#ddd); transform:translateX(-50%); }
 #details[data-mode="build"] .build-splitter::after { content:""; position:absolute; inset-block-start:50%; inset-inline-start:50%; width:4px; height:4px; border-radius:50%; color:var(--text-color-muted,#6a6775); background:currentColor; box-shadow:0 -7px 0 currentColor,0 7px 0 currentColor; transform:translate(-50%,-50%); }
@@ -60,8 +61,9 @@ export const BUILD_PANEL_CSS = `
 /* Keep the native picker and keyboard behavior beneath the compact chevron. */
 #details[data-mode="build"] .build-editor-picker .build-editor-select { position:absolute; inset-block:-1px; inset-inline:0 -1px; width:auto; height:auto; min-height:0; padding:0; opacity:0; cursor:pointer; }
 #details[data-mode="build"] .build-editor-picker:focus-within { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
-#details[data-mode="build"] .build-editor-picker[data-disabled="true"] svg { opacity:.5; }
-#details[data-mode="build"] .build-editor-picker .build-editor-select:disabled { cursor:wait; }
+#details[data-mode="build"] .build-editor-split > :is(.code-edit:hover:not(:disabled),.build-editor-picker:hover:not([data-disabled="true"])) { background:var(--true-color-blue-muted,#e4f1fc); }
+#details[data-mode="build"] .build-editor-split > :is(.code-edit:disabled,.build-editor-picker[data-disabled="true"]) { opacity:.65; cursor:not-allowed; }
+#details[data-mode="build"] .build-editor-picker .build-editor-select:disabled { cursor:not-allowed; }
 #details[data-mode="build"] .build-editor-feedback { flex-basis:100%; margin:0; font-size:11px; }
 #details[data-mode="build"] textarea, #details[data-mode="build"] select { width:100%; min-width:0; box-sizing:border-box; padding:10px; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); }
 #details[data-mode="build"] textarea { flex:1; min-height:240px; resize:vertical; tab-size:2; font:12px/1.6 var(--font-mono,monospace); }
@@ -256,8 +258,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const label = visible ? (compact ? "Back to editor" : "Hide files") : "Show files";
     filesToggle.setAttribute("aria-label", label);
     filesToggle.title = label;
-    filesToggle.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1.5"/><path d="M6 2v12"/><path d="' +
-      (visible ? "m11.5 6-2 2 2 2" : "m9 6 2 2-2 2") + '"/></svg>';
+    const toggleIcon = visible
+      ? '<rect x="1.5" y="2" width="13" height="12" rx="1.5"/><path d="M6 2v12m5.5-8-2 2 2 2"/>'
+      : '<path d="M9 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6L9 2Z"/><path d="M9 2v4h4"/>';
+    filesToggle.innerHTML = '<svg data-icon="' + (visible ? "collapse-sidebar" : "file") +
+      '" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + toggleIcon + '</svg>';
     filesToggle.setAttribute("aria-expanded", String(visible));
     applyExplorerWidth();
   }

@@ -67,6 +67,17 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
         }, theme);
         assert.equal(await explorer.evaluate((el) => getComputedStyle(el).backgroundColor),
           theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)", `${theme} explorer at ${width}px`);
+        const launch = page.locator(".code-edit");
+        const picker = page.locator(".build-editor-picker");
+        if (await launch.isVisible()) {
+          await page.mouse.move(0, 0);
+          const normal = await launch.evaluate((element) => getComputedStyle(element).backgroundColor);
+          await launch.hover();
+          const hovered = await launch.evaluate((element) => getComputedStyle(element).backgroundColor);
+          assert.notEqual(hovered, normal);
+          await picker.hover();
+          assert.equal(await picker.evaluate((element) => getComputedStyle(element).backgroundColor), hovered);
+        }
         const colors = await page.locator(".build-explorer h3, .build-file-count, .build-folder > summary, .build-file-button, .build-file-status, .build-files-toggle, .build-filter input, .build-highlight .token, .build-editor-picker, .code-edit, .build-diff-context .build-diff-text, .build-diff-removed .build-diff-marker, .build-diff-added .build-diff-marker, .build-review-summary span").evaluateAll((elements) => {
           const values = [];
           for (const element of elements) {
@@ -92,6 +103,12 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
           const ratio = (values[0] + 0.05) / (values[1] + 0.05);
           assert.ok(ratio >= 4.5, `${theme} ${label} at ${width}px: ${ratio.toFixed(2)}:1 (${color} on ${background})`);
         }
+        const toggle = page.locator("[data-build-files-toggle]");
+        await toggle.click();
+        assert.equal(await page.locator(".build-explorer-reopen").evaluate((element) => getComputedStyle(element).backgroundColor),
+          theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)", `${theme} collapsed files rail at ${width}px`);
+        assert.equal(await toggle.locator('[data-icon="file"]').count(), 1);
+        await toggle.click();
       }
     }
     await page.setViewportSize({ width: 1000, height: 800 });

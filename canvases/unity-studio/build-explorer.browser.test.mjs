@@ -81,7 +81,22 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     const filter = page.getByRole("searchbox", { name: "Filter discovered files" });
     const file = (id) => page.locator(`[data-file-id="${id}"]`);
     const toggle = page.locator("[data-build-files-toggle]");
+    const rail = page.locator(".build-explorer-reopen");
     const splitter = page.getByRole("separator", { name: "Resize discovered files" });
+    const assertFilesRail = async () => {
+      const railBounds = await rail.boundingBox();
+      const workspaceBounds = await page.locator(".build-workspace").boundingBox();
+      const editorBounds = await page.locator(".build-editor").boundingBox();
+      assert.equal(railBounds.width, 40);
+      assert.equal(railBounds.x, workspaceBounds.x);
+      assert.equal(railBounds.y, workspaceBounds.y);
+      assert.equal(railBounds.height, workspaceBounds.height);
+      assert.equal(editorBounds.x, railBounds.x + railBounds.width);
+      assert.equal(editorBounds.y, railBounds.y);
+      assert.equal(editorBounds.width + railBounds.width, workspaceBounds.width);
+      assert.equal(await rail.locator('[data-icon="file"]').count(), 1);
+      assert.equal(await splitter.isVisible(), false);
+    };
     await editor.waitFor();
     assert.equal(await editor.inputValue(), "Source for agent");
     assert.equal(await page.getByRole("textbox").count(), 1);
@@ -95,6 +110,10 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.equal(await toggle.locator('svg[aria-hidden="true"]').count(), 1);
     assert.equal((await toggle.boundingBox()).width, 28);
     assert.ok((await toggle.boundingBox()).x < (await editor.boundingBox()).x);
+    const header = await page.locator(".build-explorer-header").boundingBox();
+    const headerPadding = await page.locator(".build-explorer-header").evaluate((element) => parseFloat(getComputedStyle(element).paddingRight));
+    const collapse = await toggle.boundingBox();
+    assert.ok(Math.abs(collapse.x + collapse.width - (header.x + header.width - headerPadding)) < 1);
     assert.equal(await page.locator(".build-header [data-build-files-toggle]").count(), 0);
     assert.equal(await splitter.getAttribute("aria-orientation"), "vertical");
     assert.equal(await splitter.getAttribute("title"), "Drag to resize files. Arrow keys also adjust the width.");
@@ -217,11 +236,13 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.equal(await toggle.getAttribute("aria-label"), "Show files");
     assert.equal(await toggle.getAttribute("title"), "Show files");
     assert.equal(await toggle.textContent(), "");
+    await assertFilesRail();
     assert.equal(await page.locator("[data-build-files-toggle]").count(), 1);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await editor.waitFor();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.isVisible(), true);
+    await assertFilesRail();
     await toggle.click();
     assert.equal(await filter.evaluate((el) => el === document.activeElement), true);
 
@@ -244,7 +265,10 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       await page.waitForFunction((value) => document.querySelector(".build-workspace")?.dataset.compact === String(value < 600), width);
       assert.ok(await page.locator("#details").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       assert.ok(await page.locator(".build-editor").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
-      if (width < 600) assert.ok((await editor.boundingBox()).width >= width - 40);
+      if (width < 600) {
+        await assertFilesRail();
+        assert.ok((await editor.boundingBox()).width >= width - 76);
+      }
     }
     await file("missing").click();
     await page.getByText("File is missing. Restore it in Code.", { exact: true }).waitFor();

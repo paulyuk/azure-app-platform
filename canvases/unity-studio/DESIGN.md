@@ -199,8 +199,9 @@ the repository or subscription.
 
 The app interface has three main buttons: Build, Run & Debug, and Observe.
 Build starts directly with the file tree and editor rather than a second
-heading/navigation bar. Its collapse control belongs to the file tree, with a
-left-edge reopen control; Run and general App Map navigation remain in the top
+heading/navigation bar. Its collapse control is right-aligned in the file-tree
+header. When closed, a 40px rail retains a file-icon reopen control;
+Run and general App Map navigation remain in the top
 bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
 editor, select a component from the current file, or perform a mutation.
@@ -274,7 +275,7 @@ The explorer uses native collapsible folders, compacts single-child folder
 paths, filters paths and file roles, and shows explicit unsaved/saving/error/
 unavailable states. Paths disambiguate repeated filenames. Selection, folder
 expansion, filter text, and drafts survive in-panel refreshes and workspace switches.
-The explorer has an icon-only in-pane collapse control with a tooltip and accessible
+The explorer has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
 label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
 centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
 editor and its draft intact. Below 600px of available pane width it replaces,
@@ -314,7 +315,9 @@ an allowlisted, non-symlink artifact, then opens the whole worktree and the file
 A per-user supported-editor preference is shared by Build, app creation, and
 source actions. Build combines opening and selection into a compact split button:
 the editor name opens the file; the chevron exposes the native supported-editor
-picker, retaining keyboard behavior and visible focus. The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
+picker, retaining keyboard behavior and visible focus. Both halves use the same
+hover background and disabled opacity, and disabled controls do not react to hover.
+The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
 Zed, and Sublime Text; there are no custom commands. Preference persistence is
 independent of theme settings and does not launch an editor or recreate drafts.
 Launchers use separate executable/argument values, macOS application fallbacks,

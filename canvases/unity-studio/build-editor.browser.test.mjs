@@ -107,6 +107,15 @@ test("Build persists supported editor choices without disturbing drafts or revie
     await page.keyboard.press("Tab");
     assert.equal(await select.evaluate((element) => element === document.activeElement), true);
     assert.equal(await select.evaluate((element) => getComputedStyle(element.parentElement).outlineStyle), "solid");
+    const picker = split.locator(".build-editor-picker");
+    const background = (control) => control.evaluate((element) => getComputedStyle(element).backgroundColor);
+    const launch = split.getByRole("button", { name: "Open in VS Code", exact: true });
+    const normalBackground = await background(launch);
+    await launch.hover();
+    const hoverBackground = await background(launch);
+    assert.notEqual(hoverBackground, normalBackground);
+    await picker.hover();
+    assert.equal(await background(picker), hoverBackground);
     assert.deepEqual(await select.locator("option").evaluateAll((options) =>
       options.map((option) => ({ id: option.value, label: option.textContent }))), editors);
     await source.fill("print('draft')\n");
@@ -122,6 +131,10 @@ test("Build persists supported editor choices without disturbing drafts or revie
     const open = card.getByRole("button", { name: "Open in Cursor" });
     assert.equal(await select.isDisabled(), true);
     assert.equal(await open.isDisabled(), true);
+    await picker.hover();
+    assert.equal(await background(picker), normalBackground);
+    assert.equal(await picker.evaluate((element) => getComputedStyle(element).opacity),
+      await open.evaluate((element) => getComputedStyle(element).opacity));
     assert.equal(await source.inputValue(), "print('draft')\n");
     assert.equal(await source.getAttribute("data-identity-probe"), "retained");
     assert.equal(await reviewedSave.count(), 1);
