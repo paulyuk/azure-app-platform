@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
 
@@ -16,9 +15,9 @@ test("Build highlights editable source with aligned scrolling, native input, the
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
-    { id: "python", title: "Agent implementation", path: "src/main.py", content: '# greeting\ndef hello():\n\treturn "résumé\u00a0value"\n' },
-    { id: "json", title: "App configuration", path: "config/app.json", content: '{"name":"hello","enabled":true}' },
-    { id: "plain", title: "Custom source", path: "notes.custom", content: '<script>window.injected = true;</script><img src=x onerror="window.injected=true">' },
+    { id: "python", customizationArea: "behavior", title: "Agent implementation", path: "src/main.py", content: '# greeting\ndef hello():\n\treturn "résumé\u00a0value"\n' },
+    { id: "json", customizationArea: "runtime", title: "App configuration", path: "config/app.json", content: '{"name":"hello","enabled":true}' },
+    { id: "plain", customizationArea: "policies", title: "Custom source", path: "notes.custom", content: '<script>window.injected = true;</script><img src=x onerror="window.injected=true">' },
   ].map((artifact) => ({ ...artifact, available: true, editable: true, sha: "base" }));
   const writes = [];
   const html = `<!doctype html><html data-studio-theme="light"><style>
@@ -26,11 +25,9 @@ test("Build highlights editable source with aligned scrolling, native input, the
     ${renderThemeStyles()} ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
-      createReviewEditor: createBuildReview,
-      onRun() {}, onModel() {}, onStructure() {},
+      onRun() {}, onModel() {},
       request: async (path, options) => (await fetch(path, options)).json()
     });
     panel.show();
@@ -170,7 +167,17 @@ test("Build highlights editable source with aligned scrolling, native input, the
     ]);
     const prismState = await highlight.evaluate((element) => [element.innerHTML, element.scrollTop, element.scrollLeft]);
     await page.getByRole("button", { name: "Review changes", exact: true }).click();
-    await page.locator('.cm-content[contenteditable="true"][aria-label="Agent implementation draft review"]').waitFor();
+    const diff = page.getByRole("region", { name: "Unified source changes" });
+    await diff.waitFor();
+    assert.ok(await diff.locator(".build-diff-hunk-header").count() > 0);
+    assert.ok(await diff.locator('.build-diff-row[data-diff-kind="removed"]').count() > 0);
+    assert.ok(await diff.locator('.build-diff-row[data-diff-kind="added"]').count() > 0);
+    assert.equal(await diff.locator('[contenteditable="true"], [class*="cm-"]').count(), 0);
+    for (const row of await diff.locator(".build-diff-row").all()) {
+      assert.equal(await row.locator(".build-diff-line-number").count(), 2);
+      assert.equal(await row.locator(".build-diff-marker").count(), 1);
+      assert.equal(await row.locator(".build-diff-text").count(), 1);
+    }
     assert.equal(await editor.isHidden(), true);
     assert.equal(await highlight.isHidden(), true);
     await page.getByRole("button", { name: "Back to editing" }).click();
@@ -188,11 +195,11 @@ test("Build highlights editable source with aligned scrolling, native input, the
     await page.getByText(/Saved\. Restart/).waitFor();
     assert.equal(writes[0].content, 'def hello():\n\treturn "こんにちは"\n');
     assert.equal(writes[0].baseSha, "base");
-    await page.locator('[data-file-id="json"]').click();
+    await page.locator('.build-area-button[data-area-id="runtime"]').click();
     await waitForHighlight();
     assert.equal(await page.locator(".build-language").textContent(), "JSON");
     assert.ok(await highlight.locator(".property").count() > 0);
-    await page.locator('[data-file-id="plain"]').click();
+    await page.locator('.build-area-button[data-area-id="policies"]').click();
     await waitForHighlight();
     assert.equal(await page.locator(".build-language").textContent(), "Plain text");
     assert.equal(await highlight.textContent(), artifacts[2].content);

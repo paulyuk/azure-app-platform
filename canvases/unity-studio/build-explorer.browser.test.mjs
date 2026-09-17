@@ -4,27 +4,26 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build file explorer filters folders, preserves selection and offscreen saves, and adapts to pane width", {
+test("Build curates customization areas, remembers scoped choices and offscreen saves, and adapts to pane width", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
-    { id: "agent", path: "src/agent/main.py", title: "Agent behavior" },
-    { id: "inventory", path: "src/skills/inventory/main.py", title: "Inventory tool" },
-    { id: "pricing", path: "src/skills/pricing/main.py", title: "Pricing tool" },
-    { id: "config", path: "config/settings.json", title: "App settings" },
-    { id: "manifest", path: "unity.app.yaml", title: "App inventory" },
+    { id: "agent", customizationArea: "behavior", path: "src/agent/main.py", title: "Agent behavior" },
+    { id: "inventory", customizationArea: "tools", path: "src/skills/inventory/main.py", title: "Inventory tool" },
+    { id: "pricing", customizationArea: "tools", path: "src/skills/pricing/main.py", title: "Pricing tool" },
+    { id: "config", customizationArea: "runtime", path: "config/settings.json", title: "App settings" },
+    { id: "manifest", customizationArea: "runtime", path: "unity.app.yaml", title: "App inventory" },
     ...Array.from({ length: 30 }, (_, index) => ({
       id: `extra-${index}`, path: `src/skills/extra/long-component-file-name-${index}.py`, title: `Extra tool ${index}`,
     })),
   ].map((item) => ({ ...item, available: true, editable: true, description: item.title, content: `Source for ${item.id}`, sha: "base" }));
-  artifacts.push({ id: "missing", path: "config/missing.json", title: "Missing configuration", available: false, detail: "File is missing. Restore it in Code." });
+  artifacts.push({ id: "missing", customizationArea: "policies", path: "config/missing.json", title: "Missing policy", available: false, detail: "File is missing. Restore it in Code." });
   let pendingReply, releaseSave, saveStarted;
   const writes = [];
   let workspaceReads = 0;
@@ -33,10 +32,8 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
-      createReviewEditor: createBuildReview,
       onRun() {}, onModel() {}, onStructure() {},
       request: async (path, options) => {
         const response = await fetch(path, options);
@@ -80,12 +77,16 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const editor = page.locator(".build-editor textarea");
-    const explorer = page.getByRole("navigation", { name: "Discovered files" });
-    const filter = page.getByRole("searchbox", { name: "Filter discovered files" });
-    const file = (id) => page.locator(`[data-file-id="${id}"]`);
+    const explorer = page.getByRole("navigation", { name: "Customization areas" });
+    const file = (id) => page.locator(`[data-area-id="${artifacts.find((item) => item.id === id).customizationArea}"]`);
+    const chooseFile = async (id) => {
+      await file(id).click();
+      const picker = page.locator("[data-build-file-select]");
+      if (await picker.count()) await picker.selectOption(id);
+    };
     const toggle = page.locator("[data-build-files-toggle]");
     const rail = page.locator(".build-explorer-reopen");
-    const splitter = page.getByRole("separator", { name: "Resize discovered files" });
+    const splitter = page.getByRole("separator", { name: "Resize customization areas" });
     const assertFilesRail = async () => {
       const railBounds = await rail.boundingBox();
       const workspaceBounds = await page.locator(".build-workspace").boundingBox();
@@ -97,18 +98,21 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       assert.equal(editorBounds.x, railBounds.x + railBounds.width);
       assert.equal(editorBounds.y, railBounds.y);
       assert.equal(editorBounds.width + railBounds.width, workspaceBounds.width);
-      assert.equal(await rail.locator('[data-icon="file"]').count(), 1);
+      assert.equal(await rail.locator('[data-icon="customize"]').count(), 1);
       assert.equal(await splitter.isVisible(), false);
     };
     await editor.waitFor();
     assert.equal(await editor.inputValue(), "Source for agent");
     assert.equal(await page.getByRole("textbox").count(), 1);
-    assert.equal(await page.locator(".build-file-count").textContent(), "36 files");
+    assert.deepEqual(await explorer.locator("[data-area-id]").evaluateAll((items) => items.map((item) => item.dataset.areaId)), ["behavior", "tools", "runtime"]);
+    assert.equal(await page.getByRole("searchbox").count(), 0);
+    assert.equal(await page.locator(".build-folder, [data-file-id]").count(), 0);
+    assert.equal(await page.locator("[data-build-file-select]").count(), 0, "Single-file decisions do not need a file picker");
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
-    assert.ok(await explorer.evaluate((el) => el.scrollHeight > el.clientHeight));
-    assert.equal(await toggle.getAttribute("aria-label"), "Hide files");
-    assert.equal(await toggle.getAttribute("title"), "Hide files");
+    assert.ok(await explorer.evaluate((el) => el.scrollHeight <= el.clientHeight), "Implementation files must not crowd the decision list");
+    assert.equal(await toggle.getAttribute("aria-label"), "Hide customizations");
+    assert.equal(await toggle.getAttribute("title"), "Hide customizations");
     assert.equal(await toggle.textContent(), "");
     assert.equal(await toggle.locator('svg[aria-hidden="true"]').count(), 1);
     assert.equal((await toggle.boundingBox()).width, 28);
@@ -119,7 +123,7 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.ok(Math.abs(collapse.x + collapse.width - (header.x + header.width - headerPadding)) < 1);
     assert.equal(await page.locator(".build-header [data-build-files-toggle]").count(), 0);
     assert.equal(await splitter.getAttribute("aria-orientation"), "vertical");
-    assert.equal(await splitter.getAttribute("title"), "Drag to resize files. Arrow keys also adjust the width.");
+    assert.equal(await splitter.getAttribute("title"), "Drag to resize navigation. Arrow keys also adjust the width.");
     assert.equal(await splitter.evaluate((element) => getComputedStyle(element).cursor), "col-resize");
     assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::after").backgroundColor), "rgba(0, 0, 0, 0)");
     const assertCenteredGrip = async () => {
@@ -174,28 +178,15 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     });
     assert.equal(await page.locator(".build-workspace").getAttribute("data-resizing"), null);
 
-    const src = page.locator(".build-folder > summary").filter({ hasText: /^src$/ });
-    await src.press("Enter");
-    assert.equal(await file("agent").isVisible(), false);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await editor.waitFor();
-    assert.equal(await file("agent").isVisible(), false);
-    await src.press("Enter");
-    await filter.fill("PRICING");
-    assert.equal(await explorer.locator("[data-file-id]").count(), 1);
-    assert.equal(await file("pricing").isVisible(), true);
-    assert.equal(await page.locator(".build-file-count").textContent(), "1 of 36 files");
-    await file("pricing").press("Enter");
+    await chooseFile("pricing");
+    assert.equal(await page.getByRole("combobox", { name: "Tools & contracts file" }).locator("option").count(), 2);
+    assert.match(await page.locator(".build-file code").textContent(), /pricing/);
     await editor.fill("Unsaved pricing changes.");
     assert.match(await file("pricing").getAttribute("aria-label"), /Unsaved/);
-    await filter.fill("no-such-file");
-    await explorer.getByText("No files match this filter.").waitFor();
-    assert.equal(await editor.inputValue(), "Unsaved pricing changes.");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
-    assert.equal(await filter.inputValue(), "");
-    await file("config").click();
+    await chooseFile("config");
     await editor.fill("Unsaved settings.");
     await file("pricing").click();
+    assert.equal(await page.locator("[data-build-file-select]").inputValue(), "pricing", "Each area remembers its last file");
     assert.equal(await editor.inputValue(), "Unsaved pricing changes.");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await editor.waitFor();
@@ -210,13 +201,13 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       await page.getByRole("button", { name: "Save reviewed changes" }).click();
       await started;
       assert.match(await file("pricing").getAttribute("aria-label"), /Saving/);
-      await file("config").click();
+      await chooseFile("config");
       assert.equal(await editor.inputValue(), "Unsaved settings.");
       const reads = workspaceReads;
       const response = page.waitForResponse((response) => response.url().endsWith("/api/build-file"));
       releaseSave(failure);
       await response;
-      await page.waitForFunction(() => !document.querySelector('[data-file-id="pricing"]')?.getAttribute("aria-label").includes("Saving"));
+      await page.waitForFunction(() => !document.querySelector('[data-area-id="tools"]')?.getAttribute("aria-label").includes("Saving"));
       assert.equal(workspaceReads, reads, "Completing an offscreen save must not reload or steal the current editor");
       assert.equal(await file("config").getAttribute("aria-current"), "true");
       assert.equal(await editor.inputValue(), "Unsaved settings.");
@@ -228,7 +219,7 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       } else {
         await page.getByText(/Saved\. Restart/).waitFor();
         assert.equal(await editor.inputValue(), "Reviewed pricing changes.");
-        assert.equal(await file("pricing").getAttribute("aria-label"), "src/skills/pricing/main.py");
+        assert.equal(await file("pricing").getAttribute("aria-label"), "Tools & contracts");
       }
     }
     assert.equal(writes.length, 2);
@@ -236,8 +227,8 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     await toggle.click();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(await toggle.getAttribute("aria-label"), "Show files");
-    assert.equal(await toggle.getAttribute("title"), "Show files");
+    assert.equal(await toggle.getAttribute("aria-label"), "Show customizations");
+    assert.equal(await toggle.getAttribute("title"), "Show customizations");
     assert.equal(await toggle.textContent(), "");
     await assertFilesRail();
     assert.equal(await page.locator("[data-build-files-toggle]").count(), 1);
@@ -247,7 +238,7 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.equal(await toggle.isVisible(), true);
     await assertFilesRail();
     await toggle.click();
-    assert.equal(await filter.evaluate((el) => el === document.activeElement), true);
+    assert.equal(await file("pricing").evaluate((el) => el === document.activeElement), true);
 
     // The Guide can narrow the pane without changing the browser viewport.
     await page.locator("#details").evaluate((el) => { el.style.width = "460px"; });
@@ -257,12 +248,12 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     await toggle.press("Enter");
     assert.equal(await explorer.isVisible(), true);
     assert.equal(await editor.isVisible(), false);
-    assert.equal(await filter.evaluate((el) => el === document.activeElement), true);
+    assert.equal(await file("pricing").evaluate((el) => el === document.activeElement), true);
     await file("config").press("Enter");
     assert.equal(await editor.isVisible(), true);
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await editor.inputValue(), "Unsaved settings.");
-    assert.equal(await editor.evaluate((el) => el === document.activeElement), true);
+    assert.equal(await page.locator(".build-file h3").evaluate((el) => el === document.activeElement), true);
     for (const width of [320, 460, 800]) {
       await page.locator("#details").evaluate((el, value) => { el.style.width = value + "px"; }, width);
       await page.waitForFunction((value) => document.querySelector(".build-workspace")?.dataset.compact === String(value < 600), width);
@@ -279,16 +270,18 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
         assert.ok(Math.abs(gutterBox.width + collapsedEditor.width - sourceBox.width) <= 3);
       }
     }
-    await file("missing").click();
-    await page.getByText("File is missing. Restore it in Code.", { exact: true }).waitFor();
-    assert.equal(await editor.count(), 0);
-    assert.match(await file("missing").getAttribute("aria-label"), /Unavailable/);
-    artifacts.splice(artifacts.findIndex((item) => item.id === "missing"), 1);
+    assert.equal(await file("missing").count(), 0);
+    const config = artifacts.find((item) => item.id === "config");
+    config.customizationArea = undefined;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await editor.waitFor();
-    assert.equal(await file("agent").getAttribute("aria-current"), "true");
-    await file("config").click();
+    await page.getByText(/no longer a recognized customization point/).waitFor();
     assert.equal(await editor.inputValue(), "Unsaved settings.");
+    assert.equal(await editor.getAttribute("readonly"), "");
+    assert.equal(await page.getByRole("button", { name: "Review changes", exact: true }).isDisabled(), true);
+    await page.getByRole("button", { name: "Discard draft & reload" }).click();
+    await page.waitForFunction(() => document.querySelector("[data-artifact]")?.dataset.artifact !== "config");
+    assert.equal(await page.locator('[data-artifact="config"]').count(), 0);
     assert.deepEqual(errors, []);
   } finally {
     releaseSave?.();

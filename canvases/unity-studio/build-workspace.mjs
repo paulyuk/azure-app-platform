@@ -5,11 +5,11 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model.", editable: true },
-  { id: "tool", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code.", editable: true },
-  { id: "contract", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions.", editable: true },
-  { id: "policy", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy.", editable: true },
-  { id: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary.", editable: true },
+  { id: "instructions", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model.", editable: true },
+  { id: "tool", customizationArea: "tools", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code.", editable: true },
+  { id: "contract", customizationArea: "tools", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions.", editable: true },
+  { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy.", editable: true },
+  { id: "runtime", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary.", editable: true },
 ];
 export const MAX_BYTES = 96 * 1024;
 const saveQueues = new Map();
@@ -78,6 +78,12 @@ function sourceArtifact(path, candidate) {
   const tier = getTierDefinition(candidate.tierId);
   const name = basename(candidate.projectPath);
   const file = basename(path);
+  const customizationArea = path.endsWith("/prompts/system.md") || (candidate.tierId === "agent" && CODE_FILE.test(path))
+    ? "behavior"
+    : file === "contract.json" || file === "agents.config.yaml"
+      || (["skills", "workflows"].includes(candidate.tierId) && file === "function_app.py") ? "tools"
+      : file === "agent.yaml" ? "runtime"
+        : file === "egress-policy.md" ? "policies" : undefined;
   let title = `${tier?.mapLabel || tier?.name || "Component"} source`;
   let description = "Implementation discovered in this app. Review source changes before saving.";
   if (path.endsWith("/prompts/system.md")) {
@@ -107,6 +113,7 @@ function sourceArtifact(path, candidate) {
     id: `source-${sha(path).slice(0, 20)}`, path,
     title: name && name !== "." ? `${title} · ${name}` : title,
     description, editable: true,
+    customizationArea,
   };
 }
 
@@ -133,12 +140,14 @@ async function buildCatalog(root) {
   if (files.has("unity.app.yaml")) {
     selected.set("unity.app.yaml", {
       id: "app-inventory", title: "App inventory", path: "unity.app.yaml",
+      customizationArea: "runtime",
       description: "Capability paths, interfaces, and relationships declared by this app.", editable: true,
     });
   }
   if (files.has("config/domain.json") && discovery.candidates.length) {
     const path = "config/domain.json";
     selected.set(path, { id: `source-${sha(path).slice(0, 20)}`, title: "App configuration", path,
+      customizationArea: "runtime",
       description: "Domain configuration used by the app template.", editable: true });
   }
   return {
@@ -196,7 +205,17 @@ async function readArtifact(root, artifact) {
   try {
     const path = await artifactPath(root, artifact);
     const content = await readFile(path, "utf8");
-    return { ...artifact, available: true, content, sha: sha(content) };
+    let customizationArea = artifact.customizationArea;
+    let focusLine;
+    if (customizationArea === "behavior" && CODE_FILE.test(artifact.path)) {
+      const instructionLine = content.split("\n").findIndex((line) =>
+        !/^\s*(?:#|\/\/|\/\*|\*)/.test(line)
+        && (/^\s*(?:(?:export|const|let|var)\s+)*(?:INSTRUCTIONS|SYSTEM_PROMPT)\s*(?::[^=]+)?=/.test(line)
+          || /\b(?:instructions|system_prompt)\s*[:=]/.test(line)));
+      if (instructionLine >= 0) focusLine = instructionLine + 1;
+      else customizationArea = undefined;
+    }
+    return { ...artifact, customizationArea, focusLine, available: true, content, sha: sha(content) };
   } catch (error) {
     if (error.code === "ENOENT") return { ...artifact, available: false, detail: "Expected file is missing from this app. Restore it or review the app configuration." };
     throw error;

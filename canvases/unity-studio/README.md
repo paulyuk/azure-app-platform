@@ -53,7 +53,7 @@ opens with a clear warning so the user can continue.
 The main buttons are **Build → Run & Debug → Observe**, with a filled selected
 state marking the current workspace. Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
-Build starts directly with the file tree and editor, without a duplicate
+Build starts directly with customization areas and one focused editor, without a duplicate
 Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
 navigation. The Guide's Build action opens the general map with a dismissible
 hint highlighting the existing add-component and connection controls; it does
@@ -182,15 +182,23 @@ inventory and readiness polling do not change the timestamp.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
 **Build** selects artifacts from the app's own source and `unity.app.yaml` scope,
-not one universal template checklist. Dealer exposes its inline instructions in
-`src/agent/main.py`, actual Hosted Skills, web source, and other discovered
-implementations. Empty Unity exposes its prompt, starter runtime, and declared
-skill. Custom component paths reuse the same source discovery as the App Map.
-The **Discovered files** explorer groups these files into collapsible folders,
-with a filter matching paths and file roles, and indicators for unsaved drafts,
-pending saves, save failures, and unavailable files. Selecting a file opens one
-larger inline editor; the first available file is selected initially. Unknown apps get an explicit
-discovery/empty-state message rather than unrelated "Not implemented" cards.
+not one universal template checklist. Its left navigation presents only supported
+customization areas backed by available source: **Agent behavior**, **Tools &
+contracts**, **Runtime**, and **Policies & limits**. Agent behavior appears first
+when available. Filenames are secondary: an area with multiple relevant files
+offers a scoped **File** picker and remembers its last selection. Areas aggregate
+unsaved, saving, and save-failure indicators across their files.
+
+Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
+Skills, and app settings. Empty Unity exposes its prompt, declared skill, and
+runtime configuration, not its HTTP-server boilerplate. Inline instructions stay
+in the original source file; a recognized declaration supplies the initial editor
+position. Web implementation files, package manifests, container build files, and
+other general source remain outside this focused UI. The existing scoped catalog
+and read/open/save authorization are unchanged. Custom component paths reuse App
+Map discovery. Unsupported areas are omitted, not shown as missing features.
+An app with no supported customization points gets an explicit explanation and
+an **Open in &lt;editor&gt;** workspace handoff.
 The editor highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
@@ -202,13 +210,13 @@ replacing or intercepting the native textarea. Long lines scroll horizontally
 inside the editor without moving the gutter or widening the Build pane;
 high-contrast mode and active IME composition use readable native text. A
 tokenizer failure reports the problem and keeps plain-text editing available.
-The explorer has a right-aligned icon-only collapse control with a tooltip and accessible
+The customization navigation has a right-aligned icon-only collapse control with a tooltip and accessible
 label, plus a draggable, keyboard-accessible divider with a centered grip.
 Resizing and collapsing do not replace the
-selected editor or discard drafts. Below 600px of available pane width, **Files** switches
-between the explorer and editor rather than squeezing them beside the Guide.
-When closed, a thin 40px files rail remains visible; its file icon reopens the
-tree without floating over the editor or reserving an extra row above it.
+selected editor or discard drafts. Below 600px of available pane width, the
+customization navigation replaces the editor rather than squeezing beside the Guide.
+When closed, a thin 40px rail remains visible; its customization icon reopens the
+navigation without floating over the editor or reserving an extra row above it.
 Use the compact editor split button in Build: click the editor name to open the
 file, or its chevron to choose an editor. The picker retains native keyboard
 navigation and a visible focus outline. Both halves share hover and disabled
@@ -225,57 +233,44 @@ button. It opens the whole app worktree and the selected
 file together; it never silently saves an inline draft. Returning from the editor
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
 Inline edits require **Review changes → Save reviewed changes**. Review temporarily
-hides but retains the native textarea and opens a unified CodeMirror review of
-the draft against the saved file, not Git HEAD. The proposed draft is directly
-editable in review; saved/deleted text remains read-only and there are no
-per-hunk accept/reject controls. Review changes keep normal selection and
-undo/redo history, synchronize immediately into the retained textarea and draft
-map, and automatically re-run the authenticated diff check before saving.
-**Save reviewed changes** is disabled while the summary says **Checking
-changes...**, after a failed check, for a stale saved-file hash, or when the
-draft has been reverted and the summary says **No changes to save.** A failed
-check leaves the review editable
-and offers **Retry review**. Only the latest matching draft/hash response can
-enable Save; stale responses do not recreate the editor or disturb its caret
-and history. A save error also invalidates that verification, disables Save,
-and requires **Retry review** before another write.
+hides but retains the native textarea and opens a **read-only unified diff** of
+the draft against the saved file, not Git HEAD. It shows addition/deletion
+totals, old/new line numbers, explicit `-`/`+` markers, red removed lines, green
+proposed lines, and three lines of context around changes. Gaps identify omitted
+unchanged lines. Git's missing-final-newline notices and CRLF-to-LF normalization
+remain visible; long lines scroll inside the review rather than widening Build.
+**Back to editing** restores the same textarea, draft, selection, and scrolling.
+Git produces the server-authorized comparison without staging or changing app files.
+Failed, stale, or invalid comparisons cannot enable Save. A save failure retains
+the draft and disables Save; return to editing and review again before retrying.
 
-The review retains the compact Studio treatment while showing addition/deletion
-totals, separate old and new line-number gutters, explicit `-`/`+` markers,
-red saved/deleted chunks, green proposed lines, character-level highlights,
-and three lines of context around changes. Larger unchanged regions are
-keyboard-accessible controls that expand in place and return focus to the
-editor. Line-ending notices outside the
-editor distinguish a missing final newline in the saved file or draft and
-disclose CRLF-to-LF normalization. Long lines scroll inside the review rather
-than widening the Build pane. **Back to editing** restores the original native
-textarea state when review was not edited, or the current review selection
-after direct review edits. Git produces each server-authorized comparison
-without staging or changing app files.
+This deliberately stays smaller than an embedded IDE: general file exploration,
+editable diff review, and per-hunk editing are deferred. Broader implementation
+work belongs in the selected external editor.
 
 Saves reject stale versions and require the app to be stopped. Saving snapshots
 the approved content and hash before the request; typing can continue during a
-pending save. Those newer edits remain unsaved and are rebased onto the returned
-saved version when the save completes. Drafts survive switching between files
-and between Build and Run/Debug in the same panel. Selection, folder expansion,
-and the filter also survive in-panel refreshes. Completing a save for another
+pending save after returning to editing. Those newer edits remain unsaved and are
+rebased onto the returned saved version when the save completes. Drafts survive
+switching between customization areas/files and between Build and Run/Debug in
+the same panel. Area/file selection and navigation width/visibility survive
+in-panel refreshes. A point that disappears while it has a draft remains available
+read-only so the draft can be copied before discarding it. Completing a save for another
 file never changes the current selection; its outcome remains available when
 that file is selected again.
-Leaving Build disposes the CodeMirror instance and cancels or invalidates
-pending review checks before another workspace is rendered.
+Leaving Build invalidates pending review checks before another workspace is rendered.
 
-Syntax highlighting and editable review ship as licensed bundles in
-`vendor/prism.mjs` and `vendor/codemirror.mjs`; installing or enabling the
+Syntax highlighting ships as a licensed bundle in
+`vendor/prism.mjs`; the static review needs no editor runtime. Installing or enabling the
 plugin never runs `npm install`, restores dependencies, or fetches browser code
-from a CDN. To update the bundles, maintainers change the pinned Prism or
-CodeMirror development dependencies and lockfile, then regenerate and commit
-the shipped files. These maintainer commands work in PowerShell and
+from a CDN. To update highlighting, maintainers change the pinned Prism
+development dependency and lockfile, then regenerate and commit the shipped
+files. These maintainer commands work in PowerShell and
 macOS/Linux shells:
 
 ```shell
 npm ci --prefix canvases/unity-studio
 npm run vendor:syntax --prefix canvases/unity-studio
-npm run vendor:review --prefix canvases/unity-studio
 ```
 
 **Known discovery limitation (for design discussion):** this is best-effort

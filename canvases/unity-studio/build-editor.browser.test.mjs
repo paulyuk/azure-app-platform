@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -25,7 +24,7 @@ test("Build persists supported editor choices without disturbing drafts or revie
 }, async () => {
   const artifact = {
     id: "agent", title: "Agent source", path: "src/agent/main.py", description: "Agent implementation.",
-    available: true, editable: true, content: "print('original')\n", sha: "base",
+    customizationArea: "behavior", available: true, editable: true, content: "print('original')\n", sha: "base",
   };
   let editorSettings = { editorId: "vscode", editors };
   let settingsGate = Promise.resolve();
@@ -37,12 +36,10 @@ test("Build persists supported editor choices without disturbing drafts or revie
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
-      createReviewEditor: createBuildReview,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
-      onRun() {}, onModel() {}, onStructure() {},
+      onRun() {}, onModel() {},
       request: async (path, options) => {
         const response = await fetch(path, options);
         const body = await response.json();
@@ -125,6 +122,8 @@ test("Build persists supported editor choices without disturbing drafts or revie
     await card.getByRole("button", { name: "Review changes" }).click();
     const reviewedSave = card.getByRole("button", { name: "Save reviewed changes" });
     await reviewedSave.waitFor();
+    assert.equal(await card.getByRole("region", { name: "Unified source changes" }).count(), 1);
+    assert.equal(await card.locator('[contenteditable="true"], [class*="cm-"]').count(), 0);
     await source.evaluate((element) => { element.dataset.identityProbe = "retained"; });
 
     const started = new Promise((resolve) => { settingsStarted = resolve; });

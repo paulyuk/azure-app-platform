@@ -44,6 +44,16 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     const agent = state.artifacts.find((item) => item.path === "src/agent/main.py");
     assert.match(agent.title, /instructions/);
     assert.equal(agent.content, source);
+    assert.equal(agent.customizationArea, "behavior");
+    assert.equal(agent.focusLine, 1);
+    assert.deepEqual(state.artifacts.filter((item) => item.customizationArea).map((item) => [item.path, item.customizationArea]).sort(), [
+      ["src/agent/main.py", "behavior"],
+      ["src/agent/agent.yaml", "runtime"],
+      ["src/skills/inventory/function_app.py", "tools"],
+      ["src/skills/inventory/agents.config.yaml", "tools"],
+    ].sort());
+    assert.ok(state.artifacts.filter((item) => item.path.startsWith("src/web/") || item.path.endsWith("/host.json"))
+      .every((item) => item.customizationArea === undefined), "The raw catalog remains available without turning boilerplate into customization decisions");
     assert.equal(await resolveBuildArtifactPath(root, agent.id), join(root, agent.path));
     const next = source.replace("Find a vehicle.", "Only describe real inventory.");
     await saveBuildArtifact(root, { id: agent.id, content: next, baseSha: agent.sha });
@@ -72,6 +82,13 @@ test("Empty Unity Build includes the prompt, starter runtime and declared skill 
       assert.ok(state.artifacts.some((item) => item.path === path), path);
     }
     assert.ok(!state.artifacts.some((item) => item.id === "policy" || item.id === "runtime"));
+    const areaFor = (path) => state.artifacts.find((item) => item.path === path)?.customizationArea;
+    assert.equal(areaFor("src/agent/prompts/system.md"), "behavior");
+    assert.equal(areaFor("src/agent/main.py"), undefined);
+    assert.equal(areaFor("src/skills/look-up/function_app.py"), "tools");
+    assert.equal(areaFor("config/domain.json"), "runtime");
+    assert.equal(areaFor("unity.app.yaml"), "runtime");
+    assert.ok(!state.artifacts.some((item) => item.customizationArea === "policies"));
   });
 });
 
@@ -91,6 +108,8 @@ test("custom declared paths scope read, open and save away from unrelated apps a
     assert.ok(state.artifacts.every((item) => item.path.startsWith("services/assistant/") || item.path === "unity.app.yaml"));
     const worker = state.artifacts.find((item) => item.path === "services/assistant/worker.ts");
     assert.ok(worker);
+    assert.equal(worker.customizationArea, "behavior");
+    assert.equal(worker.focusLine, 1);
     assert.equal(await resolveBuildArtifactPath(root, worker.id), join(root, worker.path));
     assert.equal(await readBuildRuntime(root), null);
     const inventory = state.artifacts.find((item) => item.id === "app-inventory");
@@ -139,12 +158,42 @@ test("document Build honors the declared legacy tool instead of an unrelated new
   }, async (root) => {
     const state = await readBuildWorkspace(root);
     assert.equal(state.supportsDocuments, true);
+    assert.deepEqual(state.artifacts.map((item) => [item.id, item.customizationArea]), [
+      ["instructions", "behavior"], ["tool", "tools"], ["contract", "tools"], ["policy", "policies"], ["runtime", "runtime"],
+    ]);
     const tool = state.artifacts.find((item) => item.id === "tool");
     assert.equal(tool.path, "src/sandbox/tool/main.py");
     assert.match(tool.content, /selected legacy/);
     assert.equal(await resolveBuildArtifactPath(root, "tool"), join(root, tool.path));
     await saveBuildArtifact(root, { id: tool.id, content: "print('updated legacy tool')", baseSha: tool.sha });
     assert.equal(await readFile(join(root, "src/tools/document-validation/main.py"), "utf8"), "print('unrelated new tool')");
+  });
+
+});
+
+test("inline customization requires recognized instruction evidence and points to the original source line", async () => {
+  await fixture({
+    "src/agent/agent.yaml": "kind: hosted\n",
+    "src/agent/main.py": "agent = Agent()\n",
+  }, async (root) => {
+    const path = "src/agent/main.py";
+    const cases = [
+      ["# instructions = 'Comment only'\nagent = Agent()\n", undefined],
+      ["import os\n\nINSTRUCTIONS: str = 'Customize here'\n", 3],
+      ["import os\nagent = Agent(\n  instructions='Customize here'\n)\n", 3],
+      ["// instructions: comment only\nexport const SYSTEM_PROMPT = 'Customize here';\n", 2],
+    ];
+    let id;
+    for (const [content, focusLine] of cases) {
+      await writeFile(join(root, path), content);
+      const artifact = (await readBuildWorkspace(root)).artifacts.find((item) => item.path === path);
+      assert.equal(artifact.content, content, "Instruction strings must never be extracted into synthetic files");
+      assert.equal(artifact.focusLine, focusLine);
+      assert.equal(artifact.customizationArea, focusLine ? "behavior" : undefined);
+      if (id) assert.equal(artifact.id, id);
+      id = artifact.id;
+      assert.equal(await resolveBuildArtifactPath(root, id), join(root, path));
+    }
   });
 });
 

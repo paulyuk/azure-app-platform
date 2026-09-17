@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -11,7 +10,8 @@ const execute = promisify(execFile);
 const source = fileURLToPath(new URL("./", import.meta.url));
 
 test("installed payload opens and materializes templates without checkout dependencies", async () => {
-  const root = await mkdtemp(join(tmpdir(), "unity plugin portability "));
+  const root = join(source, "..", "..", `.plugin-portability-${process.pid}-${Date.now()}`);
+  await mkdir(root);
   try {
     const payload = join(root, "installed plugin");
     const workspace = join(root, "unrelated workspace");
@@ -68,20 +68,6 @@ test("installed payload opens and materializes templates without checkout depend
       const syntax = createBuildSyntax(createSyntaxHighlighter());
       assert.match(syntax.highlight("def main(): return 42", "main.py"), /token keyword/);
       assert.match(await readFile(join(payload, "vendor/prism-LICENSE.txt"), "utf8"), /MIT LICENSE/);
-      const { createReviewRuntime } = await import(base + "vendor/codemirror.mjs");
-      const { BUILD_REVIEW_SCRIPT } = await import(base + "build-review-editor.mjs");
-      const reviewRuntime = createReviewRuntime();
-      const reviewState = reviewRuntime.EditorState.create({
-        doc: "proposed source",
-        extensions: [reviewRuntime.unifiedMergeView({ original: "saved source", mergeControls: false })],
-      });
-      const editedState = reviewState.update({ changes: { from: 0, to: 8, insert: "edited" } }).state;
-      assert.equal(editedState.doc.toString(), "edited source");
-      assert.equal(reviewRuntime.getOriginalDoc(editedState).toString(), "saved source");
-      assert.equal(reviewRuntime.getChunks(editedState).chunks.length, 1);
-      assert.ok(BUILD_REVIEW_SCRIPT.includes("const createBuildReview"));
-      assert.ok(!BUILD_REVIEW_SCRIPT.toLowerCase().includes("</" + "script"));
-      assert.match(await readFile(join(payload, "vendor/codemirror-LICENSE.txt"), "utf8"), /@codemirror\\/merge@6\\.12\\.2/);
       assert.equal(globalThis.portabilityCanvases.length, 1);
       const [canvas] = globalThis.portabilityCanvases;
       assert.equal(canvas.id, "unity-studio");
@@ -177,6 +163,7 @@ test("installed payload opens and materializes templates without checkout depend
         assert.match((await unregistered.json()).error, /not an authorized app workspace/);
         assert.equal(state.editorSettings.editorId, "cursor");
         const artifact = state.artifacts.find((item) => item.id === "instructions");
+        assert.equal(artifact.customizationArea, "behavior");
         const reviewInput = { root: ".", id: artifact.id, baseSha: artifact.sha, content: "Use the trusted tool.\\n\\n" };
         const review = await api("/api/build-diff", reviewInput);
         const diff = await review.json();
@@ -201,8 +188,14 @@ test("installed payload opens and materializes templates without checkout depend
         const map = await fetch(mapUrl);
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
-        assert.ok(mapHtml.includes("const createBuildReview"));
-        assert.ok(mapHtml.includes("createReviewEditor: createBuildReview"));
+        assert.match(mapHtml, /Customization areas/);
+        assert.match(mapHtml, /build-area-button/);
+        assert.match(mapHtml, /editorPane\\.querySelector\\(["']h3["']\\)\\?\\.focus/);
+        assert.match(mapHtml, /explorer\\.querySelector\\(["']\\[aria-current=/);
+        assert.match(mapHtml, /build-diff-row/);
+        assert.match(mapHtml, /Unified source changes/);
+        assert.doesNotMatch(mapHtml, /createBuildReview|createReviewEditor|codemirror/i);
+        assert.doesNotMatch(mapHtml, /contenteditable/i);
       } finally {
         await canvas.onClose(context);
       }

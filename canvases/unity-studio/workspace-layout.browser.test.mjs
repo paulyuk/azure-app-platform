@@ -55,7 +55,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
         body = { theme };
       }
       else if (path === "/api/build-workspace") body = { artifacts: [{
-        id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md",
+        id: "instructions", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/prompts/system.md",
         description: "Loan agent behavior.", available: true, editable: true, content: "Explain applications.", sha: "fixture",
       }] };
       else if (path === "/api/app-status") body = {
@@ -386,7 +386,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
           assert.equal(await page.locator("#graph-shell").evaluate((el) => el.classList.contains("structure-editing")), false);
           await openWorkspace("build");
           await editor.waitFor();
-          const explorer = page.getByRole("navigation", { name: "Discovered files" });
+          const explorer = page.getByRole("navigation", { name: "Customization areas" });
           const compact = width - 46 < 600;
           assert.equal(await explorer.isVisible(), !compact);
           assert.equal(await page.locator(".build-editor textarea").count(), 1);
@@ -395,7 +395,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
             await page.locator("[data-build-files-toggle]").click();
             assert.equal(await explorer.isVisible(), true);
             assert.equal(await editor.isVisible(), false);
-            await page.locator('[data-file-id="instructions"]').click();
+            await page.locator('[data-area-id="behavior"]').click();
             assert.equal(await editor.isVisible(), true);
             assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
           }

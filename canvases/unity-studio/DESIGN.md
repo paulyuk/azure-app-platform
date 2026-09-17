@@ -198,9 +198,9 @@ the repository or subscription.
 ### Workspace and Guide
 
 The app interface has three main buttons: Build, Run & Debug, and Observe.
-Build starts directly with the file tree and editor rather than a second
-heading/navigation bar. Its collapse control is right-aligned in the file-tree
-header. When closed, a 40px rail retains a file-icon reopen control;
+Build starts directly with customization areas and one focused editor rather
+than a second heading/navigation bar. Its collapse control is right-aligned in
+the customization header. When closed, a 40px rail retains a customization-icon reopen control;
 Run and general App Map navigation remain in the top
 bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
@@ -270,19 +270,29 @@ agent instructions remain in their original runtime file; the editor does not
 extract or rewrite Python strings to manufacture a prompt file. Generic artifact
 IDs are bound to file paths, and read, editor-open, diff, and reviewed-save operations
 resolve the same catalog. Inventory changes cannot redirect an existing draft.
-Both profiles use a left **Discovered files** explorer and one selected editor.
-The explorer uses native collapsible folders, compacts single-child folder
-paths, filters paths and file roles, and shows explicit unsaved/saving/error/
-unavailable states. Paths disambiguate repeated filenames. Selection, folder
-expansion, filter text, and drafts survive in-panel refreshes and workspace switches.
-The explorer has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
+Both profiles use a short, evidence-backed customization navigation and one
+selected editor. **Agent behavior**, **Tools & contracts**, **Runtime**, and
+**Policies & limits** appear only when supported by available source. Recognized
+inline instruction declarations retain their original file and supply a 1-based
+initial editor position. General implementation files and boilerplate are not
+navigation items. This is a UI projection of the existing authorized catalog,
+not a broader filesystem API or proof that a runtime loads a recognized file.
+
+Each area aggregates unsaved/saving/error state. An area with several relevant
+files uses a secondary native File picker; title and full path disambiguate its
+options. Area selection, per-area file selection, and drafts survive in-panel
+refreshes and workspace switches. A missing or no-longer-recognized point with a
+draft remains read-only for copying rather than silently hiding the draft.
+The navigation has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
 label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
 centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
 editor and its draft intact. Below 600px of available pane width it replaces,
-rather than crowds, the editor. Choosing a file returns focus to the editor.
-Explorer surfaces use Studio-owned theme tokens, not the host's background
+rather than crowds, the editor. Choosing an area returns focus to its heading.
+Navigation surfaces use Studio-owned theme tokens, not the host's background
 tokens, so choosing light mode inside a dark host retains readable labels.
-The editor provides the file's purpose, full path, and a consistent action bar.
+The content pane leads with the customization's purpose, then the actual file
+path and a consistent action bar. Keep basic editing and an external-editor
+handoff rather than building an embedded IDE or bespoke forms for every format.
 Filename-selected syntax highlighting uses a shipped, licensed Prism bundle,
 not a runtime dependency or CDN. A noninteractive, accessibility-hidden color
 layer mirrors a native textarea without rewriting its value or selection.
@@ -295,17 +305,18 @@ inside the editor. It does not participate in selection or input. Unknown file
 types remain plain text. Theme changes recolor tokens; forced-color mode and
 IME composition retain readable native input. Highlighting failures surface an
 explicit error and fall back to editable plain text.
-Unified review uses a separately shipped, licensed CodeMirror bundle. Plugin
-startup never restores its development dependencies, reads a checkout's
-`node_modules`, or downloads browser assets. The review uses the same
-Studio-owned light/dark and forced-color tokens and keeps horizontal overflow
-inside its compact scroller.
+Unified review is static, read-only DOM with no editor runtime. Plugin startup
+never restores development dependencies, reads a checkout's `node_modules`, or
+downloads browser assets. The review uses Studio-owned light/dark tokens and
+keeps horizontal overflow inside its compact scroller. Explicit markers preserve
+added/removed meaning without relying on color.
 Top-level workspace navigation and Guide actions remain available during
 discovery failures and empty states; Build does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
 Only document-capable profiles show document-test copy and
-runtime selection. Missing expected document files and unsupported/empty
-discovery have distinct explanations, not a blanket "Not implemented" status.
+runtime selection. Unsupported areas are omitted, not presented as incomplete
+capabilities. Empty customization discovery explains the limitation and offers
+the saved external-editor preference's workspace handoff.
 Discovery coverage is heuristic: a component path does not identify every
 editable artifact or semantic role. Unsupported filenames/frameworks and
 dynamic or external configuration may not be recognized. A future explicit
@@ -313,42 +324,29 @@ artifact contract in the app inventory is a design discussion, not current
 support; see README's discovery limitation and discussion with Paul.
 Source edits use a content hash and atomic replacement, reject symlink targets,
 and require a stopped app. The editor preserves drafts until an explicit review
-and save. Review hides, rather than destroys, the native textarea and creates
-one CodeMirror unified saved-file-versus-draft editor. The draft side is
-directly editable; the deletion widgets containing saved text are immutable,
-and merge accept/reject controls are disabled. The view provides native
-selection, undo/redo, proposed changed-line styling, separate old/new line
-numbers, an explicit `-`/`+` gutter, red deleted chunks, green proposed lines,
-character-level change highlights, and three context lines. CodeMirror's
-`collapseUnchanged` uses margin 3 and minimum size 4, with larger real unchanged
-regions exposed as Enter/Space-operable buttons that expand and focus the editor.
+and save. Review hides, rather than destroys, the native textarea and shows a
+read-only saved-file-versus-draft diff. It provides addition/deletion totals,
+old/new line numbers, explicit `-`/`+` markers, red removed lines, green proposed
+lines, and three context lines. Hunk headers preserve Git coordinates and gaps
+identify omitted unchanged context. Missing-final-newline notices remain beside
+their hunk, and CRLF-to-LF normalization is explicit.
 
-Every review edit synchronizes its complete content into the hidden textarea
-and draft map immediately, disables Save, and debounces an authenticated diff
-request. While pending, the summary reads **Checking changes...**. A successful
-latest response enables Save only when its content snapshot and base hash still
-match and it reports changes. A no-diff response leaves the review editable
-with Save disabled and the **No changes to save.** summary. Failures retain the
-draft and editor, expose **Retry
-review**, and keep Save disabled. Response versioning ignores out-of-order
-successes or failures without recreating CodeMirror, preserving its caret and
-undo history. Hash mismatch is treated as an external-edit conflict.
-Write failures also clear verification and require an authenticated
-**Retry review** before Save can be enabled again.
-
-Line-ending metadata is rendered as notices outside CodeMirror: saved and draft
-missing-final-newline states are distinct, and CRLF-to-LF normalization is
-explicit. **Back to editing** restores the retained textarea's original
-selection/scroll state when review had no direct edits; after interaction it
-uses the current review selection. The authenticated diff endpoint validates
+Review captures immutable content and base-hash snapshots. Response versioning
+rejects obsolete requests; a changed draft, hash mismatch, invalid response, or
+failed comparison cannot enable Save. The write handler rechecks the snapshot
+and hash before saving. Write failures retain the draft and disable Save until
+the user returns to editing and requests another review. There is no editable
+review, live revalidation loop, per-hunk editing, or general file browser.
+**Back to editing** synchronously restores the same native textarea's selection
+and scroll state. The authenticated diff endpoint validates
 the artifact, 96 KiB bound, and original hash, then compares private temporary
 files with Git without external diff drivers or repository mutations.
 **Save reviewed changes** snapshots approved content and hash before awaiting
 the write. Editing remains available during the request; newer content is kept
 as a draft and rebased to the returned saved hash before the normal editor is
 shown again. Back remains available during the save.
-`panel.hide()` increments the load/revalidation generation, clears pending
-review timers, and destroys the active CodeMirror view. Full-renderer workspace
+`panel.hide()` increments the load/review generation and stops pending
+highlight work. Full-renderer workspace
 transitions call it before rendering another mode so late review responses
 cannot update a detached Build panel.
 Every available artifact, including operator policy and tool contracts,
