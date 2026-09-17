@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
 
@@ -25,8 +26,10 @@ test("Build highlights editable source with aligned scrolling, native input, the
     ${renderThemeStyles()} ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
+    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
+      createReviewEditor: createBuildReview,
       onRun() {}, onModel() {}, onStructure() {},
       request: async (path, options) => (await fetch(path, options)).json()
     });
@@ -59,33 +62,74 @@ test("Build highlights editable source with aligned scrolling, native input, the
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const editor = page.locator(".build-source-editor textarea");
+    const sourceEditor = page.locator(".build-source-editor");
+    const lineNumbers = page.locator(".build-line-numbers");
     const highlight = page.locator(".build-highlight");
     const waitForHighlight = () => page.waitForFunction(() => {
       const source = document.querySelector(".build-source-editor textarea")?.value;
       return source !== undefined && document.querySelector(".build-highlight")?.textContent === source + (source.endsWith("\n") ? " " : "");
     });
+    const waitForLineCount = (count) => page.waitForFunction((expected) =>
+      document.querySelector(".build-line-numbers")?.textContent.split("\n").length === expected, count);
     await editor.waitFor();
     await waitForHighlight();
+    await waitForLineCount(4);
     assert.equal(await page.locator(".build-language").textContent(), "Python");
     assert.deepEqual(await highlight.locator(".keyword").allTextContents(), ["def", "return"]);
     assert.equal(await editor.inputValue(), artifacts[0].content);
     assert.equal(await highlight.getAttribute("aria-hidden"), "true");
+    assert.equal(await lineNumbers.getAttribute("aria-hidden"), "true");
+    assert.equal(await lineNumbers.evaluate((element) => element.tagName), "PRE");
+    assert.equal(await lineNumbers.textContent(), "1\n2\n3\n4");
+    assert.equal(await lineNumbers.evaluate((element) => getComputedStyle(element).pointerEvents), "none");
+    assert.equal(await lineNumbers.evaluate((element) => getComputedStyle(element).userSelect), "none");
     assert.equal(await page.getByRole("textbox").count(), 1);
     const metrics = (element) => element.evaluate((el) => {
       const style = getComputedStyle(el);
       return [style.font, style.letterSpacing, style.tabSize, style.padding, style.whiteSpace, style.boxSizing];
     });
     assert.deepEqual(await metrics(highlight), await metrics(editor));
-    const longSource = ('# ' + "long line ".repeat(100) + '\n\treturn "résumé\u00a0value"\n').repeat(40) + "\n";
-    await editor.fill(longSource);
-    await editor.press("ArrowLeft");
-    const selection = await editor.evaluate((el) => [el.selectionStart, el.selectionEnd]);
+    const lineMetrics = (element) => element.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.fontFamily, style.fontSize, style.lineHeight, style.letterSpacing, style.paddingTop];
+    });
+    assert.deepEqual(await lineMetrics(lineNumbers), await lineMetrics(editor));
+    const initialBounds = await Promise.all([lineNumbers.boundingBox(), editor.boundingBox()]);
+    assert.equal(initialBounds[0].y, initialBounds[1].y);
+    assert.equal(initialBounds[0].height, initialBounds[1].height);
+    assert.ok(Math.abs(initialBounds[0].x + initialBounds[0].width - initialBounds[1].x) < 1);
+
+    const longFirstLine = "# " + "long line ".repeat(100);
+    const source999 = [longFirstLine, ...Array.from({ length: 998 }, (_, index) => `line ${index + 2}`)].join("\n");
+    await editor.fill(source999);
     await waitForHighlight();
+    await waitForLineCount(999);
+    assert.equal((await lineNumbers.textContent()).split("\n").at(-1), "999");
+    assert.equal(await sourceEditor.evaluate((element) =>
+      element.style.getPropertyValue("--build-line-gutter-width")), "calc(3ch + 20px)");
+    await editor.evaluate((element) => {
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+    });
+    await page.keyboard.insertText("\nline 1000");
+    const longSource = source999 + "\nline 1000";
+    await waitForHighlight();
+    await waitForLineCount(1000);
+    assert.equal((await lineNumbers.textContent()).split("\n").at(-1), "1000");
+    assert.equal(await sourceEditor.evaluate((element) =>
+      element.style.getPropertyValue("--build-line-gutter-width")), "calc(4ch + 20px)");
+    const selection = await editor.evaluate((el) => [el.selectionStart, el.selectionEnd]);
+    assert.deepEqual(selection, [longSource.length, longSource.length]);
     assert.deepEqual(await editor.evaluate((el) => [el.selectionStart, el.selectionEnd]), selection);
     assert.equal(await editor.inputValue(), longSource);
     await editor.evaluate((el) => { el.scrollTop = 700; el.scrollLeft = 450; el.dispatchEvent(new Event("scroll")); });
     const scroll = (element) => element.evaluate((el) => [el.scrollTop, el.scrollLeft, el.clientWidth, el.clientHeight]);
     assert.deepEqual(await scroll(highlight), await scroll(editor));
+    assert.equal(await lineNumbers.evaluate((element) => element.scrollTop), await editor.evaluate((element) => element.scrollTop));
+    assert.equal(await lineNumbers.evaluate((element) => element.scrollLeft), 0);
+    assert.ok(await editor.evaluate((element) => element.scrollWidth > element.clientWidth));
+    assert.ok(await sourceEditor.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+    assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
     await page.setViewportSize({ width: 740, height: 720 });
     await page.waitForFunction(() => {
       const input = document.querySelector(".build-source-editor textarea");
@@ -93,6 +137,12 @@ test("Build highlights editable source with aligned scrolling, native input, the
       return input.clientWidth === layer.clientWidth && input.clientHeight === layer.clientHeight;
     });
     assert.deepEqual(await scroll(highlight), await scroll(editor));
+    assert.equal(await lineNumbers.evaluate((element) => element.scrollTop), await editor.evaluate((element) => element.scrollTop));
+    assert.ok(await editor.evaluate((element) => element.scrollWidth > element.clientWidth));
+    assert.ok(await sourceEditor.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+    assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+    await editor.fill(artifacts[0].content);
+    await waitForHighlight();
     const lightKeyword = await highlight.locator(".keyword").first().evaluate((el) => getComputedStyle(el).color);
     await page.locator("html").evaluate((el) => { el.dataset.studioTheme = "dark"; });
     const darkKeyword = await highlight.locator(".keyword").first().evaluate((el) => getComputedStyle(el).color);
@@ -107,6 +157,32 @@ test("Build highlights editable source with aligned scrolling, native input, the
     await editor.dispatchEvent("compositionend");
     await waitForHighlight();
     assert.equal(await editor.inputValue(), 'def hello():\n\treturn "こんにちは"\n');
+    await editor.evaluate((element) => {
+      element.dataset.identityProbe = "native-source";
+      element.setSelectionRange(4, 16, "forward");
+      element.scrollTop = 8;
+      element.scrollLeft = 3;
+    });
+    await highlight.evaluate((element) => { element.dataset.identityProbe = "prism-layer"; });
+    const sourceState = await editor.evaluate((element) => [
+      element.selectionStart, element.selectionEnd, element.selectionDirection,
+      element.scrollTop, element.scrollLeft,
+    ]);
+    const prismState = await highlight.evaluate((element) => [element.innerHTML, element.scrollTop, element.scrollLeft]);
+    await page.getByRole("button", { name: "Review changes", exact: true }).click();
+    await page.locator('.cm-content[contenteditable="true"][aria-label="Agent implementation draft review"]').waitFor();
+    assert.equal(await editor.isHidden(), true);
+    assert.equal(await highlight.isHidden(), true);
+    await page.getByRole("button", { name: "Back to editing" }).click();
+    await page.waitForFunction(() => document.querySelector(".build-source-editor textarea") === document.activeElement);
+    assert.equal(await editor.getAttribute("data-identity-probe"), "native-source");
+    assert.equal(await highlight.getAttribute("data-identity-probe"), "prism-layer");
+    assert.equal(await editor.inputValue(), 'def hello():\n\treturn "こんにちは"\n');
+    assert.deepEqual(await editor.evaluate((element) => [
+      element.selectionStart, element.selectionEnd, element.selectionDirection,
+      element.scrollTop, element.scrollLeft,
+    ]), sourceState);
+    assert.deepEqual(await highlight.evaluate((element) => [element.innerHTML, element.scrollTop, element.scrollLeft]), prismState);
     await page.getByRole("button", { name: "Review changes", exact: true }).click();
     await page.getByRole("button", { name: "Save reviewed changes" }).click();
     await page.getByText(/Saved\. Restart/).waitFor();

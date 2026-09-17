@@ -1,4 +1,5 @@
 import { ACTION_BUTTON_STYLE, FORM_CONTROL_STYLE } from "./control-styles.mjs";
+import { BUILD_REVIEW_CSS } from "./build-review-editor.mjs";
 
 export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] { display:flex; flex-direction:column; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
@@ -74,24 +75,13 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-review-summary { display:flex; gap:10px; margin-inline-start:auto; font:11px/1.4 var(--font-mono,monospace); }
 #details[data-mode="build"] .build-review-additions { color:var(--true-color-green,#137333); }
 #details[data-mode="build"] .build-review-deletions { color:var(--true-color-red,#c43232); }
-#details[data-mode="build"] .build-diff { flex:1; min-width:0; min-height:240px; overflow:auto; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); font:12px/1.6 var(--font-mono,monospace); }
-#details[data-mode="build"] .build-diff-hunk { width:max-content; min-width:100%; }
-#details[data-mode="build"] .build-diff-hunk-header { box-sizing:border-box; min-width:100%; padding:5px 8px; color:var(--true-color-blue,#007acc); background:var(--surface-muted,var(--background-color-default,#fff)); border-block:1px solid var(--border-color-default,#ddd); white-space:pre; }
-#details[data-mode="build"] .build-diff-hunk:first-child .build-diff-hunk-header { border-top:0; }
-#details[data-mode="build"] .build-diff-row { display:grid; grid-template-columns:6ch 6ch 2ch auto; width:max-content; min-width:100%; }
-#details[data-mode="build"] .build-diff-line-number { padding:0 5px; color:var(--text-color-muted,#6a6775); background:var(--surface-muted,var(--background-color-default,#fff)); text-align:right; user-select:none; }
-#details[data-mode="build"] .build-diff-marker { padding-inline:4px; text-align:center; user-select:none; }
-#details[data-mode="build"] .build-diff-text { min-width:40ch; padding-inline-end:12px; white-space:pre; direction:ltr; text-align:left; }
-#details[data-mode="build"] .build-diff-removed { background:color-mix(in srgb,var(--true-color-red,#c43232) 14%,var(--background-color-default,#fff)); }
-#details[data-mode="build"] .build-diff-added { background:color-mix(in srgb,var(--true-color-green,#137333) 14%,var(--background-color-default,#fff)); }
-#details[data-mode="build"] .build-diff-removed .build-diff-marker,
-#details[data-mode="build"] .build-diff-added .build-diff-marker { color:var(--text-color-default,#222); font-weight:700; }
-#details[data-mode="build"] .build-diff-notice { color:var(--text-color-muted,#6a6775); font-style:italic; }
-#details[data-mode="build"] .build-diff-gap { box-sizing:border-box; min-width:100%; padding:4px 10px; border-block:1px dashed var(--border-color-default,#ddd); color:var(--text-color-muted,#6a6775); background:var(--surface-muted,var(--background-color-default,#fff)); font:11px/1.4 var(--font-sans,system-ui); text-align:center; }
-#details[data-mode="build"] .build-source-editor { position:relative; flex:1; min-height:240px; overflow:hidden; border:1px solid var(--border-color-default,#ddd); border-radius:8px; background:var(--background-color-default,#fff); }
+#details[data-mode="build"] .build-diff { display:flex; flex-direction:column; flex:1; height:0; min-width:0; min-height:240px; overflow:hidden; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); font:12px/1.6 var(--font-mono,monospace); }
+#details[data-mode="build"] .build-diff:focus-within { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
+#details[data-mode="build"] .build-source-editor { --build-line-gutter-width:44px; position:relative; flex:1; min-height:240px; overflow:hidden; border:1px solid var(--border-color-default,#ddd); border-radius:8px; background:var(--background-color-default,#fff); }
 #details[data-mode="build"] .build-source-editor:focus-within { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
-#details[data-mode="build"] .build-source-editor :is(textarea,.build-highlight) { position:absolute; inset:0; box-sizing:border-box; border:0; border-radius:0; margin:0; padding:12px; white-space:pre; overflow-wrap:normal; tab-size:4; font:12px/1.6 var(--font-mono,monospace); font-variant-ligatures:none; letter-spacing:normal; text-align:left; direction:ltr; }
-#details[data-mode="build"] .build-source-editor textarea { width:100%; height:100%; min-height:0; resize:none; z-index:1; color:transparent; caret-color:var(--text-color-default,#222); background:transparent; outline:none; }
+#details[data-mode="build"] .build-source-editor :is(textarea,.build-highlight) { position:absolute; inset:0; inset-inline-start:var(--build-line-gutter-width); box-sizing:border-box; border:0; border-radius:0; margin:0; padding:12px; white-space:pre; overflow-wrap:normal; tab-size:4; font:12px/1.6 var(--font-mono,monospace); font-variant-ligatures:none; letter-spacing:normal; text-align:left; direction:ltr; }
+#details[data-mode="build"] .build-source-editor textarea { width:calc(100% - var(--build-line-gutter-width)); height:100%; min-height:0; resize:none; z-index:1; color:transparent; caret-color:var(--text-color-default,#222); background:transparent; outline:none; }
+#details[data-mode="build"] .build-source-editor .build-line-numbers { position:absolute; inset-block:0; inset-inline-start:0; box-sizing:border-box; width:var(--build-line-gutter-width); max-height:none; margin:0; padding:12px 8px; overflow:hidden; border:0; border-inline-end:1px solid var(--border-color-default,#ddd); border-radius:0; color:var(--text-color-muted,#6a6775); background:var(--surface-muted,var(--background-color-default,#fff)); font:12px/1.6 var(--font-mono,monospace); white-space:pre; text-align:right; direction:ltr; user-select:none; pointer-events:none; }
 #details[data-mode="build"] .build-source-editor textarea::selection { color:transparent; background:color-mix(in srgb,var(--true-color-blue,#007acc) 25%,transparent); }
 #details[data-mode="build"] .build-source-editor .build-highlight { max-height:none; overflow:hidden; pointer-events:none; color:var(--text-color-default,#222); background:transparent; }
 #details[data-mode="build"] .build-highlight .token { font:inherit; letter-spacing:inherit; }
@@ -114,18 +104,15 @@ export const BUILD_PANEL_CSS = `
   #details[data-mode="build"] .build-source-editor textarea { color:CanvasText; caret-color:CanvasText; }
   #details[data-mode="build"] .build-source-editor textarea::selection { color:HighlightText; background:Highlight; }
   #details[data-mode="build"] .build-source-editor .build-highlight { visibility:hidden; }
-  #details[data-mode="build"] .build-diff-removed,
-  #details[data-mode="build"] .build-diff-added { background:Canvas; }
-  #details[data-mode="build"] .build-diff-removed .build-diff-marker,
-  #details[data-mode="build"] .build-diff-added .build-diff-marker { color:CanvasText; }
 }
 #details[data-mode="build"] .build-warning { color:var(--true-color-orange,#a66700); }
 #details[data-mode="build"] .build-error { color:var(--true-color-red,#c43232); }
 #details[data-mode="build"] .build-error:empty { display:none; }
 #details[data-mode="build"] [hidden] { display:none; }
+${BUILD_REVIEW_CSS}
 `;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, createReviewEditor, editorSettings: initialEditorSettings }) {
   const supportedEditors = [
     { id: "vscode", label: "VS Code" },
     { id: "vscode-insiders", label: "VS Code Insiders" },
@@ -171,6 +158,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   let workspace, explorer, editorPane, fileList, fileCount, filterInput, filesToggle;
   let explorerTitle, explorerReopen, explorerSplitter;
   let sourceLayoutObserver;
+  let cleanupReview;
   function element(tag, text, parent, className) {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -356,6 +344,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     updateFileStates();
   }
   function renderSelectedArtifact() {
+    cleanupReview?.();
+    cleanupReview = undefined;
     sourceLayoutObserver?.disconnect();
     editorPane.replaceChildren();
     editorPane.scrollTop = 0;
@@ -382,6 +372,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const actions = element("div", undefined, card, "build-actions");
     const source = element("div", undefined, card, "build-source-editor");
     source.dataset.language = language.id;
+    const lineNumbers = element("pre", "", source, "build-line-numbers");
+    lineNumbers.setAttribute("aria-hidden", "true");
     const highlight = element("pre", "", source, "build-highlight");
     highlight.setAttribute("aria-hidden", "true");
     const editor = element("textarea", undefined, source);
@@ -392,12 +384,23 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     editor.setAttribute("autocapitalize", "off");
     editor.setAttribute("autocorrect", "off");
     editor.value = drafts.get(artifact.id)?.content ?? artifact.content;
-    let highlightFrame, syntaxError;
+    let highlightFrame, syntaxError, reviewEditor, reviewTimer;
+    let displayedLineCount = 0;
+    function updateLineNumbers() {
+      const count = (editor.value.match(/\n/g)?.length ?? 0) + 1;
+      if (count !== displayedLineCount) {
+        lineNumbers.textContent = Array.from({ length: count }, (_, index) => String(index + 1)).join("\n");
+        source.style.setProperty("--build-line-gutter-width", `calc(${Math.max(3, String(count).length)}ch + 20px)`);
+        displayedLineCount = count;
+      }
+      lineNumbers.scrollTop = editor.scrollTop;
+    }
     function syncHighlight() {
       highlight.style.width = editor.clientWidth + "px";
       highlight.style.height = editor.clientHeight + "px";
       highlight.scrollTop = editor.scrollTop;
       highlight.scrollLeft = editor.scrollLeft;
+      lineNumbers.scrollTop = editor.scrollTop;
     }
     function refreshHighlight() {
       highlightFrame = null;
@@ -425,6 +428,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     editor.addEventListener("compositionend", () => { source.dataset.composing = "false"; queueHighlight(); });
     sourceLayoutObserver = new ResizeObserver(syncHighlight);
     sourceLayoutObserver.observe(editor);
+    updateLineNumbers();
     refreshHighlight();
     function rememberDraft() {
       if (editor.value === artifact.content && !pendingSaves.has(artifact.id)) drafts.delete(artifact.id);
@@ -434,7 +438,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       updateDiscardVisibility();
       saveFeedback.delete(artifact.id);
       updateFileStates();
+      updateLineNumbers();
       queueHighlight();
+      reviewEditor?.setValue(editor.value);
     }
     editor.addEventListener("input", rememberDraft);
     const editorControls = element("div", undefined, actions, "build-editor-controls");
@@ -516,24 +522,34 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const reviewFeedback = element("div", undefined, card, "build-review-feedback");
     let reviewing = false;
     let reviewRequestVersion = 0;
+    function stopReview() {
+      reviewRequestVersion++;
+      clearTimeout(reviewTimer);
+      reviewEditor?.destroy();
+      reviewEditor = undefined;
+    }
+    cleanupReview = () => {
+      stopReview();
+      if (highlightFrame) cancelAnimationFrame(highlightFrame);
+    };
     function updateDiscardVisibility() {
       discard.hidden = reviewing || !drafts.has(artifact.id);
     }
     function showEditing(focusState) {
+      stopReview();
       reviewing = false;
       review.hidden = true;
       source.hidden = false;
       reviewChanges.hidden = false;
+      reviewChanges.textContent = "Review changes";
+      reviewChanges.disabled = pendingSaves.has(artifact.id);
       updateDiscardVisibility();
-      if (focusState) {
-        requestAnimationFrame(() => {
-          if (!editor.isConnected) return;
-          editor.focus({ preventScroll: true });
-          editor.setSelectionRange(focusState.start, focusState.end, focusState.direction);
-          editor.scrollTop = focusState.scrollTop;
-          editor.scrollLeft = focusState.scrollLeft;
-          syncHighlight();
-        });
+      if (focusState && editor.isConnected) {
+        editor.focus({ preventScroll: true });
+        editor.setSelectionRange(focusState.start, focusState.end, focusState.direction);
+        editor.scrollTop = focusState.scrollTop;
+        editor.scrollLeft = focusState.scrollLeft;
+        syncHighlight();
       }
     }
     function validateDiff(diff) {
@@ -553,40 +569,43 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
     }
     function renderDiff(diff, reviewed, reviewedBaseSha, focusState) {
+      if (typeof createReviewEditor !== "function") throw new Error("The bundled review editor did not load.");
       review.replaceChildren();
       reviewFeedback.replaceChildren();
       reviewing = true;
       source.hidden = true;
       reviewChanges.hidden = true;
       updateDiscardVisibility();
+      let verified = true;
+      let composing = false;
       const toolbar = element("div", undefined, review, "build-review-toolbar");
-      const back = button(toolbar, "Back to editing", () => showEditing(focusState));
+      const back = button(toolbar, "Back to editing", () => showEditing(reviewEditor?.getEditingState() ?? focusState));
       const save = button(toolbar, "Save reviewed changes", async () => {
-        if (editor.value !== reviewed) {
-          error(card, "The draft changed. Review the latest draft again before saving.");
-          showEditing({
-            start: editor.selectionStart, end: editor.selectionEnd, direction: editor.selectionDirection,
-            scrollTop: editor.scrollTop, scrollLeft: editor.scrollLeft,
-          });
+        if (!verified || composing || editor.value !== reviewed) {
+          error(card, "Wait for the latest draft to be checked before saving.");
+          reviewEditor?.setValue(editor.value);
           return;
         }
-        if (artifact.sha !== reviewedBaseSha || drafts.get(artifact.id)?.baseSha !== reviewedBaseSha) {
+        if (artifact.sha !== reviewedBaseSha || (drafts.get(artifact.id)?.baseSha ?? artifact.sha) !== reviewedBaseSha) {
           error(card, "The saved file changed after this review. Discard the draft and reload before editing again.");
-          showEditing(focusState);
+          verified = false;
+          updateSaveAvailability();
           return;
         }
         if (pendingSaves.has(artifact.id)) return;
+        const saveContent = reviewed;
+        const saveBaseSha = reviewedBaseSha;
         pendingSaves.add(artifact.id);
         saveFeedback.delete(artifact.id);
         reviewFeedback.replaceChildren();
         error(card, "");
         updateFileStates();
-        save.disabled = true;
+        updateSaveAvailability();
         reviewChanges.disabled = discard.disabled = true;
         try {
           const updated = await request("/api/build-file", {
             method: "POST", body: JSON.stringify({
-              root, id: artifact.id, baseSha: reviewedBaseSha, content: reviewed,
+              root, id: artifact.id, baseSha: saveBaseSha, content: saveContent,
             }),
           });
           Object.assign(artifact, updated);
@@ -598,7 +617,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
           } else {
             drafts.delete(artifact.id);
           }
-          showEditing(!review.hidden ? focusState : undefined);
+          showEditing(!review.hidden ? reviewEditor?.getEditingState() ?? focusState : undefined);
           review.replaceChildren();
           const message = "Saved. Restart the app for runtime/code changes; rebuild cloud images before deployment." +
             (drafts.has(artifact.id) ? " Your newer edits are still unsaved. Review them before saving again." : "");
@@ -607,54 +626,124 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         } catch (cause) {
           saveFeedback.set(artifact.id, { error: cause.message });
           error(card, cause.message);
-          save.disabled = false;
+          verified = false;
+          retry.hidden = false;
+          summary.textContent = "Recheck changes before retrying.";
         }
         finally {
           pendingSaves.delete(artifact.id);
           reviewChanges.disabled = discard.disabled = false;
           updateDiscardVisibility();
           updateFileStates();
+          updateSaveAvailability();
           if (isActive() && editorPane?.isConnected && !card.isConnected && selectedId === artifact.id) renderSelectedArtifact();
         }
       });
+      const retry = button(toolbar, "Retry review", () => { void revalidate(); });
+      retry.hidden = true;
       const summary = element("div", undefined, toolbar, "build-review-summary");
-      element("span", `+${diff.additions} ${diff.additions === 1 ? "addition" : "additions"}`, summary, "build-review-additions");
-      element("span", `-${diff.deletions} ${diff.deletions === 1 ? "deletion" : "deletions"}`, summary, "build-review-deletions");
+      summary.setAttribute("role", "status");
+      function updateSummary(result) {
+        summary.replaceChildren();
+        if (!result.hunks.length) {
+          summary.textContent = "No changes to save.";
+          return;
+        }
+        element("span", `+${result.additions} ${result.additions === 1 ? "addition" : "additions"}`, summary, "build-review-additions");
+        element("span", `-${result.deletions} ${result.deletions === 1 ? "deletion" : "deletions"}`, summary, "build-review-deletions");
+      }
+      function updateSaveAvailability() {
+        save.disabled = !verified || composing || pendingSaves.has(artifact.id) || editor.value !== reviewed
+          || artifact.sha !== reviewedBaseSha || (drafts.get(artifact.id)?.baseSha ?? artifact.sha) !== reviewedBaseSha;
+        retry.disabled = pendingSaves.has(artifact.id);
+      }
+      updateSummary(diff);
       if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) {
         element("p", "Developer enforcement change. Test before use and rebuild cloud images before deployment.", review, "build-warning");
       }
       const diffView = element("div", undefined, review, "build-diff");
-      diffView.tabIndex = 0;
       diffView.setAttribute("role", "region");
       diffView.setAttribute("aria-label", "Unified source changes");
-      let previousHunk;
-      for (const [index, hunk] of diff.hunks.entries()) {
-        const omitted = previousHunk
-          ? Math.max(0,
-            hunk.oldStart - (previousHunk.oldStart + previousHunk.oldCount),
-            hunk.newStart - (previousHunk.newStart + previousHunk.newCount))
-          : Math.max(0, hunk.oldStart - 1, hunk.newStart - 1);
-        if (omitted > 0) {
-          element("div", `${omitted} unchanged ${omitted === 1 ? "line" : "lines"} collapsed`, diffView, "build-diff-gap");
+      const engine = element("div", undefined, diffView, "build-review-engine");
+      const notice = element("p", "", diffView, "build-diff-notice");
+      function updateNotices() {
+        const messages = [];
+        if (artifact.content.includes("\r\n") && !editor.value.includes("\r\n")) {
+          messages.push("Draft line endings are LF; the saved file contains CRLF.");
         }
-        const hunkNode = element("div", undefined, diffView, "build-diff-hunk");
-        hunkNode.dataset.hunkIndex = String(index);
-        element("div", `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`, hunkNode, "build-diff-hunk-header");
-        for (const line of hunk.lines) {
-          const row = element("div", undefined, hunkNode, `build-diff-row build-diff-${line.kind}`);
-          row.dataset.diffKind = line.kind;
-          const description = line.kind === "removed" ? "Removed"
-            : line.kind === "added" ? "Added"
-              : line.kind === "notice" ? "Notice" : "Unchanged";
-          const lineNumber = line.oldLine ?? line.newLine;
-          row.setAttribute("aria-label", `${description}${lineNumber ? ` line ${lineNumber}` : ""}: ${line.text}`);
-          element("span", line.oldLine === null ? "" : String(line.oldLine), row, "build-diff-line-number build-diff-old-line");
-          element("span", line.newLine === null ? "" : String(line.newLine), row, "build-diff-line-number build-diff-new-line");
-          element("span", line.kind === "removed" ? "-" : line.kind === "added" ? "+" : line.kind === "notice" ? "\\" : " ", row, "build-diff-marker");
-          element("span", line.text, row, "build-diff-text");
-        }
-        previousHunk = hunk;
+        const savedMissing = artifact.content.length > 0 && !artifact.content.endsWith("\n");
+        const draftMissing = editor.value.length > 0 && !editor.value.endsWith("\n");
+        if (savedMissing && draftMissing) messages.push("Saved file and draft have no final newline.");
+        else if (savedMissing) messages.push("Saved file has no final newline.");
+        else if (draftMissing) messages.push("Draft has no final newline.");
+        notice.textContent = messages.join(" ");
+        notice.hidden = !messages.length;
       }
+      function queueValidation() {
+        reviewRequestVersion++;
+        clearTimeout(reviewTimer);
+        verified = false;
+        retry.hidden = true;
+        error(card, "");
+        summary.textContent = "Checking changes...";
+        updateNotices();
+        updateSaveAvailability();
+        if (!composing) reviewTimer = setTimeout(() => { void revalidate(); }, 250);
+      }
+      async function revalidate() {
+        clearTimeout(reviewTimer);
+        if (!reviewing || !card.isConnected || !isActive() || composing) return;
+        const version = ++reviewRequestVersion;
+        const content = editor.value;
+        verified = false;
+        retry.hidden = true;
+        summary.textContent = "Checking changes...";
+        error(card, "");
+        updateSaveAvailability();
+        try {
+          const result = await request("/api/build-diff", {
+            method: "POST", body: JSON.stringify({ root, id: artifact.id, baseSha: reviewedBaseSha, content }),
+          });
+          if (!reviewing || !card.isConnected || version !== reviewRequestVersion || editor.value !== content) return;
+          validateDiff(result);
+          if (result.baseSha !== reviewedBaseSha || artifact.sha !== reviewedBaseSha) {
+            throw new Error("The saved file changed. Your draft is preserved; return to editing to reload the saved source.");
+          }
+          reviewed = content;
+          verified = result.hunks.length > 0;
+          updateSummary(result);
+        } catch (cause) {
+          if (!reviewing || !card.isConnected || version !== reviewRequestVersion) return;
+          verified = false;
+          summary.textContent = "Review could not be checked.";
+          retry.hidden = false;
+          error(card, "Could not refresh review: " + cause.message);
+        } finally {
+          if (version === reviewRequestVersion) updateSaveAvailability();
+        }
+      }
+      reviewEditor = createReviewEditor({
+        parent: engine, original: artifact.content, content: reviewed,
+        label: artifact.title + " draft review", selection: focusState,
+        onChange(content) {
+          editor.value = content;
+          rememberDraft();
+          queueValidation();
+        },
+        onComposition(active) {
+          composing = active;
+          queueValidation();
+        },
+        onError(cause) {
+          reviewRequestVersion++;
+          clearTimeout(reviewTimer);
+          verified = false;
+          updateSaveAvailability();
+          error(card, "Could not update the review editor: " + cause.message + " Use Back to editing to continue with your draft.");
+        },
+      });
+      updateNotices();
+      updateSaveAvailability();
       review.hidden = false;
       back.focus();
     }
@@ -705,6 +794,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         renderDiff(diff, reviewed, reviewedBaseSha, focusState);
       } catch (cause) {
         if (card.isConnected && version === reviewRequestVersion) {
+          if (reviewing) showEditing(focusState);
           error(card, "Could not prepare review: " + cause.message);
           editor.focus();
         }
@@ -757,6 +847,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
     sourceLayoutObserver?.disconnect();
+    cleanupReview?.();
+    cleanupReview = undefined;
     container.replaceChildren();
     fileButtons.clear();
     const loading = element("p", "Loading app source...", container, "build-loading");
@@ -887,5 +979,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   new ResizeObserver(updateExplorerVisibility).observe(container);
   window.addEventListener("focus", () => { if (isActive()) void show(); });
-  return { show };
+  function hide() {
+    loadVersion++;
+    sourceLayoutObserver?.disconnect();
+    cleanupReview?.();
+    cleanupReview = undefined;
+  }
+  return { show, hide };
 }

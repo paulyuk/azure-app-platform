@@ -5,6 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
+import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
@@ -1047,8 +1048,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let panelMode = "build";
     let observeView = "map";
     ${BUILD_SYNTAX_SCRIPT}
+    ${BUILD_REVIEW_SCRIPT}
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS,
+      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, createReviewEditor: createBuildReview, editorSettings: INITIAL_EDITOR_SETTINGS,
       isActive: () => panelMode === "build",
       onRun: () => {
         renderManagePanel();
@@ -1887,6 +1889,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateModeHighlight() {
+      if (panelMode !== "build") buildPanel.hide();
       const mode = ["build", "manage", "logs"].includes(panelMode) ? panelMode : "map";
       if (panelMode !== "map") setStructureGuidance(false);
       const observing = mode === "map" || mode === "logs";

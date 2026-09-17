@@ -287,9 +287,19 @@ Filename-selected syntax highlighting uses a shipped, licensed Prism bundle,
 not a runtime dependency or CDN. A noninteractive, accessibility-hidden color
 layer mirrors a native textarea without rewriting its value or selection.
 Both layers use identical monospace metrics and synchronized horizontal/vertical
-scrolling. Unknown file types remain plain text. Theme changes recolor tokens;
-forced-color mode and IME composition retain readable native input. Highlighting
-failures surface an explicit error and fall back to editable plain text.
+scrolling. A separate, accessibility-hidden and noninteractive gutter renders
+one 1-based number per actual textarea line, including a trailing blank line.
+It shares vertical scroll and line metrics with the textarea, grows for wider
+line numbers, and remains fixed while long source lines scroll horizontally
+inside the editor. It does not participate in selection or input. Unknown file
+types remain plain text. Theme changes recolor tokens; forced-color mode and
+IME composition retain readable native input. Highlighting failures surface an
+explicit error and fall back to editable plain text.
+Unified review uses a separately shipped, licensed CodeMirror bundle. Plugin
+startup never restores its development dependencies, reads a checkout's
+`node_modules`, or downloads browser assets. The review uses the same
+Studio-owned light/dark and forced-color tokens and keeps horizontal overflow
+inside its compact scroller.
 Top-level workspace navigation and Guide actions remain available during
 discovery failures and empty states; Build does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
@@ -303,12 +313,44 @@ artifact contract in the app inventory is a design discussion, not current
 support; see README's discovery limitation and discussion with Paul.
 Source edits use a content hash and atomic replacement, reject symlink targets,
 and require a stopped app. The editor preserves drafts until an explicit review
-and save. Review hides, rather than destroys, the textarea and shows one unified
-saved-file-versus-draft diff with three context lines, line numbers, explicit
-addition/deletion markers, and missing-final-newline notices. The authenticated
-diff endpoint validates the artifact, 96 KiB bound, and original hash, then
-compares private temporary files with Git without external diff drivers or
-repository mutations. Changing the draft invalidates a pending review.
+and save. Review hides, rather than destroys, the native textarea and creates
+one CodeMirror unified saved-file-versus-draft editor. The draft side is
+directly editable; the deletion widgets containing saved text are immutable,
+and merge accept/reject controls are disabled. The view provides native
+selection, undo/redo, proposed changed-line styling, separate old/new line
+numbers, an explicit `-`/`+` gutter, red deleted chunks, green proposed lines,
+character-level change highlights, and three context lines. CodeMirror's
+`collapseUnchanged` uses margin 3 and minimum size 4, with larger real unchanged
+regions exposed as Enter/Space-operable buttons that expand and focus the editor.
+
+Every review edit synchronizes its complete content into the hidden textarea
+and draft map immediately, disables Save, and debounces an authenticated diff
+request. While pending, the summary reads **Checking changes...**. A successful
+latest response enables Save only when its content snapshot and base hash still
+match and it reports changes. A no-diff response leaves the review editable
+with Save disabled and the **No changes to save.** summary. Failures retain the
+draft and editor, expose **Retry
+review**, and keep Save disabled. Response versioning ignores out-of-order
+successes or failures without recreating CodeMirror, preserving its caret and
+undo history. Hash mismatch is treated as an external-edit conflict.
+Write failures also clear verification and require an authenticated
+**Retry review** before Save can be enabled again.
+
+Line-ending metadata is rendered as notices outside CodeMirror: saved and draft
+missing-final-newline states are distinct, and CRLF-to-LF normalization is
+explicit. **Back to editing** restores the retained textarea's original
+selection/scroll state when review had no direct edits; after interaction it
+uses the current review selection. The authenticated diff endpoint validates
+the artifact, 96 KiB bound, and original hash, then compares private temporary
+files with Git without external diff drivers or repository mutations.
+**Save reviewed changes** snapshots approved content and hash before awaiting
+the write. Editing remains available during the request; newer content is kept
+as a draft and rebased to the returned saved hash before the normal editor is
+shown again. Back remains available during the save.
+`panel.hide()` increments the load/revalidation generation, clears pending
+review timers, and destroys the active CodeMirror view. Full-renderer workspace
+transitions call it before rendering another mode so late review responses
+cannot update a detached Build panel.
 Every available artifact, including operator policy and tool contracts,
 is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
 an allowlisted, non-symlink artifact, then opens the whole worktree and the file.

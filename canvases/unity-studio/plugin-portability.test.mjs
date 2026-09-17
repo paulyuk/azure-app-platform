@@ -21,6 +21,7 @@ test("installed payload opens and materializes templates without checkout depend
         && !path.endsWith(".test.mjs"),
     });
     await mkdir(workspace);
+    await execute("git", ["init", "--quiet", workspace]);
     const manifest = JSON.parse(await readFile(join(payload, ".github/plugin/plugin.json"), "utf8"));
     assert.equal(manifest.extensions, ".");
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
@@ -67,6 +68,20 @@ test("installed payload opens and materializes templates without checkout depend
       const syntax = createBuildSyntax(createSyntaxHighlighter());
       assert.match(syntax.highlight("def main(): return 42", "main.py"), /token keyword/);
       assert.match(await readFile(join(payload, "vendor/prism-LICENSE.txt"), "utf8"), /MIT LICENSE/);
+      const { createReviewRuntime } = await import(base + "vendor/codemirror.mjs");
+      const { BUILD_REVIEW_SCRIPT } = await import(base + "build-review-editor.mjs");
+      const reviewRuntime = createReviewRuntime();
+      const reviewState = reviewRuntime.EditorState.create({
+        doc: "proposed source",
+        extensions: [reviewRuntime.unifiedMergeView({ original: "saved source", mergeControls: false })],
+      });
+      const editedState = reviewState.update({ changes: { from: 0, to: 8, insert: "edited" } }).state;
+      assert.equal(editedState.doc.toString(), "edited source");
+      assert.equal(reviewRuntime.getOriginalDoc(editedState).toString(), "saved source");
+      assert.equal(reviewRuntime.getChunks(editedState).chunks.length, 1);
+      assert.ok(BUILD_REVIEW_SCRIPT.includes("const createBuildReview"));
+      assert.ok(!BUILD_REVIEW_SCRIPT.toLowerCase().includes("</" + "script"));
+      assert.match(await readFile(join(payload, "vendor/codemirror-LICENSE.txt"), "utf8"), /@codemirror\\/merge@6\\.12\\.2/);
       assert.equal(globalThis.portabilityCanvases.length, 1);
       const [canvas] = globalThis.portabilityCanvases;
       assert.equal(canvas.id, "unity-studio");
@@ -164,6 +179,14 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(arbitrary.status, 400);
         await arbitrary.arrayBuffer();
         assert.equal(await readFile("src/agent/prompts/system.md", "utf8"), "Use the tool.\\n\\n");
+        const mapUrl = new URL("/app-map", opened.url);
+        mapUrl.searchParams.set("root", ".");
+        mapUrl.searchParams.set("token", token);
+        const map = await fetch(mapUrl);
+        const mapHtml = await map.text();
+        assert.equal(map.status, 200, mapHtml);
+        assert.ok(mapHtml.includes("const createBuildReview"));
+        assert.ok(mapHtml.includes("createReviewEditor: createBuildReview"));
       } finally {
         await canvas.onClose(context);
       }

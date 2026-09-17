@@ -195,9 +195,13 @@ The editor highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
 theme, keeps native text selection and input, and never adds markup to saved files.
-Long lines scroll horizontally; high-contrast mode and active IME composition use
-readable native text. A tokenizer failure reports the problem and keeps plain-text
-editing available.
+Normal editing includes a synchronized, noninteractive 1-based line-number
+gutter, including the final blank line when the source ends with a newline. It
+tracks edits, vertical scrolling, font metrics, and additional digits without
+replacing or intercepting the native textarea. Long lines scroll horizontally
+inside the editor without moving the gutter or widening the Build pane;
+high-contrast mode and active IME composition use readable native text. A
+tokenizer failure reports the problem and keeps plain-text editing available.
 The explorer has a right-aligned icon-only collapse control with a tooltip and accessible
 label, plus a draggable, keyboard-accessible divider with a centered grip.
 Resizing and collapsing do not replace the
@@ -221,27 +225,57 @@ button. It opens the whole app worktree and the selected
 file together; it never silently saves an inline draft. Returning from the editor
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
 Inline edits require **Review changes → Save reviewed changes**. Review temporarily
-replaces the editing area with a unified diff of the draft against the saved
-file, not Git HEAD: additions/deletions have color and explicit markers, old/new
-line numbers, and three lines of context. **Back to editing** restores the same
-draft. Git produces this comparison without staging or changing app files.
-Saves reject
-stale versions and require the app to be stopped. Drafts survive switching between
-files and between Build and Run/Debug in the same panel. Selection, folder
-expansion, and the filter also survive in-panel refreshes. Edits made while a reviewed save is pending
-remain unsaved drafts against the newly saved version, including when the panel
-is reopened before the save completes. Completing a save for another file never
-changes the current selection; its outcome remains available when that file is selected again.
+hides but retains the native textarea and opens a unified CodeMirror review of
+the draft against the saved file, not Git HEAD. The proposed draft is directly
+editable in review; saved/deleted text remains read-only and there are no
+per-hunk accept/reject controls. Review changes keep normal selection and
+undo/redo history, synchronize immediately into the retained textarea and draft
+map, and automatically re-run the authenticated diff check before saving.
+**Save reviewed changes** is disabled while the summary says **Checking
+changes...**, after a failed check, for a stale saved-file hash, or when the
+draft has been reverted and the summary says **No changes to save.** A failed
+check leaves the review editable
+and offers **Retry review**. Only the latest matching draft/hash response can
+enable Save; stale responses do not recreate the editor or disturb its caret
+and history. A save error also invalidates that verification, disables Save,
+and requires **Retry review** before another write.
 
-Syntax highlighting ships in `vendor/prism.mjs` with its MIT license; the canvas
-does not restore dependencies or fetch a highlighter from a CDN. To update the
-bundle, maintainers change the pinned `prismjs` development dependency and lockfile,
-then regenerate and commit the shipped files. These commands work in PowerShell
-and macOS/Linux shells:
+The review retains the compact Studio treatment while showing addition/deletion
+totals, separate old and new line-number gutters, explicit `-`/`+` markers,
+red saved/deleted chunks, green proposed lines, character-level highlights,
+and three lines of context around changes. Larger unchanged regions are
+keyboard-accessible controls that expand in place and return focus to the
+editor. Line-ending notices outside the
+editor distinguish a missing final newline in the saved file or draft and
+disclose CRLF-to-LF normalization. Long lines scroll inside the review rather
+than widening the Build pane. **Back to editing** restores the original native
+textarea state when review was not edited, or the current review selection
+after direct review edits. Git produces each server-authorized comparison
+without staging or changing app files.
+
+Saves reject stale versions and require the app to be stopped. Saving snapshots
+the approved content and hash before the request; typing can continue during a
+pending save. Those newer edits remain unsaved and are rebased onto the returned
+saved version when the save completes. Drafts survive switching between files
+and between Build and Run/Debug in the same panel. Selection, folder expansion,
+and the filter also survive in-panel refreshes. Completing a save for another
+file never changes the current selection; its outcome remains available when
+that file is selected again.
+Leaving Build disposes the CodeMirror instance and cancels or invalidates
+pending review checks before another workspace is rendered.
+
+Syntax highlighting and editable review ship as licensed bundles in
+`vendor/prism.mjs` and `vendor/codemirror.mjs`; installing or enabling the
+plugin never runs `npm install`, restores dependencies, or fetches browser code
+from a CDN. To update the bundles, maintainers change the pinned Prism or
+CodeMirror development dependencies and lockfile, then regenerate and commit
+the shipped files. These maintainer commands work in PowerShell and
+macOS/Linux shells:
 
 ```shell
 npm ci --prefix canvases/unity-studio
 npm run vendor:syntax --prefix canvases/unity-studio
+npm run vendor:review --prefix canvases/unity-studio
 ```
 
 **Known discovery limitation (for design discussion):** this is best-effort

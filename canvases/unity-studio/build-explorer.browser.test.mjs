@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -32,8 +33,10 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
+    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
+      createReviewEditor: createBuildReview,
       onRun() {}, onModel() {}, onStructure() {},
       request: async (path, options) => {
         const response = await fetch(path, options);
@@ -267,7 +270,13 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       assert.ok(await page.locator(".build-editor").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       if (width < 600) {
         await assertFilesRail();
-        assert.ok((await editor.boundingBox()).width >= width - 76);
+        const sourceBox = await page.locator(".build-source-editor").boundingBox();
+        const gutterBox = await page.locator(".build-line-numbers").boundingBox();
+        const collapsedEditor = await editor.boundingBox();
+        assert.ok(gutterBox.x + gutterBox.width <= collapsedEditor.x + 1);
+        assert.ok(collapsedEditor.x + collapsedEditor.width <= sourceBox.x + sourceBox.width + 1);
+        assert.ok(collapsedEditor.width >= sourceBox.width - gutterBox.width - 3);
+        assert.ok(Math.abs(gutterBox.width + collapsedEditor.width - sourceBox.width) <= 3);
       }
     }
     await file("missing").click();

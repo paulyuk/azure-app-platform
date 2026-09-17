@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_REVIEW_SCRIPT } from "./build-review-editor.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -25,8 +26,10 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
     response.setHeader("Content-Type", "text/html");
     response.end(`<div id="details"></div><script>
       ${BUILD_SYNTAX_SCRIPT}
+      ${BUILD_REVIEW_SCRIPT}
       const panel = (${createBuildPanel.toString()})({
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
+        createReviewEditor: createBuildReview,
         onRun() {}, onModel() {}, onStructure() {},
         request: async (path, options) => (await fetch(path, options)).json()
       });
@@ -135,8 +138,10 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
   let diagnostics = [];
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
+    ${BUILD_REVIEW_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
+      createReviewEditor: createBuildReview,
       onRun: () => { document.body.dataset.runRequested = "true"; }, onModel: () => {},
       onStructure: () => { document.body.dataset.structureRequested = "true"; },
       request: async (path, options) => {
