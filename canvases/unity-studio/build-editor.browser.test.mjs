@@ -94,6 +94,19 @@ test("Build persists supported editor choices without disturbing drafts or revie
     const card = page.locator('[data-artifact="agent"]');
     const source = card.locator('textarea[aria-label="Agent source source"]');
     const select = card.getByRole("combobox", { name: "Supported editor" });
+    const split = card.getByRole("group", { name: "Code editor", exact: true });
+    await split.waitFor();
+    assert.equal(await split.locator(".build-editor-launch-label").textContent(), "VS Code");
+    assert.ok((await split.boundingBox()).width < 180, "Editor actions form one compact split button");
+    const openBounds = await split.getByRole("button", { name: "Open in VS Code", exact: true }).boundingBox();
+    const pickerBounds = await select.boundingBox();
+    assert.equal(pickerBounds.width, 28);
+    assert.equal(pickerBounds.height, openBounds.height);
+    assert.ok(Math.abs(pickerBounds.x - (openBounds.x + openBounds.width)) < 1);
+    await split.getByRole("button", { name: "Open in VS Code", exact: true }).focus();
+    await page.keyboard.press("Tab");
+    assert.equal(await select.evaluate((element) => element === document.activeElement), true);
+    assert.equal(await select.evaluate((element) => getComputedStyle(element.parentElement).outlineStyle), "solid");
     assert.deepEqual(await select.locator("option").evaluateAll((options) =>
       options.map((option) => ({ id: option.value, label: option.textContent }))), editors);
     await source.fill("print('draft')\n");
@@ -149,6 +162,13 @@ test("Build persists supported editor choices without disturbing drafts or revie
     assert.equal(await source.inputValue(), "print('draft')\n");
     assert.equal(await card.getByRole("combobox", { name: "Supported editor" }).inputValue(), "sublime");
     assert.equal(await card.getByRole("button", { name: "Open in Sublime Text" }).count(), 1);
+    const currentOpen = card.getByRole("button", { name: "Open in Sublime Text", exact: true });
+    await currentOpen.focus();
+    await page.keyboard.press("Tab");
+    assert.equal(await select.evaluate((element) => element === document.activeElement), true);
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(await currentOpen.evaluate((element) => element === document.activeElement), true);
+    assert.equal(await source.inputValue(), "print('draft')\n");
     assert.deepEqual(errors, []);
   } finally {
     releaseSettings?.();

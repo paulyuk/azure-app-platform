@@ -67,7 +67,7 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
         }, theme);
         assert.equal(await explorer.evaluate((el) => getComputedStyle(el).backgroundColor),
           theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)", `${theme} explorer at ${width}px`);
-        const colors = await page.locator(".build-explorer h3, .build-file-count, .build-folder > summary, .build-file-button, .build-file-status, .build-filter input, .build-highlight .token, .build-editor-select, .code-edit, .build-diff-context .build-diff-text, .build-diff-removed .build-diff-marker, .build-diff-added .build-diff-marker, .build-review-summary span").evaluateAll((elements) => {
+        const colors = await page.locator(".build-explorer h3, .build-file-count, .build-folder > summary, .build-file-button, .build-file-status, .build-files-toggle, .build-filter input, .build-highlight .token, .build-editor-picker, .code-edit, .build-diff-context .build-diff-text, .build-diff-removed .build-diff-marker, .build-diff-added .build-diff-marker, .build-review-summary span").evaluateAll((elements) => {
           const values = [];
           for (const element of elements) {
             if (!element.getClientRects().length) continue;
@@ -101,6 +101,8 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
     assert.equal(await splitter.isVisible(), true);
     assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::before").backgroundColor), "rgba(0, 0, 0, 0)");
     assert.equal(await page.getByRole("combobox", { name: "Supported editor" }).isVisible(), true);
+    await page.getByRole("combobox", { name: "Supported editor" }).focus();
+    assert.equal(await page.locator(".build-editor-picker").evaluate((element) => getComputedStyle(element).outlineStyle), "solid");
     await page.emulateMedia({ forcedColors: "none" });
   } finally {
     await browser.close();

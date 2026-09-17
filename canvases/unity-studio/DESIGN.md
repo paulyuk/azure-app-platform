@@ -274,8 +274,9 @@ The explorer uses native collapsible folders, compacts single-child folder
 paths, filters paths and file roles, and shows explicit unsaved/saving/error/
 unavailable states. Paths disambiguate repeated filenames. Selection, folder
 expansion, filter text, and drafts survive in-panel refreshes and workspace switches.
-The explorer has an in-pane collapse control and a bounded, pointer- and
-keyboard-resizable divider. Width and visibility changes leave the selected
+The explorer has an icon-only in-pane collapse control with a tooltip and accessible
+label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
+centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
 editor and its draft intact. Below 600px of available pane width it replaces,
 rather than crowds, the editor. Choosing a file returns focus to the editor.
 Explorer surfaces use Studio-owned theme tokens, not the host's background
@@ -311,7 +312,9 @@ Every available artifact, including operator policy and tool contracts,
 is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
 an allowlisted, non-symlink artifact, then opens the whole worktree and the file.
 A per-user supported-editor preference is shared by Build, app creation, and
-source actions. The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
+source actions. Build combines opening and selection into a compact split button:
+the editor name opens the file; the chevron exposes the native supported-editor
+picker, retaining keyboard behavior and visible focus. The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
 Zed, and Sublime Text; there are no custom commands. Preference persistence is
 independent of theme settings and does not launch an editor or recreate drafts.
 Launchers use separate executable/argument values, macOS application fallbacks,

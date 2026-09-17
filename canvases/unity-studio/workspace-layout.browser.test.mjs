@@ -237,7 +237,9 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.notEqual(styles.selectedBorder, styles.otherBorder);
       assert.equal(styles.selectedBorder, styles.selectedColor);
     };
-    assert.deepEqual(await buttonFormat(page.locator("#details .code-edit")), standardButton);
+    assert.deepEqual(await buttonFormat(page.locator("#details .code-edit")), {
+      ...standardButton, radius: "6px 0px 0px 6px",
+    });
     assert.equal(await page.locator("#details .build-header").count(), 0);
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.deepEqual(await buttonFormat(page.locator("#build-app")), standardButton);

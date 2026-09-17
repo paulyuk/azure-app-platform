@@ -11,14 +11,15 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-explorer-header { position:sticky; top:0; z-index:1; padding:12px; background:inherit; }
 #details[data-mode="build"] .build-explorer-title { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 #details[data-mode="build"] .build-explorer h3 { min-width:0; margin:0; font-size:12px; }
-#details[data-mode="build"] .build-files-toggle { min-height:28px; padding:4px 7px; font-size:11px; }
+#details[data-mode="build"] .build-files-toggle { flex:none; width:28px; min-width:28px; height:28px; min-height:28px; padding:5px; }
+#details[data-mode="build"] .build-files-toggle svg { width:16px; height:16px; flex:none; }
 #details[data-mode="build"] .build-explorer-reopen { position:absolute; inset-block-start:8px; inset-inline-start:8px; z-index:2; }
 #details[data-mode="build"] .build-workspace[data-files-visible="false"] .build-editor { padding-top:52px; }
 #details[data-mode="build"] .build-splitter { position:relative; min-width:8px; cursor:col-resize; touch-action:none; user-select:none; }
-#details[data-mode="build"] .build-splitter::before { content:""; position:absolute; inset-block:0; inset-inline-start:3px; width:1px; background:var(--border-color-default,#ddd); }
-#details[data-mode="build"] .build-splitter::after { content:""; position:absolute; inset-block-start:50%; inset-inline-start:2px; width:4px; height:4px; border-radius:50%; color:var(--text-color-muted,#6a6775); background:currentColor; box-shadow:0 -7px 0 currentColor,0 7px 0 currentColor; transform:translateY(-50%); }
+#details[data-mode="build"] .build-splitter::before { content:""; position:absolute; inset-block:0; inset-inline-start:50%; width:1px; background:var(--border-color-default,#ddd); transform:translateX(-50%); }
+#details[data-mode="build"] .build-splitter::after { content:""; position:absolute; inset-block-start:50%; inset-inline-start:50%; width:4px; height:4px; border-radius:50%; color:var(--text-color-muted,#6a6775); background:currentColor; box-shadow:0 -7px 0 currentColor,0 7px 0 currentColor; transform:translate(-50%,-50%); }
 #details[data-mode="build"] .build-splitter:hover::before,
-#details[data-mode="build"] .build-splitter:focus-visible::before { inset-inline-start:2px; width:3px; background:var(--true-color-blue,#007acc); }
+#details[data-mode="build"] .build-splitter:focus-visible::before { width:3px; background:var(--true-color-blue,#007acc); }
 #details[data-mode="build"] .build-splitter:hover::after,
 #details[data-mode="build"] .build-splitter:focus-visible::after { color:var(--true-color-blue,#007acc); }
 #details[data-mode="build"] .build-workspace[data-resizing="true"] { cursor:col-resize; user-select:none; }
@@ -52,7 +53,15 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .code-edit { color:var(--true-color-blue,#007acc); border-color:currentColor; background:var(--background-color-default,#fff); }
 #details[data-mode="build"] .code-edit svg { width:16px; height:16px; flex:none; fill:currentColor; }
 #details[data-mode="build"] .build-editor-controls { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
-#details[data-mode="build"] .build-editor-controls .build-editor-select { width:auto; max-width:180px; min-height:32px; padding-block:5px; }
+#details[data-mode="build"] .build-editor-split { display:inline-flex; align-items:stretch; max-width:100%; }
+#details[data-mode="build"] .build-editor-split .code-edit { border:1px solid currentColor; border-radius:6px 0 0 6px; }
+#details[data-mode="build"] .build-editor-picker { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; box-sizing:border-box; width:28px; height:32px; border:1px solid currentColor; border-inline-start:0; border-radius:0 6px 6px 0; color:var(--true-color-blue,#007acc); background:var(--background-color-default,#fff); }
+#details[data-mode="build"] .build-editor-picker svg { width:14px; height:14px; pointer-events:none; }
+/* Keep the native picker and keyboard behavior beneath the compact chevron. */
+#details[data-mode="build"] .build-editor-picker .build-editor-select { position:absolute; inset-block:-1px; inset-inline:0 -1px; width:auto; height:auto; min-height:0; padding:0; opacity:0; cursor:pointer; }
+#details[data-mode="build"] .build-editor-picker:focus-within { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
+#details[data-mode="build"] .build-editor-picker[data-disabled="true"] svg { opacity:.5; }
+#details[data-mode="build"] .build-editor-picker .build-editor-select:disabled { cursor:wait; }
 #details[data-mode="build"] .build-editor-feedback { flex-basis:100%; margin:0; font-size:11px; }
 #details[data-mode="build"] textarea, #details[data-mode="build"] select { width:100%; min-width:0; box-sizing:border-box; padding:10px; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); }
 #details[data-mode="build"] textarea { flex:1; min-height:240px; resize:vertical; tab-size:2; font:12px/1.6 var(--font-mono,monospace); }
@@ -93,6 +102,7 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-source-editor:is([data-highlight="false"],[data-composing="true"]) textarea { color:var(--text-color-default,#222); }
 #details[data-mode="build"] .build-source-editor:is([data-highlight="false"],[data-composing="true"]) .build-highlight { visibility:hidden; }
 @media (forced-colors:active) {
+  #details[data-mode="build"] .build-editor-picker:focus-within { outline-color:Highlight; }
   #details[data-mode="build"] .build-splitter::before { background:ButtonText; }
   #details[data-mode="build"] .build-splitter::after { color:ButtonText; }
   #details[data-mode="build"] .build-splitter:hover::before,
@@ -192,10 +202,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
       select.value = currentEditorSettings.editorId;
       select.disabled = editorSettingsSaving;
+      select.title = "Choose code editor (current: " + selectedEditorLabel() + ")";
+      select.parentElement.dataset.disabled = String(editorSettingsSaving);
     }
     for (const control of container.querySelectorAll("[data-editor-launch]")) {
       const label = control.querySelector(".build-editor-launch-label");
-      if (label) label.textContent = "Open in " + selectedEditorLabel();
+      if (label) label.textContent = selectedEditorLabel();
+      control.setAttribute("aria-label", "Open in " + selectedEditorLabel());
+      control.title = "Open in " + selectedEditorLabel();
       control.disabled = editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId);
     }
     for (const feedback of container.querySelectorAll("[data-editor-feedback]")) {
@@ -239,7 +253,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       explorerReopen.append(filesToggle);
       explorerReopen.hidden = false;
     }
-    filesToggle.textContent = visible ? (compact ? "Back to editor" : "Hide files") : "Show files";
+    const label = visible ? (compact ? "Back to editor" : "Hide files") : "Show files";
+    filesToggle.setAttribute("aria-label", label);
+    filesToggle.title = label;
+    filesToggle.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1.5"/><path d="M6 2v12"/><path d="' +
+      (visible ? "m11.5 6-2 2 2 2" : "m9 6 2 2-2 2") + '"/></svg>';
     filesToggle.setAttribute("aria-expanded", String(visible));
     applyExplorerWidth();
   }
@@ -415,10 +433,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     }
     editor.addEventListener("input", rememberDraft);
     const editorControls = element("div", undefined, actions, "build-editor-controls");
-    const editorSelect = element("select", undefined, editorControls, "build-editor-select");
-    editorSelect.dataset.editorSelect = "true";
-    editorSelect.setAttribute("aria-label", "Supported editor");
-    const code = button(editorControls, "", async () => {
+    const editorSplit = element("div", undefined, editorControls, "build-editor-split");
+    editorSplit.setAttribute("role", "group");
+    editorSplit.setAttribute("aria-label", "Code editor");
+    const code = button(editorSplit, "", async () => {
       pendingEditorLaunches.add(artifact.id);
       updateEditorControls();
       error(card, "");
@@ -450,6 +468,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     icon.append(path);
     code.prepend(icon);
     element("span", "", code, "build-editor-launch-label");
+    const picker = element("span", undefined, editorSplit, "build-editor-picker");
+    picker.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>';
+    const editorSelect = element("select", undefined, picker, "build-editor-select");
+    editorSelect.dataset.editorSelect = "true";
+    editorSelect.setAttribute("aria-label", "Supported editor");
     const editorFeedback = element("p", "", editorControls, "build-editor-feedback");
     editorFeedback.dataset.editorFeedback = "true";
     editorFeedback.hidden = true;

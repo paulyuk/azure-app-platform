@@ -89,13 +89,28 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
     assert.ok(await explorer.evaluate((el) => el.scrollHeight > el.clientHeight));
-    assert.equal(await toggle.getByText("Hide files").count(), 1);
+    assert.equal(await toggle.getAttribute("aria-label"), "Hide files");
+    assert.equal(await toggle.getAttribute("title"), "Hide files");
+    assert.equal(await toggle.textContent(), "");
+    assert.equal(await toggle.locator('svg[aria-hidden="true"]').count(), 1);
+    assert.equal((await toggle.boundingBox()).width, 28);
     assert.ok((await toggle.boundingBox()).x < (await editor.boundingBox()).x);
     assert.equal(await page.locator(".build-header [data-build-files-toggle]").count(), 0);
     assert.equal(await splitter.getAttribute("aria-orientation"), "vertical");
     assert.equal(await splitter.getAttribute("title"), "Drag to resize files. Arrow keys also adjust the width.");
     assert.equal(await splitter.evaluate((element) => getComputedStyle(element).cursor), "col-resize");
     assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::after").backgroundColor), "rgba(0, 0, 0, 0)");
+    const assertCenteredGrip = async () => {
+      const centers = await splitter.evaluate((element) => ["::before", "::after"].map((pseudo) => {
+        const style = getComputedStyle(element, pseudo);
+        return parseFloat(style.left) + parseFloat(style.width) / 2 + new DOMMatrixReadOnly(style.transform).m41;
+      }));
+      assert.ok(Math.abs(centers[0] - centers[1]) < 0.1, "The divider and grip share the same center");
+      assert.ok(Math.abs(centers[0] - (await splitter.boundingBox()).width / 2) < 0.1);
+    };
+    await assertCenteredGrip();
+    await splitter.hover();
+    await assertCenteredGrip();
 
     const originalSource = await editor.inputValue();
     let divider = await splitter.boundingBox();
@@ -118,6 +133,7 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.equal(await editor.inputValue(), originalSource);
 
     await splitter.focus();
+    await assertCenteredGrip();
     await splitter.press("Home");
     assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemin"));
     await splitter.press("ArrowLeft");
@@ -198,7 +214,9 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     await toggle.click();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(await toggle.getByText("Show files").count(), 1);
+    assert.equal(await toggle.getAttribute("aria-label"), "Show files");
+    assert.equal(await toggle.getAttribute("title"), "Show files");
+    assert.equal(await toggle.textContent(), "");
     assert.equal(await page.locator("[data-build-files-toggle]").count(), 1);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await editor.waitFor();

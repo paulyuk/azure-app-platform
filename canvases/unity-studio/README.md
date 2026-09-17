@@ -198,11 +198,15 @@ theme, keeps native text selection and input, and never adds markup to saved fil
 Long lines scroll horizontally; high-contrast mode and active IME composition use
 readable native text. A tokenizer failure reports the problem and keeps plain-text
 editing available.
-The explorer has its own collapse control and a draggable, keyboard-accessible
-divider for changing its width. Resizing and collapsing do not replace the
+The explorer has its own icon-only collapse control with a tooltip and accessible
+label, plus a draggable, keyboard-accessible divider with a centered grip.
+Resizing and collapsing do not replace the
 selected editor or discard drafts. Below 600px of available pane width, **Files** switches
 between the explorer and editor rather than squeezing them beside the Guide.
-Choose a **Code editor** in Build or when reviewing a new app: **VS Code**,
+Use the compact editor split button in Build: click the editor name to open the
+file, or its chevron to choose an editor. The picker retains native keyboard
+navigation and a visible focus outline. A **Code editor** field is also available
+when reviewing a new app. Supported choices are **VS Code**,
 **VS Code Insiders**, **Cursor**, **Windsurf**, **Zed**, or **Sublime Text**.
 The preference is saved per user in `editor-preferences.json`, independently of
 appearance settings, and is shared by Build, App Map source actions, and app
