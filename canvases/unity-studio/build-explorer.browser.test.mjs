@@ -80,6 +80,8 @@ test("Build lists files under customization headings, preserves file drafts and 
     const explorer = page.getByRole("navigation", { name: "Customization areas" });
     const file = (id) => page.locator(`[data-file-id="${id}"]`);
     const chooseFile = (id) => file(id).click();
+    const tools = explorer.locator('[data-area-id="tools"]');
+    const toolsHeading = tools.locator("summary");
     const toggle = page.locator("[data-build-files-toggle]");
     const rail = page.locator(".build-explorer-reopen");
     const splitter = page.getByRole("separator", { name: "Resize customization areas" });
@@ -117,6 +119,43 @@ test("Build lists files under customization headings, preserves file drafts and 
     assert.equal(await file("pricing").evaluate((element) => element === document.activeElement), true);
     await file("pricing").press("Enter");
     assert.equal(await editor.inputValue(), "Source for pricing");
+    assert.ok(await explorer.locator("[data-area-id]").evaluateAll((groups) => groups.every((group) => group.open)));
+    await editor.fill("Draft inside a collapsed section.");
+    await editor.evaluate((element) => {
+      element.dataset.collapseProbe = "same-editor";
+      element.setSelectionRange(3, 8, "backward");
+    });
+    await toolsHeading.click();
+    assert.equal(await tools.evaluate((group) => group.open), false);
+    assert.equal(await file("pricing").isVisible(), false);
+    assert.equal(await file("agent").isVisible(), true, "Sections collapse independently");
+    assert.equal(await editor.isVisible(), true);
+    assert.equal(await editor.getAttribute("data-collapse-probe"), "same-editor");
+    assert.deepEqual(await editor.evaluate((element) => [element.selectionStart, element.selectionEnd]), [3, 8]);
+    assert.equal(await toolsHeading.getAttribute("aria-label"), "Tools & contracts, Unsaved");
+    assert.ok((await toolsHeading.boundingBox()).height >= 32);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await editor.waitFor();
+    assert.equal(await tools.evaluate((group) => group.open), false);
+    assert.equal(await editor.inputValue(), "Draft inside a collapsed section.");
+    await toggle.click();
+    await toggle.click();
+    assert.equal(await toolsHeading.evaluate((element) => element === document.activeElement), true,
+      "Reopening navigation focuses the collapsed heading instead of its hidden selected file");
+    await toolsHeading.press("Enter");
+    await file("pricing").waitFor();
+    assert.equal(await tools.evaluate((group) => group.open), true);
+    await toolsHeading.press("Space");
+    assert.equal(await tools.evaluate((group) => group.open), false);
+    await toolsHeading.press("Tab");
+    assert.equal(await explorer.locator('[data-area-id="runtime"] summary').evaluate((element) => element === document.activeElement), true,
+      "Collapsed files leave the tab order");
+    await file("agent").click();
+    assert.equal(await tools.evaluate((group) => group.open), false, "Switching files does not reopen a section");
+    await toolsHeading.click();
+    await file("pricing").click();
+    assert.equal(await editor.inputValue(), "Draft inside a collapsed section.");
+    await editor.fill("Source for pricing");
     await file("agent").click();
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
@@ -220,6 +259,9 @@ test("Build lists files under customization headings, preserves file drafts and 
       await page.getByRole("button", { name: "Save reviewed changes" }).click();
       await started;
       assert.match(await file("pricing").getAttribute("aria-label"), /Saving/);
+      await toolsHeading.click();
+      assert.equal(await tools.evaluate((group) => group.open), false);
+      assert.equal(await toolsHeading.getAttribute("aria-label"), "Tools & contracts, Saving");
       await chooseFile("config");
       assert.equal(await editor.inputValue(), "Unsaved settings.");
       const reads = workspaceReads;
@@ -230,6 +272,9 @@ test("Build lists files under customization headings, preserves file drafts and 
       assert.equal(workspaceReads, reads, "Completing an offscreen save must not reload or steal the current editor");
       assert.equal(await file("config").getAttribute("aria-current"), "true");
       assert.equal(await editor.inputValue(), "Unsaved settings.");
+      assert.equal(await tools.evaluate((group) => group.open), false, "Offscreen save completion keeps the section collapsed");
+      assert.equal(await toolsHeading.getAttribute("aria-label"), failure ? "Tools & contracts, Save failed" : "Tools & contracts");
+      await toolsHeading.click();
       await file("pricing").click();
       if (failure) {
         await page.getByRole("alert").filter({ hasText: failure }).waitFor();
@@ -274,6 +319,13 @@ test("Build lists files under customization headings, preserves file drafts and 
     assert.equal(await explorer.isVisible(), true);
     assert.equal(await editor.isVisible(), false);
     assert.equal(await file("pricing").evaluate((el) => el === document.activeElement), true);
+    await toolsHeading.press("Enter");
+    assert.equal(await tools.evaluate((group) => group.open), false);
+    await toggle.click();
+    assert.equal(await editor.isVisible(), true);
+    await toggle.click();
+    assert.equal(await toolsHeading.evaluate((element) => element === document.activeElement), true);
+    assert.equal(await tools.evaluate((group) => group.open), false);
     await file("config").press("Enter");
     assert.equal(await editor.isVisible(), true);
     assert.equal(await explorer.isVisible(), false);

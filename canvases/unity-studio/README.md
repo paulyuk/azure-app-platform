@@ -189,7 +189,10 @@ when available. Each area is a heading with its relevant files listed directly
 underneath in **Customize**. Click a file to open it; the selected row is
 highlighted, with parent paths distinguishing repeated filenames. There is no
 file dropdown in the editor pane. Files show their own unsaved, saving, and
-save-failure indicators, and headings aggregate those states.
+save-failure indicators, and headings aggregate those states even when collapsed.
+Click a section heading, or use Enter/Space, to expand or collapse its files.
+Sections start expanded and remember their state during in-panel refreshes and
+workspace switches. Collapsing a section does not close its file or discard edits.
 
 Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and

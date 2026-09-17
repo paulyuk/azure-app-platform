@@ -25,8 +25,12 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-splitter:focus-visible::after { color:var(--true-color-blue,#007acc); }
 #details[data-mode="build"] .build-workspace[data-resizing="true"] { cursor:col-resize; user-select:none; }
 #details[data-mode="build"] .build-area-list { display:flex; flex-direction:column; gap:20px; padding:0 8px 12px; }
-#details[data-mode="build"] .build-area-header { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; padding:0 8px 4px; }
-#details[data-mode="build"] .build-area-header h4 { margin:0; font-size:12px; }
+#details[data-mode="build"] .build-area-header { display:flex; align-items:center; gap:8px; box-sizing:border-box; min-height:32px; padding:4px 8px; border-radius:6px; list-style:none; cursor:pointer; }
+#details[data-mode="build"] .build-area-header::-webkit-details-marker { display:none; }
+#details[data-mode="build"] .build-area-header:hover { background:var(--background-color-default,#fff); }
+#details[data-mode="build"] .build-area-header h4 { flex:1; min-width:0; margin:0; font-size:12px; overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-area-chevron { flex:none; width:12px; height:12px; }
+#details[data-mode="build"] .build-area[open] > .build-area-header .build-area-chevron { transform:rotate(90deg); }
 #details[data-mode="build"] .build-file-list { display:flex; flex-direction:column; gap:2px; list-style:none; margin:0; padding:0 0 0 8px; }
 #details[data-mode="build"] .build-file-list .build-file-button { display:grid; grid-template-columns:16px minmax(0,1fr); align-items:start; gap:2px 8px; width:100%; min-width:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text-color-default,#222); text-align:left; white-space:normal; }
 #details[data-mode="build"] .build-file-button:hover { background:var(--background-color-default,#fff); border-color:var(--border-color-default,#ddd); }
@@ -150,6 +154,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   const pendingEditorLaunches = new Set();
   const saveFeedback = new Map();
   const areaGroups = new Map();
+  const collapsedAreas = new Set();
   const fileButtons = new Map();
   const explorerMinWidth = 176;
   const explorerMaxWidth = 460;
@@ -287,9 +292,18 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       const members = artifacts.filter((artifact) => artifact.customizationArea === area.id);
       const statuses = members.map(statusFor);
       const status = ["Saving", "Save failed", "Unsaved"].find((value) => statuses.includes(value)) ?? "";
-      entry.group.setAttribute("aria-label", area.label + (status ? ", " + status : ""));
+      const label = area.label + (status ? ", " + status : "");
+      entry.group.setAttribute("aria-label", label);
+      entry.header.setAttribute("aria-label", label);
       entry.status.textContent = status;
       entry.status.hidden = !status;
+    }
+  }
+  function rememberAreaVisibility() {
+    for (const [id, { group }] of areaGroups) {
+      if (!group.isConnected) continue;
+      if (group.open) collapsedAreas.delete(id);
+      else collapsedAreas.add(id);
     }
   }
   function renderCustomizations() {
@@ -299,14 +313,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     for (const area of areas) {
       const members = artifacts.filter((artifact) => artifact.customizationArea === area.id);
       if (!members.length) continue;
-      const group = element("section", undefined, areaList, "build-area");
+      const group = element("details", undefined, areaList, "build-area");
       group.dataset.areaId = area.id;
       group.setAttribute("role", "group");
-      const header = element("div", undefined, group, "build-area-header");
+      group.open = !collapsedAreas.has(area.id);
+      group.addEventListener("toggle", rememberAreaVisibility);
+      const header = element("summary", undefined, group, "build-area-header");
+      header.innerHTML = '<svg class="build-area-chevron" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg>';
       element("h4", area.label, header);
       const status = element("span", "", header, "build-area-status");
       status.setAttribute("aria-hidden", "true");
-      areaGroups.set(area.id, { group, status });
+      areaGroups.set(area.id, { group, header, status });
       const list = element("ul", undefined, group, "build-file-list");
       for (const artifact of members) {
         const item = element("li", undefined, list);
@@ -776,6 +793,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   async function show() {
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
+    rememberAreaVisibility();
     sourceLayoutObserver?.disconnect();
     cleanupReview?.();
     cleanupReview = undefined;
@@ -844,7 +862,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         if (isCompact()) compactFilesVisible = !compactFilesVisible;
         else explorerCollapsed = !explorerCollapsed;
         updateExplorerVisibility();
-        if (!explorer.hidden) explorer.querySelector('[aria-current="true"]')?.focus();
+        if (!explorer.hidden) {
+          const selected = explorer.querySelector('[aria-current="true"]');
+          const group = selected?.closest(".build-area");
+          (group && !group.open ? group.querySelector("summary") : selected)?.focus();
+        }
       });
       filesToggle.className = "build-files-toggle";
       filesToggle.dataset.buildFilesToggle = "true";
@@ -920,6 +942,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   window.addEventListener("focus", () => { if (isActive()) void show(); });
   function hide() {
     loadVersion++;
+    rememberAreaVisibility();
     sourceLayoutObserver?.disconnect();
     cleanupReview?.();
     cleanupReview = undefined;

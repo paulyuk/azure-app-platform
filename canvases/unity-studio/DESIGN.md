@@ -278,11 +278,14 @@ initial editor position. General implementation files and boilerplate are not
 navigation items. This is a UI projection of the existing authorized catalog,
 not a broader filesystem API or proof that a runtime loads a recognized file.
 
-Each area is a noninteractive heading above an indented list of file buttons in
+Each area is a native details/summary disclosure above an indented list of file buttons in
 Customize, not another selection step or dropdown in the editor. File icons and
 names lead; parent paths disambiguate repeated filenames. Only the selected
 file row is highlighted. Each file exposes its own unsaved/saving/error state,
-and its heading aggregates those states. File selection and drafts survive in-panel
+and its heading aggregates those states even while collapsed. A chevron indicates
+expansion; the whole heading is clickable and supports native Enter/Space.
+Sections start open, retain their open/closed state in-panel, and never replace
+the editor or discard drafts when toggled. File selection and drafts survive in-panel
 refreshes and workspace switches. A missing or no-longer-recognized point with a
 draft remains read-only for copying rather than silently hiding the draft.
 The navigation has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
@@ -290,7 +293,8 @@ label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
 centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
 editor and its draft intact. Below 600px of available pane width it replaces,
 rather than crowds, the editor. Choosing a file returns focus to the content
-heading. Reopening navigation focuses the selected file. Native Tab/Enter/Space
+heading. Reopening navigation focuses the selected file, or its section heading
+if the file is collapsed. Hidden files leave the tab order. Native Tab/Enter/Space
 behavior follows the displayed file order; long lists scroll within navigation.
 Navigation surfaces use Studio-owned theme tokens, not the host's background
 tokens, so choosing light mode inside a dark host retains readable labels.
