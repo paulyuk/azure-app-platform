@@ -69,6 +69,7 @@ test("Run shares optional document input with invocation and enforcement across 
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
     await page.locator("#manage-app").click();
+    await page.getByLabel("Document attachment", { exact: true }).click();
     const card = page.locator(".agent-tester");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     const document = page.getByRole("textbox", { name: "Document text", exact: true });
@@ -80,7 +81,7 @@ test("Run shares optional document input with invocation and enforcement across 
     await document.fill("Contact alex@example.test.");
     assert.equal(await invoke.isDisabled(), true);
     assert.equal(await enforce.isDisabled(), true);
-    await card.getByRole("button", { name: "Run app", exact: true }).click();
+    await page.locator("#details").getByRole("button", { name: "Run app", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector("[data-invoke-agent]").disabled);
     assert.equal(await document.inputValue(), "Contact alex@example.test.");
     await file.setInputFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("Loan terms: contact alex@example.test.") });
@@ -92,6 +93,7 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.equal(await document.isDisabled(), true);
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);
     health = "Health refreshed";
+    await page.locator('[data-run-section="services"] > summary').click();
     await page.getByText("Health refreshed", { exact: true }).waitFor();
     assert.equal(await enforce.isDisabled(), true);
     releaseTest();

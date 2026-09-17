@@ -206,8 +206,8 @@ Connect preserves source-backed review, with an entry point to edit on the map.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
 highlight. Inline Build drafts remain intact across these transitions.
 They share one compact top bar with Unity/home navigation, app identity,
-runtime status and start/stop, Docs, and appearance. There is no separate
-workspace header row at full width. Explicit grid areas keep Docs and appearance
+runtime status and start/stop, Docs, and Settings. There is no separate
+workspace header row at full width. Explicit grid areas keep Docs and Settings
 at the top right. At 960px and below, workspace buttons move together to row two.
 At 680px and below, app identity and runtime controls move to row three, leaving
 the utilities on row one. App names truncate; controls never wrap independently.
@@ -417,23 +417,38 @@ The Connect explanation retains its explicit connection-review action.
 Guide visibility remains
 independent of the selected workspace and component.
 
-**Run/Debug** is the explicit operational surface. AI model connection comes
-first, followed by expanded local runtime controls, visible live stdout/stderr, per-component health and
-open-endpoint buttons, and **Invoke agent** with a message.
-An optional document appears beside the message when readiness advertises
+**Run/Debug** is a focused run/test surface, not an embedded IDE or debugger.
+The main area contains state-specific startup/recovery guidance, an available
+web-app action, **Invoke agent**, and its readable result. The connected model
+summary links directly to Settings. Native **Services**, **Diagnostics**, and
+**Deploy to Azure** disclosures preserve the full existing feature set without
+competing with the primary task. They retain expansion across polling and
+workspace switches. Starting, failing, provisioning, and deploying reveal
+diagnostics without stealing focus; failure counts and read errors remain visible
+when collapsed. Deeper investigation uses the existing Observe logs workspace,
+not another custom log console. There is no resizable diagnostics dock.
+An optional document disclosure appears beside the message when readiness advertises
 document support. File reading, pasted-text limits, removal, and in-flight state
 are shared by Invoke agent and Test enforcement; Build links to this single Run
 surface rather than maintaining a separate test form. Document and message drafts
 remain in panel memory across polling and mode switches, never in command history.
 Actual command/HTTP
 activity (bounded, redacted before storage, with status and timing) is the sole
-Commands card; separate command-example and troubleshooting cards are omitted. A scoped
-`run-panel-styles.mjs` adapts Functions Studio's panel, form, command, and badge
-treatments without changing the App Map or its global tokens. Agent answers are separate from raw
+Diagnostics operations list; separate command-example and troubleshooting cards are omitted. A scoped
+`run-panel-styles.mjs` uses Studio-owned colors, compact forms, quiet dividers,
+and readable response typography without changing the App Map. Agent answers are separate from raw
 responses. Source-discovered Hosted Skills and sandbox implementations are not
 presented as successful tool calls; only response-reported tool evidence is shown.
 The persistent runtime badge opens this panel
 directly, and starting an operation keeps the run panel visible.
+The top-right Settings gear opens a native modal with appearance and app-scoped
+model connection, local ports, and a separated Danger zone. Focus stays in the
+dialog and returns to its trigger on close/Escape; underlying drafts remain intact.
+Appearance persists at Studio scope; app operations use the current app root.
+Opening Settings does not configure models or perform destructive actions.
+Deleting the local worktree requires a separate confirmation, a stopped app, and
+known lifecycle state; errors remain in the modal. Azure resources and source
+repositories are not deleted. Landing Settings contains appearance only.
 Local port controls persist validated assignments in `.unity-studio/ports.env`.
 Allocation is serialized and checks both live loopback bindings and other
 discovered app profiles. The same settings feed scripts, readiness, and links;
@@ -447,11 +462,12 @@ AI model connection defaults to the saved/current subscription and a valid
 gateway with models; model discovery uses the workspace-wide ARM models
 collection across providers. Saved selections are preserved, stale discovery
 cannot overwrite user choices, and empty gateways cannot be applied.
-Configuration receives the selected model and validates it before the card collapses to a
-model/gateway/subscription summary. Creation remains an explicit specialist
+Explicit Connect/Apply receives the selected model and validates it before the
+Run summary reports the connection. Creation remains an explicit specialist
 action. Source projects without managed endpoints appear in Components & endpoints
-as Source only, with Review source, and do not affect readiness. Azure deployment and deletion remain secondary
-disclosures. Home returns to the landing screen, and Guide, Run/Debug, and
+as Source only, with Review source, and do not affect readiness. Azure deployment
+remains a secondary disclosure; deletion lives only in app Settings, not Run.
+Home returns to the landing screen, and Guide, Run/Debug, and
 Search & layout use a colored active state. The
 bottom details panel is pointer- and keyboard-resizable at all viewport widths,
 with its per-app height stored locally.

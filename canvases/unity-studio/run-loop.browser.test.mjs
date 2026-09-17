@@ -12,7 +12,7 @@ try {
   if (error.code !== "MODULE_NOT_FOUND") throw error;
 }
 
-test("Run loop keeps logs, endpoint actions, message invocation and active modes visible", {
+test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and lifecycle actions", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const gateway = { name: "demo-gateway", resourceGroup: "rg", subscriptionId: "sub", endpoint: "https://example.test" };
@@ -51,7 +51,8 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
       const request = route.request();
       const path = new URL(request.url()).pathname;
       let data;
-      if (path === "/api/app-status") data = {
+      if (path === "/api/preferences") data = { theme: "light" };
+      else if (path === "/api/app-status") data = {
         state: appState, recovered,
         entrypoints: [{ name: "agent", port: agentPort, expected: true, ready: appState === "running",
           healthStatus: appState === "running" ? "Healthy" : "Offline", url: "http://localhost:" + agentPort }],
@@ -112,19 +113,23 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     }));
     await page.locator("#manage-app").click();
     await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-pressed") === "true");
+    assert.equal(await page.locator('[data-run-section="services"]').evaluate((el) => el.open), false);
+    assert.equal(await page.locator('[data-run-section="deployment"]').evaluate((el) => el.open), false);
+    assert.equal(await page.locator("#details").getByRole("button", { name: /Delete/ }).count(), 0);
+    await page.locator('[data-run-section="diagnostics"] > summary').click();
     await page.locator("[data-runtime-output]").waitFor({ state: "visible" });
     assert.equal(await page.getByLabel("Document file", { exact: true }).count(), 0);
     for (const colorScheme of ["light", "dark"]) {
       await page.emulateMedia({ colorScheme });
-      assert.deepEqual(await page.locator("[data-runtime-output]").evaluate((el) => ({
-        background: getComputedStyle(el).backgroundColor, text: getComputedStyle(el).color,
-      })), { background: "rgb(0, 0, 0)", text: "rgb(255, 255, 255)" });
+      assert.equal(await page.locator("[data-runtime-output]").evaluate((el) =>
+        getComputedStyle(el).color !== getComputedStyle(el).backgroundColor), true);
     }
     await page.emulateMedia({ colorScheme: "light" });
-    assert.equal(await page.locator(".management-section .section-title").first().textContent(), "AI model connection");
+    assert.equal(selections, 0, "Opening Run must not configure a model");
     assert.equal(await page.locator("#details").getAttribute("data-mode"), "manage");
     assert.equal(await page.locator(".section-title").filter({ hasText: "Command reference" }).count(), 0);
     assert.equal(await page.locator(".section-title").filter({ hasText: "Test & troubleshoot" }).count(), 0);
+    await page.locator('[data-run-section="services"] > summary').click();
     const sourceWeb = page.locator('[data-source-only="true"]').filter({ hasText: "driveline-web" });
     assert.ok(await sourceWeb.getByText("Source only", { exact: true }).isVisible());
     assert.equal(await sourceWeb.getByRole("button", { name: /Open web/ }).count(), 0);
@@ -134,18 +139,23 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
       background: getComputedStyle(element).backgroundColor,
       nodeFont: getComputedStyle(document.querySelector(".node-title")).fontSize,
     })), mapStyle);
+    await page.locator(".run-heading").getByRole("button", { name: "Connect AI Gateway", exact: true }).click();
+    await page.getByRole("button", { name: "Connect gateway", exact: true }).waitFor();
+    assert.equal(selections, 0, "Inspecting settings must not configure a model");
+    await page.getByRole("button", { name: "Connect gateway", exact: true }).click();
+    await page.getByRole("button", { name: "Close settings" }).click();
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Configuring model access"));
     assert.equal(selections, 1);
     configured = true;
     appState = "stopped";
-    await page.waitForFunction(() => [...document.querySelectorAll(".management-section")]
-      .some((section) => section.querySelector("summary").textContent.includes("gpt-5-mini") && !section.open));
-    await page.locator(".management-section > summary").filter({ hasText: "AI model connection" }).click();
+    await page.waitForFunction(() => document.querySelector(".run-connection")?.textContent.includes("gpt-5-mini"));
+    await page.getByRole("button", { name: "Connection settings", exact: true }).click();
     await page.getByRole("combobox", { name: "AI model", exact: true }).selectOption("gpt-main");
     const refreshed = page.waitForResponse((response) => response.url().includes("/api/gateway-options"));
     await page.getByRole("button", { name: "Refresh subscriptions & gateways" }).click();
     await refreshed;
     assert.equal(await page.getByRole("combobox", { name: "AI model", exact: true }).inputValue(), "gpt-main");
+    await page.locator('[data-settings-section="ports"] > summary').click();
     await page.getByRole("button", { name: "Pick available ports", exact: true }).click();
     await page.getByText("Available ports saved. Run the app to start on these ports.", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Stop apps using these ports", exact: true }).click();
@@ -158,6 +168,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     await page.locator("[data-port-review]").getByRole("button", { name: "Confirm stop", exact: true }).click();
     await page.getByText("Selected ports are free. Apps remain stopped.", { exact: true }).waitFor();
     assert.deepEqual(portStops, [{ root: graph.root, reviewId: "review-fixture", confirmed: true }]);
+    await page.getByRole("button", { name: "Close settings" }).click();
     await page.getByRole("button", { name: "Run app", exact: true }).first().click();
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Starting your app"));
     assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"), "Cancel startup");
@@ -177,8 +188,12 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".agent-response")?.textContent === "Hello from the agent");
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Hello dealer" });
-    assert.equal(await page.getByRole("button", { name: "Pick available ports", exact: true }).isDisabled(), true);
+    await page.locator(".run-tool-activity > summary").click();
     await page.getByText("inventory_search · Call reported", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Pick available ports", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Pick available ports", exact: true }).isDisabled(), true);
+    await page.getByRole("button", { name: "Close settings" }).click();
     await page.waitForFunction(() => document.querySelector("[data-command-feed]")?.textContent.includes("HTTP 200"));
     assert.equal(await page.locator(".endpoint-heading strong").first().evaluate((el) => getComputedStyle(el).fontSize), "12px");
     assert.equal(selections, 1);
