@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -22,8 +23,9 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
     response.end(`<div id="details"></div><script>
+      ${BUILD_SYNTAX_SCRIPT}
       const panel = (${createBuildPanel.toString()})({
-        container: document.querySelector("#details"), root: "/fixture", isActive: () => true,
+        container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {}, onStructure() {},
         request: async (path, options) => (await fetch(path, options)).json()
       });
@@ -102,7 +104,7 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
   }
 });
 
-test("Build exposes compact editors, Code actions, reviewed policy edits and external-edit conflicts", {
+test("Build exposes one selected editor, Code actions, reviewed policy edits and external-edit conflicts", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
@@ -118,9 +120,10 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
   let workspaceFails = false;
   let supportsDocuments = true;
   let diagnostics = [];
-  const html = `<!doctype html><style>${BUILD_PANEL_CSS}</style><aside id="details" data-mode="build"></aside><script>
+  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style><aside id="details" data-mode="build"></aside><script>
+    ${BUILD_SYNTAX_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
-      container: document.querySelector("#details"), root: "/app", isActive: () => true,
+      container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       onRun: () => { document.body.dataset.runRequested = "true"; }, onModel: () => {},
       onStructure: () => { document.body.dataset.structureRequested = "true"; },
       request: async (path, options) => {
@@ -130,6 +133,7 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
         return body;
       }
     });
+
     panel.show();
     </script>`;
   const server = createServer((_request, response) => { response.setHeader("Content-Type", "text/html"); response.end(html); });
@@ -163,18 +167,19 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const instructions = page.locator('[data-artifact="instructions"]');
+    const selectFile = (id) => page.locator(`[data-file-id="${id}"]`).click();
     await instructions.getByRole("textbox").waitFor();
     const structure = page.locator(".build-structure");
-    assert.equal(await structure.getByRole("heading", { name: "App structure" }).count(), 1);
+    assert.equal(await page.locator(".build-card").count(), 0);
     assert.ok((await structure.boundingBox()).y < (await instructions.boundingBox()).y);
     await structure.getByRole("button", { name: "Edit on App Map" }).click();
     assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
     assert.equal(saved.length, 0);
     assert.equal(opened.length, 0);
-    assert.equal(await page.getByRole("textbox").count(), 5);
+    assert.equal(await page.getByRole("textbox").count(), 1);
     for (const editor of await page.getByRole("textbox").all()) {
       assert.equal(await editor.getAttribute("readonly"), null);
-      assert.ok((await editor.boundingBox()).height <= 120);
+      assert.ok((await editor.boundingBox()).height >= 240);
     }
     await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
     await instructions.getByText(/Opened the worktree and file/).waitFor();
@@ -189,6 +194,7 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     assert.equal(saved[0].baseSha, "base");
     assert.equal(saved[0].content, "Summarize only approved results.");
     const policy = page.locator('[data-artifact="policy"]');
+    await selectFile("policy");
     await policy.getByRole("textbox").fill('{"maxBytes":2048}');
     await policy.getByRole("button", { name: "Review changes" }).click();
     assert.equal(saved.length, 1);
@@ -199,11 +205,13 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     await policy.getByRole("button", { name: "Edit in Code", exact: true }).click();
     await policy.getByText("VS Code is unavailable.", { exact: true }).waitFor();
     assert.equal(await policy.getByRole("button", { name: "Edit in Code", exact: true }).isEnabled(), true);
+    await selectFile("runtime");
     await page.getByRole("combobox", { name: "Agent runtime" }).selectOption("copilot-sdk-sandbox");
     const runtime = page.locator('[data-artifact="runtime"]');
     const config = JSON.parse(await runtime.getByRole("textbox").inputValue());
     assert.equal(config.agentRuntime, "copilot-sdk-sandbox");
     assert.equal(config.other, "preserve");
+    await selectFile("instructions");
     await instructions.getByRole("textbox").fill("Unsaved inline draft.");
     codeFails = false;
     await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
@@ -239,12 +247,13 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     assert.equal(await page.locator(".build-warning").count(), 0);
     assert.equal(await page.getByRole("textbox").count(), 1);
     const skill = page.locator('[data-artifact="source-skill"]');
-    await skill.locator("summary").click();
+    await selectFile("source-skill");
     await skill.getByRole("textbox").fill("def inventory(): return ['real inventory']");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await skill.getByRole("textbox").waitFor();
     assert.equal(await skill.getByRole("textbox").inputValue(), "def inventory(): return ['real inventory']");
-    assert.equal(await skill.getAttribute("open"), "");
+    assert.equal(await page.locator('[data-file-id="source-skill"]').getAttribute("aria-current"), "true");
+    await selectFile("source-agent");
     assert.match(await dealer.getByRole("textbox").inputValue(), /INSTRUCTIONS/);
     await dealer.getByRole("button", { name: "Edit in Code", exact: true }).click();
     await dealer.getByText(/Opened the worktree and file/).waitFor();

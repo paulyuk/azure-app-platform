@@ -62,6 +62,11 @@ test("installed payload opens and materializes templates without checkout depend
         },
       });
       await import(base + "extension.mjs");
+      const { createSyntaxHighlighter } = await import(base + "vendor/prism.mjs");
+      const { createBuildSyntax } = await import(base + "build-syntax.mjs");
+      const syntax = createBuildSyntax(createSyntaxHighlighter());
+      assert.match(syntax.highlight("def main(): return 42", "main.py"), /token keyword/);
+      assert.match(await readFile(join(payload, "vendor/prism-LICENSE.txt"), "utf8"), /MIT LICENSE/);
       assert.equal(globalThis.portabilityCanvases.length, 1);
       const [canvas] = globalThis.portabilityCanvases;
       assert.equal(canvas.id, "unity-studio");

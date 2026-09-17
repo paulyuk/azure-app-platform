@@ -52,7 +52,7 @@ opens with a clear warning so the user can continue.
 The main buttons are **Build → Run & Debug → Observe**, with a filled selected
 state marking the current workspace. Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
-Build's **App structure → Edit on App Map** opens that same map, with a
+Build's compact **Edit on App Map** action opens that same map, with a
 dismissible hint highlighting the existing add-component and connection
 controls. The Guide's Build action opens it too; Connect retains its source
 review and offers **Edit connections on App Map**. These entry points do not
@@ -64,6 +64,8 @@ Each view fills the workspace rather than sharing it
 with an always-visible map. Guide owns workflow progress and the next useful
 action, independently of the active workspace. Its inline toggle collapses the panel
 to a 46px status rail at the far right instead of disappearing.
+The toggle stays at the same top-right position in both states, including
+when the expanded Guide overlays a narrow workspace.
 The rail retains Build, Connect, Run, and Observe icons with checkmarks,
 attention indicators, and descriptive tooltips. Selecting an icon expands
 Guide at that stage's explanation without changing workspaces.
@@ -181,18 +183,42 @@ not one universal template checklist. Dealer exposes its inline instructions in
 `src/agent/main.py`, actual Hosted Skills, web source, and other discovered
 implementations. Empty Unity exposes its prompt, starter runtime, and declared
 skill. Custom component paths reuse the same source discovery as the App Map.
-Source cards are collapsible, with the first file expanded by default, so larger
-apps do not open dozens of editors at once. Unknown apps get an explicit
+The **Discovered files** explorer groups these files into collapsible folders,
+with a filter matching paths and file roles, and indicators for unsaved drafts,
+pending saves, save failures, and unavailable files. Selecting a file opens one
+larger inline editor; the first available file is selected initially. Unknown apps get an explicit
 discovery/empty-state message rather than unrelated "Not implemented" cards.
-Every available file has a compact editable source box and an **Edit in Code** button
+The editor highlights source using its filename: Python, JavaScript/TypeScript
+(including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
+languages. Unknown extensions stay plain text. Highlighting follows the Studio
+theme, keeps native text selection and input, and never adds markup to saved files.
+Long lines scroll horizontally; high-contrast mode and active IME composition use
+readable native text. A tokenizer failure reports the problem and keeps plain-text
+editing available.
+The explorer can be hidden. Below 600px of available pane width, **Files** switches
+between the explorer and editor rather than squeezing them beside the Guide.
+Every available file has an editable source area and an **Edit in Code** button
 with a VS Code icon. The button opens the whole app worktree and the selected
 file together; it never silently saves an inline draft. Returning from Code
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
 Inline edits require **Review changes → Save reviewed changes**; saves reject
 stale versions and require the app to be stopped. Drafts survive switching between
-Build and Run/Debug in the same panel. Edits made while a reviewed save is pending
+files and between Build and Run/Debug in the same panel. Selection, folder
+expansion, and the filter also survive in-panel refreshes. Edits made while a reviewed save is pending
 remain unsaved drafts against the newly saved version, including when the panel
-is reopened before the save completes.
+is reopened before the save completes. Completing a save for another file never
+changes the current selection; its outcome remains available when that file is selected again.
+
+Syntax highlighting ships in `vendor/prism.mjs` with its MIT license; the canvas
+does not restore dependencies or fetch a highlighter from a CDN. To update the
+bundle, maintainers change the pinned `prismjs` development dependency and lockfile,
+then regenerate and commit the shipped files. These commands work in PowerShell
+and macOS/Linux shells:
+
+```shell
+npm ci --prefix canvases/unity-studio
+npm run vendor:syntax --prefix canvases/unity-studio
+```
 
 **Known discovery limitation (for design discussion):** this is best-effort
 recognition, not a universal file catalog or language-aware parser. Component

@@ -57,8 +57,8 @@ from links in the generated Markdown.
 | **Runtime selection** | [`config/runtime.json`](../../../config/runtime.json) | Selects local processing or separately configured ACA custom-container sandboxes; selection does not provision or deploy them |
 | **AI Gateway / model** | **Run & manage → AI model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
 
-**Build** provides compact editors for the instructions, document validation
-tool, contract, policy, and runtime settings. **Edit in Code** opens the whole
+**Build** provides a file explorer and one selected editor for the instructions,
+document validation tool, contract, policy, and runtime settings. **Edit in Code** opens the whole
 worktree and selected file; use the Code file tree for the harness and shared
 policy implementation. Inline saves require review, a stopped app, and an
 unchanged base version. Developer editing does not grant the runtime model write

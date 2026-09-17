@@ -265,10 +265,12 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.getByRole("button", { name: "Switch to dark mode" }).click();
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
     assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
-    assert.equal(await editor.evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
+    assert.equal(await page.locator(".build-source-editor").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(24, 45, 70)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(129, 186, 255)");
+    const expandedToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();
+    assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Collapsing Guide must not move its toggle");
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator("#action-center").getAttribute("title"), "Expand Guide");
     assert.equal(await page.locator("#action-center .guide-chevron").evaluate((el) => getComputedStyle(el).transform), "matrix(-1, 0, 0, 1, 0, 0)");
@@ -280,6 +282,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
     await page.locator("#action-center").click();
     assert.equal(await page.locator("#action-center").getAttribute("title"), "Collapse Guide");
+    assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Expanding Guide must not move its toggle");
     assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
 
     await editor.focus();
@@ -369,6 +372,20 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
           await page.getByRole("button", { name: "Dismiss app structure guidance", exact: true }).click();
           assert.equal(await page.locator("#graph-shell").evaluate((el) => el.classList.contains("structure-editing")), false);
           await openWorkspace("build");
+          await editor.waitFor();
+          const explorer = page.getByRole("navigation", { name: "Discovered files" });
+          const compact = width - 46 < 600;
+          assert.equal(await explorer.isVisible(), !compact);
+          assert.equal(await page.locator(".build-editor textarea").count(), 1);
+          assert.ok((await editor.boundingBox()).height >= 240);
+          if (compact) {
+            await page.locator("[data-build-files-toggle]").click();
+            assert.equal(await explorer.isVisible(), true);
+            assert.equal(await editor.isVisible(), false);
+            await page.locator('[data-file-id="instructions"]').click();
+            assert.equal(await editor.isVisible(), true);
+            assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+          }
         }
         await page.mouse.move(0, 0);
         if (mode === "map" || mode === "logs") await assertObserveSwitcher();
@@ -505,7 +522,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     preferenceFailure = false;
     await page.getByRole("button", { name: "Switch to light mode" }).click();
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
-    assert.equal(await editor.evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
+    assert.equal(await page.locator(".build-source-editor").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(231, 241, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(9, 105, 218)");
     assert.equal(await page.locator("#guide-content").isVisible(), false);
@@ -518,10 +535,13 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     }
     await page.locator("#build-app").click();
     await editor.waitFor();
+    const narrowToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();
     assert.ok(await page.locator("#guide-rail").isVisible());
     assert.ok((await page.locator("#guide-rail").boundingBox()).width <= 280);
+    assert.deepEqual(await page.locator("#action-center").boundingBox(), narrowToggleBounds, "The narrow Guide overlay must keep the toggle anchored");
     await page.locator("#action-center").click();
+    assert.deepEqual(await page.locator("#action-center").boundingBox(), narrowToggleBounds);
     assert.ok((await page.locator("#details").boundingBox()).width >= 333);
     await page.evaluate(() => localStorage.clear());
     await page.reload();

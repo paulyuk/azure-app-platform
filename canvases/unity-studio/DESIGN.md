@@ -198,8 +198,8 @@ the repository or subscription.
 ### Workspace and Guide
 
 The app interface has three main buttons: Build, Run & Debug, and Observe.
-Build introduces **App structure** before the source editors. Its **Edit on
-App Map** action opens the existing map with brief, dismissible guidance and
+Build places a compact **Edit on App Map** action above its file workspace.
+That action opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
 editor or perform a mutation. Guide's Build stage uses the same entry point.
 Connect preserves source-backed review, with an entry point to edit on the map.
@@ -236,6 +236,8 @@ Guide is a separate 280px right rail with evidence-derived progress and next
 actions. It updates on readiness changes without switching the main view,
 clearing map selection, or replacing Build/Run inputs. Its single toggle lives
 inside the rail, not in the workspace navigation, and retains focus when closing.
+Its top and right insets are identical in both states, so it does not move when
+the rail expands or collapses, including in the narrow overlay.
 Collapsed Guide occupies 46px and shows stable stage icons with non-color state
 symbols and descriptive tooltips/accessibility labels. Clicking a stage expands
 Guide and focuses its explanation without changing the selected workspace.
@@ -264,8 +266,27 @@ agent instructions remain in their original runtime file; the editor does not
 extract or rewrite Python strings to manufacture a prompt file. Generic artifact
 IDs are bound to file paths, and read, Code-open, and reviewed-save operations
 resolve the same catalog. Inventory changes cannot redirect an existing draft.
-Generic source cards are collapsible; their open state and drafts survive
-in-panel refreshes. Only document-capable profiles show document-test copy and
+Both profiles use a left **Discovered files** explorer and one selected editor.
+The explorer uses native collapsible folders, compacts single-child folder
+paths, filters paths and file roles, and shows explicit unsaved/saving/error/
+unavailable states. Paths disambiguate repeated filenames. Selection, folder
+expansion, filter text, and drafts survive in-panel refreshes and workspace switches.
+The explorer can be hidden; below 600px of available pane width it replaces,
+rather than crowds, the editor. Choosing a file returns focus to the editor.
+Explorer surfaces use Studio-owned theme tokens, not the host's background
+tokens, so choosing light mode inside a dark host retains readable labels.
+The editor provides the file's purpose, full path, and a consistent action bar.
+Filename-selected syntax highlighting uses a shipped, licensed Prism bundle,
+not a runtime dependency or CDN. A noninteractive, accessibility-hidden color
+layer mirrors a native textarea without rewriting its value or selection.
+Both layers use identical monospace metrics and synchronized horizontal/vertical
+scrolling. Unknown file types remain plain text. Theme changes recolor tokens;
+forced-color mode and IME composition retain readable native input. Highlighting
+failures surface an explicit error and fall back to editable plain text.
+App structure and Run/Debug actions remain available above the workspace,
+including during discovery failures and empty states. Discovery caveats live
+in an expandable footer; file-specific errors remain beside the selected file.
+Only document-capable profiles show document-test copy and
 runtime selection. Missing expected document files and unsupported/empty
 discovery have distinct explanations, not a blanket "Not implemented" status.
 Discovery coverage is heuristic: a component path does not identify every
@@ -276,10 +297,13 @@ support; see README's discovery limitation and discussion with Paul.
 Source edits use a content hash and atomic replacement, reject symlink targets,
 and require a stopped app. The editor preserves drafts until an explicit review
 and save. Every available artifact, including operator policy and tool contracts,
-is editable by the developer in a compact box. Edit in Code resolves an allowlisted,
+is editable by the developer in the selected editor. Edit in Code resolves an allowlisted,
 non-symlink artifact, then opens the whole worktree and the file in VS Code.
 Returning focus refreshes saved source without overwriting pending inline drafts;
 drafts retain their original base hash even across reloads within the panel.
+Completing an offscreen save updates that file's status without refreshing the
+current editor or changing selection. Save outcomes remain associated with the
+file so switching away cannot hide a failed save.
 The runtime model has no access to this loopback authoring API.
 
 Document tests and invocations use an owned local agent endpoint and omit document

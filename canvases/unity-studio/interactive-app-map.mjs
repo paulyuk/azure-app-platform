@@ -4,6 +4,7 @@ import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
@@ -626,11 +627,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #guide-rail[data-collapsed="true"] { flex-basis: 46px; width: 46px; }
     #guide-rail[data-collapsed="true"] .guide-heading { padding: 6px 5px; border-bottom: 0; }
     #guide-rail[data-collapsed="true"] .guide-heading h2 { display: none; }
-    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 5px 6px 14px; border-bottom: 1px solid var(--border); }
     #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
     .guide-panel-icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
     .guide-chevron { transform-origin: 8px 10px; }
-    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 6px; border: 0; background: transparent; flex: none; }
+    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: auto; padding: 6px; border: 0; background: transparent; flex: none; }
     #action-center:hover { background: var(--surface-muted); }
     #action-center[aria-expanded="false"] .guide-chevron { transform: scaleX(-1); }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
@@ -1045,8 +1046,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const autoGatewayAttempts = new Set();
     let panelMode = "build";
     let observeView = "map";
+    ${BUILD_SYNTAX_SCRIPT}
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest,
+      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax,
       isActive: () => panelMode === "build",
       onRun: () => {
         renderManagePanel();
