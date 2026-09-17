@@ -213,7 +213,7 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
       await page.locator(`[data-area-id="${area}"] [data-file-id="${id}"]`).click();
     };
     await instructions.getByRole("textbox").waitFor();
-    const customizations = page.getByRole("navigation", { name: "Customization areas" });
+    const customizations = page.getByRole("navigation", { name: "Key files" });
     assert.deepEqual(await customizations.locator("[data-area-id]").evaluateAll((buttons) =>
       buttons.map((button) => button.dataset.areaId)), ["behavior", "tools", "runtime", "policies"]);
     assert.equal(await page.locator('[data-artifact="unknown-area"], [data-artifact="unavailable"]').count(), 0);

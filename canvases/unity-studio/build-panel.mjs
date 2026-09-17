@@ -260,7 +260,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       explorerReopen.append(filesToggle);
       explorerReopen.hidden = false;
     }
-    const label = visible ? (compact ? "Back to customization" : "Hide customizations") : "Show customizations";
+    const label = visible ? (compact ? "Back to file" : "Hide key files") : "Show key files";
     filesToggle.setAttribute("aria-label", label);
     filesToggle.title = label;
     const toggleIcon = visible
@@ -833,7 +833,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
       if (!artifacts.length) {
         const empty = element("section", undefined, container, "build-empty");
-        element("h2", "Customize your app", empty);
+        element("h2", "Key files", empty);
         element("p", "No supported customization points were found. Open the project in your editor for source changes; Build only shows recognized decision points.", empty);
         const open = button(empty, "Open in " + selectedEditorLabel(), async () => {
           open.disabled = true;
@@ -854,11 +854,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       workspace = element("div", undefined, container, "build-workspace");
       explorer = element("nav", undefined, workspace, "build-explorer");
       explorer.id = "build-explorer";
-      explorer.setAttribute("aria-label", "Customization areas");
+      explorer.setAttribute("aria-label", "Key files");
       const explorerHeader = element("div", undefined, explorer, "build-explorer-header");
       explorerTitle = element("div", undefined, explorerHeader, "build-explorer-title");
-      element("h3", "Customize", explorerTitle);
-      filesToggle = button(explorerTitle, "Hide customizations", () => {
+      element("h3", "Key files", explorerTitle);
+      filesToggle = button(explorerTitle, "Hide key files", () => {
         if (isCompact()) compactFilesVisible = !compactFilesVisible;
         else explorerCollapsed = !explorerCollapsed;
         updateExplorerVisibility();
@@ -876,7 +876,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       explorerSplitter.tabIndex = 0;
       explorerSplitter.setAttribute("role", "separator");
       explorerSplitter.setAttribute("aria-orientation", "vertical");
-      explorerSplitter.setAttribute("aria-label", "Resize customization areas");
+      explorerSplitter.setAttribute("aria-label", "Resize key files");
       explorerSplitter.title = "Drag to resize navigation. Arrow keys also adjust the width.";
       let resize;
       function endResize(pointerId, releaseCapture) {

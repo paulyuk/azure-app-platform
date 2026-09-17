@@ -386,7 +386,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
           assert.equal(await page.locator("#graph-shell").evaluate((el) => el.classList.contains("structure-editing")), false);
           await openWorkspace("build");
           await editor.waitFor();
-          const explorer = page.getByRole("navigation", { name: "Customization areas" });
+          const explorer = page.getByRole("navigation", { name: "Key files" });
           const compact = width - 46 < 600;
           assert.equal(await explorer.isVisible(), !compact);
           assert.equal(await page.locator(".build-editor textarea").count(), 1);

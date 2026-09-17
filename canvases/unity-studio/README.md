@@ -186,7 +186,7 @@ not one universal template checklist. Its left navigation presents only supporte
 customization areas backed by available source: **Agent behavior**, **Tools &
 contracts**, **Runtime**, and **Policies & limits**. Agent behavior appears first
 when available. Each area is a heading with its relevant files listed directly
-underneath in **Customize**. Click a file to open it; the selected row is
+underneath in **Key files**. Click a file to open it; the selected row is
 highlighted, with parent paths distinguishing repeated filenames. There is no
 file dropdown in the editor pane. Files show their own unsaved, saving, and
 save-failure indicators, and headings aggregate those states even when collapsed.

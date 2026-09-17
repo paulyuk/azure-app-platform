@@ -97,7 +97,7 @@ test("Build customization areas and static review follow Studio themes inside an
     for (const width of [1000, 420]) {
       await page.setViewportSize({ width, height: 800 });
       await page.waitForFunction((compact) => document.querySelector(".build-workspace")?.dataset.compact === String(compact), width < 600);
-      const explorer = page.getByRole("navigation", { name: "Customization areas" });
+      const explorer = page.getByRole("navigation", { name: "Key files" });
       const toggle = page.locator("[data-build-files-toggle]");
       if (!await explorer.isVisible()) await toggle.click();
       let lightReviewBackgrounds;
@@ -169,7 +169,7 @@ test("Build customization areas and static review follow Studio themes inside an
     await page.setViewportSize({ width: 1000, height: 800 });
     await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "false");
     await page.emulateMedia({ forcedColors: "active" });
-    const splitter = page.getByRole("separator", { name: "Resize customization areas" });
+    const splitter = page.getByRole("separator", { name: "Resize key files" });
     assert.equal(await splitter.isVisible(), true);
     assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::before").backgroundColor), "rgba(0, 0, 0, 0)");
     assert.equal(await page.getByRole("combobox", { name: "Supported editor" }).isVisible(), true);
@@ -190,7 +190,7 @@ test("Build customization areas and static review follow Studio themes inside an
     await page.emulateMedia({ forcedColors: "none" });
     await page.setViewportSize({ width: 420, height: 800 });
     await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "true");
-    const compactExplorer = page.getByRole("navigation", { name: "Customization areas" });
+    const compactExplorer = page.getByRole("navigation", { name: "Key files" });
     if (!await compactExplorer.isVisible()) await page.locator("[data-build-files-toggle]").click();
     await compactExplorer.locator('[data-file-id="runtime"]').click();
     const runtimeHeading = page.getByRole("heading", { name: "Runtime", level: 3 });

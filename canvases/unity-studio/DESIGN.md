@@ -279,7 +279,7 @@ navigation items. This is a UI projection of the existing authorized catalog,
 not a broader filesystem API or proof that a runtime loads a recognized file.
 
 Each area is a native details/summary disclosure above an indented list of file buttons in
-Customize, not another selection step or dropdown in the editor. File icons and
+Key files, not another selection step or dropdown in the editor. File icons and
 names lead; parent paths disambiguate repeated filenames. Only the selected
 file row is highlighted. Each file exposes its own unsaved/saving/error state,
 and its heading aggregates those states even while collapsed. A chevron indicates

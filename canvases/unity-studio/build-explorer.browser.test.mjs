@@ -77,14 +77,14 @@ test("Build lists files under customization headings, preserves file drafts and 
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const editor = page.locator(".build-editor textarea");
-    const explorer = page.getByRole("navigation", { name: "Customization areas" });
+    const explorer = page.getByRole("navigation", { name: "Key files" });
     const file = (id) => page.locator(`[data-file-id="${id}"]`);
     const chooseFile = (id) => file(id).click();
     const tools = explorer.locator('[data-area-id="tools"]');
     const toolsHeading = tools.locator("summary");
     const toggle = page.locator("[data-build-files-toggle]");
     const rail = page.locator(".build-explorer-reopen");
-    const splitter = page.getByRole("separator", { name: "Resize customization areas" });
+    const splitter = page.getByRole("separator", { name: "Resize key files" });
     const assertFilesRail = async () => {
       const railBounds = await rail.boundingBox();
       const workspaceBounds = await page.locator(".build-workspace").boundingBox();
@@ -100,6 +100,7 @@ test("Build lists files under customization headings, preserves file drafts and 
       assert.equal(await splitter.isVisible(), false);
     };
     await editor.waitFor();
+    assert.equal(await explorer.getByRole("heading", { name: "Key files", exact: true }).count(), 1);
     assert.equal(await editor.inputValue(), "Source for agent");
     assert.equal(await page.getByRole("textbox").count(), 1);
     assert.deepEqual(await explorer.locator("[data-area-id]").evaluateAll((items) => items.map((item) => item.dataset.areaId)), ["behavior", "tools", "runtime"]);
@@ -160,8 +161,8 @@ test("Build lists files under customization headings, preserves file drafts and 
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
     assert.ok(await explorer.evaluate((el) => el.scrollHeight <= el.clientHeight), "Implementation files must not crowd the decision list");
-    assert.equal(await toggle.getAttribute("aria-label"), "Hide customizations");
-    assert.equal(await toggle.getAttribute("title"), "Hide customizations");
+    assert.equal(await toggle.getAttribute("aria-label"), "Hide key files");
+    assert.equal(await toggle.getAttribute("title"), "Hide key files");
     assert.equal(await toggle.textContent(), "");
     assert.equal(await toggle.locator('svg[aria-hidden="true"]').count(), 1);
     assert.equal((await toggle.boundingBox()).width, 28);
@@ -297,8 +298,8 @@ test("Build lists files under customization headings, preserves file drafts and 
     await toggle.click();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(await toggle.getAttribute("aria-label"), "Show customizations");
-    assert.equal(await toggle.getAttribute("title"), "Show customizations");
+    assert.equal(await toggle.getAttribute("aria-label"), "Show key files");
+    assert.equal(await toggle.getAttribute("title"), "Show key files");
     assert.equal(await toggle.textContent(), "");
     await assertFilesRail();
     assert.equal(await page.locator("[data-build-files-toggle]").count(), 1);
