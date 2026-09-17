@@ -602,3 +602,7 @@ It copies only the plugin payload into a path containing spaces, excludes
 unrelated workspace, and materializes both local templates. Only the SDK host
 registration boundary is stubbed; this does not replace testing actual plugin
 installation in GitHub Copilot. CI runs it on Linux, macOS, and Windows.
+Workspace authorization uses the canonical filesystem path, so aliases such as
+Windows short paths do not reject the workspace itself. The smoke check also
+exercises a noncanonical session path and verifies that parent directories and
+unregistered subdirectories remain unauthorized.

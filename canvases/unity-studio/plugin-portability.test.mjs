@@ -85,7 +85,10 @@ test("installed payload opens and materializes templates without checkout depend
       assert.equal(globalThis.portabilityCanvases.length, 1);
       const [canvas] = globalThis.portabilityCanvases;
       assert.equal(canvas.id, "unity-studio");
-      const context = { instanceId: "portable-smoke", input: {} };
+      const context = {
+        instanceId: "portable-smoke", input: {},
+        session: { workingDirectory: process.cwd() + sep + "." },
+      };
       try {
         const opened = await canvas.open(context);
         assert.equal(new URL(opened.url).hostname, "127.0.0.1");
@@ -160,14 +163,27 @@ test("installed payload opens and materializes templates without checkout depend
         await mkdir("src/tools/document-validation", { recursive: true });
         await writeFile("src/agent/prompts/system.md", "Use the tool.\\n\\n");
         const build = await api("/api/build-workspace?root=.");
-        assert.equal(build.status, 200);
         const state = await build.json();
+        assert.equal(build.status, 200, JSON.stringify(state));
+        const canonicalContext = {
+          ...context, session: { workingDirectory: await realpath(process.cwd()) },
+        };
+        assert.equal((await canvas.open(canonicalContext)).url, opened.url);
+        const outside = await api("/api/build-workspace?root=..");
+        assert.equal(outside.ok, false);
+        assert.match((await outside.json()).error, /must stay within the current workspace/);
+        const unregistered = await api("/api/build-workspace?root=src");
+        assert.equal(unregistered.ok, false);
+        assert.match((await unregistered.json()).error, /not an authorized app workspace/);
         assert.equal(state.editorSettings.editorId, "cursor");
         const artifact = state.artifacts.find((item) => item.id === "instructions");
         const reviewInput = { root: ".", id: artifact.id, baseSha: artifact.sha, content: "Use the trusted tool.\\n\\n" };
         const review = await api("/api/build-diff", reviewInput);
-        assert.equal(review.status, 200);
         const diff = await review.json();
+        assert.equal(review.status, 200, JSON.stringify(diff));
+        const outsideReview = await api("/api/build-diff", { ...reviewInput, root: ".." });
+        assert.equal(outsideReview.ok, false);
+        assert.match((await outsideReview.json()).error, /must stay within the current workspace/);
         assert.equal(diff.baseSha, artifact.sha);
         assert.equal(diff.additions, 1);
         assert.equal(diff.deletions, 1);

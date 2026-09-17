@@ -1923,7 +1923,7 @@ const canvas = createCanvas({
     },
   ],
   open: async (ctx) => {
-    const workspaceRoot = ctx.session?.workingDirectory ?? process.cwd();
+    const workspaceRoot = await realpath(ctx.session?.workingDirectory ?? process.cwd());
     let entry = servers.get(ctx.instanceId);
     if (!entry || entry.workspaceRoot !== workspaceRoot) {
       if (entry) {
