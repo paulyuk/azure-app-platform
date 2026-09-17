@@ -4,16 +4,24 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] { display:flex; flex-direction:column; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
 #details[data-mode="build"] h2 { margin:0; font-size:16px; }
 #details[data-mode="build"] p { color:var(--text-color-muted,#6a6775); font-size:12px; }
-#details[data-mode="build"] .build-header { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border-color-default,#ddd); }
-#details[data-mode="build"] .build-header h2 { margin-right:auto; }
-#details[data-mode="build"] .build-header .build-actions { margin:0; }
-#details[data-mode="build"] .build-workspace { display:grid; grid-template-columns:220px minmax(0,1fr); flex:1; min-height:320px; }
+#details[data-mode="build"] .build-workspace { --build-explorer-width:220px; position:relative; display:grid; grid-template-columns:var(--build-explorer-width) 8px minmax(0,1fr); flex:1; min-height:320px; }
 #details[data-mode="build"] .build-workspace[data-files-visible="false"],
 #details[data-mode="build"] .build-workspace[data-compact="true"] { grid-template-columns:minmax(0,1fr); }
-#details[data-mode="build"] .build-explorer { min-width:0; min-height:0; overflow:auto; border-right:1px solid var(--border-color-default,#ddd); background:var(--surface-muted,var(--background-color-default,#fff)); }
-#details[data-mode="build"] .build-workspace[data-compact="true"] .build-explorer { border-right:0; }
+#details[data-mode="build"] .build-explorer { min-width:0; min-height:0; overflow:auto; background:var(--surface-muted,var(--background-color-default,#fff)); }
 #details[data-mode="build"] .build-explorer-header { position:sticky; top:0; z-index:1; padding:12px; background:inherit; }
-#details[data-mode="build"] .build-explorer h3 { margin:0 0 8px; font-size:12px; }
+#details[data-mode="build"] .build-explorer-title { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+#details[data-mode="build"] .build-explorer h3 { min-width:0; margin:0; font-size:12px; }
+#details[data-mode="build"] .build-files-toggle { min-height:28px; padding:4px 7px; font-size:11px; }
+#details[data-mode="build"] .build-explorer-reopen { position:absolute; inset-block-start:8px; inset-inline-start:8px; z-index:2; }
+#details[data-mode="build"] .build-workspace[data-files-visible="false"] .build-editor { padding-top:52px; }
+#details[data-mode="build"] .build-splitter { position:relative; min-width:8px; cursor:col-resize; touch-action:none; user-select:none; }
+#details[data-mode="build"] .build-splitter::before { content:""; position:absolute; inset-block:0; inset-inline-start:3px; width:1px; background:var(--border-color-default,#ddd); }
+#details[data-mode="build"] .build-splitter::after { content:""; position:absolute; inset-block-start:50%; inset-inline-start:2px; width:4px; height:4px; border-radius:50%; color:var(--text-color-muted,#6a6775); background:currentColor; box-shadow:0 -7px 0 currentColor,0 7px 0 currentColor; transform:translateY(-50%); }
+#details[data-mode="build"] .build-splitter:hover::before,
+#details[data-mode="build"] .build-splitter:focus-visible::before { inset-inline-start:2px; width:3px; background:var(--true-color-blue,#007acc); }
+#details[data-mode="build"] .build-splitter:hover::after,
+#details[data-mode="build"] .build-splitter:focus-visible::after { color:var(--true-color-blue,#007acc); }
+#details[data-mode="build"] .build-workspace[data-resizing="true"] { cursor:col-resize; user-select:none; }
 #details[data-mode="build"] .build-filter { display:flex; align-items:center; gap:4px; }
 #details[data-mode="build"] input[type="search"] { ${FORM_CONTROL_STYLE} width:100%; min-width:0; }
 #details[data-mode="build"] input[type="search"]::placeholder { color:var(--text-color-muted,#6a6775); opacity:1; }
@@ -41,12 +49,34 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-actions { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
 #details[data-mode="build"] button { ${ACTION_BUTTON_STYLE} }
 #details[data-mode="build"] :is(button,input,textarea,select,summary):focus-visible { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
-#details[data-mode="build"] .code-edit { color:var(--true-color-blue,#007acc); border-color:currentColor; }
+#details[data-mode="build"] .code-edit { color:var(--true-color-blue,#007acc); border-color:currentColor; background:var(--background-color-default,#fff); }
 #details[data-mode="build"] .code-edit svg { width:16px; height:16px; flex:none; fill:currentColor; }
+#details[data-mode="build"] .build-editor-controls { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
+#details[data-mode="build"] .build-editor-controls .build-editor-select { width:auto; max-width:180px; min-height:32px; padding-block:5px; }
+#details[data-mode="build"] .build-editor-feedback { flex-basis:100%; margin:0; font-size:11px; }
 #details[data-mode="build"] textarea, #details[data-mode="build"] select { width:100%; min-width:0; box-sizing:border-box; padding:10px; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); }
 #details[data-mode="build"] textarea { flex:1; min-height:240px; resize:vertical; tab-size:2; font:12px/1.6 var(--font-mono,monospace); }
 #details[data-mode="build"] select { ${FORM_CONTROL_STYLE} }
 #details[data-mode="build"] pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:300px; overflow:auto; font:12px/1.5 var(--font-mono,monospace); padding:10px; border:1px solid var(--border-color-default,#ddd); border-radius:8px; }
+#details[data-mode="build"] .build-review { display:flex; flex:1; flex-direction:column; min-width:0; min-height:240px; }
+#details[data-mode="build"] .build-review-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+#details[data-mode="build"] .build-review-summary { display:flex; gap:10px; margin-inline-start:auto; font:11px/1.4 var(--font-mono,monospace); }
+#details[data-mode="build"] .build-review-additions { color:var(--true-color-green,#137333); }
+#details[data-mode="build"] .build-review-deletions { color:var(--true-color-red,#c43232); }
+#details[data-mode="build"] .build-diff { flex:1; min-width:0; min-height:240px; overflow:auto; border:1px solid var(--border-color-default,#ddd); border-radius:8px; color:var(--text-color-default,#222); background:var(--background-color-default,#fff); font:12px/1.6 var(--font-mono,monospace); }
+#details[data-mode="build"] .build-diff-hunk { width:max-content; min-width:100%; }
+#details[data-mode="build"] .build-diff-hunk-header { box-sizing:border-box; min-width:100%; padding:5px 8px; color:var(--true-color-blue,#007acc); background:var(--surface-muted,var(--background-color-default,#fff)); border-block:1px solid var(--border-color-default,#ddd); white-space:pre; }
+#details[data-mode="build"] .build-diff-hunk:first-child .build-diff-hunk-header { border-top:0; }
+#details[data-mode="build"] .build-diff-row { display:grid; grid-template-columns:6ch 6ch 2ch auto; width:max-content; min-width:100%; }
+#details[data-mode="build"] .build-diff-line-number { padding:0 5px; color:var(--text-color-muted,#6a6775); background:var(--surface-muted,var(--background-color-default,#fff)); text-align:right; user-select:none; }
+#details[data-mode="build"] .build-diff-marker { padding-inline:4px; text-align:center; user-select:none; }
+#details[data-mode="build"] .build-diff-text { min-width:40ch; padding-inline-end:12px; white-space:pre; direction:ltr; text-align:left; }
+#details[data-mode="build"] .build-diff-removed { background:color-mix(in srgb,var(--true-color-red,#c43232) 14%,var(--background-color-default,#fff)); }
+#details[data-mode="build"] .build-diff-added { background:color-mix(in srgb,var(--true-color-green,#137333) 14%,var(--background-color-default,#fff)); }
+#details[data-mode="build"] .build-diff-removed .build-diff-marker,
+#details[data-mode="build"] .build-diff-added .build-diff-marker { color:var(--text-color-default,#222); font-weight:700; }
+#details[data-mode="build"] .build-diff-notice { color:var(--text-color-muted,#6a6775); font-style:italic; }
+#details[data-mode="build"] .build-diff-gap { box-sizing:border-box; min-width:100%; padding:4px 10px; border-block:1px dashed var(--border-color-default,#ddd); color:var(--text-color-muted,#6a6775); background:var(--surface-muted,var(--background-color-default,#fff)); font:11px/1.4 var(--font-sans,system-ui); text-align:center; }
 #details[data-mode="build"] .build-source-editor { position:relative; flex:1; min-height:240px; overflow:hidden; border:1px solid var(--border-color-default,#ddd); border-radius:8px; background:var(--background-color-default,#fff); }
 #details[data-mode="build"] .build-source-editor:focus-within { outline:2px solid var(--true-color-blue,#007acc); outline-offset:2px; }
 #details[data-mode="build"] .build-source-editor :is(textarea,.build-highlight) { position:absolute; inset:0; box-sizing:border-box; border:0; border-radius:0; margin:0; padding:12px; white-space:pre; overflow-wrap:normal; tab-size:4; font:12px/1.6 var(--font-mono,monospace); font-variant-ligatures:none; letter-spacing:normal; text-align:left; direction:ltr; }
@@ -63,9 +93,19 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-source-editor:is([data-highlight="false"],[data-composing="true"]) textarea { color:var(--text-color-default,#222); }
 #details[data-mode="build"] .build-source-editor:is([data-highlight="false"],[data-composing="true"]) .build-highlight { visibility:hidden; }
 @media (forced-colors:active) {
+  #details[data-mode="build"] .build-splitter::before { background:ButtonText; }
+  #details[data-mode="build"] .build-splitter::after { color:ButtonText; }
+  #details[data-mode="build"] .build-splitter:hover::before,
+  #details[data-mode="build"] .build-splitter:focus-visible::before { background:Highlight; }
+  #details[data-mode="build"] .build-splitter:hover::after,
+  #details[data-mode="build"] .build-splitter:focus-visible::after { color:Highlight; }
   #details[data-mode="build"] .build-source-editor textarea { color:CanvasText; caret-color:CanvasText; }
   #details[data-mode="build"] .build-source-editor textarea::selection { color:HighlightText; background:Highlight; }
   #details[data-mode="build"] .build-source-editor .build-highlight { visibility:hidden; }
+  #details[data-mode="build"] .build-diff-removed,
+  #details[data-mode="build"] .build-diff-added { background:Canvas; }
+  #details[data-mode="build"] .build-diff-removed .build-diff-marker,
+  #details[data-mode="build"] .build-diff-added .build-diff-marker { color:CanvasText; }
 }
 #details[data-mode="build"] .build-warning { color:var(--true-color-orange,#a66700); }
 #details[data-mode="build"] .build-error { color:var(--true-color-red,#c43232); }
@@ -73,12 +113,36 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] [hidden] { display:none; }
 `;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onStructure, syntax }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings }) {
+  const supportedEditors = [
+    { id: "vscode", label: "VS Code" },
+    { id: "vscode-insiders", label: "VS Code Insiders" },
+    { id: "cursor", label: "Cursor" },
+    { id: "windsurf", label: "Windsurf" },
+    { id: "zed", label: "Zed" },
+    { id: "sublime", label: "Sublime Text" },
+  ];
+  function normalizeEditorSettings(settings) {
+    const allowed = new Map(supportedEditors.map((editor) => [editor.id, editor]));
+    const editors = Array.isArray(settings?.editors)
+      ? settings.editors.filter((editor) => allowed.has(editor?.id)).map((editor) => allowed.get(editor.id))
+      : supportedEditors;
+    const choices = editors.length ? editors : supportedEditors;
+    return {
+      editorId: choices.some((editor) => editor.id === settings?.editorId) ? settings.editorId : choices[0].id,
+      editors: choices,
+    };
+  }
   const drafts = new Map();
   const pendingSaves = new Set();
+  const pendingEditorLaunches = new Set();
   const collapsedFolders = new Set();
   const saveFeedback = new Map();
   const fileButtons = new Map();
+  const explorerMinWidth = 176;
+  const explorerMaxWidth = 460;
+  const editorMinWidth = 320;
+  const splitterWidth = 8;
   let artifacts = [];
   let supportsDocuments = false;
   let loadVersion = 0;
@@ -86,7 +150,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   let filter = "";
   let explorerCollapsed = false;
   let compactFilesVisible = false;
+  let explorerPreferredWidth = 220;
+  let confirmedEditorSettings = normalizeEditorSettings(initialEditorSettings);
+  let currentEditorSettings = confirmedEditorSettings;
+  let editorSettingsSaving = false;
+  let editorSettingsVersion = 0;
+  let editorSettingsFeedback;
   let workspace, explorer, editorPane, fileList, fileCount, filterInput, filesToggle;
+  let explorerTitle, explorerReopen, explorerSplitter;
   let sourceLayoutObserver;
   function element(tag, text, parent, className) {
     const node = document.createElement(tag);
@@ -107,7 +178,51 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     node.setAttribute("role", "alert");
     node.textContent = message;
   }
+  function selectedEditorLabel() {
+    return currentEditorSettings.editors.find((editor) => editor.id === currentEditorSettings.editorId)?.label
+      ?? supportedEditors.find((editor) => editor.id === currentEditorSettings.editorId)?.label
+      ?? "editor";
+  }
+  function updateEditorControls() {
+    for (const select of container.querySelectorAll("[data-editor-select]")) {
+      select.replaceChildren();
+      for (const editor of currentEditorSettings.editors) {
+        const option = element("option", editor.label, select);
+        option.value = editor.id;
+      }
+      select.value = currentEditorSettings.editorId;
+      select.disabled = editorSettingsSaving;
+    }
+    for (const control of container.querySelectorAll("[data-editor-launch]")) {
+      const label = control.querySelector(".build-editor-launch-label");
+      if (label) label.textContent = "Open in " + selectedEditorLabel();
+      control.disabled = editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId);
+    }
+    for (const feedback of container.querySelectorAll("[data-editor-feedback]")) {
+      feedback.textContent = editorSettingsFeedback?.message ?? "";
+      feedback.hidden = !editorSettingsFeedback?.message;
+      if (editorSettingsFeedback?.error) feedback.setAttribute("role", "alert");
+      else feedback.removeAttribute("role");
+    }
+  }
   function isCompact() { return container.getBoundingClientRect().width < 600; }
+  function availableExplorerWidth() {
+    if (!workspace?.isConnected) return explorerMaxWidth;
+    return Math.max(explorerMinWidth, Math.min(explorerMaxWidth,
+      workspace.clientWidth - editorMinWidth - splitterWidth));
+  }
+  function applyExplorerWidth() {
+    if (!workspace?.isConnected) return;
+    const maximum = availableExplorerWidth();
+    const effective = Math.min(Math.max(explorerPreferredWidth, explorerMinWidth), maximum);
+    workspace.style.setProperty("--build-explorer-width", effective + "px");
+    if (explorerSplitter) {
+      explorerSplitter.setAttribute("aria-valuemin", String(explorerMinWidth));
+      explorerSplitter.setAttribute("aria-valuemax", String(Math.round(maximum)));
+      explorerSplitter.setAttribute("aria-valuenow", String(Math.round(effective)));
+      explorerSplitter.setAttribute("aria-valuetext", `${Math.round(effective)} pixels`);
+    }
+  }
   function updateExplorerVisibility() {
     if (!workspace?.isConnected || !isActive()) return;
     const compact = isCompact();
@@ -116,8 +231,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     workspace.dataset.filesVisible = String(visible);
     explorer.hidden = !visible;
     editorPane.hidden = compact && visible;
-    filesToggle.textContent = visible ? (compact ? "Back to editor" : "Hide files") : "Files";
+    explorerSplitter.hidden = compact || !visible;
+    if (visible) {
+      explorerTitle.append(filesToggle);
+      explorerReopen.hidden = true;
+    } else {
+      explorerReopen.append(filesToggle);
+      explorerReopen.hidden = false;
+    }
+    filesToggle.textContent = visible ? (compact ? "Back to editor" : "Hide files") : "Show files";
     filesToggle.setAttribute("aria-expanded", String(visible));
+    applyExplorerWidth();
   }
   function updateFileStates() {
     for (const artifact of artifacts) {
@@ -284,17 +408,22 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       else drafts.set(artifact.id, {
         content: editor.value, baseSha: drafts.get(artifact.id)?.baseSha ?? artifact.sha,
       });
-      discard.hidden = !drafts.has(artifact.id);
+      updateDiscardVisibility();
       saveFeedback.delete(artifact.id);
       updateFileStates();
       queueHighlight();
     }
     editor.addEventListener("input", rememberDraft);
-    const code = button(actions, "Edit in Code", async () => {
-      code.disabled = true;
+    const editorControls = element("div", undefined, actions, "build-editor-controls");
+    const editorSelect = element("select", undefined, editorControls, "build-editor-select");
+    editorSelect.dataset.editorSelect = "true";
+    editorSelect.setAttribute("aria-label", "Supported editor");
+    const code = button(editorControls, "", async () => {
+      pendingEditorLaunches.add(artifact.id);
+      updateEditorControls();
       error(card, "");
       try {
-        await request("/api/open-build-file", {
+        const opened = await request("/api/open-build-file", {
           method: "POST", body: JSON.stringify({ root, id: artifact.id }),
         });
         let notice = card.querySelector("[data-editor-notice]");
@@ -302,95 +431,275 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
           notice = element("p", "", card);
           notice.dataset.editorNotice = "true";
         }
-        notice.textContent = "Opened the worktree and file in VS Code." +
+        notice.textContent = "Opened the worktree and file in " + (opened.editorLabel || selectedEditorLabel()) + "." +
           (drafts.has(artifact.id) ? " Your inline draft has not been saved." : "");
       } catch (cause) { error(card, cause.message); }
-      finally { code.disabled = false; }
+      finally {
+        pendingEditorLaunches.delete(artifact.id);
+        updateEditorControls();
+      }
     });
     code.className = "code-edit";
+    code.dataset.editorLaunch = "true";
+    code.dataset.artifactId = artifact.id;
     const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     icon.setAttribute("viewBox", "0 0 24 24");
     icon.setAttribute("aria-hidden", "true");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("fill-rule", "evenodd");
-    path.setAttribute("d", "M17.5 2 7.7 10.1 3.8 7.2 2 8.2v7.6l1.8 1 3.9-2.9L17.5 22 22 20V4zM17.5 7.5v9l-6-4.5zM4 10l2.7 2L4 14z");
+    path.setAttribute("d", "M8.7 5.3 2 12l6.7 6.7 1.4-1.4L4.8 12l5.3-5.3zm6.6 0-1.4 1.4 5.3 5.3-5.3 5.3 1.4 1.4L22 12z");
     icon.append(path);
     code.prepend(icon);
-    const review = element("div", undefined, card);
-    const reviewChanges = button(actions, "Review changes", () => {
-        if (pendingSaves.has(artifact.id)) return;
-        review.replaceChildren();
-        if (drafts.get(artifact.id)?.baseSha && drafts.get(artifact.id).baseSha !== artifact.sha) {
-          error(card, "The saved file changed while you had an inline draft. Discard the draft and reload before editing again.");
-          return;
-        }
-        if (editor.value === artifact.content) {
-          element("p", "No changes to review.", review);
-          return;
-        }
-        const reviewed = editor.value;
-        element("strong", "Current source", review);
-        element("pre", artifact.content, review);
-        element("strong", "Proposed source", review);
-        element("pre", reviewed, review);
-        if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) element("p", "Developer enforcement change. Test before use and rebuild cloud images before deployment.", review, "build-warning");
-        const save = button(review, "Save reviewed changes", async () => {
-          if (editor.value !== reviewed) {
-            error(card, "The draft changed. Review it again before saving.");
-            return;
-          }
-          if (pendingSaves.has(artifact.id)) return;
-          pendingSaves.add(artifact.id);
-          saveFeedback.delete(artifact.id);
-          error(card, "");
-          updateFileStates();
-          save.disabled = true;
-          reviewChanges.disabled = discard.disabled = true;
-          try {
-            const updated = await request("/api/build-file", {
-              method: "POST", body: JSON.stringify({ root, id: artifact.id, baseSha: drafts.get(artifact.id)?.baseSha ?? artifact.sha, content: reviewed }),
-            });
-            Object.assign(artifact, updated);
-            const currentArtifact = artifacts.find((item) => item.id === artifact.id);
-            if (currentArtifact) Object.assign(currentArtifact, updated);
-            const draft = drafts.get(artifact.id);
-            if (draft && draft.content !== updated.content) {
-              drafts.set(artifact.id, { ...draft, baseSha: updated.sha });
-            } else {
-              drafts.delete(artifact.id);
-            }
-            discard.hidden = !drafts.has(artifact.id);
-            review.replaceChildren();
-            const message = "Saved. Restart the app for runtime/code changes; rebuild cloud images before deployment." +
-              (drafts.has(artifact.id) ? " Your newer edits are still unsaved. Review them before saving again." : "");
-            saveFeedback.set(artifact.id, { message });
-            element("p", message, review).setAttribute("role", "status");
-          } catch (cause) {
-            saveFeedback.set(artifact.id, { error: cause.message });
-            error(card, cause.message);
-            save.disabled = false;
-          }
-          finally {
-            pendingSaves.delete(artifact.id);
-            reviewChanges.disabled = discard.disabled = false;
-            updateFileStates();
-            if (isActive() && editorPane?.isConnected && !card.isConnected && selectedId === artifact.id) renderSelectedArtifact();
-          }
+    element("span", "", code, "build-editor-launch-label");
+    const editorFeedback = element("p", "", editorControls, "build-editor-feedback");
+    editorFeedback.dataset.editorFeedback = "true";
+    editorFeedback.hidden = true;
+    editorSelect.addEventListener("change", async () => {
+      const editorId = editorSelect.value;
+      if (editorSettingsSaving || editorId === confirmedEditorSettings.editorId) {
+        updateEditorControls();
+        return;
+      }
+      currentEditorSettings = { ...currentEditorSettings, editorId };
+      editorSettingsSaving = true;
+      editorSettingsVersion++;
+      editorSettingsFeedback = undefined;
+      updateEditorControls();
+      try {
+        const settings = await request("/api/editor-settings", {
+          method: "POST", body: JSON.stringify({ editorId }),
         });
+        confirmedEditorSettings = normalizeEditorSettings(settings);
+        currentEditorSettings = confirmedEditorSettings;
+      } catch (cause) {
+        currentEditorSettings = confirmedEditorSettings;
+        editorSettingsFeedback = {
+          error: true,
+          message: "Could not save editor preference: " + cause.message,
+        };
+      } finally {
+        editorSettingsSaving = false;
+        editorSettingsVersion++;
+        updateEditorControls();
+      }
+    });
+    updateEditorControls();
+    const review = element("div", undefined, card, "build-review");
+    review.hidden = true;
+    const reviewFeedback = element("div", undefined, card, "build-review-feedback");
+    let reviewing = false;
+    let reviewRequestVersion = 0;
+    function updateDiscardVisibility() {
+      discard.hidden = reviewing || !drafts.has(artifact.id);
+    }
+    function showEditing(focusState) {
+      reviewing = false;
+      review.hidden = true;
+      source.hidden = false;
+      reviewChanges.hidden = false;
+      updateDiscardVisibility();
+      if (focusState) {
+        requestAnimationFrame(() => {
+          if (!editor.isConnected) return;
+          editor.focus({ preventScroll: true });
+          editor.setSelectionRange(focusState.start, focusState.end, focusState.direction);
+          editor.scrollTop = focusState.scrollTop;
+          editor.scrollLeft = focusState.scrollLeft;
+          syncHighlight();
+        });
+      }
+    }
+    function validateDiff(diff) {
+      if (!diff || !Array.isArray(diff.hunks) || !Number.isFinite(diff.additions) || !Number.isFinite(diff.deletions)) {
+        throw new Error("The review response was invalid.");
+      }
+      for (const hunk of diff.hunks) {
+        if (!Number.isFinite(hunk?.oldStart) || !Number.isFinite(hunk?.oldCount)
+          || !Number.isFinite(hunk?.newStart) || !Number.isFinite(hunk?.newCount)
+          || !Array.isArray(hunk?.lines)) throw new Error("The review response was invalid.");
+        for (const line of hunk.lines) {
+          if (!["context", "removed", "added", "notice"].includes(line?.kind)
+            || (line.oldLine !== null && !Number.isFinite(line.oldLine))
+            || (line.newLine !== null && !Number.isFinite(line.newLine))
+            || typeof line.text !== "string") throw new Error("The review response was invalid.");
+        }
+      }
+    }
+    function renderDiff(diff, reviewed, reviewedBaseSha, focusState) {
+      review.replaceChildren();
+      reviewFeedback.replaceChildren();
+      reviewing = true;
+      source.hidden = true;
+      reviewChanges.hidden = true;
+      updateDiscardVisibility();
+      const toolbar = element("div", undefined, review, "build-review-toolbar");
+      const back = button(toolbar, "Back to editing", () => showEditing(focusState));
+      const save = button(toolbar, "Save reviewed changes", async () => {
+        if (editor.value !== reviewed) {
+          error(card, "The draft changed. Review the latest draft again before saving.");
+          showEditing({
+            start: editor.selectionStart, end: editor.selectionEnd, direction: editor.selectionDirection,
+            scrollTop: editor.scrollTop, scrollLeft: editor.scrollLeft,
+          });
+          return;
+        }
+        if (artifact.sha !== reviewedBaseSha || drafts.get(artifact.id)?.baseSha !== reviewedBaseSha) {
+          error(card, "The saved file changed after this review. Discard the draft and reload before editing again.");
+          showEditing(focusState);
+          return;
+        }
+        if (pendingSaves.has(artifact.id)) return;
+        pendingSaves.add(artifact.id);
+        saveFeedback.delete(artifact.id);
+        reviewFeedback.replaceChildren();
+        error(card, "");
+        updateFileStates();
+        save.disabled = true;
+        reviewChanges.disabled = discard.disabled = true;
+        try {
+          const updated = await request("/api/build-file", {
+            method: "POST", body: JSON.stringify({
+              root, id: artifact.id, baseSha: reviewedBaseSha, content: reviewed,
+            }),
+          });
+          Object.assign(artifact, updated);
+          const currentArtifact = artifacts.find((item) => item.id === artifact.id);
+          if (currentArtifact) Object.assign(currentArtifact, updated);
+          const draft = drafts.get(artifact.id);
+          if (draft && draft.content !== updated.content) {
+            drafts.set(artifact.id, { ...draft, baseSha: updated.sha });
+          } else {
+            drafts.delete(artifact.id);
+          }
+          showEditing(!review.hidden ? focusState : undefined);
+          review.replaceChildren();
+          const message = "Saved. Restart the app for runtime/code changes; rebuild cloud images before deployment." +
+            (drafts.has(artifact.id) ? " Your newer edits are still unsaved. Review them before saving again." : "");
+          saveFeedback.set(artifact.id, { message });
+          element("p", message, reviewFeedback).setAttribute("role", "status");
+        } catch (cause) {
+          saveFeedback.set(artifact.id, { error: cause.message });
+          error(card, cause.message);
+          save.disabled = false;
+        }
+        finally {
+          pendingSaves.delete(artifact.id);
+          reviewChanges.disabled = discard.disabled = false;
+          updateDiscardVisibility();
+          updateFileStates();
+          if (isActive() && editorPane?.isConnected && !card.isConnected && selectedId === artifact.id) renderSelectedArtifact();
+        }
+      });
+      const summary = element("div", undefined, toolbar, "build-review-summary");
+      element("span", `+${diff.additions} ${diff.additions === 1 ? "addition" : "additions"}`, summary, "build-review-additions");
+      element("span", `-${diff.deletions} ${diff.deletions === 1 ? "deletion" : "deletions"}`, summary, "build-review-deletions");
+      if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) {
+        element("p", "Developer enforcement change. Test before use and rebuild cloud images before deployment.", review, "build-warning");
+      }
+      const diffView = element("div", undefined, review, "build-diff");
+      diffView.tabIndex = 0;
+      diffView.setAttribute("role", "region");
+      diffView.setAttribute("aria-label", "Unified source changes");
+      let previousHunk;
+      for (const [index, hunk] of diff.hunks.entries()) {
+        const omitted = previousHunk
+          ? Math.max(0,
+            hunk.oldStart - (previousHunk.oldStart + previousHunk.oldCount),
+            hunk.newStart - (previousHunk.newStart + previousHunk.newCount))
+          : Math.max(0, hunk.oldStart - 1, hunk.newStart - 1);
+        if (omitted > 0) {
+          element("div", `${omitted} unchanged ${omitted === 1 ? "line" : "lines"} collapsed`, diffView, "build-diff-gap");
+        }
+        const hunkNode = element("div", undefined, diffView, "build-diff-hunk");
+        hunkNode.dataset.hunkIndex = String(index);
+        element("div", `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`, hunkNode, "build-diff-hunk-header");
+        for (const line of hunk.lines) {
+          const row = element("div", undefined, hunkNode, `build-diff-row build-diff-${line.kind}`);
+          row.dataset.diffKind = line.kind;
+          const description = line.kind === "removed" ? "Removed"
+            : line.kind === "added" ? "Added"
+              : line.kind === "notice" ? "Notice" : "Unchanged";
+          const lineNumber = line.oldLine ?? line.newLine;
+          row.setAttribute("aria-label", `${description}${lineNumber ? ` line ${lineNumber}` : ""}: ${line.text}`);
+          element("span", line.oldLine === null ? "" : String(line.oldLine), row, "build-diff-line-number build-diff-old-line");
+          element("span", line.newLine === null ? "" : String(line.newLine), row, "build-diff-line-number build-diff-new-line");
+          element("span", line.kind === "removed" ? "-" : line.kind === "added" ? "+" : line.kind === "notice" ? "\\" : " ", row, "build-diff-marker");
+          element("span", line.text, row, "build-diff-text");
+        }
+        previousHunk = hunk;
+      }
+      review.hidden = false;
+      back.focus();
+    }
+    const reviewChanges = button(actions, "Review changes", async () => {
+      if (pendingSaves.has(artifact.id)) return;
+      reviewFeedback.replaceChildren();
+      error(card, "");
+      if (drafts.get(artifact.id)?.baseSha && drafts.get(artifact.id).baseSha !== artifact.sha) {
+        error(card, "The saved file changed while you had an inline draft. Discard the draft and reload before editing again.");
+        return;
+      }
+      if (editor.value === artifact.content) {
+        element("p", "No changes to review.", reviewFeedback).setAttribute("role", "status");
+        return;
+      }
+      const reviewed = editor.value;
+      const reviewedBaseSha = drafts.get(artifact.id)?.baseSha ?? artifact.sha;
+      const focusState = {
+        start: editor.selectionStart, end: editor.selectionEnd, direction: editor.selectionDirection,
+        scrollTop: editor.scrollTop, scrollLeft: editor.scrollLeft,
+      };
+      const version = ++reviewRequestVersion;
+      reviewChanges.disabled = true;
+      reviewChanges.textContent = "Preparing review...";
+      try {
+        const diff = await request("/api/build-diff", {
+          method: "POST", body: JSON.stringify({
+            root, id: artifact.id, baseSha: reviewedBaseSha, content: reviewed,
+          }),
+        });
+        if (!card.isConnected || version !== reviewRequestVersion) return;
+        validateDiff(diff);
+        if (editor.value !== reviewed) {
+          error(card, "The draft changed while the review was loading. Review the latest draft again.");
+          editor.focus();
+          return;
+        }
+        if (diff.baseSha !== reviewedBaseSha) {
+          error(card, "The saved file changed while the review was loading. Discard the draft and reload before editing again.");
+          editor.focus();
+          return;
+        }
+        if (!diff.hunks.length) {
+          element("p", "No changes to review.", reviewFeedback).setAttribute("role", "status");
+          editor.focus();
+          return;
+        }
+        renderDiff(diff, reviewed, reviewedBaseSha, focusState);
+      } catch (cause) {
+        if (card.isConnected && version === reviewRequestVersion) {
+          error(card, "Could not prepare review: " + cause.message);
+          editor.focus();
+        }
+      } finally {
+        if (card.isConnected && version === reviewRequestVersion) {
+          reviewChanges.textContent = "Review changes";
+          reviewChanges.disabled = pendingSaves.has(artifact.id);
+        }
+      }
     });
     reviewChanges.disabled = pendingSaves.has(artifact.id);
-    if (drafts.has(artifact.id) && drafts.get(artifact.id).baseSha !== artifact.sha) error(card, "The saved file changed in Code or another editor. Your inline draft is preserved but cannot overwrite it.");
+    if (drafts.has(artifact.id) && drafts.get(artifact.id).baseSha !== artifact.sha) error(card, "The saved file changed in another editor. Your inline draft is preserved but cannot overwrite it.");
     const discard = button(actions, "Discard draft & reload", () => {
       drafts.delete(artifact.id);
       saveFeedback.delete(artifact.id);
       void show();
     });
     discard.disabled = pendingSaves.has(artifact.id);
-    discard.hidden = !drafts.has(artifact.id);
+    updateDiscardVisibility();
     if (supportsDocuments) button(actions, "Test with a document", onRun);
     const feedback = saveFeedback.get(artifact.id);
     if (feedback?.error) error(card, feedback.error);
-    else if (feedback?.message) element("p", feedback.message, review).setAttribute("role", "status");
+    else if (feedback?.message) element("p", feedback.message, reviewFeedback).setAttribute("role", "status");
     if (supportsDocuments && artifact.id === "runtime") {
       try {
         const config = JSON.parse(editor.value);
@@ -418,23 +727,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   async function show() {
     const version = ++loadVersion;
+    const settingsVersion = editorSettingsVersion;
     sourceLayoutObserver?.disconnect();
     container.replaceChildren();
     fileButtons.clear();
-    const header = element("div", undefined, container, "build-header");
-    element("h2", "Build", header);
-    filesToggle = button(header, "Files", () => {
-      if (isCompact()) compactFilesVisible = !compactFilesVisible;
-      else explorerCollapsed = !explorerCollapsed;
-      updateExplorerVisibility();
-      if (!explorer.hidden) filterInput.focus();
-    });
-    filesToggle.dataset.buildFilesToggle = "true";
-    filesToggle.setAttribute("aria-controls", "build-explorer");
-    filesToggle.hidden = true;
-    const structure = element("div", undefined, header, "build-actions build-structure");
-    button(structure, "Edit on App Map", onStructure);
-    button(structure, "Run/Debug", onRun);
     const loading = element("p", "Loading app source...", container, "build-loading");
     loading.setAttribute("role", "status");
     try {
@@ -442,6 +738,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       if (!isActive() || version !== loadVersion) return;
       artifacts = state.artifacts;
       supportsDocuments = state.supportsDocuments === true;
+      if (state.editorSettings && !editorSettingsSaving && settingsVersion === editorSettingsVersion) {
+        confirmedEditorSettings = normalizeEditorSettings(state.editorSettings);
+        currentEditorSettings = confirmedEditorSettings;
+        editorSettingsFeedback = undefined;
+      }
       loading.remove();
       for (const diagnostic of state.diagnostics ?? []) {
         element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, container, "build-warning");
@@ -458,7 +759,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       explorer.id = "build-explorer";
       explorer.setAttribute("aria-label", "Discovered files");
       const explorerHeader = element("div", undefined, explorer, "build-explorer-header");
-      element("h3", "Discovered files", explorerHeader);
+      explorerTitle = element("div", undefined, explorerHeader, "build-explorer-title");
+      element("h3", "Discovered files", explorerTitle);
+      filesToggle = button(explorerTitle, "Hide files", () => {
+        if (isCompact()) compactFilesVisible = !compactFilesVisible;
+        else explorerCollapsed = !explorerCollapsed;
+        updateExplorerVisibility();
+        if (!explorer.hidden) filterInput.focus();
+      });
+      filesToggle.className = "build-files-toggle";
+      filesToggle.dataset.buildFilesToggle = "true";
+      filesToggle.setAttribute("aria-controls", "build-explorer");
       const filterRow = element("div", undefined, explorerHeader, "build-filter");
       filterInput = element("input", undefined, filterRow);
       filterInput.type = "search";
@@ -480,16 +791,67 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       fileCount = element("span", "", explorerHeader, "build-file-count");
       fileCount.setAttribute("role", "status");
       fileList = element("div", undefined, explorer, "build-file-list");
+      explorerSplitter = element("div", undefined, workspace, "build-splitter");
+      explorerSplitter.tabIndex = 0;
+      explorerSplitter.setAttribute("role", "separator");
+      explorerSplitter.setAttribute("aria-orientation", "vertical");
+      explorerSplitter.setAttribute("aria-label", "Resize discovered files");
+      explorerSplitter.title = "Drag to resize files. Arrow keys also adjust the width.";
+      let resize;
+      function endResize(pointerId, releaseCapture) {
+        if (!resize || resize.pointerId !== pointerId) return;
+        resize = undefined;
+        delete workspace.dataset.resizing;
+        if (releaseCapture && explorerSplitter.hasPointerCapture(pointerId)) {
+          try { explorerSplitter.releasePointerCapture(pointerId); } catch {}
+        }
+      }
+      explorerSplitter.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || explorerSplitter.hidden) return;
+        event.preventDefault();
+        resize = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startWidth: explorer.getBoundingClientRect().width,
+        };
+        workspace.dataset.resizing = "true";
+        try { explorerSplitter.setPointerCapture(event.pointerId); } catch {}
+      });
+      explorerSplitter.addEventListener("pointermove", (event) => {
+        if (!resize || resize.pointerId !== event.pointerId) return;
+        event.preventDefault();
+        explorerPreferredWidth = Math.min(explorerMaxWidth, Math.max(explorerMinWidth,
+          resize.startWidth + event.clientX - resize.startX));
+        applyExplorerWidth();
+      });
+      explorerSplitter.addEventListener("pointerup", (event) => endResize(event.pointerId, true));
+      explorerSplitter.addEventListener("pointercancel", (event) => endResize(event.pointerId, true));
+      explorerSplitter.addEventListener("lostpointercapture", (event) => endResize(event.pointerId, false));
+      explorerSplitter.addEventListener("selectstart", (event) => event.preventDefault());
+      explorerSplitter.addEventListener("keydown", (event) => {
+        const width = explorer.getBoundingClientRect().width;
+        const maximum = availableExplorerWidth();
+        let next;
+        if (event.key === "ArrowLeft") next = width - 10;
+        else if (event.key === "ArrowRight") next = width + 10;
+        else if (event.key === "Home") next = explorerMinWidth;
+        else if (event.key === "End") next = maximum;
+        else return;
+        event.preventDefault();
+        explorerPreferredWidth = Math.min(maximum, Math.max(explorerMinWidth, next));
+        applyExplorerWidth();
+      });
       editorPane = element("div", undefined, workspace, "build-editor");
       editorPane.setAttribute("role", "region");
       editorPane.setAttribute("aria-label", "Selected file");
+      explorerReopen = element("div", undefined, workspace, "build-explorer-reopen");
+      explorerReopen.hidden = true;
       renderFileList();
       renderSelectedArtifact();
-      filesToggle.hidden = false;
       updateExplorerVisibility();
       const discovery = element("details", undefined, container, "build-discovery");
       element("summary", "About discovery and editing", discovery);
-      element("p", "Edit in Code opens this worktree and the selected file. Inline drafts stay here until you review and save them.", discovery);
+      element("p", "Open in your selected editor opens this worktree and file. Inline drafts stay here until you review and save them.", discovery);
       element("p", supportsDocuments
         ? "Instructions guide the model. Trusted tool code and operator-owned policy enforce the rules; the running model cannot change them."
         : "Best-effort source discovery using known filenames and code patterns. Custom implementations may be missed; not discovered does not mean not implemented. Finding source is not proof of runtime readiness.", discovery);

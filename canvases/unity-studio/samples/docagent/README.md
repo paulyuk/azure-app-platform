@@ -100,8 +100,8 @@ reported remediation, then rerun the stop command before starting again.
 | Rules the tool and harness must follow | [Document policy](config/document-policy.json) |
 | Local or Azure runtime settings | [Runtime settings](config/runtime.json) |
 
-In Unity Studio, **Build** lets you edit the key files. **Edit in Code** opens
-them in VS Code.
+In Unity Studio, **Build** lets you edit the key files. Choose a supported
+**Code editor**, then use **Open in &lt;editor&gt;** to open the worktree and selected file.
 
 ## What the checks don't prove
 

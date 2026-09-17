@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
@@ -39,12 +40,19 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", async (route) => {
-      if (new URL(route.request().url()).pathname === "/api/build-workspace") {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/build-workspace") {
         await route.fulfill({ json: { artifacts: [artifact], supportsDocuments: true } });
         return;
       }
-      assert.equal(new URL(route.request().url()).pathname, "/api/build-file");
       const input = route.request().postDataJSON();
+      if (path === "/api/build-diff") {
+        await route.fulfill({ json: buildDiffFixture({
+          baseSha: input.baseSha, before: artifact.content, after: input.content,
+        }) });
+        return;
+      }
+      assert.equal(path, "/api/build-file");
       writes.push(input);
       saveStarted?.();
       await pendingSave;
@@ -52,9 +60,9 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
       await route.fulfill({ json: artifact });
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const editor = page.getByRole("textbox", { name: "Agent instructions source" });
-    const review = page.getByRole("button", { name: "Review changes", exact: true });
-    const discard = page.getByRole("button", { name: "Discard draft & reload" });
+    const editor = page.locator('textarea[aria-label="Agent instructions source"]');
+    const review = page.locator("button").filter({ hasText: /^Review changes$/ });
+    const discard = page.locator("button").filter({ hasText: /^Discard draft & reload$/ });
     for (const reloadDuringSave of [false, true]) {
       const original = artifact.content;
       const reviewed = `Reviewed revision ${writes.length}.`;
@@ -71,6 +79,11 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
         await page.evaluate(() => window.dispatchEvent(new Event("focus")));
         await editor.waitFor();
         assert.equal(await review.isDisabled(), true);
+      } else {
+        const back = page.getByRole("button", { name: "Back to editing" });
+        await back.waitFor();
+        await back.click();
+        await editor.waitFor();
       }
       const newer = reloadDuringSave ? original : "Newer unsaved instructions.";
       await editor.fill(newer);
@@ -86,7 +99,7 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
       assert.equal(await editor.inputValue(), newer);
       assert.equal(writes.at(-1).baseSha, baseSha);
       assert.equal(writes.at(-1).content, reviewed);
-      assert.equal(await page.getByText(/saved file changed in Code/).count(), 0);
+      assert.equal(await page.getByText(/saved file changed in another editor/).count(), 0);
       const savedSha = artifact.sha;
       pendingSave = null;
       saveStarted = null;
@@ -104,7 +117,7 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
   }
 });
 
-test("Build exposes one selected editor, Code actions, reviewed policy edits and external-edit conflicts", {
+test("Build exposes one selected editor, launch actions, reviewed policy edits and external-edit conflicts", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
@@ -151,6 +164,11 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
         return;
       }
       if (path === "/api/build-workspace") body = { artifacts, supportsDocuments, diagnostics };
+      else if (path === "/api/build-diff") {
+        const input = route.request().postDataJSON();
+        const artifact = artifacts.find((item) => item.id === input.id);
+        body = buildDiffFixture({ baseSha: input.baseSha, before: artifact.content, after: input.content });
+      }
       else if (path === "/api/build-file") {
         const input = route.request().postDataJSON();
         saved.push(input);
@@ -169,11 +187,10 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
     const instructions = page.locator('[data-artifact="instructions"]');
     const selectFile = (id) => page.locator(`[data-file-id="${id}"]`).click();
     await instructions.getByRole("textbox").waitFor();
-    const structure = page.locator(".build-structure");
     assert.equal(await page.locator(".build-card").count(), 0);
-    assert.ok((await structure.boundingBox()).y < (await instructions.boundingBox()).y);
-    await structure.getByRole("button", { name: "Edit on App Map" }).click();
-    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
+    assert.equal(await page.locator(".build-header").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Edit on App Map", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(saved.length, 0);
     assert.equal(opened.length, 0);
     assert.equal(await page.getByRole("textbox").count(), 1);
@@ -181,7 +198,8 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
       assert.equal(await editor.getAttribute("readonly"), null);
       assert.ok((await editor.boundingBox()).height >= 240);
     }
-    await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
+    assert.equal(await instructions.getByRole("combobox", { name: "Supported editor" }).inputValue(), "vscode");
+    await instructions.getByRole("button", { name: "Open in VS Code", exact: true }).click();
     await instructions.getByText(/Opened the worktree and file/).waitFor();
     assert.deepEqual(opened[0], { root: "/app", id: "instructions" });
     assert.equal(await instructions.locator(".code-edit svg").count(), 1);
@@ -202,9 +220,9 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
     await policy.getByText(/Saved\. Restart/).waitFor();
     assert.equal(saved[1].id, "policy");
     codeFails = true;
-    await policy.getByRole("button", { name: "Edit in Code", exact: true }).click();
+    await policy.getByRole("button", { name: "Open in VS Code", exact: true }).click();
     await policy.getByText("VS Code is unavailable.", { exact: true }).waitFor();
-    assert.equal(await policy.getByRole("button", { name: "Edit in Code", exact: true }).isEnabled(), true);
+    assert.equal(await policy.getByRole("button", { name: "Open in VS Code", exact: true }).isEnabled(), true);
     await selectFile("runtime");
     await page.getByRole("combobox", { name: "Agent runtime" }).selectOption("copilot-sdk-sandbox");
     const runtime = page.locator('[data-artifact="runtime"]');
@@ -214,12 +232,12 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
     await selectFile("instructions");
     await instructions.getByRole("textbox").fill("Unsaved inline draft.");
     codeFails = false;
-    await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
+    await instructions.getByRole("button", { name: "Open in VS Code", exact: true }).click();
     await instructions.getByText(/inline draft has not been saved/).waitFor();
     assert.equal(saved.length, 2);
     Object.assign(artifacts[0], { content: "Changed in VS Code.", sha: "external-change" });
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await instructions.getByText(/saved file changed in Code/).waitFor();
+    await instructions.getByText(/saved file changed in another editor/).waitFor();
     assert.equal(await instructions.getByRole("textbox").inputValue(), "Unsaved inline draft.");
     await instructions.getByRole("button", { name: "Review changes" }).click();
     assert.equal(await instructions.getByRole("button", { name: "Save reviewed changes" }).count(), 0);
@@ -255,7 +273,7 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
     assert.equal(await page.locator('[data-file-id="source-skill"]').getAttribute("aria-current"), "true");
     await selectFile("source-agent");
     assert.match(await dealer.getByRole("textbox").inputValue(), /INSTRUCTIONS/);
-    await dealer.getByRole("button", { name: "Edit in Code", exact: true }).click();
+    await dealer.getByRole("button", { name: "Open in VS Code", exact: true }).click();
     await dealer.getByText(/Opened the worktree and file/).waitFor();
     assert.deepEqual(opened.at(-1), { root: "/app", id: "source-agent" });
     await dealer.getByRole("textbox").fill('INSTRUCTIONS = "Never invent inventory."\nagent = Agent(instructions=INSTRUCTIONS)');
@@ -271,13 +289,11 @@ test("Build exposes one selected editor, Code actions, reviewed policy edits and
     assert.equal(await page.getByRole("textbox").count(), 0);
     assert.equal(await page.getByText("unity.app.yaml: Agent path was not found.", { exact: true }).count(), 1);
     assert.equal(await page.getByText(/Not implemented in this app/).count(), 0);
-    assert.equal(await structure.getByRole("button", { name: "Edit on App Map" }).isEnabled(), true);
+    assert.equal(await page.locator(".build-header").count(), 0);
     workspaceFails = true;
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await page.getByText("Source discovery unavailable.", { exact: true }).waitFor();
-    await page.evaluate(() => delete document.body.dataset.structureRequested);
-    await structure.getByRole("button", { name: "Edit on App Map" }).click();
-    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
+    assert.equal(await page.locator(".build-header").count(), 0);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

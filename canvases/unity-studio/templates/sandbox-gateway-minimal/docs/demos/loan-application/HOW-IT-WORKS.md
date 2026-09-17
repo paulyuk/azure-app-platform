@@ -58,8 +58,8 @@ from links in the generated Markdown.
 | **AI Gateway / model** | **Run/Debug → AI model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
 
 **Build** provides a file explorer and one selected editor for the instructions,
-document validation tool, contract, policy, and runtime settings. **Edit in Code** opens the whole
-worktree and selected file; use the Code file tree for the harness and shared
+document validation tool, contract, policy, and runtime settings. **Open in &lt;editor&gt;** opens the whole
+worktree and selected file in your chosen code editor; use its file tree for the harness and shared
 policy implementation. Inline saves require review, a stopped app, and an
 unchanged base version. Developer editing does not grant the runtime model write
 access.

@@ -110,12 +110,21 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
         await page.locator(mode === "map" ? "#map-view" : "#logs-app").click();
       } else await page.locator(mode === "manage" ? "#manage-app" : "#build-app").click();
     };
+    const openStructureFromGuide = async () => {
+      const toggle = page.locator("#action-center");
+      const collapsed = await toggle.getAttribute("aria-expanded") === "false";
+      if (collapsed) await toggle.click();
+      await page.getByRole("button", { name: "Build: edit app structure", exact: true }).click();
+      if (collapsed) await toggle.click();
+    };
     await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(url);
     const editor = page.getByRole("textbox", { name: "Agent instructions source", exact: true });
     await editor.waitFor();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 1);
+    assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).getAttribute("href"), "/");
+    assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
     assert.deepEqual(await page.getByRole("group", { name: "App workspaces", exact: true }).getByRole("button").allTextContents(), ["Build", "Run & Debug", "Observe"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
@@ -228,7 +237,9 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.notEqual(styles.selectedBorder, styles.otherBorder);
       assert.equal(styles.selectedBorder, styles.selectedColor);
     };
-    assert.deepEqual(await buttonFormat(page.locator("#details button").first()), standardButton);
+    assert.deepEqual(await buttonFormat(page.locator("#details .code-edit")), standardButton);
+    assert.equal(await page.locator("#details .build-header").count(), 0);
+    assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.deepEqual(await buttonFormat(page.locator("#build-app")), standardButton);
     await page.getByRole("button", { name: "Build", exact: true }).press("Tab");
     assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).evaluate((el) => el === document.activeElement), true);
@@ -242,7 +253,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.keyboard.press("Space");
     await editor.waitFor();
     await editor.fill("Unsaved loan agent instructions.");
-    await page.getByRole("button", { name: "Edit on App Map", exact: true }).press("Enter");
+    await openStructureFromGuide();
     await page.waitForFunction(() => mapHasFitted);
     const structureGuidance = page.getByRole("region", { name: "App structure guidance", exact: true });
     assert.equal(await structureGuidance.isVisible(), true);
@@ -363,7 +374,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       for (const mode of ["build", "manage", "logs", "map"]) {
         await openWorkspace(mode);
         if (mode === "build") {
-          await page.getByRole("button", { name: "Edit on App Map", exact: true }).click();
+          await openStructureFromGuide();
           assert.equal(await structureGuidance.isVisible(), true);
           assert.ok(await structureGuidance.evaluate((el) => el.scrollWidth <= el.clientWidth), `Structure guidance overflows at ${width}px`);
           const hint = await structureGuidance.boundingBox();

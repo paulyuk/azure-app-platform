@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
@@ -41,6 +42,13 @@ test("Build highlights editable source with aligned scrolling, native input, the
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/build-workspace") await route.fulfill({ json: { artifacts } });
+      else if (path === "/api/build-diff") {
+        const input = route.request().postDataJSON();
+        const artifact = artifacts.find((item) => item.id === input.id);
+        await route.fulfill({ json: buildDiffFixture({
+          baseSha: input.baseSha, before: artifact.content, after: input.content,
+        }) });
+      }
       else if (path === "/api/build-file") {
         const input = route.request().postDataJSON();
         writes.push(input);

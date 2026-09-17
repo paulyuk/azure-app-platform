@@ -197,7 +197,7 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(await page.locator("#details").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       assert.ok(await page.locator("header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `Header overflows at ${width}px`);
-      const controls = page.locator('#back-apps, #header-runtime-action, #app-status-badge');
+      const controls = page.locator('#header-runtime-action, #app-status-badge');
       for (const control of await controls.all()) {
         const appearance = await control.evaluate((el) => ({
           height: el.getBoundingClientRect().height, nowrap: getComputedStyle(el).whiteSpace,
@@ -227,7 +227,8 @@ test("Run loop keeps logs, endpoint actions, message invocation and active modes
     assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
     await page.locator("#manage-app").click();
     assert.equal(await page.locator(".map-tools").evaluate((element) => element.open), false);
-    await page.getByRole("button", { name: "Home", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
+    await page.getByRole("link", { name: "Unity Studio home", exact: true }).click();
     await page.waitForURL(origin + "/");
     assert.deepEqual(errors, []);
   } finally {

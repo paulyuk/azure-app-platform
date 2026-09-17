@@ -55,7 +55,7 @@ physical folder and runtime mapping.
 ## Customize the loan behavior
 
 Open **Build** to use its compact editor for the agent instructions, or select
-**Edit in Code** to open the generated worktree and
+**Open in &lt;editor&gt;** to open the generated worktree in your chosen editor and select
 `src/agent/prompts/system.md`. The supplied instructions apply loan-processing
 guidance conditionally so unrelated requests keep the generic agent behavior.
 Build also exposes the document validation tool, contract, policy, and runtime

@@ -5,6 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
+import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
@@ -434,7 +435,7 @@ function renderNoScriptFallback(model) {
   }).join("");
 }
 
-export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light" } = {}) {
+export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light", editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
   const model = buildInteractiveAppMapModel(appMap);
   const appName = providedAppName ||
     model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
@@ -571,7 +572,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
-    #back-apps, #header-runtime-action, #app-status-badge {
+    #header-runtime-action, #app-status-badge {
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
       height: 32px; min-height: 32px; padding: 0 10px;
       font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
@@ -599,7 +600,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #structure-guidance:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
     #close-structure-guidance { flex: none; width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
     button:hover { border-color: var(--accent); }
-    .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
     button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
     }
@@ -868,7 +868,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <header>
     <div class="studio-site-nav" role="navigation" aria-label="Unity Studio navigation">
       ${renderStudioBrand()}
-      <button id="back-apps" class="back-link" type="button">Home</button>
     </div>
     <div class="heading">
       <div class="app-title-row">
@@ -951,6 +950,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <script>
     "use strict";
     const MODEL = ${safeJson(model)};
+    const INITIAL_EDITOR_SETTINGS = ${safeJson(editorSettings)};
     const API_TOKEN = ${safeJson(apiToken)};
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
     const mountAppLogs = (${createAppLogsPanel.toString()});
@@ -1048,7 +1048,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let observeView = "map";
     ${BUILD_SYNTAX_SCRIPT}
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax,
+      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS,
       isActive: () => panelMode === "build",
       onRun: () => {
         renderManagePanel();
@@ -1056,7 +1056,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
       onModel: () => renderManagePanel({ openGateway: true }),
-      onStructure: renderStructureMap,
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -3027,9 +3026,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
         row.append(actionButton("Review source", async () => {
           try {
-            await apiRequest("/api/open-source", {
+            const opened = await apiRequest("/api/open-source", {
               method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
             });
+            setStatus("Source opened in " + opened.editorLabel + ".");
           } catch (error) { setStatus(error.message, true); }
         }));
         runtimeSection.append(row);
@@ -3185,9 +3185,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(row, "code", node.projectPath);
         row.append(actionButton("Open source", async () => {
           try {
-            await apiRequest("/api/open-source", {
+            const opened = await apiRequest("/api/open-source", {
               method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
             });
+            setStatus("Source opened in " + opened.editorLabel + ".");
           } catch (error) { setStatus(error.message, true); }
         }));
         section.append(row);
@@ -3656,11 +3657,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (node.kind === "project") {
         actions.append(actionButton("Open source", async () => {
           try {
-            await apiRequest("/api/open-source", {
+            const opened = await apiRequest("/api/open-source", {
               method: "POST",
               body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
             });
-            setStatus("Opened " + node.name + " in VS Code.");
+            setStatus("Opened " + node.name + " in " + opened.editorLabel + ".");
           } catch (error) {
             setStatus(error.message, true);
           }
@@ -4062,7 +4063,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       renderManagePanel({ openGateway: true });
     });
-    document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));
     otherResourcesToggle.addEventListener("change", () => {
       applyLayout();
       try { localStorage.setItem(otherResourcesKey, String(otherResourcesToggle.checked)); }

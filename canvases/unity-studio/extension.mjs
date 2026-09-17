@@ -42,6 +42,9 @@ import {
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
 import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
+import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./editor-settings.mjs";
+import { openWorkspaceInEditor } from "./editor-launcher.mjs";
+import { reviewBuildArtifact } from "./build-diff.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
 import { parseLogTail, readAppLogs, readComponentLogs } from "./runtime-logs.mjs";
@@ -967,6 +970,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, preferences);
       return;
     }
+    if (url.pathname === "/api/editor-settings" && ["GET", "POST"].includes(request.method)) {
+      sendJson(response, 200, request.method === "POST"
+        ? await writeEditorSettings(await readJsonBody(request))
+        : await readEditorSettings());
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/overview") {
       sendJson(response, 200, getPlatformOverview());
       return;
@@ -1280,13 +1289,15 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }));
       return;
     }
-    if (request.method === "POST" && url.pathname === "/api/open-vscode") {
+    if (request.method === "POST" && ["/api/open-vscode", "/api/open-editor"].includes(url.pathname)) {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
-        throw new Error("VS Code root is not an authorized app workspace.");
+        throw new Error("Editor root is not an authorized app workspace.");
       }
-      sendJson(response, 200, await openWorkspaceInVsCode({ root }));
+      sendJson(response, 200, url.pathname === "/api/open-vscode"
+        ? await openWorkspaceInVsCode({ root })
+        : await openWorkspaceInEditor({ root }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/open-source") {
@@ -1296,7 +1307,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw new Error("Source root is not an authorized app workspace.");
       }
       const sourceRoot = await resolveDiscoveryRoot(input.projectPath || ".", root);
-      sendJson(response, 200, await openWorkspaceInVsCode({ root: sourceRoot }));
+      sendJson(response, 200, await openWorkspaceInEditor({ root: sourceRoot }));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/open-build-file") {
@@ -1304,13 +1315,20 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
       const file = await resolveBuildArtifactPath(root, input.id);
-      sendJson(response, 200, await openWorkspaceInVsCode({ root, file }));
+      sendJson(response, 200, await openWorkspaceInEditor({ root, file }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/build-diff") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      sendJson(response, 200, await reviewBuildArtifact(root, input));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
-      sendJson(response, 200, await readBuildWorkspace(root));
+      sendJson(response, 200, { ...await readBuildWorkspace(root), editorSettings: await readEditorSettings() });
       return;
     }
     if (request.method === "POST" && ["/api/ports/pick", "/api/ports/review-stop", "/api/ports/stop"].includes(url.pathname)) {
@@ -1581,6 +1599,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         apiToken,
         appName: appIdentity?.name,
         ...await readStudioPreferences(),
+        editorSettings: await readEditorSettings(),
       });
       await recordAppOpened(root);
       response.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -1594,6 +1613,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     response.setHeader("Content-Type", "text/html; charset=utf-8");
     response.end(renderStudioHtml(instanceId, apiToken, {
       ...await readStudioPreferences(), intro: url.searchParams.get("intro") === "1",
+      editorSettings: await readEditorSettings(),
     }));
   } catch (error) {
     sendJson(response, error?.statusCode ?? 500, {
@@ -1699,7 +1719,9 @@ const workspaceInputSchema = {
         additionalProperties: false,
       },
     },
-    openInVsCode: { type: "boolean", default: true },
+    openInEditor: { type: "boolean", description: "Open the created worktree in the selected supported editor." },
+    editorId: { type: "string", enum: EDITOR_CHOICES.map((editor) => editor.id) },
+    openInVsCode: { type: "boolean", description: "Legacy option to explicitly open VS Code. Prefer openInEditor." },
   },
   required: ["appName", "purpose", "tierIds"],
   additionalProperties: false,
@@ -1760,7 +1782,7 @@ const canvas = createCanvas({
     },
     {
       name: "request_app_workspace",
-      description: "Request a child project session with an isolated worktree, selected Unity capabilities, preloaded studios, and optional VS Code launch.",
+      description: "Request a child project session with an isolated worktree, selected Unity capabilities, preloaded studios, and optional supported-editor launch.",
       inputSchema: workspaceInputSchema,
       handler: async (ctx) => {
         try {
@@ -1796,6 +1818,23 @@ const canvas = createCanvas({
           const workspaceRoot = actionWorkspaceRoot(ctx);
           const input = await validateSourceProjectPath(ctx.input, workspaceRoot);
           return await requestCapabilityWork({ session, input });
+        } catch (error) {
+          throw canvasError(error);
+        }
+      },
+    },
+    {
+      name: "open_in_editor",
+      description: "Open a workspace-confined source project in the saved supported code editor, or an explicitly selected supported editor.",
+      inputSchema: {
+        type: "object",
+        properties: { ...rootInputProperties, editorId: { type: "string", enum: EDITOR_CHOICES.map((editor) => editor.id) } },
+        required: ["root"],
+        additionalProperties: false,
+      },
+      handler: async (ctx) => {
+        try {
+          return await openWorkspaceInEditor({ root: await actionRoot(ctx), editorId: ctx.input.editorId });
         } catch (error) {
           throw canvasError(error);
         }

@@ -589,10 +589,10 @@ export function createCommandEnvironment(source = process.env) {
   return environment;
 }
 
-export function runCommand(command, args, { timeout = 8_000 } = {}) {
+export function runCommand(command, args, { timeout = 8_000, env = {}, preserveStdout = false } = {}) {
   return new Promise((resolveResult) => {
     execFile(command, args, {
-      env: createCommandEnvironment(),
+      env: { ...createCommandEnvironment(), ...env },
       timeout,
       maxBuffer: 4 * 1024 * 1024,
       windowsHide: true,
@@ -602,7 +602,7 @@ export function runCommand(command, args, { timeout = 8_000 } = {}) {
         exitCode: typeof error?.code === "number" ? error.code : null,
         signal: error?.signal ?? null,
         timedOut: Boolean(error?.killed),
-        stdout: stdout.trim(),
+        stdout: preserveStdout ? stdout : stdout.trim(),
         stderr: stderr.trim(),
         error: error?.message ?? null,
       });

@@ -11,7 +11,7 @@ const DOCUMENT_ARTIFACTS = [
   { id: "policy", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy.", editable: true },
   { id: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary.", editable: true },
 ];
-const MAX_BYTES = 96 * 1024;
+export const MAX_BYTES = 96 * 1024;
 const saveQueues = new Map();
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const CODE_FILE = /\.(?:py|[cm]?[jt]sx?|cs|go|java|rs)$/i;

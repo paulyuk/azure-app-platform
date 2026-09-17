@@ -548,6 +548,8 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       },
       sourceBindings: [],
       openInVsCode: true,
+      openInEditor: false,
+      editorId: undefined,
     });
     assert.throws(() => normalizeWorkspaceRequest({
       appName: "../claims",
@@ -1904,7 +1906,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /if \(event\.key === "ArrowUp"\)/);
   const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
-  assert.match(html, />Home<\/button>/);
+  assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
+  assert.doesNotMatch(html, /id="back-apps"/);
   assert.match(html, /id="app-status-badge"/);
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);

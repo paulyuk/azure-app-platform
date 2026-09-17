@@ -10,8 +10,9 @@ let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 function luminance(color) {
+  const unitChannels = color.startsWith("color(");
   const [r, g, b] = color.match(/[\d.]+/g).slice(0, 3).map((value) => {
-    const channel = Number(value) / 255;
+    const channel = Number(value) / (unitChannels ? 1 : 255);
     return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -32,7 +33,15 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
       const panel = (${createBuildPanel.toString()})({
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {}, onStructure() {},
-        request: async () => ({ artifacts: [
+        request: async (path) => path === "/api/build-diff" ? ({
+          baseSha: "base", additions: 1, deletions: 1, hunks: [{
+            oldStart: 1, oldCount: 2, newStart: 1, newCount: 2, lines: [
+              { kind: "context", oldLine: 1, newLine: 1, text: "def main():" },
+              { kind: "removed", oldLine: 2, newLine: null, text: '    return "hello"' },
+              { kind: "added", oldLine: null, newLine: 2, text: '    return "changed"' }
+            ]
+          }]
+        }) : ({ artifacts: [
           { id: "agent", title: "Agent instructions", path: "src/agent/main.py", available: true, sha: "base", content: 'def main():\\n    return "hello"' },
           { id: "prompt", title: "Prompt", path: "src/agent/prompts/system.md", available: true, sha: "base", content: "# Instructions" },
           { id: "missing", title: "Configuration", path: "config/app.json", available: false, detail: "File is missing." }
@@ -41,6 +50,8 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
       panel.show();
     </script></html>`);
     await page.locator(".build-source-editor textarea").fill('# comment\ndef main():\n    return "changed"');
+    await page.getByRole("button", { name: "Review changes" }).click();
+    await page.getByRole("region", { name: "Unified source changes" }).waitFor();
     for (const width of [1000, 420]) {
       await page.setViewportSize({ width, height: 800 });
       await page.waitForFunction((compact) => document.querySelector(".build-workspace")?.dataset.compact === String(compact), width < 600);
@@ -56,7 +67,7 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
         }, theme);
         assert.equal(await explorer.evaluate((el) => getComputedStyle(el).backgroundColor),
           theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)", `${theme} explorer at ${width}px`);
-        const colors = await page.locator(".build-explorer h3, .build-file-count, .build-folder > summary, .build-file-button, .build-file-status, .build-filter input, .build-highlight .token").evaluateAll((elements) => {
+        const colors = await page.locator(".build-explorer h3, .build-file-count, .build-folder > summary, .build-file-button, .build-file-status, .build-filter input, .build-highlight .token, .build-editor-select, .code-edit, .build-diff-context .build-diff-text, .build-diff-removed .build-diff-marker, .build-diff-added .build-diff-marker, .build-review-summary span").evaluateAll((elements) => {
           const values = [];
           for (const element of elements) {
             if (!element.getClientRects().length) continue;
@@ -83,6 +94,14 @@ test("Build explorer follows the Studio theme and preserves text contrast inside
         }
       }
     }
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "false");
+    await page.emulateMedia({ forcedColors: "active" });
+    const splitter = page.getByRole("separator", { name: "Resize discovered files" });
+    assert.equal(await splitter.isVisible(), true);
+    assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::before").backgroundColor), "rgba(0, 0, 0, 0)");
+    assert.equal(await page.getByRole("combobox", { name: "Supported editor" }).isVisible(), true);
+    await page.emulateMedia({ forcedColors: "none" });
   } finally {
     await browser.close();
   }

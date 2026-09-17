@@ -198,14 +198,17 @@ the repository or subscription.
 ### Workspace and Guide
 
 The app interface has three main buttons: Build, Run & Debug, and Observe.
-Build places a compact **Edit on App Map** action above its file workspace.
-That action opens the existing map with brief, dismissible guidance and
+Build starts directly with the file tree and editor rather than a second
+heading/navigation bar. Its collapse control belongs to the file tree, with a
+left-edge reopen control; Run and general App Map navigation remain in the top
+bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
-editor or perform a mutation. Guide's Build stage uses the same entry point.
+editor, select a component from the current file, or perform a mutation.
 Connect preserves source-backed review, with an entry point to edit on the map.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
 highlight. Inline Build drafts remain intact across these transitions.
-They share one compact top bar with Unity/home navigation, app identity,
+They share one compact top bar whose Unity logo and name link home, with no
+separate Home button. The same bar contains app identity,
 runtime status and start/stop, Docs, and appearance. There is no separate
 workspace header row at full width. Explicit grid areas keep Docs and appearance
 at the top right. At 960px and below, workspace buttons move together to row two.
@@ -264,14 +267,16 @@ instruction/tool/policy/runtime layout, while Dealer, Empty Unity, and custom ap
 use source-discovered component files within their declared app scope. Inline
 agent instructions remain in their original runtime file; the editor does not
 extract or rewrite Python strings to manufacture a prompt file. Generic artifact
-IDs are bound to file paths, and read, Code-open, and reviewed-save operations
+IDs are bound to file paths, and read, editor-open, diff, and reviewed-save operations
 resolve the same catalog. Inventory changes cannot redirect an existing draft.
 Both profiles use a left **Discovered files** explorer and one selected editor.
 The explorer uses native collapsible folders, compacts single-child folder
 paths, filters paths and file roles, and shows explicit unsaved/saving/error/
 unavailable states. Paths disambiguate repeated filenames. Selection, folder
 expansion, filter text, and drafts survive in-panel refreshes and workspace switches.
-The explorer can be hidden; below 600px of available pane width it replaces,
+The explorer has an in-pane collapse control and a bounded, pointer- and
+keyboard-resizable divider. Width and visibility changes leave the selected
+editor and its draft intact. Below 600px of available pane width it replaces,
 rather than crowds, the editor. Choosing a file returns focus to the editor.
 Explorer surfaces use Studio-owned theme tokens, not the host's background
 tokens, so choosing light mode inside a dark host retains readable labels.
@@ -283,8 +288,8 @@ Both layers use identical monospace metrics and synchronized horizontal/vertical
 scrolling. Unknown file types remain plain text. Theme changes recolor tokens;
 forced-color mode and IME composition retain readable native input. Highlighting
 failures surface an explicit error and fall back to editable plain text.
-App structure and Run/Debug actions remain available above the workspace,
-including during discovery failures and empty states. Discovery caveats live
+Top-level workspace navigation and Guide actions remain available during
+discovery failures and empty states; Build does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
 Only document-capable profiles show document-test copy and
 runtime selection. Missing expected document files and unsupported/empty
@@ -296,9 +301,23 @@ artifact contract in the app inventory is a design discussion, not current
 support; see README's discovery limitation and discussion with Paul.
 Source edits use a content hash and atomic replacement, reject symlink targets,
 and require a stopped app. The editor preserves drafts until an explicit review
-and save. Every available artifact, including operator policy and tool contracts,
-is editable by the developer in the selected editor. Edit in Code resolves an allowlisted,
-non-symlink artifact, then opens the whole worktree and the file in VS Code.
+and save. Review hides, rather than destroys, the textarea and shows one unified
+saved-file-versus-draft diff with three context lines, line numbers, explicit
+addition/deletion markers, and missing-final-newline notices. The authenticated
+diff endpoint validates the artifact, 96 KiB bound, and original hash, then
+compares private temporary files with Git without external diff drivers or
+repository mutations. Changing the draft invalidates a pending review.
+Every available artifact, including operator policy and tool contracts,
+is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
+an allowlisted, non-symlink artifact, then opens the whole worktree and the file.
+A per-user supported-editor preference is shared by Build, app creation, and
+source actions. The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
+Zed, and Sublime Text; there are no custom commands. Preference persistence is
+independent of theme settings and does not launch an editor or recreate drafts.
+Launchers use separate executable/argument values, macOS application fallbacks,
+and direct Electron CLI invocation on Windows rather than `.cmd` shell execution.
+Missing editors report remediation; an optional launch failure never deletes a
+successfully created app. Explicit legacy VS Code actions remain compatible.
 Returning focus refreshes saved source without overwriting pending inline drafts;
 drafts retain their original base hash even across reloads within the panel.
 Completing an offscreen save updates that file's status without refreshing the

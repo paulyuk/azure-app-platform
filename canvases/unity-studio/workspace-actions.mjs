@@ -8,6 +8,8 @@ import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCa
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
+import { getEditorChoice, readEditorSettings } from "./editor-settings.mjs";
+import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
@@ -159,7 +161,9 @@ export function normalizeWorkspaceRequest(input) {
     templateRootId,
     templateInputs,
     sourceBindings,
-    openInVsCode: input?.openInVsCode === true,
+    openInVsCode: input?.openInEditor === undefined && input?.openInVsCode === true,
+    openInEditor: input?.openInEditor === true,
+    editorId: input?.editorId === undefined ? undefined : getEditorChoice(input.editorId).id,
   };
 }
 
@@ -457,6 +461,8 @@ export function buildWorkspaceRequestPrompt(request, { baseBranch, workspaceRoot
     azureResourceId: request.azureResourceId,
     sourcePlan: request.sourcePlan ?? [],
     openInVsCode: request.openInVsCode,
+    openInEditor: request.openInEditor,
+    editorId: request.editorId,
     kickoff,
   };
   return [
@@ -468,7 +474,9 @@ export function buildWorkspaceRequestPrompt(request, { baseBranch, workspaceRoot
     `3. Name the session ${JSON.stringify(`${request.appName} Unity app`)} and use an autopilot kickoff whose prompt is the provided \`kickoff\` field.`,
     "4. Set `model` to `gpt-5.6-sol` and `reasoning_effort` to `max`. Do not use a Claude model.",
     "5. Set `notify_on_idle` to `once`.",
-    request.openInVsCode
+    request.openInEditor
+      ? `6. After creation, ask the created session to open its worktree using Unity Studio's \`open_in_editor\` action with root "." and editorId ${JSON.stringify(request.editorId)}. Do not substitute another editor.`
+      : request.openInVsCode
       ? "6. After creation, open the returned worktree path in VS Code with `code --new-window <path>`."
       : "6. Keep the created session visible in the project session list.",
     "7. Report the created session name, worktree path, and preloaded canvases.",
@@ -486,6 +494,7 @@ export async function requestAppWorkspace({
   azureCatalog,
 }) {
   const request = normalizeWorkspaceRequest(input);
+  if (request.openInEditor) request.editorId ??= (await readEditorSettings()).editorId;
   const branchResult = await commandRunner("git", ["-C", workspaceRoot, "branch", "--show-current"]);
   const baseBranch = branchResult.stdout?.trim();
   if (!branchResult.ok || !baseBranch) {
@@ -567,6 +576,8 @@ export async function requestAppWorkspace({
     },
     specialistCanvases: specialistCanvases(request.tierIds),
     openInVsCode: request.openInVsCode,
+    openInEditor: request.openInEditor,
+    editorId: request.editorId,
   };
 }
 
@@ -652,11 +663,14 @@ async function createTemplateWorkspace({
 
     let editor = null;
     let editorWarning = null;
-    if (request.openInVsCode) {
+    if (request.openInEditor || request.openInVsCode) {
       try {
-        editor = await openWorkspaceInVsCode({ root: destination, commandRunner });
+        editor = request.openInEditor
+          ? await openWorkspaceInEditor({ root: destination, editorId: request.editorId, commandRunner })
+          : await openWorkspaceInVsCode({ root: destination, commandRunner });
       } catch (error) {
-        editorWarning = `VS Code did not open automatically: ${error.message}. The app was still created.`;
+        const label = request.openInEditor ? getEditorChoice(request.editorId).label : "VS Code";
+        editorWarning = `${label} did not open automatically: ${error.message}. The app was still created.`;
       }
     }
     return {
@@ -677,6 +691,8 @@ async function createTemplateWorkspace({
       },
       specialistCanvases: specialistCanvases(request.tierIds),
       openInVsCode: request.openInVsCode,
+      openInEditor: request.openInEditor,
+      editorId: request.editorId,
       editor,
       editorWarning,
     };

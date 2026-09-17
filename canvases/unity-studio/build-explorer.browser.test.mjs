@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { buildDiffFixture } from "./build-diff-test-fixture.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
@@ -55,6 +56,12 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
       if (path === "/api/build-workspace") {
         workspaceReads++;
         await route.fulfill({ json: { artifacts, supportsDocuments: false } });
+      } else if (path === "/api/build-diff") {
+        const input = route.request().postDataJSON();
+        const artifact = artifacts.find((item) => item.id === input.id);
+        await route.fulfill({ json: buildDiffFixture({
+          baseSha: input.baseSha, before: artifact.content, after: input.content,
+        }) });
       } else if (path === "/api/build-file") {
         const input = route.request().postDataJSON();
         writes.push(input);
@@ -74,6 +81,7 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     const filter = page.getByRole("searchbox", { name: "Filter discovered files" });
     const file = (id) => page.locator(`[data-file-id="${id}"]`);
     const toggle = page.locator("[data-build-files-toggle]");
+    const splitter = page.getByRole("separator", { name: "Resize discovered files" });
     await editor.waitFor();
     assert.equal(await editor.inputValue(), "Source for agent");
     assert.equal(await page.getByRole("textbox").count(), 1);
@@ -81,6 +89,52 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
     assert.ok(await explorer.evaluate((el) => el.scrollHeight > el.clientHeight));
+    assert.equal(await toggle.getByText("Hide files").count(), 1);
+    assert.ok((await toggle.boundingBox()).x < (await editor.boundingBox()).x);
+    assert.equal(await page.locator(".build-header [data-build-files-toggle]").count(), 0);
+    assert.equal(await splitter.getAttribute("aria-orientation"), "vertical");
+    assert.equal(await splitter.getAttribute("title"), "Drag to resize files. Arrow keys also adjust the width.");
+    assert.equal(await splitter.evaluate((element) => getComputedStyle(element).cursor), "col-resize");
+    assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::after").backgroundColor), "rgba(0, 0, 0, 0)");
+
+    const originalSource = await editor.inputValue();
+    let divider = await splitter.boundingBox();
+    await page.mouse.move(divider.x + divider.width / 2, divider.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(divider.x + 190, divider.y + 120);
+    await page.mouse.up();
+    await page.waitForFunction(() => document.querySelector(".build-explorer").getBoundingClientRect().width > 380);
+    const preferredWidth = (await explorer.boundingBox()).width;
+    assert.ok(preferredWidth <= 460 && preferredWidth >= 380);
+    assert.equal(await editor.inputValue(), originalSource);
+    await page.locator("#details").evaluate((el) => { el.style.width = "700px"; });
+    await page.waitForFunction(() => document.querySelector(".build-explorer").getBoundingClientRect().width <= 373);
+    assert.ok(Number(await splitter.getAttribute("aria-valuenow")) <= Number(await splitter.getAttribute("aria-valuemax")));
+    await page.locator("#details").evaluate((el) => { el.style.width = "1200px"; });
+    await page.waitForFunction((width) => Math.abs(document.querySelector(".build-explorer").getBoundingClientRect().width - width) < 2, preferredWidth);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await editor.waitFor();
+    assert.ok(Math.abs((await explorer.boundingBox()).width - preferredWidth) < 2);
+    assert.equal(await editor.inputValue(), originalSource);
+
+    await splitter.focus();
+    await splitter.press("Home");
+    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemin"));
+    await splitter.press("ArrowLeft");
+    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemin"));
+    await splitter.press("End");
+    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemax"));
+    await splitter.press("ArrowRight");
+    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemax"));
+    divider = await splitter.boundingBox();
+    await splitter.dispatchEvent("pointerdown", {
+      pointerId: 91, pointerType: "mouse", button: 0, clientX: divider.x, clientY: divider.y + 20,
+    });
+    assert.equal(await page.locator(".build-workspace").getAttribute("data-resizing"), "true");
+    await splitter.dispatchEvent("pointercancel", {
+      pointerId: 91, pointerType: "mouse", button: 0, clientX: divider.x, clientY: divider.y + 20,
+    });
+    assert.equal(await page.locator(".build-workspace").getAttribute("data-resizing"), null);
 
     const src = page.locator(".build-folder > summary").filter({ hasText: /^src$/ });
     await src.press("Enter");
@@ -144,6 +198,12 @@ test("Build file explorer filters folders, preserves selection and offscreen sav
     await toggle.click();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+    assert.equal(await toggle.getByText("Show files").count(), 1);
+    assert.equal(await page.locator("[data-build-files-toggle]").count(), 1);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await editor.waitFor();
+    assert.equal(await explorer.isVisible(), false);
+    assert.equal(await toggle.isVisible(), true);
     await toggle.click();
     assert.equal(await filter.evaluate((el) => el === document.activeElement), true);
 

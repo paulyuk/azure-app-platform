@@ -44,17 +44,20 @@ pattern. Its landing page keeps three equally styled, neutral journey cards visi
 
 The canvas does not scan on launch. Source and Azure discovery happen only when
 the selected journey needs them. Workspace requests preload relevant specialist
-studios and may open the resulting worktree in VS Code.
+studios and may open the resulting worktree in the user's selected code editor.
 
 After creation or selection, the app workspace becomes the primary interface.
-An optional VS Code launch failure does not roll back the new worktree; the workspace
+The Unity logo and **Unity Studio** text link home; there is no separate Home button.
+An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
 The main buttons are **Build → Run & Debug → Observe**, with a filled selected
 state marking the current workspace. Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
-Build's compact **Edit on App Map** action opens that same map, with a
-dismissible hint highlighting the existing add-component and connection
-controls. The Guide's Build action opens it too; Connect retains its source
+Build starts directly with the file tree and editor, without a duplicate
+Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
+navigation. The Guide's Build action opens the general map with a dismissible
+hint highlighting the existing add-component and connection controls; it does
+not select a component based on the current file. Connect retains its source
 review and offers **Edit connections on App Map**. These entry points do not
 change files, start the app, or discard inline drafts.
 Every workspace remains accessible regardless of readiness: this is not a
@@ -140,7 +143,7 @@ typography, padding, and corner radius. Inspector actions form a wrapping row
 below the source path; Logs uses the same field sizing, heading hierarchy,
 muted metadata, and service-panel treatment as the other workspaces.
 New Minimal, Empty, and Dealer apps automatically receive available ports during
-creation, before the child session or VS Code opens. The allocator excludes live
+creation, before the child session or code editor opens. The allocator excludes live
 listeners and saved assignments in sibling worktrees, then persists the new app's
 `.unity-studio/ports.env`. It does not stop or reassign existing apps.
 
@@ -195,13 +198,27 @@ theme, keeps native text selection and input, and never adds markup to saved fil
 Long lines scroll horizontally; high-contrast mode and active IME composition use
 readable native text. A tokenizer failure reports the problem and keeps plain-text
 editing available.
-The explorer can be hidden. Below 600px of available pane width, **Files** switches
+The explorer has its own collapse control and a draggable, keyboard-accessible
+divider for changing its width. Resizing and collapsing do not replace the
+selected editor or discard drafts. Below 600px of available pane width, **Files** switches
 between the explorer and editor rather than squeezing them beside the Guide.
-Every available file has an editable source area and an **Edit in Code** button
-with a VS Code icon. The button opens the whole app worktree and the selected
-file together; it never silently saves an inline draft. Returning from Code
+Choose a **Code editor** in Build or when reviewing a new app: **VS Code**,
+**VS Code Insiders**, **Cursor**, **Windsurf**, **Zed**, or **Sublime Text**.
+The preference is saved per user in `editor-preferences.json`, independently of
+appearance settings, and is shared by Build, App Map source actions, and app
+creation. Custom executable paths and commands are not supported.
+The chosen editor must already be installed, with its CLI available where
+required; Studio reports launch failures rather than opening another editor.
+Every available file has an editable source area and an **Open in &lt;editor&gt;**
+button. It opens the whole app worktree and the selected
+file together; it never silently saves an inline draft. Returning from the editor
 refreshes saved files while preserving inline drafts and blocking stale overwrites.
-Inline edits require **Review changes → Save reviewed changes**; saves reject
+Inline edits require **Review changes → Save reviewed changes**. Review temporarily
+replaces the editing area with a unified diff of the draft against the saved
+file, not Git HEAD: additions/deletions have color and explicit markers, old/new
+line numbers, and three lines of context. **Back to editing** restores the same
+draft. Git produces this comparison without staging or changing app files.
+Saves reject
 stale versions and require the app to be stopped. Drafts survive switching between
 files and between Build and Run/Debug in the same panel. Selection, folder
 expansion, and the filter also survive in-panel refreshes. Edits made while a reviewed save is pending
@@ -369,7 +386,7 @@ agent, so an unsupported pinned version is never partially upgraded.
 Generation checks the Sandbox & Gateway catalog's full required-file list.
 Scenario docs live inside the template as the single source of truth, and their
 source links are rewritten to rendered files during materialization.
-Existing apps are not regenerated or renamed: Build, **Edit in Code**, and
+Existing apps are not regenerated or renamed: Build, **Open in &lt;editor&gt;**, and
 document testing also support the earlier `src/sandbox/tool/` layout. New apps
 use only `src/tools/document-validation/`; a partial new layout never silently
 borrows a contract from the old folder.
@@ -409,7 +426,7 @@ to the AI Gateway selector instead of repeating discovery.
 - `request_app_workspace` validates a template or assembly request and resolves
   opaque source IDs immediately before execution. Template requests create a Git
   worktree, hydrate the pinned template, and optionally open a named child
-  session through session RPC and launch VS Code—without sending a creation
+  session through session RPC and launch the selected editor—without sending a creation
   prompt to chat. Older hosts without child-session RPC still receive the
   usable materialized worktree. Assemblies still use a structured model handoff
   because integrating independently built projects requires semantic decisions.
@@ -427,8 +444,11 @@ troubleshooting—not known-file creation.
   They validate portable component paths, distinguish new from already-discovered
   relationships, and require confirmation before requesting source/configuration
   changes and an updated `unity.app.yaml`.
-- `open_in_vscode` opens an explicitly selected, workspace-confined repository
-  path in a new VS Code window.
+- `open_in_editor` opens a workspace-confined source path in the saved supported
+  editor, or an explicit supported `editorId`. `request_app_workspace` accepts
+  `openInEditor` and an optional supported `editorId`.
+- `open_in_vscode` and the legacy `openInVsCode` request option retain their
+  explicit VS Code behavior for existing integrations.
 - `activate_tier` opens a registered preferred studio, returns implementations to
   inspect, or returns a scaffold recipe when no implementation is observed.
 - `trace_app` derives a generic App Map whose nodes and edges retain matched

@@ -33,7 +33,7 @@ test("installed payload opens and materializes templates without checkout depend
 
     const { stdout } = await execute(process.execPath, ["--input-type=module", "--eval", `
       import assert from "node:assert/strict";
-      import { access, readFile, realpath } from "node:fs/promises";
+      import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
       import { isBuiltin, registerHooks } from "node:module";
       import { join, sep } from "node:path";
       import { pathToFileURL } from "node:url";
@@ -117,6 +117,53 @@ test("installed payload opens and materializes templates without checkout depend
         const home = await fetch(new URL("/", opened.url));
         assert.doesNotMatch(await home.text(), /id="skip-studio-intro"/);
         assert.doesNotMatch(html, /<(?:script|link|img)\\b[^>]+(?:src|href)=["'](?:https?:)?\\/\\//i);
+        const token = JSON.parse(/const apiToken = (".*?");/.exec(html)[1]);
+        const api = (path, input) => fetch(new URL(path, opened.url), {
+          method: input ? "POST" : "GET",
+          headers: { "x-unity-studio-token": token, "Content-Type": "application/json" },
+          ...(input ? { body: JSON.stringify(input) } : {}),
+        });
+        assert.ok(canvas.actions.some((action) => action.name === "open_in_editor"));
+        const initial = await api("/api/editor-settings");
+        assert.equal(initial.status, 200);
+        assert.equal((await initial.json()).editorId, "vscode");
+        const saved = await api("/api/editor-settings", { editorId: "cursor" });
+        assert.equal(saved.status, 200);
+        assert.equal((await saved.json()).editorId, "cursor");
+        const invalid = await api("/api/editor-settings", { editorId: "cursor", command: "custom" });
+        assert.equal(invalid.status, 400);
+        await invalid.arrayBuffer();
+        const unauthenticated = await fetch(new URL("/api/editor-settings", opened.url), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ editorId: "zed" }),
+        });
+        assert.equal(unauthenticated.ok, false);
+        await unauthenticated.arrayBuffer();
+        const { readEditorSettings } = await import(base + "editor-settings.mjs");
+        assert.equal((await readEditorSettings()).editorId, "cursor");
+        await mkdir("src/agent/prompts", { recursive: true });
+        await mkdir("src/tools/document-validation", { recursive: true });
+        await writeFile("src/agent/prompts/system.md", "Use the tool.\\n\\n");
+        const build = await api("/api/build-workspace?root=.");
+        assert.equal(build.status, 200);
+        const state = await build.json();
+        assert.equal(state.editorSettings.editorId, "cursor");
+        const artifact = state.artifacts.find((item) => item.id === "instructions");
+        const reviewInput = { root: ".", id: artifact.id, baseSha: artifact.sha, content: "Use the trusted tool.\\n\\n" };
+        const review = await api("/api/build-diff", reviewInput);
+        assert.equal(review.status, 200);
+        const diff = await review.json();
+        assert.equal(diff.baseSha, artifact.sha);
+        assert.equal(diff.additions, 1);
+        assert.equal(diff.deletions, 1);
+        assert.equal(diff.hunks[0].lines.at(-1).text, "");
+        const stale = await api("/api/build-diff", { ...reviewInput, baseSha: "stale" });
+        assert.equal(stale.status, 409);
+        await stale.arrayBuffer();
+        const arbitrary = await api("/api/build-diff", { ...reviewInput, id: "../outside" });
+        assert.equal(arbitrary.status, 400);
+        await arbitrary.arrayBuffer();
+        assert.equal(await readFile("src/agent/prompts/system.md", "utf8"), "Use the tool.\\n\\n");
       } finally {
         await canvas.onClose(context);
       }
@@ -139,7 +186,7 @@ test("installed payload opens and materializes templates without checkout depend
       process.stdout.write("portable payload passed");
     `, payload], {
       cwd: workspace,
-      env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
+      env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "", COPILOT_HOME: join(root, "copilot-home") },
       timeout: 30_000,
     });
     assert.equal(stdout, "portable payload passed");
