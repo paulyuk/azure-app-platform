@@ -112,7 +112,7 @@ test("Build customization areas and static review follow Studio themes inside an
         assert.equal(await explorer.evaluate((el) => getComputedStyle(el).backgroundColor),
           theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)", `${theme} explorer at ${width}px`);
         await assertContrast(explorer.locator(
-          "h3, .build-area-button, .build-area-description, .build-area-status, .build-files-toggle"),
+          "h3, h4, .build-file-button, .build-file-name, .build-file-location, .build-file-status, .build-area-status, .build-files-toggle"),
         `${theme} customization areas at ${width}px`);
 
         if (width < 600) {
@@ -152,7 +152,7 @@ test("Build customization areas and static review follow Studio themes inside an
         assert.equal(Math.round((await page.locator(".build-explorer-reopen").boundingBox()).width), 40);
         assert.equal(await toggle.locator('[data-icon="customize"]').count(), 1);
         await toggle.click();
-        assert.equal(await explorer.locator('.build-area-button[aria-current="true"]').evaluate(
+        assert.equal(await explorer.locator('.build-file-button[aria-current="true"]').evaluate(
           (element) => element === document.activeElement), true);
       }
       if (width === 420) {
@@ -192,7 +192,7 @@ test("Build customization areas and static review follow Studio themes inside an
     await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "true");
     const compactExplorer = page.getByRole("navigation", { name: "Customization areas" });
     if (!await compactExplorer.isVisible()) await page.locator("[data-build-files-toggle]").click();
-    await compactExplorer.locator('.build-area-button[data-area-id="runtime"]').click();
+    await compactExplorer.locator('[data-file-id="runtime"]').click();
     const runtimeHeading = page.getByRole("heading", { name: "Runtime", level: 3 });
     await page.waitForFunction(() => document.activeElement?.tagName === "H3");
     assert.equal(await runtimeHeading.evaluate((element) => element === document.activeElement), true);

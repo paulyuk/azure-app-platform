@@ -185,9 +185,11 @@ Missing tiers are scaffoldable rather than inferred from the platform catalog.
 not one universal template checklist. Its left navigation presents only supported
 customization areas backed by available source: **Agent behavior**, **Tools &
 contracts**, **Runtime**, and **Policies & limits**. Agent behavior appears first
-when available. Filenames are secondary: an area with multiple relevant files
-offers a scoped **File** picker and remembers its last selection. Areas aggregate
-unsaved, saving, and save-failure indicators across their files.
+when available. Each area is a heading with its relevant files listed directly
+underneath in **Customize**. Click a file to open it; the selected row is
+highlighted, with parent paths distinguishing repeated filenames. There is no
+file dropdown in the editor pane. Files show their own unsaved, saving, and
+save-failure indicators, and headings aggregate those states.
 
 Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and

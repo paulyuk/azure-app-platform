@@ -24,14 +24,18 @@ export const BUILD_PANEL_CSS = `
 #details[data-mode="build"] .build-splitter:hover::after,
 #details[data-mode="build"] .build-splitter:focus-visible::after { color:var(--true-color-blue,#007acc); }
 #details[data-mode="build"] .build-workspace[data-resizing="true"] { cursor:col-resize; user-select:none; }
-#details[data-mode="build"] .build-area-list { display:flex; flex-direction:column; gap:4px; padding:0 8px 12px; }
-#details[data-mode="build"] .build-area-list .build-area-button { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; min-width:0; padding:10px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text-color-default,#222); text-align:left; white-space:normal; }
-#details[data-mode="build"] .build-area-button:hover { background:var(--background-color-default,#fff); border-color:var(--border-color-default,#ddd); }
-#details[data-mode="build"] .build-area-button[aria-current="true"] { background:var(--true-color-blue-muted,#e4f1fc); border-color:var(--true-color-blue,#007acc); }
-#details[data-mode="build"] .build-area-description { color:var(--text-color-muted,#6a6775); font-size:11px; font-weight:400; }
-#details[data-mode="build"] .build-area-status { font-size:11px; font-weight:600; color:var(--true-color-blue,#007acc); }
-#details[data-mode="build"] .build-file-choice { display:flex; align-items:center; gap:8px; margin:4px 0; color:var(--text-color-muted,#6a6775); font-size:12px; }
-#details[data-mode="build"] .build-file-choice select { flex:1; }
+#details[data-mode="build"] .build-area-list { display:flex; flex-direction:column; gap:20px; padding:0 8px 12px; }
+#details[data-mode="build"] .build-area-header { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; padding:0 8px 4px; }
+#details[data-mode="build"] .build-area-header h4 { margin:0; font-size:12px; }
+#details[data-mode="build"] .build-file-list { display:flex; flex-direction:column; gap:2px; list-style:none; margin:0; padding:0 0 0 8px; }
+#details[data-mode="build"] .build-file-list .build-file-button { display:grid; grid-template-columns:16px minmax(0,1fr); align-items:start; gap:2px 8px; width:100%; min-width:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text-color-default,#222); text-align:left; white-space:normal; }
+#details[data-mode="build"] .build-file-button:hover { background:var(--background-color-default,#fff); border-color:var(--border-color-default,#ddd); }
+#details[data-mode="build"] .build-file-button[aria-current="true"] { background:var(--true-color-blue-muted,#e4f1fc); border-color:var(--true-color-blue,#007acc); }
+#details[data-mode="build"] .build-file-button svg { width:16px; height:16px; margin-top:1px; }
+#details[data-mode="build"] .build-file-name { font:12px/1.5 var(--font-mono,monospace); overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-file-location { grid-column:2; color:var(--text-color-muted,#6a6775); font-size:11px; font-weight:400; overflow-wrap:anywhere; }
+#details[data-mode="build"] :is(.build-area-status,.build-file-status) { font-size:11px; font-weight:600; color:var(--true-color-blue,#007acc); }
+#details[data-mode="build"] .build-file-status { grid-column:2; }
 #details[data-mode="build"] .build-empty { max-width:480px; padding:24px; }
 #details[data-mode="build"] .build-editor { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:auto; padding:16px; }
 #details[data-mode="build"] .build-file { display:flex; flex-direction:column; flex:1; min-width:0; }
@@ -117,10 +121,10 @@ export const BUILD_PANEL_CSS = `
 
 export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings }) {
   const areas = [
-    { id: "behavior", label: "Agent behavior", short: "Instructions & responses", description: "Shape what your agent should do and how it responds." },
-    { id: "tools", label: "Tools & contracts", short: "Actions & expected inputs", description: "Customize the actions your agent can use and their input contracts." },
-    { id: "runtime", label: "Runtime", short: "Execution & app settings", description: "Adjust the execution settings and app configuration recognized in this workspace." },
-    { id: "policies", label: "Policies & limits", short: "Developer-owned rules", description: "Review developer-owned rules and limits separately from model instructions." },
+    { id: "behavior", label: "Agent behavior", description: "Shape what your agent should do and how it responds." },
+    { id: "tools", label: "Tools & contracts", description: "Customize the actions your agent can use and their input contracts." },
+    { id: "runtime", label: "Runtime", description: "Adjust the execution settings and app configuration recognized in this workspace." },
+    { id: "policies", label: "Policies & limits", description: "Review developer-owned rules and limits separately from model instructions." },
   ];
   const supportedEditors = [
     { id: "vscode", label: "VS Code" },
@@ -144,9 +148,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   const drafts = new Map();
   const pendingSaves = new Set();
   const pendingEditorLaunches = new Set();
-  const selectedByArea = new Map();
   const saveFeedback = new Map();
-  const areaButtons = new Map();
+  const areaGroups = new Map();
+  const fileButtons = new Map();
   const explorerMinWidth = 176;
   const explorerMaxWidth = 460;
   const editorMinWidth = 320;
@@ -263,45 +267,72 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     applyExplorerWidth();
   }
   function updateFileStates() {
+    function statusFor(artifact) {
+      return pendingSaves.has(artifact.id) ? "Saving"
+        : saveFeedback.get(artifact.id)?.error ? "Save failed"
+          : drafts.has(artifact.id) ? "Unsaved" : "";
+    }
+    for (const artifact of artifacts) {
+      const entry = fileButtons.get(artifact.id);
+      if (!entry) continue;
+      const status = statusFor(artifact);
+      entry.button.setAttribute("aria-current", String(artifact.id === selectedId));
+      entry.button.setAttribute("aria-label", artifact.path + (status ? ", " + status : ""));
+      entry.status.textContent = status;
+      entry.status.hidden = !status;
+    }
     for (const area of areas) {
-      const entry = areaButtons.get(area.id);
+      const entry = areaGroups.get(area.id);
       if (!entry) continue;
       const members = artifacts.filter((artifact) => artifact.customizationArea === area.id);
-      const status = members.some((artifact) => pendingSaves.has(artifact.id)) ? "Saving"
-        : members.some((artifact) => saveFeedback.get(artifact.id)?.error) ? "Save failed"
-          : members.some((artifact) => drafts.has(artifact.id)) ? "Unsaved" : "";
-      entry.button.setAttribute("aria-current", String(members.some((artifact) => artifact.id === selectedId)));
-      entry.button.setAttribute("aria-label", area.label + (status ? ", " + status : ""));
+      const statuses = members.map(statusFor);
+      const status = ["Saving", "Save failed", "Unsaved"].find((value) => statuses.includes(value)) ?? "";
+      entry.group.setAttribute("aria-label", area.label + (status ? ", " + status : ""));
       entry.status.textContent = status;
       entry.status.hidden = !status;
     }
   }
   function renderCustomizations() {
     areaList.replaceChildren();
-    areaButtons.clear();
+    areaGroups.clear();
+    fileButtons.clear();
     for (const area of areas) {
       const members = artifacts.filter((artifact) => artifact.customizationArea === area.id);
       if (!members.length) continue;
-      const control = button(areaList, "", () => {
-        const next = members.find((artifact) => artifact.id === selectedByArea.get(area.id)) ?? members[0];
-        if (selectedId !== next.id) {
-          selectedId = next.id;
-          renderSelectedArtifact();
-          updateFileStates();
-        }
-        if (isCompact()) {
-          compactFilesVisible = false;
-          updateExplorerVisibility();
-          editorPane.querySelector("h3")?.focus();
-        }
-      });
-      control.className = "build-area-button";
-      control.dataset.areaId = area.id;
-      element("span", area.label, control);
-      element("span", area.short, control, "build-area-description");
-      const status = element("span", "", control, "build-area-status");
+      const group = element("section", undefined, areaList, "build-area");
+      group.dataset.areaId = area.id;
+      group.setAttribute("role", "group");
+      const header = element("div", undefined, group, "build-area-header");
+      element("h4", area.label, header);
+      const status = element("span", "", header, "build-area-status");
       status.setAttribute("aria-hidden", "true");
-      areaButtons.set(area.id, { button: control, status });
+      areaGroups.set(area.id, { group, status });
+      const list = element("ul", undefined, group, "build-file-list");
+      for (const artifact of members) {
+        const item = element("li", undefined, list);
+        const control = button(item, "", () => {
+          if (selectedId !== artifact.id) {
+            selectedId = artifact.id;
+            renderSelectedArtifact();
+            updateFileStates();
+          }
+          if (isCompact()) {
+            compactFilesVisible = false;
+            updateExplorerVisibility();
+            editorPane.querySelector("h3")?.focus();
+          }
+        });
+        control.className = "build-file-button";
+        control.dataset.fileId = artifact.id;
+        control.title = artifact.title + " — " + artifact.path;
+        control.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M9.5 1.5h-6v13h9V5zm0 0V5h3"/></svg>';
+        const parts = artifact.path.split("/");
+        element("span", parts.pop(), control, "build-file-name");
+        if (parts.length) element("span", parts.join("/"), control, "build-file-location");
+        const fileStatus = element("span", "", control, "build-file-status");
+        fileStatus.setAttribute("aria-hidden", "true");
+        fileButtons.set(artifact.id, { button: control, status: fileStatus });
+      }
     }
     updateFileStates();
   }
@@ -312,10 +343,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     editorPane.replaceChildren();
     editorPane.scrollTop = 0;
     const artifact = artifacts.find((item) => item.id === selectedId);
-    if (artifact) {
-      selectedByArea.set(artifact.customizationArea, artifact.id);
-      renderArtifact(artifact);
-    }
+    if (artifact) renderArtifact(artifact);
   }
   function renderArtifact(artifact) {
     const card = element("section", undefined, editorPane, "build-file");
@@ -327,24 +355,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const language = syntax?.languageForPath(artifact.path) ?? { id: "plain", label: "Plain text" };
     element("span", language.label, fileHeading, "build-language").setAttribute("aria-label", "Language: " + language.label);
     element("p", area.description, card);
-    const members = artifacts.filter((item) => item.customizationArea === area.id);
-    if (members.length > 1) {
-      const label = element("label", "File", card, "build-file-choice");
-      const select = element("select", undefined, label);
-      select.dataset.buildFileSelect = "true";
-      select.setAttribute("aria-label", area.label + " file");
-      for (const member of members) {
-        const option = element("option", member.title + " — " + member.path, select);
-        option.value = member.id;
-      }
-      select.value = artifact.id;
-      select.addEventListener("change", () => {
-        selectedId = select.value;
-        renderSelectedArtifact();
-        updateFileStates();
-        editorPane.querySelector("[data-build-file-select]")?.focus();
-      });
-    }
     element("code", artifact.path, card);
     if (!artifact.available) {
       element("p", artifact.detail, card, "build-warning");
@@ -770,7 +780,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     cleanupReview?.();
     cleanupReview = undefined;
     container.replaceChildren();
-    areaButtons.clear();
+    areaGroups.clear();
+    fileButtons.clear();
     const loading = element("p", "Loading app source...", container, "build-loading");
     loading.setAttribute("role", "status");
     try {

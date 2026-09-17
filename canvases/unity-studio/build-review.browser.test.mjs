@@ -202,12 +202,12 @@ test("Build rejects stale, failed or invalid reviews and ignores responses after
       assert.equal(await review.isEnabled(), true);
     }
     await prepare("Offscreen review.");
-    await page.locator('[data-area-id="runtime"]').click();
+    await page.locator('[data-file-id="config"]').click();
     gate.reply.resolve({ error: "Ignore this obsolete error." });
     await gate.completed.promise;
     assert.equal(await page.getByRole("alert").count(), 0);
     assert.equal(await save.count(), 0);
-    await page.locator('[data-area-id="behavior"]').click();
+    await page.locator('[data-file-id="agent"]').click();
     assert.equal(await source.inputValue(), "Offscreen review.");
     await prepare("Review canceled by leaving Build.");
     await page.evaluate(() => { window.panelActive = false; window.buildPanel.hide(); });

@@ -10,7 +10,7 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build curates customization areas, remembers scoped choices and offscreen saves, and adapts to pane width", {
+test("Build lists files under customization headings, preserves file drafts and offscreen saves, and adapts to pane width", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
@@ -78,12 +78,8 @@ test("Build curates customization areas, remembers scoped choices and offscreen 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const editor = page.locator(".build-editor textarea");
     const explorer = page.getByRole("navigation", { name: "Customization areas" });
-    const file = (id) => page.locator(`[data-area-id="${artifacts.find((item) => item.id === id).customizationArea}"]`);
-    const chooseFile = async (id) => {
-      await file(id).click();
-      const picker = page.locator("[data-build-file-select]");
-      if (await picker.count()) await picker.selectOption(id);
-    };
+    const file = (id) => page.locator(`[data-file-id="${id}"]`);
+    const chooseFile = (id) => file(id).click();
     const toggle = page.locator("[data-build-files-toggle]");
     const rail = page.locator(".build-explorer-reopen");
     const splitter = page.getByRole("separator", { name: "Resize customization areas" });
@@ -106,8 +102,22 @@ test("Build curates customization areas, remembers scoped choices and offscreen 
     assert.equal(await page.getByRole("textbox").count(), 1);
     assert.deepEqual(await explorer.locator("[data-area-id]").evaluateAll((items) => items.map((item) => item.dataset.areaId)), ["behavior", "tools", "runtime"]);
     assert.equal(await page.getByRole("searchbox").count(), 0);
-    assert.equal(await page.locator(".build-folder, [data-file-id]").count(), 0);
-    assert.equal(await page.locator("[data-build-file-select]").count(), 0, "Single-file decisions do not need a file picker");
+    assert.equal(await page.locator(".build-folder").count(), 0);
+    assert.equal(await page.locator("[data-build-file-select]").count(), 0);
+    assert.equal(await explorer.locator("[data-file-id]").count(), 5, "Only curated files appear under headings");
+    assert.deepEqual(await explorer.locator("h4").allTextContents(), ["Agent behavior", "Tools & contracts", "Runtime"]);
+    assert.deepEqual(await explorer.locator('[data-area-id="tools"] [data-file-id]').evaluateAll((items) =>
+      items.map((item) => item.dataset.fileId)), ["inventory", "pricing"]);
+    assert.equal(await file("inventory").locator(".build-file-name").textContent(), "main.py");
+    assert.equal(await file("pricing").locator(".build-file-name").textContent(), "main.py");
+    assert.notEqual(await file("inventory").locator(".build-file-location").textContent(),
+      await file("pricing").locator(".build-file-location").textContent(), "Parent paths disambiguate repeated filenames");
+    await file("inventory").focus();
+    await file("inventory").press("Tab");
+    assert.equal(await file("pricing").evaluate((element) => element === document.activeElement), true);
+    await file("pricing").press("Enter");
+    assert.equal(await editor.inputValue(), "Source for pricing");
+    await file("agent").click();
     assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await editor.boundingBox()).x);
     assert.ok((await editor.boundingBox()).height >= 400);
     assert.ok(await explorer.evaluate((el) => el.scrollHeight <= el.clientHeight), "Implementation files must not crowd the decision list");
@@ -179,14 +189,23 @@ test("Build curates customization areas, remembers scoped choices and offscreen 
     assert.equal(await page.locator(".build-workspace").getAttribute("data-resizing"), null);
 
     await chooseFile("pricing");
-    assert.equal(await page.getByRole("combobox", { name: "Tools & contracts file" }).locator("option").count(), 2);
+    assert.equal(await page.getByRole("combobox", { name: "Tools & contracts file" }).count(), 0);
     assert.match(await page.locator(".build-file code").textContent(), /pricing/);
     await editor.fill("Unsaved pricing changes.");
     assert.match(await file("pricing").getAttribute("aria-label"), /Unsaved/);
+    assert.doesNotMatch(await file("inventory").getAttribute("aria-label"), /Unsaved/);
+    assert.match(await explorer.locator('[data-area-id="tools"]').getAttribute("aria-label"), /Unsaved/);
+    await file("inventory").click();
+    await editor.fill("Independent inventory draft.");
+    await file("pricing").click();
+    assert.equal(await editor.inputValue(), "Unsaved pricing changes.");
+    assert.equal(await explorer.locator('[data-file-id][aria-current="true"]').count(), 1);
+    await file("inventory").click();
+    await editor.fill("Source for inventory");
     await chooseFile("config");
     await editor.fill("Unsaved settings.");
     await file("pricing").click();
-    assert.equal(await page.locator("[data-build-file-select]").inputValue(), "pricing", "Each area remembers its last file");
+    assert.equal(await file("pricing").getAttribute("aria-current"), "true");
     assert.equal(await editor.inputValue(), "Unsaved pricing changes.");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await editor.waitFor();
@@ -219,11 +238,17 @@ test("Build curates customization areas, remembers scoped choices and offscreen 
       } else {
         await page.getByText(/Saved\. Restart/).waitFor();
         assert.equal(await editor.inputValue(), "Reviewed pricing changes.");
-        assert.equal(await file("pricing").getAttribute("aria-label"), "Tools & contracts");
+        assert.equal(await file("pricing").getAttribute("aria-label"), "src/skills/pricing/main.py");
       }
     }
     assert.equal(writes.length, 2);
     assert.equal(writes[1].baseSha, "saved-1");
+    await explorer.evaluate((element) => { element.style.maxHeight = "200px"; });
+    assert.ok(await explorer.evaluate((element) => element.scrollHeight > element.clientHeight), "Long groups scroll within navigation");
+    await file("agent").click();
+    await file("pricing").click();
+    assert.equal(await editor.inputValue(), "A conflicting pricing draft.");
+    await explorer.evaluate((element) => { element.style.maxHeight = ""; });
     await toggle.click();
     assert.equal(await explorer.isVisible(), false);
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");

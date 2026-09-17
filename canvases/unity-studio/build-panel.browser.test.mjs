@@ -67,7 +67,7 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
     const editor = page.locator('textarea[aria-label="Agent instructions source"]');
     const review = page.locator("button").filter({ hasText: /^Review changes$/ });
     const discard = page.locator("button").filter({ hasText: /^Discard draft & reload$/ });
-    const behaviorArea = page.locator('.build-area-button[data-area-id="behavior"]');
+    const behaviorArea = page.locator('[data-area-id="behavior"]');
     for (const reloadDuringSave of [false, true]) {
       const original = artifact.content;
       const reviewed = `Reviewed revision ${writes.length}.`;
@@ -87,9 +87,9 @@ test("Build preserves newer and reverted drafts across pending saves and panel r
         await editor.waitFor();
         assert.equal(await review.isDisabled(), true);
       } else {
-        await page.locator('.build-area-button[data-area-id="runtime"]').click();
+        await page.locator('[data-file-id="runtime"]').click();
         await page.locator('[data-artifact="runtime"]').waitFor();
-        await behaviorArea.click();
+        await page.locator('[data-file-id="instructions"]').click();
         await editor.waitFor();
       }
       const newer = reloadDuringSave ? original : "Newer unsaved instructions.";
@@ -210,13 +210,11 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const instructions = page.locator('[data-artifact="instructions"]');
     const selectArtifact = async (area, id) => {
-      await page.locator(`.build-area-button[data-area-id="${area}"]`).click();
-      const select = page.locator("select[data-build-file-select]");
-      if (id && await select.count()) await select.selectOption(id);
+      await page.locator(`[data-area-id="${area}"] [data-file-id="${id}"]`).click();
     };
     await instructions.getByRole("textbox").waitFor();
     const customizations = page.getByRole("navigation", { name: "Customization areas" });
-    assert.deepEqual(await customizations.locator(".build-area-button").evaluateAll((buttons) =>
+    assert.deepEqual(await customizations.locator("[data-area-id]").evaluateAll((buttons) =>
       buttons.map((button) => button.dataset.areaId)), ["behavior", "tools", "runtime", "policies"]);
     assert.equal(await page.locator('[data-artifact="unknown-area"], [data-artifact="unavailable"]').count(), 0);
     assert.equal(await page.locator(".build-card").count(), 0);
@@ -227,11 +225,12 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
     assert.equal(opened.length, 0);
     assert.equal(await page.getByRole("textbox").count(), 1);
     await selectArtifact("tools", "contract");
-    const toolFiles = page.getByRole("combobox", { name: "Tools & contracts file" });
-    assert.deepEqual(await toolFiles.locator("option").evaluateAll((options) => options.map((option) => option.value)), ["tool", "contract"]);
+    const toolFiles = customizations.locator('[data-area-id="tools"] [data-file-id]');
+    assert.deepEqual(await toolFiles.evaluateAll((items) => items.map((item) => item.dataset.fileId)), ["tool", "contract"]);
+    assert.equal(await page.locator("select[data-build-file-select]").count(), 0);
     await selectArtifact("behavior", "instructions");
-    await selectArtifact("tools");
-    assert.equal(await toolFiles.inputValue(), "contract");
+    await selectArtifact("tools", "contract");
+    assert.equal(await customizations.locator('[data-file-id="contract"]').getAttribute("aria-current"), "true");
     await selectArtifact("behavior", "instructions");
     for (const editor of await page.getByRole("textbox").all()) {
       assert.equal(await editor.getAttribute("readonly"), null);
@@ -263,12 +262,12 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
     saveFails = "Policy save failed.";
     await policy.getByRole("button", { name: "Save reviewed changes" }).click();
     await policy.getByText("Policy save failed.", { exact: true }).waitFor();
-    assert.equal(await page.locator('.build-area-button[data-area-id="policies"]').getAttribute("aria-label"),
+    assert.equal(await page.locator('[data-area-id="policies"]').getAttribute("aria-label"),
       "Policies & limits, Save failed");
     await policy.getByRole("button", { name: "Back to editing" }).click();
     saveFails = undefined;
     await policy.getByRole("textbox").fill('{"maxBytes":2048}');
-    assert.equal(await page.locator('.build-area-button[data-area-id="policies"]').getAttribute("aria-label"),
+    assert.equal(await page.locator('[data-area-id="policies"]').getAttribute("aria-label"),
       "Policies & limits");
     codeFails = true;
     await policy.getByRole("button", { name: "Open in VS Code", exact: true }).click();
@@ -337,7 +336,7 @@ test("Build exposes one selected editor, launch actions, reviewed policy edits a
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await skill.getByRole("textbox").waitFor();
     assert.equal(await skill.getByRole("textbox").inputValue(), "def inventory(): return ['real inventory']");
-    assert.equal(await page.locator('.build-area-button[data-area-id="tools"]').getAttribute("aria-current"), "true");
+    assert.equal(await page.locator('[data-file-id="source-skill"]').getAttribute("aria-current"), "true");
     await skill.getByRole("button", { name: "Discard draft & reload" }).click();
     await page.waitForFunction(() => document.querySelector('[data-artifact="source-skill"] textarea')?.value === "def inventory(): return []");
     await selectArtifact("behavior", "source-agent");

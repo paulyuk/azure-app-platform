@@ -189,7 +189,9 @@ test("installed payload opens and materializes templates without checkout depend
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /Customization areas/);
-        assert.match(mapHtml, /build-area-button/);
+        assert.match(mapHtml, /build-area-header/);
+        assert.match(mapHtml, /build-file-button/);
+        assert.doesNotMatch(mapHtml, /data-build-file-select|build-file-choice/);
         assert.match(mapHtml, /editorPane\\.querySelector\\(["']h3["']\\)\\?\\.focus/);
         assert.match(mapHtml, /explorer\\.querySelector\\(["']\\[aria-current=/);
         assert.match(mapHtml, /build-diff-row/);

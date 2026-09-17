@@ -195,11 +195,11 @@ test("Build highlights editable source with aligned scrolling, native input, the
     await page.getByText(/Saved\. Restart/).waitFor();
     assert.equal(writes[0].content, 'def hello():\n\treturn "こんにちは"\n');
     assert.equal(writes[0].baseSha, "base");
-    await page.locator('.build-area-button[data-area-id="runtime"]').click();
+    await page.locator('[data-file-id="json"]').click();
     await waitForHighlight();
     assert.equal(await page.locator(".build-language").textContent(), "JSON");
     assert.ok(await highlight.locator(".property").count() > 0);
-    await page.locator('.build-area-button[data-area-id="policies"]').click();
+    await page.locator('[data-file-id="plain"]').click();
     await waitForHighlight();
     assert.equal(await page.locator(".build-language").textContent(), "Plain text");
     assert.equal(await highlight.textContent(), artifacts[2].content);

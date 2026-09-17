@@ -395,7 +395,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
             await page.locator("[data-build-files-toggle]").click();
             assert.equal(await explorer.isVisible(), true);
             assert.equal(await editor.isVisible(), false);
-            await page.locator('[data-area-id="behavior"]').click();
+            await page.locator('[data-file-id="instructions"]').click();
             assert.equal(await editor.isVisible(), true);
             assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
           }
