@@ -251,8 +251,8 @@ workspace, collapsed by default unless the user has chosen otherwise.
 
 Guide visibility is a per-app browser-origin preference, separate from map
 layout and source files. An extension restart that changes the loopback origin
-can reset browser preferences. Document and inline-edit drafts stay in memory
-across mode switches but are not persisted by this layout.
+can reset browser preferences. Document-test drafts stay in memory across mode
+switches but are not persisted by this layout. Build holds no source drafts.
 Live runtime evidence takes precedence over unresolved static source evidence
 in workflow progress. A running app reaches Observe & manage immediately;
 Run is complete, while uncertain Build/Connect evidence remains marked Review.
@@ -266,63 +266,62 @@ Build exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.
 The catalog is app-aware: document-processing apps keep their recognized
 instruction/tool/policy/runtime layout, while Dealer, Empty Unity, and custom apps
 use source-discovered component files within their declared app scope. Inline
-agent instructions remain in their original runtime file; the editor does not
+agent instructions remain in their original runtime file; the preview does not
 extract or rewrite Python strings to manufacture a prompt file. Generic artifact
-IDs are bound to file paths, and read, editor-open, diff, and reviewed-save operations
-resolve the same catalog. Inventory changes cannot redirect an existing draft.
+IDs are bound to file paths, and read and editor-open operations resolve the same
+catalog. Inventory changes cannot redirect an existing file ID.
 Both profiles use a short, evidence-backed customization navigation and one
-selected editor. **Agent behavior**, **Tools & contracts**, **Runtime**, and
+selected read-only preview. **Agent behavior**, **Tools & contracts**, **Runtime**, and
 **Policies & limits** appear only when supported by available source. Recognized
 inline instruction declarations retain their original file and supply a 1-based
-initial editor position. General implementation files and boilerplate are not
+initial preview position. General implementation files and boilerplate are not
 navigation items. This is a UI projection of the existing authorized catalog,
 not a broader filesystem API or proof that a runtime loads a recognized file.
 
 Each area is a native details/summary disclosure above an indented list of file buttons in
-Key files, not another selection step or dropdown in the editor. File icons and
+Key files, not another selection step or dropdown in the preview. File icons and
 names lead; parent paths disambiguate repeated filenames. Only the selected
-file row is highlighted. Each file exposes its own unsaved/saving/error state,
-and its heading aggregates those states even while collapsed. A chevron indicates
+file row is highlighted. A chevron indicates
 expansion; the whole heading is clickable and supports native Enter/Space.
 Sections start open, retain their open/closed state in-panel, and never replace
-the editor or discard drafts when toggled. File selection and drafts survive in-panel
-refreshes and workspace switches. A missing or no-longer-recognized point with a
-draft remains read-only for copying rather than silently hiding the draft.
+the preview when toggled. File selection and scroll positions survive in-panel
+refreshes and workspace switches. Missing or no-longer-recognized points leave the
+navigation after refresh; no unsaved source lives in Build.
 The navigation has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
 label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
 centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
-editor and its draft intact. Below 600px of available pane width it replaces,
-rather than crowds, the editor. Choosing a file returns focus to the content
+preview intact. Below 600px of available pane width it replaces,
+rather than crowds, the preview. Choosing a file returns focus to the content
 heading. Reopening navigation focuses the selected file, or its section heading
 if the file is collapsed. Hidden files leave the tab order. Native Tab/Enter/Space
 behavior follows the displayed file order; long lists scroll within navigation.
 Navigation surfaces use Studio-owned theme tokens, not the host's background
 tokens, so choosing light mode inside a dark host retains readable labels.
 The content pane leads with the customization's purpose, then the actual file
-path and a consistent action bar. Keep basic editing and an external-editor
-handoff rather than building an embedded IDE or bespoke forms for every format.
+path and a consistent action bar. **Edit in Files** is the primary action, with
+the supported external-editor split button secondary. Build explains which
+files matter and why; the host Files canvas or external editor owns editing and
+saving. Do not recreate editor inputs, in-memory source drafts, runtime forms,
+review/save controls, or a second draft-durability contract in Build.
 Filename-selected syntax highlighting uses a shipped, licensed Prism bundle,
-not a runtime dependency or CDN. A noninteractive, accessibility-hidden color
-layer mirrors a native textarea without rewriting its value or selection.
-Both layers use identical monospace metrics and synchronized horizontal/vertical
-scrolling. A separate, accessibility-hidden and noninteractive gutter renders
-one 1-based number per actual textarea line, including a trailing blank line.
-It shares vertical scroll and line metrics with the textarea, grows for wider
+not a runtime dependency or CDN. Highlighted source is accessible, selectable
+read-only text, not an overlay on a hidden editor. A separate,
+accessibility-hidden gutter renders one 1-based number per saved source line,
+including a trailing blank line. It shares the preview scroller, grows for wider
 line numbers, and remains fixed while long source lines scroll horizontally
-inside the editor. It does not participate in selection or input. Unknown file
-types remain plain text. Theme changes recolor tokens; forced-color mode and
-IME composition retain readable native input. Highlighting failures surface an
-explicit error and fall back to editable plain text.
-Unified review is static, read-only DOM with no editor runtime. Plugin startup
+inside the preview. It does not participate in selection. Unknown file types
+remain plain text. Theme changes recolor tokens; forced-color mode retains
+readable text. Highlighting failures surface an explicit error and fall back to
+plain-text preview.
+Plugin startup
 never restores development dependencies, reads a checkout's `node_modules`, or
-downloads browser assets. The review uses Studio-owned light/dark tokens and
-keeps horizontal overflow inside its compact scroller. Explicit markers preserve
-added/removed meaning without relying on color.
+downloads browser assets. The preview uses Studio-owned light/dark tokens and
+keeps horizontal overflow inside its compact scroller.
 Top-level workspace navigation and Guide actions remain available during
 discovery failures and empty states; Build does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
-Only document-capable profiles show document-test copy and
-runtime selection. Unsupported areas are omitted, not presented as incomplete
+Only document-capable profiles show document-test copy and runtime information.
+Unsupported areas are omitted, not presented as incomplete
 capabilities. Empty customization discovery explains the limitation and offers
 the saved external-editor preference's workspace handoff.
 Discovery coverage is heuristic: a component path does not identify every
@@ -330,33 +329,23 @@ editable artifact or semantic role. Unsupported filenames/frameworks and
 dynamic or external configuration may not be recognized. A future explicit
 artifact contract in the app inventory is a design discussion, not current
 support; see README's discovery limitation and discussion with Paul.
-Source edits use a content hash and atomic replacement, reject symlink targets,
-and require a stopped app. The editor preserves drafts until an explicit review
-and save. Review hides, rather than destroys, the native textarea and shows a
-read-only saved-file-versus-draft diff. It provides addition/deletion totals,
-old/new line numbers, explicit `-`/`+` markers, red removed lines, green proposed
-lines, and three context lines. Hunk headers preserve Git coordinates and gaps
-identify omitted unchanged context. Missing-final-newline notices remain beside
-their hunk, and CRLF-to-LF normalization is explicit.
+Build source reads and handoffs reject symlink targets and preserve the catalog's
+96 KiB bound and app-root authorization. The old Build diff/write endpoints are
+removed. Edits made in Files or an external editor do not pass through a Build
+stopped-app gate; developers restart or rebuild as needed.
+The native handoff discovers the host editor canvas and uses repository scope
+with the selected file's canonical session-worktree-relative path, never a
+scratch buffer or copied content. Nested app roots retain their prefix. A file
+outside the session worktree reports the limitation and stays available through
+the external-editor option. Missing host support and launch failures are explicit.
+Repeated opens reuse the file's canvas rather than creating duplicate drafts.
 
-Review captures immutable content and base-hash snapshots. Response versioning
-rejects obsolete requests; a changed draft, hash mismatch, invalid response, or
-failed comparison cannot enable Save. The write handler rechecks the snapshot
-and hash before saving. Write failures retain the draft and disable Save until
-the user returns to editing and requests another review. There is no editable
-review, live revalidation loop, per-hunk editing, or general file browser.
-**Back to editing** synchronously restores the same native textarea's selection
-and scroll state. The authenticated diff endpoint validates
-the artifact, 96 KiB bound, and original hash, then compares private temporary
-files with Git without external diff drivers or repository mutations.
-**Save reviewed changes** snapshots approved content and hash before awaiting
-the write. Editing remains available during the request; newer content is kept
-as a draft and rebased to the returned saved hash before the normal editor is
-shown again. Back remains available during the save.
-`panel.hide()` increments the load/review generation and stops pending
-highlight work. Full-renderer workspace
-transitions call it before rendering another mode so late review responses
-cannot update a detached Build panel.
+Focus, visibility, workspace re-entry, and **Refresh preview** reload saved
+source. Unchanged refreshes retain the source DOM and text selection. Changed
+refreshes preserve selected file, disclosure state, and navigation/preview
+scrolling. Failed refreshes retain the last preview with an error and retry.
+`panel.hide()` invalidates outstanding loads and cancels scheduled refreshes.
+Late responses cannot replace another workspace or newer results.
 Every available artifact, including operator policy and tool contracts,
 is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
 an allowlisted, non-symlink artifact, then opens the whole worktree and the file.
@@ -367,16 +356,13 @@ picker, retaining keyboard behavior and visible focus. Both halves use the same
 hover background and disabled opacity, and disabled controls do not react to hover.
 The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
 Zed, and Sublime Text; there are no custom commands. Preference persistence is
-independent of theme settings and does not launch an editor or recreate drafts.
+independent of theme settings and does not launch an editor.
 Launchers use separate executable/argument values, macOS application fallbacks,
 and direct Electron CLI invocation on Windows rather than `.cmd` shell execution.
 Missing editors report remediation; an optional launch failure never deletes a
 successfully created app. Explicit legacy VS Code actions remain compatible.
-Returning focus refreshes saved source without overwriting pending inline drafts;
-drafts retain their original base hash even across reloads within the panel.
-Completing an offscreen save updates that file's status without refreshing the
-current editor or changing selection. Save outcomes remain associated with the
-file so switching away cannot hide a failed save.
+Completing an offscreen handoff never changes the selected file. Launch errors
+remain associated with their file when navigating between previews.
 The runtime model has no access to this loopback authoring API.
 
 Document tests and invocations use an owned local agent endpoint and omit document

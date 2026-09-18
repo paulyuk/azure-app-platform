@@ -53,13 +53,13 @@ opens with a clear warning so the user can continue.
 The main buttons are **Build → Run & Debug → Observe**, with a filled selected
 state marking the current workspace. Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
-Build starts directly with customization areas and one focused editor, without a duplicate
+Build starts directly with customization areas and one focused preview, without a duplicate
 Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
 navigation. The Guide's Build action opens the general map with a dismissible
 hint highlighting the existing add-component and connection controls; it does
 not select a component based on the current file. Connect retains its source
 review and offers **Edit connections on App Map**. These entry points do not
-change files, start the app, or discard inline drafts.
+change files or start the app.
 Every workspace remains accessible regardless of readiness: this is not a
 locked wizard. The two Observe views use a compact, outlined switcher with
 map/log icons, a filled selected state, and keyboard tab navigation.
@@ -188,42 +188,50 @@ contracts**, **Runtime**, and **Policies & limits**. Agent behavior appears firs
 when available. Each area is a heading with its relevant files listed directly
 underneath in **Key files**. Click a file to open it; the selected row is
 highlighted, with parent paths distinguishing repeated filenames. There is no
-file dropdown in the editor pane. Files show their own unsaved, saving, and
-save-failure indicators, and headings aggregate those states even when collapsed.
+file dropdown in the preview pane.
 Click a section heading, or use Enter/Space, to expand or collapse its files.
 Sections start expanded and remember their state during in-panel refreshes and
-workspace switches. Collapsing a section does not close its file or discard edits.
+workspace switches. Collapsing a section does not close its preview.
 
 Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and
 runtime configuration, not its HTTP-server boilerplate. Inline instructions stay
-in the original source file; a recognized declaration supplies the initial editor
+in the original source file; a recognized declaration supplies the initial preview
 position. Web implementation files, package manifests, container build files, and
 other general source remain outside this focused UI. The existing scoped catalog
-and read/open/save authorization are unchanged. Custom component paths reuse App
+and read/open authorization remain scoped. Custom component paths reuse App
 Map discovery. Unsupported areas are omitted, not shown as missing features.
 An app with no supported customization points gets an explicit explanation and
 an **Open in &lt;editor&gt;** workspace handoff.
-The editor highlights source using its filename: Python, JavaScript/TypeScript
+The read-only preview highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
-theme, keeps native text selection and input, and never adds markup to saved files.
-Normal editing includes a synchronized, noninteractive 1-based line-number
-gutter, including the final blank line when the source ends with a newline. It
-tracks edits, vertical scrolling, font metrics, and additional digits without
-replacing or intercepting the native textarea. Long lines scroll horizontally
-inside the editor without moving the gutter or widening the Build pane;
-high-contrast mode and active IME composition use readable native text. A
-tokenizer failure reports the problem and keeps plain-text editing available.
+theme and keeps native text selection and copying. A noninteractive 1-based
+line-number gutter includes the final blank line when the source ends with a
+newline. Long lines scroll horizontally inside the preview without moving the
+gutter or widening the Build pane; high-contrast mode uses readable plain text.
+A tokenizer failure reports the problem and keeps plain-text preview available.
 The customization navigation has a right-aligned icon-only collapse control with a tooltip and accessible
 label, plus a draggable, keyboard-accessible divider with a centered grip.
 Resizing and collapsing do not replace the
-selected editor or discard drafts. Below 600px of available pane width, the
-customization navigation replaces the editor rather than squeezing beside the Guide.
+selected preview. Below 600px of available pane width, the customization
+navigation replaces the preview rather than squeezing beside the Guide.
 When closed, a thin 40px rail remains visible; its customization icon reopens the
-navigation without floating over the editor or reserving an extra row above it.
-Use the compact editor split button in Build: click the editor name to open the
-file, or its chevron to choose an editor. The picker retains native keyboard
+navigation without floating over the preview or reserving an extra row above it.
+
+**Edit in Files** is the primary action. It opens the selected, saved source
+file in the app's native Files canvas in the current session, not a scratch
+buffer or copied artifact. The server resolves the artifact through the
+allowlisted catalog and passes its path relative to the session worktree to the
+host's repository-scoped editor canvas. Nested app roots retain their complete
+worktree-relative path. Files outside that worktree cannot use this handoff;
+Studio reports the limitation and the external-editor action remains available.
+Missing host support or a failed handoff produces a visible error, not a
+fallback to an unrelated file or editor.
+
+The secondary **Open in &lt;editor&gt;** split button opens the app worktree and
+selected file in VS Code or the saved preferred editor. Use its chevron to
+choose an editor. The picker retains native keyboard
 navigation and a visible focus outline. Both halves share hover and disabled
 styling. A **Code editor** field is also available
 when reviewing a new app. Supported choices are **VS Code**,
@@ -233,40 +241,24 @@ appearance settings, and is shared by Build, App Map source actions, and app
 creation. Custom executable paths and commands are not supported.
 The chosen editor must already be installed, with its CLI available where
 required; Studio reports launch failures rather than opening another editor.
-Every available file has an editable source area and an **Open in &lt;editor&gt;**
-button. It opens the whole app worktree and the selected
-file together; it never silently saves an inline draft. Returning from the editor
-refreshes saved files while preserving inline drafts and blocking stale overwrites.
-Inline edits require **Review changes → Save reviewed changes**. Review temporarily
-hides but retains the native textarea and opens a **read-only unified diff** of
-the draft against the saved file, not Git HEAD. It shows addition/deletion
-totals, old/new line numbers, explicit `-`/`+` markers, red removed lines, green
-proposed lines, and three lines of context around changes. Gaps identify omitted
-unchanged lines. Git's missing-final-newline notices and CRLF-to-LF normalization
-remain visible; long lines scroll inside the review rather than widening Build.
-**Back to editing** restores the same textarea, draft, selection, and scrolling.
-Git produces the server-authorized comparison without staging or changing app files.
-Failed, stale, or invalid comparisons cannot enable Save. A save failure retains
-the draft and disables Save; return to editing and review again before retrying.
+Save changes in Files or the external editor, then return to Build. Focus and
+visibility changes refresh saved source, as does re-entering Build.
+**Refresh preview** provides an explicit retry or refresh without leaving the
+page. File selection, section expansion, navigation size/visibility, and preview
+scroll positions are retained in the panel. Unchanged refreshes preserve the
+preview DOM and text selection. Late refresh responses cannot replace another
+workspace or overwrite newer results; an offscreen handoff cannot steal file
+selection. Refresh failures retain the previous preview and show an error.
 
-This deliberately stays smaller than an embedded IDE: general file exploration,
-editable diff review, and per-hunk editing are deferred. Broader implementation
-work belongs in the selected external editor.
-
-Saves reject stale versions and require the app to be stopped. Saving snapshots
-the approved content and hash before the request; typing can continue during a
-pending save after returning to editing. Those newer edits remain unsaved and are
-rebased onto the returned saved version when the save completes. Drafts survive
-switching between customization areas/files and between Build and Run/Debug in
-the same panel. Area/file selection and navigation width/visibility survive
-in-panel refreshes. A point that disappears while it has a draft remains available
-read-only so the draft can be copied before discarding it. Completing a save for another
-file never changes the current selection; its outcome remains available when
-that file is selected again.
-Leaving Build invalidates pending review checks before another workspace is rendered.
+Build does not edit files, hold unsaved source drafts, or implement review/save
+controls. Its former diff and source-write endpoints are removed. Native Files
+and external editors own editing and saving; their changes do not pass through
+the former Build stopped-app save gate. Restart the app or rebuild deployed
+images when needed for saved runtime/code changes. No crash-recovery guarantee
+is made by this preview.
 
 Syntax highlighting ships as a licensed bundle in
-`vendor/prism.mjs`; the static review needs no editor runtime. Installing or enabling the
+`vendor/prism.mjs`; the preview needs no editor runtime. Installing or enabling the
 plugin never runs `npm install`, restores dependencies, or fetches browser code
 from a CDN. To update highlighting, maintainers change the pinned Prism
 development dependency and lockfile, then regenerate and commit the shipped
@@ -291,9 +283,9 @@ The document-processing profile still recognizes its specific canonical and
 legacy layouts. "Not discovered" must not be interpreted as "not implemented."
 
 **Discussion with Paul:** should an app explicitly declare Build artifacts
-(path, role, component, editor/validation type), with discovery used only as a
+(path, role, component), with discovery used only as a
 fallback? That would make custom-app coverage deterministic while preserving
-app-root authorization and reviewed-save protections. This explicit-artifact
+app-root read/open authorization. This explicit-artifact
 contract is a proposed direction, not an implemented capability.
 
 Generated browser snapshots, Playwright reports, test results, and local runtime

@@ -119,8 +119,9 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     };
     await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(url);
-    const editor = page.getByRole("textbox", { name: "Agent instructions source", exact: true });
-    await editor.waitFor();
+    const preview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
+    const source = preview.locator(".build-highlight");
+    await preview.waitFor();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 1);
     assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).getAttribute("href"), "/");
@@ -253,8 +254,11 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#map-app").evaluate((el) => el === document.activeElement), true);
     await page.locator("#build-app").focus();
     await page.keyboard.press("Space");
-    await editor.waitFor();
-    await editor.fill("Unsaved loan agent instructions.");
+    await preview.waitFor();
+    await preview.evaluate((element) => {
+      element.scrollTop = 12;
+      element.dataset.layoutProbe = "read-only-preview";
+    });
     await openStructureFromGuide();
     await page.waitForFunction(() => mapHasFitted);
     const structureGuidance = page.getByRole("region", { name: "App structure guidance", exact: true });
@@ -273,12 +277,12 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").isVisible(), true);
     assert.equal(await structureGuidance.isVisible(), false);
     await page.locator("#build-app").click();
-    await editor.waitFor();
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    await preview.waitFor();
+    assert.equal(await source.textContent(), "Explain applications.");
     await page.getByRole("button", { name: "Switch to dark mode" }).click();
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
-    assert.equal(await page.locator(".build-source-editor").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
+    assert.equal(await source.textContent(), "Explain applications.");
+    assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(24, 45, 70)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(129, 186, 255)");
     const expandedToggleBounds = await page.locator("#action-center").boundingBox();
@@ -292,21 +296,21 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal((await page.locator("#guide-rail").boundingBox()).width, 46);
     assert.equal(await page.locator("#guide-shortcuts button").count(), 4);
     assert.equal(await page.locator("#guide-content").isVisible(), false);
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    assert.equal(await source.textContent(), "Explain applications.");
     await page.locator("#action-center").click();
     assert.equal(await page.locator("#action-center").getAttribute("title"), "Collapse Guide");
     assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Expanding Guide must not move its toggle");
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    assert.equal(await source.textContent(), "Explain applications.");
 
-    await editor.focus();
+    await preview.focus();
     appState = "running";
     await page.locator('#guide-content [data-stage="observe"].active').waitFor();
     assert.equal(await page.locator('#guide-content [aria-current="step"]').getAttribute("data-stage"), "observe");
     assert.match(await page.locator('#guide-content [data-stage="run"]').innerText(), /Complete.*Run.*running locally/si);
     assert.equal(await page.locator('#guide-content [data-stage="connect"]').getAttribute("class"), "journey-stage attention");
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
-    assert.equal(await editor.evaluate((el) => el === window.document.activeElement), true);
+    assert.equal(await source.textContent(), "Explain applications.");
+    assert.equal(await preview.evaluate((el) => el === window.document.activeElement), true);
     assert.equal(await page.locator("#build-app").getAttribute("aria-pressed"), "true");
     await page.locator("#action-center").click();
     const reviewShortcut = page.locator('[data-guide-stage="connect"]');
@@ -318,7 +322,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await reviewShortcut.press("Enter");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     assert.equal(await page.locator('#guide-content [data-stage="connect"]').evaluate((el) => el === document.activeElement), true);
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    assert.equal(await source.textContent(), "Explain applications.");
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#guide-content").isVisible(), false);
     assert.equal(await page.locator("#action-center").evaluate((el) => el === document.activeElement), true);
@@ -356,9 +360,9 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await connectionReview.evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("#viewport").getAttribute("transform"), reviewCamera);
     await page.locator("#build-app").click();
-    await editor.waitFor();
+    await preview.waitFor();
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    assert.equal(await source.textContent(), "Explain applications.");
 
     await page.locator("#manage-app").click();
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -385,19 +389,19 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
           await page.getByRole("button", { name: "Dismiss app structure guidance", exact: true }).click();
           assert.equal(await page.locator("#graph-shell").evaluate((el) => el.classList.contains("structure-editing")), false);
           await openWorkspace("build");
-          await editor.waitFor();
+          await preview.waitFor();
           const explorer = page.getByRole("navigation", { name: "Key files" });
           const compact = width - 46 < 600;
           assert.equal(await explorer.isVisible(), !compact);
-          assert.equal(await page.locator(".build-editor textarea").count(), 1);
-          assert.ok((await editor.boundingBox()).height >= 240);
+          assert.equal(await page.locator(".build-source-preview").count(), 1);
+          assert.ok((await preview.boundingBox()).height >= 240);
           if (compact) {
             await page.locator("[data-build-files-toggle]").click();
             assert.equal(await explorer.isVisible(), true);
-            assert.equal(await editor.isVisible(), false);
+            assert.equal(await preview.isVisible(), false);
             await page.locator('[data-file-id="instructions"]').click();
-            assert.equal(await editor.isVisible(), true);
-            assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+            assert.equal(await preview.isVisible(), true);
+            assert.equal(await source.textContent(), "Explain applications.");
           }
         }
         await page.mouse.move(0, 0);
@@ -431,8 +435,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.ok(await page.locator(".map-palette").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
     }
     await page.locator("#build-app").click();
-    await editor.waitFor();
-    assert.equal(await editor.inputValue(), "Unsaved loan agent instructions.");
+    await preview.waitFor();
+    assert.equal(await source.textContent(), "Explain applications.");
     await page.locator("#manage-app").click();
     assert.equal(await message.inputValue(), "Explain my application.");
     assert.equal(await document.inputValue(), "Synthetic loan application.");
@@ -525,7 +529,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator(".map-tools").evaluate((el) => el.open), false);
 
     await page.reload();
-    await editor.waitFor();
+    await preview.waitFor();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "dark");
     preferenceFailure = true;
     await page.getByRole("button", { name: "Switch to light mode" }).click();
@@ -535,7 +539,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     preferenceFailure = false;
     await page.getByRole("button", { name: "Switch to light mode" }).click();
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
-    assert.equal(await page.locator(".build-source-editor").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
+    assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(231, 241, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(9, 105, 218)");
     assert.equal(await page.locator("#guide-content").isVisible(), false);
@@ -547,7 +551,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       await assertObserveSwitcher();
     }
     await page.locator("#build-app").click();
-    await editor.waitFor();
+    await preview.waitFor();
     const narrowToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();
     assert.ok(await page.locator("#guide-rail").isVisible());
@@ -558,7 +562,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.ok((await page.locator("#details").boundingBox()).width >= 333);
     await page.evaluate(() => localStorage.clear());
     await page.reload();
-    await editor.waitFor();
+    await preview.waitFor();
     assert.equal(await page.locator("#guide-content").isVisible(), false);
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator("#guide-content").waitFor({ state: "visible" });

@@ -44,7 +44,7 @@ import { serveStudioAsset } from "./studio-assets.mjs";
 import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
 import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./editor-settings.mjs";
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
-import { reviewBuildArtifact } from "./build-diff.mjs";
+import { openBuildFileCanvas } from "./build-file-canvas.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
 import { parseLogTail, readAppLogs, readComponentLogs } from "./runtime-logs.mjs";
@@ -56,7 +56,7 @@ import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
 import {
   resolveAgentInvocation,
   invocationBody,
@@ -1318,11 +1318,16 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, await openWorkspaceInEditor({ root, file }));
       return;
     }
-    if (request.method === "POST" && url.pathname === "/api/build-diff") {
+    if (request.method === "POST" && url.pathname === "/api/open-build-file-canvas") {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
-      sendJson(response, 200, await reviewBuildArtifact(root, input));
+      sendJson(response, 200, await openBuildFileCanvas({
+        session,
+        workspaceRoot,
+        root,
+        id: input.id,
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {
@@ -1383,20 +1388,6 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           throw error;
         }
       }
-      return;
-    }
-    if (request.method === "POST" && url.pathname === "/api/build-file") {
-      const input = await readJsonBody(request, 768 * 1024);
-      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
-      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
-      releaseAppMutation = reserveAppMutation(root);
-      const state = await currentAppState(root);
-      if (state.state === "running" || state.state === "preview" || transientAppStates.has(state.state)) {
-        const error = new Error("Stop the app before saving source or runtime changes, then restart to use the reviewed version.");
-        error.statusCode = 409;
-        throw error;
-      }
-      sendJson(response, 200, await saveBuildArtifact(root, input));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/document-test") {

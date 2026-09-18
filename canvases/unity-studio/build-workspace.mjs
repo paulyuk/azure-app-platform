@@ -1,18 +1,17 @@
-import { createHash, randomUUID } from "node:crypto";
-import { lstat, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
+import { createHash } from "node:crypto";
+import { lstat, readFile, realpath } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { discoverRepository, parseUnityManifest, scanRepository } from "./discovery.mjs";
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model.", editable: true },
-  { id: "tool", customizationArea: "tools", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code.", editable: true },
-  { id: "contract", customizationArea: "tools", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions.", editable: true },
-  { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy.", editable: true },
-  { id: "runtime", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary.", editable: true },
+  { id: "instructions", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
+  { id: "tool", customizationArea: "tools", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
+  { id: "contract", customizationArea: "tools", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
+  { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
+  { id: "runtime", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary." },
 ];
-export const MAX_BYTES = 96 * 1024;
-const saveQueues = new Map();
+const MAX_BYTES = 96 * 1024;
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const CODE_FILE = /\.(?:py|[cm]?[jt]sx?|cs|go|java|rs)$/i;
 const SOURCE_FILES = {
@@ -85,7 +84,7 @@ function sourceArtifact(path, candidate) {
       : file === "agent.yaml" ? "runtime"
         : file === "egress-policy.md" ? "policies" : undefined;
   let title = `${tier?.mapLabel || tier?.name || "Component"} source`;
-  let description = "Implementation discovered in this app. Review source changes before saving.";
+  let description = "Implementation discovered in this app. Open it in Files or a supported external editor to make changes.";
   if (path.endsWith("/prompts/system.md")) {
     title = "Agent instructions";
     description = "Instruction source in this app. Its presence does not prove the runtime loads it.";
@@ -112,7 +111,7 @@ function sourceArtifact(path, candidate) {
   return {
     id: `source-${sha(path).slice(0, 20)}`, path,
     title: name && name !== "." ? `${title} · ${name}` : title,
-    description, editable: true,
+    description,
     customizationArea,
   };
 }
@@ -141,14 +140,14 @@ async function buildCatalog(root) {
     selected.set("unity.app.yaml", {
       id: "app-inventory", title: "App inventory", path: "unity.app.yaml",
       customizationArea: "runtime",
-      description: "Capability paths, interfaces, and relationships declared by this app.", editable: true,
+      description: "Capability paths, interfaces, and relationships declared by this app.",
     });
   }
   if (files.has("config/domain.json") && discovery.candidates.length) {
     const path = "config/domain.json";
     selected.set(path, { id: `source-${sha(path).slice(0, 20)}`, title: "App configuration", path,
       customizationArea: "runtime",
-      description: "Domain configuration used by the app template.", editable: true });
+      description: "Domain configuration used by the app template." });
   }
   return {
     kind: "source", supportsDocuments: false, artifacts: [...selected.values()],
@@ -196,7 +195,7 @@ async function artifactPath(root, artifact) {
     throw new Error("Build artifacts must be regular files inside the selected app, not symlinks.");
   }
   const info = await lstat(path);
-  if (!info.isFile() || info.size > MAX_BYTES) throw new Error("Build artifact exceeds the 96 KiB editor limit or is not a file.");
+  if (!info.isFile() || info.size > MAX_BYTES) throw new Error("Build artifact exceeds the 96 KiB preview limit or is not a file.");
   return path;
 }
 
@@ -215,7 +214,7 @@ async function readArtifact(root, artifact) {
       if (instructionLine >= 0) focusLine = instructionLine + 1;
       else customizationArea = undefined;
     }
-    return { ...artifact, customizationArea, focusLine, available: true, content, sha: sha(content) };
+    return { ...artifact, customizationArea, focusLine, available: true, content };
   } catch (error) {
     if (error.code === "ENOENT") return { ...artifact, available: false, detail: "Expected file is missing from this app. Restore it or review the app configuration." };
     throw error;
@@ -229,7 +228,11 @@ export async function readBuildWorkspace(root) {
 
 export async function resolveBuildArtifactPath(root, id) {
   const artifact = await buildArtifact(root, id);
-  if (!artifact) throw new Error("Choose a known Build artifact.");
+  if (!artifact) {
+    const error = new Error("Choose a known Build artifact.");
+    error.statusCode = 400;
+    throw error;
+  }
   return artifactPath(root, await appArtifact(root, artifact));
 }
 
@@ -250,52 +253,4 @@ export async function documentDeploymentBlocker(root) {
   return "This document POC requires explicitly configured ACA agent/tool session pools and reviewed agent and document validation tool images. "
     + "Whole-app azd deployment is disabled so inherited Dealer configuration cannot deploy unrelated services. "
     + "Review the app README cloud prerequisites and Runtime & access settings; no cloud isolation is claimed by selecting a runtime.";
-}
-
-export async function saveBuildArtifact(root, input) {
-  const artifact = await buildArtifact(root, input?.id);
-  if (!artifact?.editable) throw new Error("This build artifact is not editable here.");
-  if (typeof input.content !== "string" || !input.content.trim() || Buffer.byteLength(input.content) > MAX_BYTES || input.content.includes("\0")) {
-    throw new Error("Provide nonempty UTF-8 source up to 96 KiB.");
-  }
-  if (artifact.id === "app-inventory") parseAppScope(input.content);
-  if (artifact.path.endsWith(".json")) {
-    const config = JSON.parse(input.content);
-    if (!config || Array.isArray(config) || typeof config !== "object") throw new Error("Provide a JSON object for this Build artifact.");
-    if (artifact.id === "runtime" && !["local", "copilot-sdk-sandbox"].includes(config.agentRuntime)) {
-      throw new Error("Choose agentRuntime local or copilot-sdk-sandbox.");
-    }
-  }
-  const canonicalRoot = await realpath(root);
-  const previous = saveQueues.get(canonicalRoot) ?? Promise.resolve();
-  const next = previous.then(async () => {
-    const currentArtifact = await buildArtifact(canonicalRoot, input.id);
-    if (!currentArtifact || currentArtifact.path !== artifact.path) {
-      const error = new Error("The app's Build inventory changed. Reload and review the selected file before saving.");
-      error.statusCode = 409;
-      throw error;
-    }
-    const path = await artifactPath(canonicalRoot, await appArtifact(canonicalRoot, artifact));
-    const current = await readFile(path, "utf8");
-    if (sha(current) !== input.baseSha) {
-      const error = new Error("The file changed since you opened it. Reload and review the latest source before saving.");
-      error.statusCode = 409;
-      throw error;
-    }
-    const temporary = join(dirname(path), `.unity-build-${randomUUID()}.tmp`);
-    try {
-      await writeFile(temporary, input.content, { flag: "wx", mode: (await lstat(path)).mode & 0o777 });
-      await rename(temporary, path);
-    } finally {
-      await unlink(temporary).catch((error) => { if (error.code !== "ENOENT") throw error; });
-    }
-    return readArtifact(canonicalRoot, artifact);
-  });
-  const settled = next.then(() => undefined, () => undefined);
-  saveQueues.set(canonicalRoot, settled);
-  try {
-    return await next;
-  } finally {
-    if (saveQueues.get(canonicalRoot) === settled) saveQueues.delete(canonicalRoot);
-  }
 }

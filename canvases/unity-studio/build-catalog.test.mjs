@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
 
 async function fixture(files, action) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "unity-build-catalog-")));
@@ -55,14 +55,10 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     assert.ok(state.artifacts.filter((item) => item.path.startsWith("src/web/") || item.path.endsWith("/host.json"))
       .every((item) => item.customizationArea === undefined), "The raw catalog remains available without turning boilerplate into customization decisions");
     assert.equal(await resolveBuildArtifactPath(root, agent.id), join(root, agent.path));
-    const next = source.replace("Find a vehicle.", "Only describe real inventory.");
-    await saveBuildArtifact(root, { id: agent.id, content: next, baseSha: agent.sha });
-    assert.equal(await readFile(join(root, agent.path), "utf8"), next);
-    await assert.rejects(saveBuildArtifact(root, { id: agent.id, content: source, baseSha: agent.sha }), { statusCode: 409 });
+    assert.equal("editable" in agent, false);
     assert.equal(await readBuildRuntime(root), null);
     assert.equal(await documentDeploymentBlocker(root), null);
     await assert.rejects(resolveBuildArtifactPath(root, "contract"), /known Build artifact/);
-    await assert.rejects(saveBuildArtifact(root, { id: "../.env", content: "stolen" }), /not editable/);
   });
 });
 
@@ -92,7 +88,7 @@ test("Empty Unity Build includes the prompt, starter runtime and declared skill 
   });
 });
 
-test("custom declared paths scope read, open and save away from unrelated apps and leftover document files", async () => {
+test("custom declared paths scope read and open away from unrelated apps and leftover document files", async () => {
   await fixture({
     "unity.app.yaml": "components:\n  - tier: agent\n    path: services/assistant\n",
     "services/assistant/agent.yaml": "name: custom\nkind: hosted\n",
@@ -112,17 +108,12 @@ test("custom declared paths scope read, open and save away from unrelated apps a
     assert.equal(worker.focusLine, 1);
     assert.equal(await resolveBuildArtifactPath(root, worker.id), join(root, worker.path));
     assert.equal(await readBuildRuntime(root), null);
-    const inventory = state.artifacts.find((item) => item.id === "app-inventory");
-    await assert.rejects(saveBuildArtifact(root, {
-      id: inventory.id, baseSha: inventory.sha,
-      content: "capabilities:\n  agent:\n    path: ../outside\n",
-    }), /app-relative path/);
-    await assert.rejects(saveBuildArtifact(root, {
-      id: inventory.id, baseSha: inventory.sha, content: "name: not-an-inventory\n",
-    }), /declare capabilities or components/);
+    await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: ../outside\n");
+    await assert.rejects(readBuildWorkspace(root), /app-relative path/);
+    await writeFile(join(root, "unity.app.yaml"), "name: not-an-inventory\n");
+    await assert.rejects(readBuildWorkspace(root), /declare capabilities or components/);
     await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: unrelated\n");
     await assert.rejects(resolveBuildArtifactPath(root, worker.id), /known Build artifact/);
-    await assert.rejects(saveBuildArtifact(root, { id: worker.id, content: "changed", baseSha: worker.sha }), /not editable/);
   });
 });
 
@@ -140,7 +131,6 @@ test("generic source IDs remain bound to paths and cannot follow swapped symlink
     await rm(join(root, before.path));
     await symlink(join(root, "private.txt"), join(root, before.path));
     await assert.rejects(resolveBuildArtifactPath(root, before.id), /known Build artifact|not symlinks/);
-    await assert.rejects(saveBuildArtifact(root, { id: before.id, content: "overwrite", baseSha: before.sha }), /not editable|not symlinks/);
     assert.equal(await readFile(join(root, "private.txt"), "utf8"), "not source");
   });
 });
@@ -165,7 +155,6 @@ test("document Build honors the declared legacy tool instead of an unrelated new
     assert.equal(tool.path, "src/sandbox/tool/main.py");
     assert.match(tool.content, /selected legacy/);
     assert.equal(await resolveBuildArtifactPath(root, "tool"), join(root, tool.path));
-    await saveBuildArtifact(root, { id: tool.id, content: "print('updated legacy tool')", baseSha: tool.sha });
     assert.equal(await readFile(join(root, "src/tools/document-validation/main.py"), "utf8"), "print('unrelated new tool')");
   });
 
