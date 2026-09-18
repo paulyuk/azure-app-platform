@@ -23,7 +23,7 @@ test("appearance defaults light and persists independently of app/server origin"
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test("home and map render explicit initial preference with shared toggle and authenticated persistence", () => {
+test("home and map render explicit initial preference with shared settings and authenticated persistence", () => {
   const graph = { root: "/app", nodes: [], edges: [], summary: { projectNodes: 0, operationNodes: 0, edges: 0 } };
   for (const theme of ["light", "dark"]) {
     for (const html of [
@@ -32,10 +32,11 @@ test("home and map render explicit initial preference with shared toggle and aut
     ]) {
       assert.match(html, new RegExp(`data-studio-theme="${theme}"`));
       assert.match(html, /aria-label="Unity Studio utilities"/);
-      assert.match(html, /data-studio-theme-toggle/);
+      assert.match(html, /data-studio-settings-toggle/);
+      assert.match(html, /data-studio-theme-select/);
       assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
       assert.match(html, /class="studio-logo"[^>]+aria-hidden="true"/);
-      assert.match(html, /title="Switch to (?:light|dark) mode"/);
+      assert.match(html, /title="Settings"/);
       assert.doesNotMatch(html, />Light<\/button>|>Dark<\/button>/);
       assert.match(html, /\/api\/preferences/);
       assert.match(html, /X-Unity-Studio-Token/);
@@ -50,7 +51,7 @@ test("home and map render explicit initial preference with shared toggle and aut
   assert.match(workspace, /id="build-app"[^>]*>Build<\/button>/);
   assert.match(workspace, /id="manage-app"[^>]*>Run &amp; Debug<\/button>/);
   assert.match(workspace, /id="map-app"[^>]*>Observe<\/button>/);
-  assert.match(workspace, /id="map-view"[^>]*>App Map<\/button>/);
+  assert.match(workspace, /id="map-view"[^>]*>[\s\S]*?App Map<\/button>/);
   assert.match(workspace, /id="show-other-resources"/);
   assert.doesNotMatch(workspace, /id="implementation-view"/);
   assert.doesNotMatch(workspace, /component-requests|workspace-styles/);

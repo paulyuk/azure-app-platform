@@ -47,7 +47,13 @@ test("Run shares optional document input with invocation and enforcement across 
       };
       else if (path === "/api/gateway-options") body = { subscriptions: [], gateways: [], models: [] };
       else if (path === "/api/app-output") body = { lines: [], commands: [] };
-      else if (path === "/api/build-workspace") body = { artifacts: [] };
+      else if (path === "/api/build-workspace") body = {
+        supportsDocuments: true,
+        artifacts: [{
+          id: "runtime", customizationArea: "runtime", title: "Runtime configuration",
+          path: "config/runtime.json", available: true, content: '{"agentRuntime":"local"}\n',
+        }],
+      };
       else if (path === "/api/app-command") { state = "running"; body = { outcome: "command-started" }; }
       else if (path === "/api/document-test") {
         tests.push(route.request().postDataJSON());
@@ -69,6 +75,7 @@ test("Run shares optional document input with invocation and enforcement across 
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
     await page.locator("#manage-app").click();
+    await page.getByLabel("Document attachment", { exact: true }).click();
     const card = page.locator(".agent-tester");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     const document = page.getByRole("textbox", { name: "Document text", exact: true });
@@ -80,7 +87,7 @@ test("Run shares optional document input with invocation and enforcement across 
     await document.fill("Contact alex@example.test.");
     assert.equal(await invoke.isDisabled(), true);
     assert.equal(await enforce.isDisabled(), true);
-    await card.getByRole("button", { name: "Run app", exact: true }).click();
+    await page.locator("#details").getByRole("button", { name: "Run app", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector("[data-invoke-agent]").disabled);
     assert.equal(await document.inputValue(), "Contact alex@example.test.");
     await file.setInputFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("Loan terms: contact alex@example.test.") });
@@ -92,6 +99,7 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.equal(await document.isDisabled(), true);
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);
     health = "Health refreshed";
+    await page.locator('[data-run-section="services"] > summary').click();
     await page.getByText("Health refreshed", { exact: true }).waitFor();
     assert.equal(await enforce.isDisabled(), true);
     releaseTest();
@@ -105,8 +113,20 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.locator(".agent-response").filter({ hasText: "Summary" }).waitFor();
     await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
-    await page.getByRole("button", { name: "Edit instructions & document tools", exact: true }).click();
-    await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).click();
+    await page.getByRole("button", { name: "Review key files", exact: true }).click();
+    const preview = page.getByRole("region", { name: "Runtime configuration source preview", exact: true });
+    await preview.waitFor();
+    assert.equal(await page.locator("#details textarea,#details [contenteditable=true]").count(), 0);
+    assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
+    await preview.evaluate((element) => { element.dataset.previewProbe = "preserved"; });
+    await page.getByRole("button", { name: "Model connection", exact: true }).click();
+    const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+    await settings.getByText("Stop the local app before changing its AI Gateway.", { exact: true }).waitFor();
+    assert.equal(await page.locator("#details").getAttribute("data-mode"), "build",
+      "Build opens shared model settings without detouring through Run");
+    await settings.getByRole("button", { name: "Close settings", exact: true }).click();
+    assert.equal(await preview.getAttribute("data-preview-probe"), "preserved");
+    await page.locator("#manage-app").click();
     assert.equal(await document.inputValue(), expected.content);
     assert.equal(await message.inputValue(), "Summarize these terms.");
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);

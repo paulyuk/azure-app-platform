@@ -14,12 +14,12 @@ The PNG and MP4 ship with the plugin and are served locally, with no CDN,
 Downloads-folder dependency, or additional install step.
 
 The start page shows the large Unity logo and tagline only; the compact header
-branding appears on inner screens instead. Docs and the appearance toggle remain
+branding appears on inner screens instead. Docs and the Settings gear remain
 available at the top right on every screen.
 
 The workspace uses one compact top bar for the Unity logo/home navigation,
 app name, runtime status and start/stop, workspace buttons, **Docs**, and the
-light/dark toggle. Docs and appearance remain at the top right at every width.
+Settings gear. Docs and Settings remain at the top right at every width.
 At narrower widths, all three workspace buttons move together to a second row;
 on the smallest canvases, app identity and runtime controls occupy a third row.
 Long app names truncate rather than displacing controls. Studio defaults to light; the saved appearance applies
@@ -73,7 +73,7 @@ The rail retains Build, Connect, Run, and Observe icons with checkmarks,
 attention indicators, and descriptive tooltips. Selecting an icon expands
 Guide at that stage's explanation without changing workspaces.
 There is no separate Guide button in the top navigation;
-switching views never reopens Guide or discards editor/message drafts.
+switching views never reopens Guide or discards message drafts or the selected Build preview.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.
 A persistent badge beside the app name distinguishes
@@ -116,17 +116,40 @@ The compact palette exposes zoom and **Fit map**; **Search & layout** opens
 downward with search, component/request-path filters, **Show other resources**,
 and reset.
 Wheel and trackpad gestures
-zoom smoothly anywhere over the map surface. **Run/Debug** leads with
-model connection, followed by local runtime controls, command activity,
-Azure deployment, and deletion. Map inspection opens a separate resizable
+zoom smoothly anywhere over the map surface. **Run/Debug** focuses on trying the
+app: contextual startup or recovery guidance, an available web-app link, the
+agent message, and a readable response. **Services**, **Diagnostics**, and
+**Deploy to Azure** are native expandable sections, initially collapsed.
+Services retains component readiness, endpoint actions, and source links.
+Diagnostics retains stdout/stderr and recorded operations, with **Open all logs**
+handing off to Observe. Startup, failure, and cloud operations reveal diagnostics
+without moving keyboard focus; failed-operation counts and output-read errors
+remain visible on its collapsed heading. Disclosure state and input drafts
+survive status refreshes and workspace switches. There is no additional workspace
+navigation, custom debugger, or resizable diagnostics dock.
+
+The **Settings** gear opens a compact modal without leaving the current
+workspace. Appearance is a Studio-wide preference; **Model connection**,
+**Local ports**, and **Danger zone** apply to the named app. The model summary,
+setup blockers, and service port action open the relevant settings directly.
+Closing Settings or pressing Escape returns focus without discarding app input.
+Build's **Model connection** action opens the same settings in place, preserving
+the read-only preview; Run's **Review key files** action returns to Build rather
+than introducing another editor or navigation bar.
+Delete local app remains a reviewed, stopped-app operation: it removes the local
+worktree/files and Unity-created branch, not Azure resources or source repositories.
+Landing-page Settings exposes appearance only. Studio preferences are separate
+from app source and runtime configuration.
+
+Map inspection opens a separate resizable
 bottom details panel, keeping the map's full width beside Guide. Drag the
 horizontal divider or use its Up/Down keys to resize it; **Close details** or
 Escape dismisses it without changing Guide. The inspector's height is
 remembered and bounded to leave the map visible, including in compact panes.
 New inspector content starts at the top. Opening, closing, or resizing the
 inspector does not pan or zoom the map; use the map controls to adjust the view.
-Live stdout/stderr, component readiness,
-endpoint buttons, and **Invoke agent** are expanded in the run loop.
+**Invoke agent** stays in the main run area; stdout/stderr and component details
+are available through the corresponding disclosures.
 **Observe → Logs** is a dedicated view for all captured local service output, including
 registered supporting services such as Azurite. Runtime component cards and their
 inspectors open the same workspace with that service selected. Service and stream
@@ -147,7 +170,7 @@ creation, before the child session or code editor opens. The allocator excludes 
 listeners and saved assignments in sibling worktrees, then persists the new app's
 `.unity-studio/ports.env`. It does not stop or reassign existing apps.
 
-**Local ports** provides **Pick available ports** while the app is stopped.
+**Settings → Local ports** provides **Pick available ports** while the app is stopped.
 It checks live IPv4/IPv6 listeners and other discovered apps' assignments, then
 saves `.unity-studio/ports.env`. Run, readiness, endpoint links, and both
 POSIX/PowerShell startup scripts use those same assignments. This is supported
@@ -160,18 +183,23 @@ are targeted, including known launchers from other workspaces. This is not a
 machine-wide stop command. Reviews expire after one minute and reject changed
 process identities; Studio and its host ancestors are protected. The operation
 verifies that ports remain free and reports permission errors or respawning apps.
-**AI model connection** is the first card, collapsed to model/gateway and a
-Connected badge after validation. Run/Debug uses the Functions Hosted Skills
-Studio visual treatment: soft panels, compact headers and status chips, consistent
-form controls, and themed code blocks. Styles are isolated from the App Map.
-**Commands** shows actual Azure discovery, lifecycle shell commands, and agent
+The outlined **Connection settings** button shows the current model/gateway and
+opens **Settings → Model connection**. Before a gateway is configured it reads
+**Connect AI Gateway**, with **No AI Gateway connected** beneath it. A local
+web preview remains available when the app supports it; agent invocation stays
+disabled until its endpoint is ready. If gateway discovery finds none, Settings
+offers **Create or manage gateways** rather than an empty apply action. Run/Debug uses
+Studio-owned theme tokens, compact controls, quiet section dividers, and themed
+code blocks. Styles are isolated from the App Map.
+**Diagnostics → Operations** shows actual Azure discovery, lifecycle shell commands, and agent
 HTTP calls with running/succeeded/failed status and elapsed time. Its latest 60
 records survive a canvas reload; credentials are redacted before storage and
 agent message bodies are excluded. There is no separate command-example or
 troubleshooting card. The agent's
-readable answer and raw response are separate, and **Hosted Skills & tools**
-distinguishes source-discovered implementations from tool calls reported in the
-last response; a reported call alone is not proof of successful execution.
+readable answer and raw response are separate. **Services** contains the
+source-discovered implementations; **Tool activity** beneath the response
+contains only calls reported in the last response. A reported call alone is not
+proof of successful execution.
 **Home** returns to the landing screen. The active main view is highlighted
 independently from Guide visibility; Search & layout does not change that view.
 **Open app** lists the most recently opened apps first and shows their last-opened
@@ -520,7 +548,7 @@ closing Studio does not terminate the operation or discard its diagnostics.
 Ready endpoint URLs are actionable: the web surface opens in
 the Browser canvas, Hosted Skill buttons open their MCP endpoints, and the
 running agent offers **Invoke agent** with a message directly under
-**Run/Debug → Local runtime**, plus a specialist-studio handoff. Invocation
+**Run/Debug → Try your app**, plus a specialist-studio handoff. Invocation
 uses the app's supported source-backed HTTP contract, not a guessed endpoint.
 Command output refreshes continuously while this panel is open. TCP-only
 services are labeled Listening, not Healthy; web/agent/Functions HTTP checks
@@ -539,11 +567,13 @@ already gone but components remain, the header shows **Partial startup** with
 
 Model connection defaults to the saved subscription, or the active Azure CLI
 subscription, and a valid gateway in that subscription. A new default selection
-is validated and applied once while the app is stopped; failures stay visible
-and require an explicit retry. The subscription and gateway remain editable,
+is preselected in Settings, then validated and applied only when the user chooses
+**Connect gateway** or **Apply or reconfigure** while the app is stopped. Opening
+Run or Settings never applies model configuration. Failures stay visible and
+require an explicit retry. The subscription and gateway remain editable,
 and **Create or manage gateways** opens specialist setup if no gateway exists.
-Once validated, the model connection card collapses to its model, gateway, and
-subscription summary. No Azure resources are created automatically.
+Once validated, Run shows the connected model/gateway summary. No Azure resources
+are created automatically.
 
 Discovery and scaffold results are informational. Workspace creation and
 implementation happen in the app child session, not in the Unity Studio

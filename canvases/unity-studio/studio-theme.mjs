@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { SETTINGS_CSS, createStudioSettings } from "./studio-settings.mjs";
 
 export function studioPreferencesDirectory() {
   return join(process.env.COPILOT_HOME || join(homedir(), ".copilot"), "extensions", "unity-studio", "artifacts");
@@ -90,10 +91,6 @@ export function renderThemeStyles() {
     .studio-theme-control { display: flex; align-items: center; gap: 10px; position: relative; }
     .studio-theme-control .studio-docs { color: var(--studio-muted); font-size: 12px; text-decoration: none; }
     .studio-theme-control .studio-docs:hover { color: var(--studio-ink); text-decoration: underline; }
-    .studio-theme-control .studio-theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; min-height: 30px; padding: 6px; border: 0; border-radius: 6px; background: transparent; color: var(--studio-muted); }
-    .studio-theme-control .studio-theme-toggle:hover { background: var(--studio-panel); color: var(--studio-ink); }
-    .studio-theme-toggle svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    :root[data-studio-theme="light"] .theme-sun, :root[data-studio-theme="dark"] .theme-moon { display: none; }
     .studio-theme-error { position: absolute; z-index: 10; top: 100%; right: 0; width: min(260px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--studio-line); border-radius: 4px; background: var(--studio-raised); color: var(--studio-danger); font-size: 12px; }
     .studio-theme-error:empty { display: none; }
     button.primary, button.run-button-primary { color: var(--studio-on-accent); background: var(--studio-accent); border-color: var(--studio-accent); }
@@ -111,19 +108,27 @@ export function renderThemeStyles() {
     .node-visual[data-tier-id="skills"], .node-visual[data-tier-id="data"] { color: var(--studio-ok); }
     .node-visual[data-tier-id="sandbox"] { color: var(--studio-muted); }
     a { color: var(--studio-accent); }
+    ${SETTINGS_CSS}
   `;
 }
 
 export function renderThemeToggle(theme = "light") {
   validateTheme(theme);
-  const action = `Switch to ${theme === "light" ? "dark" : "light"} mode`;
   return `<div class="studio-theme-control" role="group" aria-label="Unity Studio utilities">
     <a class="studio-docs" href="https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme" target="_blank" rel="noopener noreferrer">Docs</a>
-    <button class="studio-theme-toggle" type="button" data-studio-theme-toggle aria-label="${action}" title="${action}" aria-pressed="${theme === "dark"}">
-      <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.6 8.6 0 019.8 3.5 8.7 8.7 0 1020.5 14.2Z"/></svg>
-      <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+    <button class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.7 2.4-2 .9L4 5.7 2 9l1.7 1.8v2.4L2 15l2 3.3 2.3-.6 2 .9L9 21h4l.7-2.4 2-.9 2.3.6 2-3.3-1.7-1.8v-2.4L20 9l-2-3.3-2.3.6-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
     </button>
     <span class="studio-theme-error" role="status"></span>
+    <dialog class="studio-settings" aria-labelledby="studio-settings-title">
+      <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>×</button></div>
+      <div class="studio-settings-content">
+        <label>Appearance<select aria-label="Appearance" data-studio-theme-select><option value="light"${theme === "light" ? " selected" : ""}>Light</option><option value="dark"${theme === "dark" ? " selected" : ""}>Dark</option></select></label>
+        <p>Applies to Unity Studio across your apps.</p>
+        <p class="error studio-settings-error" role="alert"></p>
+        <div data-settings-app></div>
+      </div>
+    </dialog>
   </div>`;
 }
 
@@ -131,35 +136,45 @@ export function renderThemeClientScript(apiToken) {
   const token = JSON.stringify(apiToken).replaceAll("<", "\\u003c");
   return `
     (() => {
-      const controls = [...document.querySelectorAll("[data-studio-theme-toggle]")];
+      const controls = [...document.querySelectorAll("[data-studio-theme-select]")];
       const errorDisplay = document.querySelector(".studio-theme-error");
+      const settingsError = document.querySelector(".studio-settings-error");
+      const dialog = document.querySelector(".studio-settings");
+      window.unityStudioSettings = (${createStudioSettings.toString()})({
+        dialog, trigger: document.querySelector("[data-studio-settings-toggle]"),
+      });
+      window.dispatchEvent(new Event("unity-studio-settings-ready"));
       let saving = false;
+      let epoch = 0;
+      let confirmedTheme = document.documentElement.dataset.studioTheme;
+      const reportError = (message) => {
+        errorDisplay.textContent = dialog.open ? "" : message;
+        settingsError.textContent = message;
+      };
       const applyTheme = (theme) => {
         if (!["light", "dark"].includes(theme)) throw new Error("Studio returned an invalid appearance preference.");
+        confirmedTheme = theme;
         document.documentElement.dataset.studioTheme = theme;
-        for (const control of controls) {
-          const action = "Switch to " + (theme === "light" ? "dark" : "light") + " mode";
-          control.setAttribute("aria-pressed", String(theme === "dark"));
-          control.setAttribute("aria-label", action);
-          control.title = action;
-        }
+        for (const control of controls) control.value = theme;
       };
-      for (const control of controls) control.addEventListener("click", async () => {
+      for (const control of controls) control.addEventListener("change", async () => {
         if (saving) return;
         saving = true;
+        epoch += 1;
         controls.forEach((button) => { button.disabled = true; });
-        errorDisplay.textContent = "";
+        reportError("");
         try {
           const response = await fetch("/api/preferences", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Unity-Studio-Token": ${token} },
-            body: JSON.stringify({ theme: document.documentElement.dataset.studioTheme === "dark" ? "light" : "dark" }),
+            body: JSON.stringify({ theme: control.value }),
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "Appearance preference could not be saved.");
           applyTheme(result.theme);
         } catch (error) {
-          errorDisplay.textContent = error.message;
+          applyTheme(confirmedTheme);
+          reportError(error.message);
         } finally {
           saving = false;
           controls.forEach((button) => { button.disabled = false; });
@@ -167,12 +182,13 @@ export function renderThemeClientScript(apiToken) {
       });
       window.addEventListener("focus", async () => {
         if (saving) return;
+        const readEpoch = ++epoch;
         try {
           const response = await fetch("/api/preferences", { headers: { "X-Unity-Studio-Token": ${token} } });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "Appearance preference could not be read.");
-          if (!saving) applyTheme(result.theme);
-        } catch (error) { errorDisplay.textContent = error.message; }
+          if (!saving && readEpoch === epoch) applyTheme(result.theme);
+        } catch (error) { if (readEpoch === epoch) reportError(error.message); }
       });
     })();
   `;

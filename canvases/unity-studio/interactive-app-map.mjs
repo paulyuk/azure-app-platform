@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
+import { createRunWorkspace } from "./run-workspace.mjs";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -1025,6 +1026,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentResponseText = "The agent response will appear here.";
     let invokingAgent = false;
     let agentDocument = null;
+    let documentInputExpanded = false;
     let documentError = "";
     let documentLoading = false;
     let documentReadVersion = 0;
@@ -1043,10 +1045,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedGateway = null;
     let selectedModel = "";
     let gatewayApplying = false;
-    const autoGatewayAttempts = new Set();
     let panelMode = "build";
     let observeView = "map";
     ${BUILD_SYNTAX_SCRIPT}
+    let deleteConfirming = false;
+    let deletingApp = false;
+    let deleteError = "";
     const buildPanel = (${createBuildPanel.toString()})({
       container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS,
       isActive: () => panelMode === "build",
@@ -1055,7 +1059,27 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
-      onModel: () => renderManagePanel({ openGateway: true }),
+      onModel: () => openAppSettings("connection"),
+    });
+    const runWorkspace = (${createRunWorkspace.toString()})({
+      container: details,
+      renderTry: renderTryApp,
+      renderServices: renderRuntimeServices,
+      renderDeployment,
+      renderDiagnostics: (container) => {
+        const actions = appendText(container, "div", "", "run-section-actions");
+        appendText(actions, "h3", "Command output");
+        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
+        const output = appendText(container, "pre", latestOutput, "command-output live-output");
+        output.dataset.runtimeOutput = "true";
+        output.tabIndex = 0;
+        output.setAttribute("aria-label", "Runtime output");
+        appendText(container, "h3", "Operations");
+        appendText(container, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
+        const feed = appendText(container, "div", "", "command-feed");
+        feed.dataset.commandFeed = "true";
+      },
+      onConnection: () => openAppSettings("connection"),
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -1865,19 +1889,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       target.focus({ preventScroll: true });
     }
 
-    function managementSection(title, open = false) {
-      const section = document.createElement("details");
-      section.className = "management-section";
-      section.open = open;
-      const summary = document.createElement("summary");
-      appendText(summary, "span", title, "section-title");
-      const body = document.createElement("div");
-      body.className = "section-body";
-      section.append(summary, body);
-      details.append(section);
-      return body;
-    }
-
     function appendField(container, title, control) {
       const label = document.createElement("label");
       label.className = "studio-field";
@@ -2150,10 +2161,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (operationalState.readiness) {
         appendText(card, "strong", "Finish setup before running");
         appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
-        card.append(keyedActionButton("finish-setup", "Finish setup", () => {
-          const gateway = MODEL.tiers.find((tier) => tier.id === "gateway");
-          renderTierAddPanel(gateway);
-        }, true));
+        card.append(keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
       } else {
         appendText(card, "strong", "Checking app status");
         appendText(card, "p", "Unity is checking what is ready and what still needs setup.");
@@ -2400,7 +2408,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         () => apiRequest("/api/gateway-options?" + params), refresh);
       try {
         const options = await discovery.promise;
-        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
         gatewayState = options;
         selectedSubscriptionId = options.subscription?.id || "";
@@ -2511,6 +2519,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 setStatus(error.message, true);
               } finally {
                 gatewayApplying = false;
+                window.unityStudioSettings.refreshApp();
                 if (panelMode === "manage") renderManagePanel();
               }
             },
@@ -2518,44 +2527,60 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           );
           apply.disabled = !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state);
           container.append(apply);
-          const suggested = gatewayState.suggested;
-          const attemptKey = suggested && suggested.subscriptionId + "/" + suggested.resourceGroup + "/" + suggested.name;
-          if (!gatewayState.active && suggested && models.length && !autoGatewayAttempts.has(attemptKey)
-            && !lifecycleOperation && !ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)
-            && operationalState.app?.state !== "running") {
-            autoGatewayAttempts.add(attemptKey);
-            apply.click();
-          }
         } else {
           appendText(container, "p", "No AI Gateway found in this subscription. Create one to connect a model.");
         }
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Create or manage gateways", () => openTierStudio(gatewayTier)));
+        container.append(actionButton("Create or manage gateways", () => {
+          window.unityStudioSettings.close();
+          openTierStudio(gatewayTier);
+        }));
       } catch (error) {
-        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
         appendText(container, "p", error.message, "error");
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Open guided gateway setup", () => openTierStudio(gatewayTier), true));
+        container.append(actionButton("Open guided gateway setup", () => {
+          window.unityStudioSettings.close();
+          openTierStudio(gatewayTier);
+        }, true));
       }
     }
 
-    function renderDeleteConfirmation() {
-      panelMode = "manage";
-      updateModeHighlight();
-      clearElement(details);
-      details.dataset.empty = "false";
-      appendPanelBack();
-      appendText(details, "h2", "Delete this local app?");
+    function renderDeleteSettings(container) {
+      appendText(container, "h3", deleteConfirming ? "Delete " + document.querySelector("header h1").textContent + "?" : "Delete local app");
       appendText(
-        details,
+        container,
         "p",
         "This permanently removes the app Git worktree, local files, and its Unity-created branch. Azure resources and source repositories are not deleted.",
       );
       const actions = document.createElement("div");
       actions.className = "actions";
+      if (operationalState.app?.state === "running" || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)) {
+        appendText(container, "p", operationalState.app?.state === "running"
+          ? "Stop the local app before deleting its worktree."
+          : "Wait for the current operation to finish before deleting this app.");
+        return;
+      }
+      if (!operationalState.app) {
+        appendText(container, "p", "App status is unavailable. Wait for a successful status check before deleting.");
+        return;
+      }
+      if (deleteError) appendText(container, "p", deleteError, "error").setAttribute("role", "alert");
+      if (!deleteConfirming) {
+        const review = actionButton("Delete local app...", () => {
+          deleteConfirming = true;
+          window.unityStudioSettings.refreshApp();
+        });
+        review.className = "danger";
+        container.append(review);
+        return;
+      }
       const confirm = actionButton("Delete local worktree", async () => {
+        if (deletingApp) return;
+        deletingApp = true;
+        deleteError = "";
         for (const button of actions.querySelectorAll("button")) button.disabled = true;
         try {
           await apiRequest("/api/delete-app", {
@@ -2564,14 +2589,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           });
           location.assign("/");
         } catch (error) {
-          for (const button of actions.querySelectorAll("button")) button.disabled = false;
+          deleteError = error.message;
           setStatus(error.message, true);
+        } finally {
+          deletingApp = false;
+          window.unityStudioSettings.refreshApp();
         }
       });
       confirm.className = "danger";
-      actions.append(confirm);
-      actions.append(actionButton("Cancel", renderManagePanel));
-      details.append(actions);
+      const cancel = actionButton("Cancel deletion", () => {
+        deleteConfirming = false;
+        deleteError = "";
+        window.unityStudioSettings.refreshApp();
+      });
+      confirm.disabled = cancel.disabled = deletingApp;
+      actions.append(cancel, confirm);
+      container.append(actions);
     }
 
     function syncAgentInputControls() {
@@ -2629,9 +2662,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderDocumentInput(container) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
+      const disclosure = document.createElement("details");
+      disclosure.className = "run-document";
+      disclosure.open = documentInputExpanded || Boolean(documentError);
+      const summary = appendText(disclosure, "summary", agentDocument ? "Document · " + agentDocument.name : "Document (optional)");
+      summary.setAttribute("aria-label", "Document attachment");
+      disclosure.addEventListener("toggle", () => {
+        if (disclosure.isConnected) documentInputExpanded = disclosure.open;
+      });
       const input = document.createElement("div");
       input.className = "document-input";
-      appendText(input, "strong", "Document (optional)");
       const sourceBadge = appendText(input, "span", "Untrusted source", "command-badge");
       sourceBadge.dataset.state = "unknown";
       appendText(input, "p", "Choose text/Markdown or paste below. Up to 64 KiB. Document checks run before the model; use synthetic documents in local mode.");
@@ -2696,7 +2736,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       remove.dataset.removeDocument = "true";
       input.append(file, text, remove);
       if (documentLoading) appendText(input, "p", "Reading document...");
-      container.append(input);
+      disclosure.append(input);
+      container.append(disclosure);
     }
 
     function renderDocumentTest(container, actions) {
@@ -2737,7 +2778,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderAgentTester(container) {
       const tester = document.createElement("div");
       tester.className = "developer-tool-card agent-tester";
-      appendText(tester, "strong", "Invoke agent");
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       if (!agentEntrypoint) {
@@ -2755,19 +2795,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               ? "The agent service did not start with the rest of the app."
               : "Run the app to bring its agent endpoint online.",
         );
-        const steps = document.createElement("ol");
-        steps.className = "setup-steps";
-        const stepLabels = needsGateway
-          ? [
-              ...(appRunning ? ["Stop the web preview."] : []),
-              "Connect an AI Gateway.",
-              "Run the app again.",
-            ]
-          : appRunning
-            ? ["Stop the current app.", "Run the app again."]
-            : ["Run the app."];
-        for (const label of stepLabels) appendText(steps, "li", label);
-        tester.append(steps);
         const prompt = document.createElement("textarea");
         appendText(tester, "strong", "Message");
         prompt.maxLength = 2000;
@@ -2793,13 +2820,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ));
         } else if (appRunning) {
           actions.append(actionButton("Stop app", () => runAppOperation("stop-local"), true));
-        } else {
-          actions.append(actionButton("Run app", () => runAppOperation("run-local"), true));
         }
         tester.append(prompt);
         renderDocumentInput(tester);
         tester.append(actions);
         renderDocumentTest(tester, actions);
+        if (agentRawResponse) {
+          appendText(tester, "h3", "Last response");
+          appendText(tester, "div", agentResponseText, "agent-response");
+          renderTools(tester);
+        }
         container.append(tester);
         syncAgentInputControls();
         return;
@@ -2815,8 +2845,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       prompt.addEventListener("input", () => {
         agentPromptDraft = prompt.value;
       });
-      const response = document.createElement("pre");
-      response.className = "command-output agent-response";
+      const response = document.createElement("div");
+      response.className = "agent-response";
+      response.setAttribute("role", "region");
+      response.setAttribute("aria-label", "Agent response");
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions";
@@ -2877,10 +2909,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       tester.append(prompt);
       renderDocumentInput(tester);
-      tester.append(actions, response);
+      tester.append(actions);
+      appendText(tester, "h3", "Response");
+      tester.append(response);
       renderDocumentTest(tester, actions);
+      renderTools(tester);
       if (agentRawResponse) {
         const raw = document.createElement("details");
+        raw.dataset.runDisclosure = "raw-response";
         appendText(raw, "summary", "Raw agent response");
         appendText(raw, "pre", agentRawResponse, "command-output");
         tester.append(raw);
@@ -2893,7 +2929,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       portBusy = true;
       portMessage = "";
       portError = false;
-      renderManagePanel();
+      window.unityStudioSettings?.refreshApp();
       try {
         const result = await apiRequest("/api/ports/" + operation, {
           method: "POST",
@@ -2910,6 +2946,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         portError = true;
       } finally {
         portBusy = false;
+        window.unityStudioSettings?.refreshApp();
         if (panelMode === "manage") renderManagePanel();
       }
     }
@@ -2939,55 +2976,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         const confirm = actionButton("Confirm stop", () => portOperation("stop"));
         confirm.disabled = portBusy;
-        const cancel = actionButton("Cancel", () => { portReview = null; renderManagePanel(); });
+        const cancel = actionButton("Cancel", () => { portReview = null; window.unityStudioSettings.refreshApp(); });
         cancel.disabled = portBusy;
         confirmation.append(confirm, cancel);
         parent.append(confirmation);
       }
     }
 
-    function renderManagePanel({ openGateway = false } = {}) {
-      const previousScrollTop = panelMode === "manage" ? details.scrollTop : 0;
-      panelMode = "manage";
-      updateModeHighlight();
-      const previousOutput = details.querySelector("[data-runtime-output]");
-      const outputScrollTop = previousOutput?.scrollTop || 0;
-      const followOutput = !previousOutput ||
-        previousOutput.scrollHeight - previousOutput.scrollTop - previousOutput.clientHeight < 40;
-      const editingLabel = document.activeElement?.getAttribute("aria-label");
-      const editingMessage = ["Agent message", "Document text"].includes(editingLabel);
-      const messageSelection = editingMessage
-        ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
-      selectedId = null;
-      selectedEdgeId = null;
-      applySelection();
-      clearElement(details);
-      details.dataset.empty = "false";
-      appendText(details, "h2", "Run/Debug");
-      details.dataset.mode = "manage";
-      appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
-
-      const appState = operationalState.app?.state;
-      const runtimeSection = managementSection("Local runtime", true);
-      renderRuntimeAction(runtimeSection);
-      renderPortControls(runtimeSection);
-      if (operationalState.readiness?.agentRuntime) {
-        appendText(runtimeSection, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
-          ? "Selected: Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
-          : "Local document-processing simulation. The tool runs as a subprocess, without OS or network isolation. Use synthetic documents only.");
-        runtimeSection.append(actionButton("Edit instructions & document tools", renderBuildPanel));
-      }
-      if (operationalState.app?.error) appendText(runtimeSection, "p", operationalState.app.error, "error");
-      appendText(runtimeSection, "h3", "Command output");
-      appendText(runtimeSection, "p", "Live stdout and stderr from startup, components, and app operations.");
-      const output = document.createElement("pre");
-      output.className = "command-output live-output";
-      output.dataset.runtimeOutput = "true";
-      output.textContent = latestOutput;
-      runtimeSection.append(output);
-      output.scrollTop = followOutput ? output.scrollHeight : outputScrollTop;
-      void refreshRunOutput();
-      appendText(runtimeSection, "h3", "Components & endpoints");
+    function renderRuntimeServices(runtimeSection) {
+      const tools = appendText(runtimeSection, "div", "", "run-section-actions");
+      appendText(tools, "p", "Local endpoints and source-discovered components. Readiness is not proof of a successful tool call.");
+      tools.append(actionButton("Port settings", () => openAppSettings("ports")));
       for (const entrypoint of runtimeEntrypoints) {
         const row = document.createElement("div");
         row.className = "endpoint-row";
@@ -3010,6 +3009,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         open.disabled = !entrypoint.ready;
         row.append(open);
+        const projects = MODEL.nodes.filter((node) => node.kind === "project" && entrypointForNode(node)?.port === entrypoint.port);
+        for (const project of projects) {
+          const source = actionButton("Open " + project.name + " source", () => openRuntimeSource(project));
+          source.classList.add("runtime-source-action");
+          row.append(source);
+        }
         runtimeSection.append(row);
       }
       for (const node of MODEL.nodes.filter((node) => node.kind === "project"
@@ -3025,60 +3030,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         row.append(heading);
         appendText(row, "code", node.projectPath);
         appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
-        row.append(actionButton("Review source", async () => {
-          try {
-            const opened = await apiRequest("/api/open-source", {
-              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
-            });
-            setStatus("Source opened in " + opened.editorLabel + ".");
-          } catch (error) { setStatus(error.message, true); }
-        }));
+        row.append(actionButton("Review source", () => openRuntimeSource(node)));
         runtimeSection.append(row);
       }
-      renderAgentTester(runtimeSection);
-      renderTools(runtimeSection);
-      const activitySection = managementSection("Commands", true);
-      appendText(activitySection, "p", "Actual Azure, shell, and HTTP operations. Message bodies and credentials are not recorded.");
-      const feed = document.createElement("div");
-      feed.className = "command-feed";
-      feed.dataset.commandFeed = "true";
-      activitySection.append(feed);
-      renderCommandFeed();
-      const gatewaySection = managementSection(
-        "AI model connection",
-        openGateway || !operationalState.readiness?.gatewayConfigured,
-      );
-      const readiness = operationalState.readiness;
-      const connectionSummary = document.createElement("span");
-      connectionSummary.className = "connection-summary";
-      connectionSummary.textContent = readiness?.gatewayConfigured
-        ? readiness.model + " · " + readiness.activeGateway.name
-        : readiness?.activeGateway
-          ? readiness.activeGateway.name + " · " + (readiness.model || "Model validation pending")
-          : "Choose a subscription and gateway; model is selected during validation.";
-      const gatewaySummary = gatewaySection.parentElement.querySelector("summary");
-      const connectionState = appendText(gatewaySummary, "span",
-        readiness?.gatewayConfigured ? "Connected" : "Setup needed", "command-badge connection-state");
-      connectionState.dataset.state = readiness?.gatewayConfigured ? "succeeded" : "unknown";
-      gatewaySummary.append(connectionSummary);
-      details.insertBefore(gatewaySection.parentElement, runtimeSection.parentElement);
-      const gatewayControls = document.createElement("div");
-      gatewayControls.className = "gateway-fields";
-      appendText(
-        gatewayControls,
-        "p",
-        ACTIVE_LIFECYCLE_STATES.includes(appState)
-          ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
-          : appState === "running"
-            ? "Stop the local app before changing its AI Gateway."
-          : "Loading available AI Gateways…",
-      );
-      gatewaySection.append(gatewayControls);
-      if (!ACTIVE_LIFECYCLE_STATES.includes(appState) && appState !== "running") {
-        void loadGatewayControls(gatewayControls);
+      if (!runtimeEntrypoints.length && !MODEL.nodes.some((node) => node.kind === "project")) {
+        appendText(runtimeSection, "p", "No local components were discovered for this app.");
       }
+    }
 
-      const deploymentSection = managementSection("Azure deployment");
+    async function openRuntimeSource(node) {
+      try {
+        const opened = await apiRequest("/api/open-source", {
+          method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
+        });
+        setStatus("Source opened in " + opened.editorLabel + ".");
+      } catch (error) { setStatus(error.message, true); }
+    }
+
+    function renderDeployment(deploymentSection) {
+      const appState = operationalState.app?.state;
       appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
       const cloudActions = document.createElement("div");
       cloudActions.className = "actions";
@@ -3096,26 +3066,95 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }));
       }
       deploymentSection.append(cloudActions);
+    }
 
-      const dangerSection = managementSection("Delete app");
-      const dangerActions = document.createElement("div");
-      dangerActions.className = "actions";
-      if (appState === "running") {
-        appendText(dangerActions, "p", "Stop the local app before deleting its worktree.");
-      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(dangerActions, "p", "Wait for the current operation to finish before deleting this app.");
-      } else {
-        const deleteButton = actionButton("Delete app…", renderDeleteConfirmation);
-        deleteButton.className = "danger";
-        dangerActions.append(deleteButton);
+    function renderTryApp(container) {
+      const state = operationalState.app?.state;
+      if (state !== "running") renderRuntimeAction(container);
+      else {
+        const web = runtimeEntrypoints.find((entry) => entry.ready && normalized(entry.name) === "web");
+        if (web) {
+          const actions = appendText(container, "div", "", "run-open-app");
+          appendText(actions, "p", "Try the web experience, or send a message to the agent below.");
+          actions.append(actionButton("Open app", async () => {
+            try {
+              await apiRequest("/api/open-entrypoint", {
+                method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
+              });
+            } catch (error) { setStatus(error.message, true); }
+          }, true));
+        }
       }
-      dangerSection.append(dangerActions);
-      details.scrollTop = previousScrollTop;
-      if (editingMessage) {
-        const message = details.querySelector('[aria-label="' + editingLabel + '"]');
-        message?.focus({ preventScroll: true });
-        if (message && messageSelection) message.setSelectionRange(...messageSelection);
+      if (operationalState.app?.foreignEntrypoints?.length) {
+        container.append(actionButton("Resolve port conflict", () => openAppSettings("ports")));
       }
+      if (operationalState.readiness?.agentRuntime) {
+        appendText(container, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
+          ? "Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
+          : "Local simulation: the document tool has no OS or network isolation. Use synthetic documents only.", "run-runtime-notice");
+        container.append(actionButton("Review key files", renderBuildPanel));
+      }
+      renderAgentTester(container);
+    }
+
+    function openAppSettings(section) {
+      window.unityStudioSettings.open(section);
+    }
+
+    function renderAppSettingsSection(section, container) {
+      if (section === "ports") { renderPortControls(container); return; }
+      if (section === "danger") { renderDeleteSettings(container); return; }
+      const appState = operationalState.app?.state;
+      const readiness = operationalState.readiness;
+      appendText(container, "p", readiness?.gatewayConfigured
+        ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name
+        : "Connect an AI Gateway and model to enable the agent workflow.");
+      if (appState === "running" || ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(container, "p", appState === "running" ? "Stop the local app before changing its AI Gateway."
+          : humanize(appState) + " is in progress. Model access can be changed when it finishes.");
+        return;
+      }
+      if (!operationalState.app) {
+        appendText(container, "p", "Checking app status before changing model access.");
+        return;
+      }
+      const controls = appendText(container, "div", "", "gateway-fields");
+      appendText(controls, "p", "Loading available AI Gateways...");
+      void loadGatewayControls(controls);
+    }
+
+    window.addEventListener("unity-studio-settings-ready", () => {
+      window.unityStudioSettings.configureApp({
+        name: document.querySelector("header h1").textContent,
+        renderSection: renderAppSettingsSection,
+      });
+      document.querySelector(".studio-settings").addEventListener("close", () => {
+        deleteConfirming = false;
+        deleteError = "";
+        portReview = null;
+        gatewayDiscovery.invalidate();
+      });
+    });
+
+    function renderManagePanel({ openGateway = false } = {}) {
+      const entering = panelMode !== "manage";
+      panelMode = "manage";
+      updateModeHighlight();
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      const oldOutput = details.querySelector("[data-runtime-output]");
+      const scrollTop = oldOutput?.scrollTop || 0;
+      const following = !oldOutput || oldOutput.scrollHeight - oldOutput.scrollTop - oldOutput.clientHeight < 40;
+      details.dataset.empty = "false";
+      details.dataset.mode = "manage";
+      runWorkspace.render({ state: operationalState.app?.state, readiness: operationalState.readiness, services: runtimeEntrypoints });
+      if (entering) details.scrollTop = 0;
+      const output = details.querySelector("[data-runtime-output]");
+      output.scrollTop = following ? output.scrollHeight : scrollTop;
+      renderCommandFeed();
+      void refreshRunOutput();
+      if (openGateway) openAppSettings("connection");
     }
 
     async function refreshRunOutput() {
@@ -3125,6 +3164,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
         latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
         latestCommands = result.commands || [];
+        runWorkspace.diagnostics({ failures: latestCommands.filter((record) => record.status === "failed").length });
         renderCommandFeed();
         const output = details.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
@@ -3134,6 +3174,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       } catch (error) {
         const output = details.querySelector("[data-runtime-output]");
+        runWorkspace.diagnostics({ failures: latestCommands.filter((record) => record.status === "failed").length, error: error.message });
         if (output) output.textContent = "Unable to load output: " + error.message;
       } finally { outputRefreshing = false; }
     }
@@ -3172,30 +3213,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderTools(container) {
-      const section = document.createElement("div");
-      section.className = "developer-tool-card";
-      const nodes = MODEL.nodes.filter((node) =>
-        node.kind === "project" && ["skills", "sandbox"].includes(node.tierId));
-      appendText(section, "strong", nodes.some((node) => node.tierId === "skills") ? "Hosted Skills & tools" : "Tools");
-      appendText(section, "p", "Source-discovered implementations; availability is shown separately from tool execution.");
-      for (const node of nodes) {
-        const row = document.createElement("div");
-        row.className = "endpoint-row";
-        const endpoint = entrypointForNode(node);
-        appendText(row, "strong", node.name + " · " + (endpoint?.healthStatus || "Source only"));
-        appendText(row, "code", node.projectPath);
-        row.append(actionButton("Open source", async () => {
-          try {
-            const opened = await apiRequest("/api/open-source", {
-              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
-            });
-            setStatus("Source opened in " + opened.editorLabel + ".");
-          } catch (error) { setStatus(error.message, true); }
-        }));
-        section.append(row);
-      }
-      if (!nodes.length) appendText(section, "p", "No Hosted Skill or sandbox implementation was discovered.");
-      appendText(section, "strong", "Tool activity · last response");
+      const section = document.createElement("details");
+      section.className = "run-tool-activity";
+      section.dataset.runDisclosure = "tool-activity";
+      appendText(section, "summary", "Tool activity · " + agentToolActivity.length + " reported");
       for (const tool of agentToolActivity) appendText(section, "p", tool.name + " · " + tool.status);
       if (!agentToolActivity.length) appendText(section, "p", "No tool activity was reported in the last response. This does not prove that no tools ran.");
       container.append(section);
@@ -3234,6 +3255,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();
+        if (changed) window.unityStudioSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
       } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
@@ -3242,6 +3264,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runtimeEntrypoints = [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();
+        if (changed) window.unityStudioSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }

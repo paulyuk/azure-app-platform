@@ -279,8 +279,10 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#build-app").click();
     await preview.waitFor();
     assert.equal(await source.textContent(), "Explain applications.");
-    await page.getByRole("button", { name: "Switch to dark mode" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("dark");
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
+    await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await source.textContent(), "Explain applications.");
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(24, 45, 70)");
@@ -368,6 +370,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     const document = page.getByRole("textbox", { name: "Document text", exact: true });
     await message.fill("Explain my application.");
+    await page.getByLabel("Document attachment", { exact: true }).click();
     await document.fill("Synthetic loan application.");
     assert.equal(await page.locator("#details").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     await page.locator("#action-center").click();
@@ -532,13 +535,15 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await preview.waitFor();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "dark");
     preferenceFailure = true;
-    await page.getByRole("button", { name: "Switch to light mode" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("light");
     await page.getByText("Preference save failed.", { exact: true }).waitFor();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "dark");
-    assert.equal(await page.getByRole("button", { name: "Switch to light mode" }).isEnabled(), true);
+    assert.equal(await page.getByRole("combobox", { name: "Appearance", exact: true }).isEnabled(), true);
     preferenceFailure = false;
-    await page.getByRole("button", { name: "Switch to light mode" }).click();
+    await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("light");
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
+    await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(231, 241, 255)");
     assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(9, 105, 218)");

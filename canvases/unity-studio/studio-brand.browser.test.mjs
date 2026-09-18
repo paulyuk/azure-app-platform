@@ -156,7 +156,14 @@ test("Unity branding and opening animation work in the browser", {
           assert.equal(await page.locator(".studio-brand").isVisible(), false);
           assert.equal(await page.locator("img:visible").count(), 1);
           assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
-          assert.equal(await page.getByRole("button", { name: /Switch to (light|dark) mode/ }).isVisible(), true);
+          assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
+          if (width === 400) {
+            await page.getByRole("button", { name: "Settings", exact: true }).click();
+            const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+            assert.equal(await settings.getByRole("combobox", { name: "Appearance" }).inputValue(), theme);
+            assert.equal(await settings.locator("[data-settings-section]").count(), 0);
+            await page.keyboard.press("Escape");
+          }
           const utilities = await page.locator(".studio-theme-control").boundingBox();
           const nav = await page.locator(".studio-site-nav").boundingBox();
           assert.ok(Math.abs(utilities.x + utilities.width - nav.x - nav.width) < 1, "Utilities remain right-aligned");

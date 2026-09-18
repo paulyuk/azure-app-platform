@@ -1921,7 +1921,10 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /role="tablist" aria-label="Observe views"/);
   assert.match(html, />Run &amp; Debug<\/button>/);
   assert.match(html, />Observe<\/button>/);
-  assert.match(html, /managementSection\("Local runtime", true\)/);
+  assert.match(html, /function createRunWorkspace/);
+  assert.match(html, /"Services"/);
+  assert.match(html, /"Diagnostics"/);
+  assert.match(html, /"Deploy to Azure"/);
   assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
@@ -1951,7 +1954,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Choose a component that belongs in this part of the request flow/);
   assert.match(html, /Add another/);
   assert.match(html, /Search &amp; layout<\/summary>/);
-  assert.match(html, /Run and test locally, connect model access, deploy to Azure/);
+  assert.match(html, /Try your app/);
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
@@ -1961,7 +1964,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /agentPromptDraft = prompt\.value/);
   assert.match(html, /Agent unavailable/);
   assert.match(html, /local agent cannot start until this app has an AI Gateway connection/);
-  assert.match(html, /className = "setup-steps"/);
+  assert.match(html, /openAppSettings\("connection"\)/);
   assert.match(html, /Connect AI Gateway/);
   assert.match(html, /Stop preview/);
   assert.doesNotMatch(html, /Send test prompt|Agent test prompt/);
@@ -1970,7 +1973,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /data-runtime-output/);
   assert.match(html, /refreshRunOutput\(\); \}, 1000/);
   assert.doesNotMatch(html, /Command reference & HTTP examples/);
-  assert.match(html, /renderAgentTester\(runtimeSection\)/);
+  assert.match(html, /renderAgentTester\(container\)/);
   assert.match(html, /subscriptionSelect/);
   assert.match(html, /connection-summary/);
   assert.match(html, /updateModeHighlight/);
