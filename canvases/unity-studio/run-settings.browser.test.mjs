@@ -248,6 +248,21 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     assert.equal(await firstOperation.evaluate((el) => el.open), true);
     assert.equal(await firstOperation.locator("summary").evaluate((el) => el === document.activeElement), true);
     assert.ok(await feed.evaluate((el) => el.scrollTop > 0));
+    fixture.state.commands.unshift({
+      id: "new-operation", kind: "shell", label: "New operation",
+      status: "running", command: "npm run build", startedAt: Date.now(), durationMs: null,
+    });
+    await page.getByText("New operation", { exact: true }).waitFor();
+    assert.equal(await firstOperation.locator(".command-title").textContent(), "Start agent",
+      "Prepending an operation must not transfer the existing disclosure to a different record");
+    assert.equal(await firstOperation.evaluate((el) => el.open), true);
+    assert.equal(await page.locator('[data-run-disclosure="new-operation"]').evaluate((el) => el.open), false);
+    assert.equal(await firstOperation.locator("summary").evaluate((el) => el === document.activeElement), true);
+    fixture.state.commands.find((record) => record.id === "operation-0").status = "succeeded";
+    await page.waitForFunction(() => document.querySelector('[data-run-disclosure="operation-0"]')?.dataset.status === "succeeded");
+    assert.equal(await firstOperation.evaluate((el) => el.open), true);
+    assert.equal(await firstOperation.locator("summary").evaluate((el) => el === document.activeElement), true,
+      "Completing an operation must preserve its summary focus");
     await output.click();
     await page.getByRole("button", { name: "Open all logs" }).waitFor();
     await page.locator("#build-app").click();

@@ -3190,16 +3190,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const following = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
       const open = new Map([...container.querySelectorAll("[data-run-disclosure]")]
         .map((node) => [node.dataset.runDisclosure, node.open]));
+      const focusedRecord = container.contains(document.activeElement)
+        ? document.activeElement.closest("[data-run-disclosure]")?.dataset.runDisclosure : null;
+      let focusedSummary = null;
       container.dataset.fingerprint = fingerprint;
       clearElement(container);
       if (!latestCommands.length) appendText(container, "p", "No operations recorded yet. Run the app or invoke its agent.");
-      for (const [index, record] of latestCommands.entries()) {
+      for (const record of latestCommands) {
         const row = document.createElement("details");
         row.className = "command-record";
         row.dataset.status = record.status;
-        row.dataset.runDisclosure = "operation-" + index;
+        row.dataset.runDisclosure = record.id;
         row.open = open.get(row.dataset.runDisclosure) || false;
         const summary = document.createElement("summary");
+        summary.dataset.actionKey = "operation-" + record.id;
+        if (record.id === focusedRecord) focusedSummary = summary;
         const heading = document.createElement("div");
         heading.className = "command-head";
         appendText(heading, "span", record.kind, "command-badge command-kind");
@@ -3221,6 +3226,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(body, "pre", record.command, "command-code");
         container.append(row);
       }
+      if (focusedRecord) (focusedSummary || details.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
       container.scrollTop = following ? container.scrollHeight : scrollTop;
     }
 
