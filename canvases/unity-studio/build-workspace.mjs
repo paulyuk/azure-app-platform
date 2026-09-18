@@ -116,21 +116,25 @@ function sourceArtifact(path, candidate) {
   };
 }
 
-async function buildCatalog(root) {
+function candidateSourcePaths(candidate) {
+  return [
+    ...(SOURCE_FILES[candidate.tierId] ?? []).map((name) =>
+      candidate.projectPath === "." ? name : `${candidate.projectPath}/${name}`),
+    ...candidate.evidence.filter((item) => CODE_FILE.test(item.path)).map((item) => item.path),
+  ];
+}
+
+async function buildCatalog(root, discoveryState = {}) {
   const scope = await appScope(root);
   if (await isDocumentApp(root, scope)) {
     return { kind: "document", supportsDocuments: true, artifacts: DOCUMENT_ARTIFACTS, diagnostics: [] };
   }
-  const scan = await scanRepository(root);
-  const discovery = await discoverRepository(root, { scan });
+  const scan = discoveryState.scan ?? await scanRepository(root);
+  const discovery = discoveryState.discovery ?? await discoverRepository(root, { scan });
   const files = new Set(scan.files.map((file) => file.path));
   const selected = new Map();
   for (const candidate of discovery.candidates) {
-    const paths = new Set([
-      ...(SOURCE_FILES[candidate.tierId] ?? []).map((name) =>
-        candidate.projectPath === "." ? name : `${candidate.projectPath}/${name}`),
-      ...candidate.evidence.filter((item) => CODE_FILE.test(item.path)).map((item) => item.path),
-    ]);
+    const paths = new Set(candidateSourcePaths(candidate));
     for (const path of paths) {
       if (!files.has(path) || !inScope(path, scope) || selected.has(path)) continue;
       selected.set(path, sourceArtifact(path, candidate));
@@ -234,6 +238,35 @@ export async function resolveBuildArtifactPath(root, id) {
     throw error;
   }
   return artifactPath(root, await appArtifact(root, artifact));
+}
+
+export async function resolveProjectSourcePath(root, projectPath) {
+  if (typeof projectPath !== "string" || !projectPath || projectPath.includes("\0")
+    || isAbsolute(projectPath) || win32.isAbsolute(projectPath) || projectPath.split(/[\\/]/).includes("..")) {
+    const error = new Error("Choose an app-relative source project.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const project = projectPath.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "") || ".";
+  const scan = await scanRepository(root);
+  const discovery = await discoverRepository(root, { scan });
+  const candidates = discovery.candidates.filter((candidate) => candidate.projectPath === project);
+  if (!candidates.length) {
+    const error = new Error("Choose a source project discovered in this app.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const catalog = await buildCatalog(root, { scan, discovery });
+  const artifacts = await Promise.all(catalog.artifacts.map((artifact) => appArtifact(root, artifact)));
+  const paths = [...new Set(candidates.flatMap(candidateSourcePaths))]
+    .sort((a, b) => Number(!CODE_FILE.test(a)) - Number(!CODE_FILE.test(b)));
+  for (const path of paths) {
+    const artifact = artifacts.find((item) => item.path === path);
+    if (artifact && await existingPath(root, path)) return artifactPath(root, artifact);
+  }
+  const error = new Error("No recognized source file is available for this project in the app's source catalog. Review Key files or open the project with Build's external-editor option.");
+  error.statusCode = 404;
+  throw error;
 }
 
 export async function readBuildRuntime(root) {

@@ -3040,10 +3040,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     async function openRuntimeSource(node) {
       try {
-        const opened = await apiRequest("/api/open-source", {
+        const opened = await apiRequest("/api/open-source-canvas", {
           method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
         });
-        setStatus("Source opened in " + opened.editorLabel + ".");
+        setStatus("Opened " + opened.path + " in Files.");
       } catch (error) { setStatus(error.message, true); }
     }
 

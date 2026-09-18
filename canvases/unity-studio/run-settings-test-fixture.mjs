@@ -111,6 +111,14 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
       else if (path === "/api/delete-app") {
         if (state.deleteError) throw new Error("Local worktree could not be deleted.");
         result = { outcome: "deleted" };
+      } else if (path === "/api/open-source-canvas") {
+        const files = {
+          "src/web": "src/web/src/app/page.tsx",
+          "src/agent": "src/agent/main.py",
+          "src/skills/inventory": "src/skills/inventory/function_app.py",
+        };
+        if (!files[body.projectPath]) throw new Error("Choose a known preview source project.");
+        result = { path: files[body.projectPath], canvas: { canvasId: "editor" } };
       } else if (path === "/api/open-entrypoint" || path === "/api/open-source") result = { outcome: "opened" };
       else if (path === "/api/app-logs") result = {
         root: graph.root, scope: { serviceId: null, label: "All services", groupedByService: true, description: "Simulated local service logs." },

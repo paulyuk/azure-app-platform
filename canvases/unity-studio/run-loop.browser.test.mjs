@@ -27,6 +27,7 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
   let recovered = false;
   const invocations = [];
   const sourceReviews = [];
+  let sourceError = false;
   const errors = [];
   const graph = {
     root: "/tmp/unity-run-loop-fixture", generatedAt: new Date().toISOString(),
@@ -80,9 +81,14 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
         status: invocations.length ? "succeeded" : "running", durationMs: invocations.length ? 120 : null,
         startedAt: 1, note: invocations.length ? "HTTP 200" : "",
       }] };
-      else if (path === "/api/open-source") {
+      else if (path === "/api/open-source-canvas") {
         sourceReviews.push(request.postDataJSON());
-        data = { outcome: "opened" };
+        if (sourceError) {
+          await route.fulfill({ status: 503, json: { error: "Files canvas unavailable." } });
+          return;
+        }
+        data = { path: request.postDataJSON().projectPath === "src/web" ? "src/web/src/app/page.tsx" : "src/agent/main.py",
+          canvas: { canvasId: "editor" } };
       }
       else if (path === "/api/ports/pick") {
         agentPort = 8091;
@@ -135,6 +141,14 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     assert.equal(await sourceWeb.getByRole("button", { name: /Open web/ }).count(), 0);
     await sourceWeb.getByRole("button", { name: "Review source" }).click();
     assert.deepEqual(sourceReviews, [{ root: graph.root, projectPath: "src/web" }]);
+    await page.getByText("Opened src/web/src/app/page.tsx in Files.", { exact: true }).waitFor();
+    sourceError = true;
+    await sourceWeb.getByRole("button", { name: "Review source" }).click();
+    await page.getByText("Files canvas unavailable.", { exact: true }).waitFor();
+    sourceError = false;
+    await page.getByRole("button", { name: "Open Agent source", exact: true }).click();
+    await page.getByText("Opened src/agent/main.py in Files.", { exact: true }).waitFor();
+    assert.deepEqual(sourceReviews.at(-1), { root: graph.root, projectPath: "src/agent" });
     assert.deepEqual(await page.locator("#graph-shell").evaluate((element) => ({
       background: getComputedStyle(element).backgroundColor,
       nodeFont: getComputedStyle(document.querySelector(".node-title")).fontSize,

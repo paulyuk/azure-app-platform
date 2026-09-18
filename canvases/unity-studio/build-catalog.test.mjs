@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 
 async function fixture(files, action) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "unity-build-catalog-")));
@@ -55,6 +55,9 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     assert.ok(state.artifacts.filter((item) => item.path.startsWith("src/web/") || item.path.endsWith("/host.json"))
       .every((item) => item.customizationArea === undefined), "The raw catalog remains available without turning boilerplate into customization decisions");
     assert.equal(await resolveBuildArtifactPath(root, agent.id), join(root, agent.path));
+    assert.equal(await resolveProjectSourcePath(root, "src/agent"), join(root, "src/agent/main.py"));
+    assert.equal(await resolveProjectSourcePath(root, "src/skills/inventory"), join(root, "src/skills/inventory/function_app.py"));
+    assert.equal(await resolveProjectSourcePath(root, "src/web"), join(root, "src/web/src/app/page.tsx"));
     assert.equal("editable" in agent, false);
     assert.equal(await readBuildRuntime(root), null);
     assert.equal(await documentDeploymentBlocker(root), null);
@@ -107,6 +110,8 @@ test("custom declared paths scope read and open away from unrelated apps and lef
     assert.equal(worker.customizationArea, "behavior");
     assert.equal(worker.focusLine, 1);
     assert.equal(await resolveBuildArtifactPath(root, worker.id), join(root, worker.path));
+    assert.equal(await resolveProjectSourcePath(root, "services/assistant"), join(root, worker.path));
+    await assert.rejects(resolveProjectSourcePath(root, "unrelated"), /source project discovered/);
     assert.equal(await readBuildRuntime(root), null);
     await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: ../outside\n");
     await assert.rejects(readBuildWorkspace(root), /app-relative path/);
@@ -114,6 +119,35 @@ test("custom declared paths scope read and open away from unrelated apps and lef
     await assert.rejects(readBuildWorkspace(root), /declare capabilities or components/);
     await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: unrelated\n");
     await assert.rejects(resolveBuildArtifactPath(root, worker.id), /known Build artifact/);
+  });
+});
+
+test("Run source review selects sandbox code, supports root projects, and rejects unsafe or unknown projects", async () => {
+  await fixture({
+    "unity.app.yaml": "capabilities:\n  sandbox:\n    path: src/sandbox/prequal\n  web:\n    path: .\n",
+    "src/sandbox/prequal/main.py": "print('prequal')",
+    "src/sandbox/prequal/contract.json": "{}",
+    "src/sandbox/prequal/Dockerfile": "FROM python:3.12",
+    "src/sandbox/prequal/egress-policy.md": "Deny outbound access.",
+    "package.json": '{"dependencies":{"next":"1.0"}}',
+    "src/app/page.tsx": "export default function Page() { return null; }",
+  }, async (root) => {
+    assert.equal(await resolveProjectSourcePath(root, "src\\sandbox\\prequal"), join(root, "src/sandbox/prequal/main.py"));
+    assert.equal(await resolveProjectSourcePath(root, "."), join(root, "src/app/page.tsx"),
+      "A root web project must not borrow a nested sandbox's source");
+    for (const project of ["../outside", "src/../sandbox", "/outside", "C:\\outside", "", null]) {
+      await assert.rejects(resolveProjectSourcePath(root, project), (error) =>
+        error.statusCode === 400 && /app-relative source project/.test(error.message));
+    }
+    await assert.rejects(resolveProjectSourcePath(root, "src/not-discovered"), /source project discovered/);
+    const source = join(root, "src/app/page.tsx");
+    await rm(source);
+    await symlink(join(root, "src/sandbox/prequal/main.py"), source);
+    assert.equal(await resolveProjectSourcePath(root, "."), join(root, "package.json"),
+      "A symlinked implementation must not be opened; only another allowlisted file is eligible");
+    await rm(join(root, "package.json"));
+    await assert.rejects(resolveProjectSourcePath(root, "."), (error) =>
+      error.statusCode === 404 && /No recognized source file/.test(error.message));
   });
 });
 
@@ -155,6 +189,8 @@ test("document Build honors the declared legacy tool instead of an unrelated new
     assert.equal(tool.path, "src/sandbox/tool/main.py");
     assert.match(tool.content, /selected legacy/);
     assert.equal(await resolveBuildArtifactPath(root, "tool"), join(root, tool.path));
+    assert.equal(await resolveProjectSourcePath(root, "src/sandbox/tool"), join(root, tool.path));
+    assert.equal(await resolveProjectSourcePath(root, "src/agent"), join(root, "src/agent/prompts/system.md"));
     assert.equal(await readFile(join(root, "src/tools/document-validation/main.py"), "utf8"), "print('unrelated new tool')");
   });
 

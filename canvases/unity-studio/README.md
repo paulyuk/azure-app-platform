@@ -120,6 +120,7 @@ zoom smoothly anywhere over the map surface. **Run/Debug** focuses on trying the
 app: contextual startup or recovery guidance, an available web-app link, the
 agent message, and a readable response. **Services**, **Diagnostics**, and
 **Deploy to Azure** are native expandable sections, initially collapsed.
+Their inset, tinted headings stay distinct from expanded content in both themes.
 Services retains component readiness, endpoint actions, and source links.
 Diagnostics retains stdout/stderr and recorded operations, with **Open all logs**
 handing off to Observe. Startup, failure, and cloud operations reveal diagnostics
@@ -357,7 +358,11 @@ Dealer deployment manifests from provisioning unrelated services.
 
 **Components & endpoints** also lists source-discovered runtime projects with no
 declared endpoint as **Source only**, with **Review source**. They are not counted
-as required services or presented as running. A root `unity.app.yaml` scopes the
+as required services or presented as running. Run's source actions open a recognized
+file from that project in the native **Files** canvas, preferring implementation
+code over configuration. They retain app/worktree boundaries and report unavailable
+source or host support without launching a local IDE. Build still offers its explicit
+external-editor option. A root `unity.app.yaml` scopes the
 App Map, tools, and component inventory to its declared capability paths. Older
 apps may still contain inherited Dealer files, but those files are neither shown
 as app components nor deleted. Adding a capability must update the manifest.

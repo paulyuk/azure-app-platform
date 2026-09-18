@@ -506,7 +506,9 @@ web-app action, **Invoke agent**, and its readable result. The connected model
 summary links directly to Settings. Native **Services**, **Diagnostics**, and
 **Deploy to Azure** disclosures preserve the full existing feature set without
 competing with the primary task. They retain expansion across polling and
-workspace switches. Starting, failing, provisioning, and deploying reveal
+workspace switches. Tinted header bands, stronger titles, and open-state dividers
+separate headings from inset content without introducing another layer of cards.
+Starting, failing, provisioning, and deploying reveal
 diagnostics without stealing focus; failure counts and read errors remain visible
 when collapsed. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. There is no resizable diagnostics dock.
@@ -548,7 +550,12 @@ cannot overwrite user choices, and empty gateways cannot be applied.
 Explicit Connect/Apply receives the selected model and validates it before the
 Run summary reports the connection. Creation remains an explicit specialist
 action. Source projects without managed endpoints appear in Components & endpoints
-as Source only, with Review source, and do not affect readiness. Azure deployment
+as Source only, with Review source, and do not affect readiness. Both source-only
+and endpoint source actions open a recognized project file in the host Files canvas,
+preferring code to configuration. Selection uses the same scoped catalog and path
+authorization as Build; no recognized file or unavailable host support produces an
+explicit error, never an implicit local-IDE fallback. Build's external-editor action
+remains available separately. Azure deployment
 remains a secondary disclosure; deletion lives only in app Settings, not Run.
 Home returns to the landing screen, and Guide, Run/Debug, and
 Search & layout use a colored active state. The

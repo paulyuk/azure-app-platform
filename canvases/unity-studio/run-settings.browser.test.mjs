@@ -225,3 +225,73 @@ test("Run disclosures preserve drafts and selection, expose hidden errors and re
     await fixture.close();
   }
 });
+
+test("Run section headings remain distinct and keyboard-accessible in compact and wide light/dark panes", {
+  skip: !chromium && "Install src/web dependencies to run browser coverage.",
+}, async () => {
+  const fixture = await createRunSettingsFixture();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.goto(fixture.origin + "/app-map");
+    await page.locator("#manage-app").click();
+    await page.locator(".run-section").first().waitFor();
+    for (const theme of ["light", "dark"]) {
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+      await dialog.getByRole("combobox", { name: "Appearance" }).selectOption(theme);
+      await page.waitForFunction((value) => document.documentElement.dataset.studioTheme === value, theme);
+      await dialog.getByRole("button", { name: "Close settings" }).click();
+      for (const width of [380, 620, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const id of ["services", "diagnostics", "deployment"]) {
+          const section = page.locator(`[data-run-section="${id}"]`);
+          const heading = section.locator(":scope > summary");
+          if (!await section.evaluate((el) => el.open)) await heading.press("Enter");
+          await heading.focus();
+          const style = await heading.evaluate((el) => {
+            const css = getComputedStyle(el);
+            const body = getComputedStyle(el.nextElementSibling);
+            const title = getComputedStyle(el.querySelector(".run-section-title"));
+            const surface = document.createElement("span");
+            surface.style.backgroundColor = css.getPropertyValue("--studio-surface").trim();
+            const luminance = (color) => {
+              const channels = color.match(/[\d.]+/g).slice(0, 3).map((value) => {
+                const normalized = Number(value) / 255;
+                return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+              });
+              return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+            };
+            const contrast = (color) => {
+              const a = luminance(color);
+              const b = luminance(css.backgroundColor);
+              return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            };
+            return {
+              background: css.backgroundColor, surface: surface.style.backgroundColor,
+              border: css.borderBottomWidth, borderColor: css.borderBottomColor,
+              weight: Number(title.fontWeight), padding: parseFloat(body.paddingTop),
+              height: el.getBoundingClientRect().height, overflow: el.scrollWidth > el.clientWidth + 1,
+              focus: parseFloat(css.outlineWidth), titleContrast: contrast(title.color),
+              summaryContrast: contrast(getComputedStyle(el.querySelector(".run-section-summary")).color),
+            };
+          });
+          assert.notEqual(style.background, "rgba(0, 0, 0, 0)");
+          assert.notEqual(style.background, style.surface);
+          assert.notEqual(style.borderColor, "rgba(0, 0, 0, 0)");
+          assert.equal(style.border, "1px");
+          assert.ok(style.weight >= 700 && style.padding >= 12 && style.height >= 44);
+          assert.equal(style.overflow, false, `${theme} ${width}px ${id} heading overflow`);
+          assert.ok(style.focus >= 2);
+          assert.ok(style.titleContrast >= 4.5 && style.summaryContrast >= 4.5, `${theme} ${id} heading contrast`);
+          assert.equal(await page.locator("#details").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true);
+          await heading.press("Space");
+          assert.equal(await section.evaluate((el) => el.open), false);
+        }
+      }
+    }
+  } finally {
+    await browser.close();
+    await fixture.close();
+  }
+});

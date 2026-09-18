@@ -164,6 +164,7 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal((await readEditorSettings()).editorId, "cursor");
         await mkdir("src/agent/prompts", { recursive: true });
         await mkdir("src/tools/document-validation", { recursive: true });
+        await writeFile("src/agent/agent.yaml", "kind: hosted\\n");
         await writeFile("src/agent/prompts/system.md", "Use the tool.\\n\\n");
         const build = await api("/api/build-workspace?root=.");
         const state = await build.json();
@@ -198,6 +199,23 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(again.status, 200);
         await again.arrayBuffer();
         assert.equal(globalThis.portabilityCanvasOpenCalls[1].instanceId, globalThis.portabilityCanvasOpenCalls[0].instanceId);
+        const reviewedSource = await api("/api/open-source-canvas", { root: ".", projectPath: "src/agent" });
+        const reviewedResult = await reviewedSource.json();
+        assert.equal(reviewedSource.status, 200, JSON.stringify(reviewedResult));
+        assert.equal(reviewedResult.path, "src/agent/prompts/system.md");
+        assert.equal(globalThis.portabilityCanvasOpenCalls.at(-1).instanceId, globalThis.portabilityCanvasOpenCalls[0].instanceId);
+        const unsafeSource = await api("/api/open-source-canvas", { root: ".", projectPath: "../outside" });
+        assert.equal(unsafeSource.status, 400);
+        assert.match((await unsafeSource.json()).error, /app-relative source project/);
+        const unknownSource = await api("/api/open-source-canvas", { root: ".", projectPath: "private" });
+        assert.equal(unknownSource.status, 400);
+        assert.match((await unknownSource.json()).error, /source project discovered/);
+        const unauthorizedSource = await fetch(new URL("/api/open-source-canvas", opened.url), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root: ".", projectPath: "src/agent" }),
+        });
+        assert.equal(unauthorizedSource.ok, false);
+        await unauthorizedSource.arrayBuffer();
         const outsideOpen = await api("/api/open-build-file-canvas", { root: "..", id: artifact.id });
         assert.equal(outsideOpen.ok, false);
         assert.match((await outsideOpen.json()).error, /must stay within the current workspace/);
@@ -219,6 +237,7 @@ test("installed payload opens and materializes templates without checkout depend
 
         await mkdir("apps/nested/src/agent/prompts", { recursive: true });
         await mkdir("apps/nested/src/tools/document-validation", { recursive: true });
+        await writeFile("apps/nested/src/agent/agent.yaml", "kind: hosted\\n");
         await writeFile("apps/nested/src/agent/prompts/system.md", "Nested instructions.\\n");
         const nestedRoot = join(process.cwd(), "apps/nested");
         const registered = await api("/api/sources", { path: nestedRoot });
@@ -234,6 +253,10 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(nestedOpen.status, 200, JSON.stringify(nestedResult));
         assert.equal(nestedResult.path, "apps/nested/src/agent/prompts/system.md");
         assert.equal(globalThis.portabilityCanvasOpenCalls.at(-1).input.path, nestedResult.path);
+        const nestedReview = await api("/api/open-source-canvas", { root: "apps/nested", projectPath: "src/agent" });
+        const nestedReviewResult = await nestedReview.json();
+        assert.equal(nestedReview.status, 200, JSON.stringify(nestedReviewResult));
+        assert.equal(nestedReviewResult.path, nestedResult.path);
 
         const outsideRoot = join(process.cwd(), "..", "outside app");
         await mkdir(join(outsideRoot, "src/agent/prompts"), { recursive: true });

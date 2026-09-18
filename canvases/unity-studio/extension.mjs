@@ -56,7 +56,7 @@ import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 import {
   resolveAgentInvocation,
   invocationBody,
@@ -1318,15 +1318,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, await openWorkspaceInEditor({ root, file }));
       return;
     }
-    if (request.method === "POST" && url.pathname === "/api/open-build-file-canvas") {
+    if (request.method === "POST" && ["/api/open-build-file-canvas", "/api/open-source-canvas"].includes(url.pathname)) {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      const projectSource = url.pathname === "/api/open-source-canvas";
       sendJson(response, 200, await openBuildFileCanvas({
         session,
         workspaceRoot,
         root,
-        id: input.id,
+        id: projectSource ? input.projectPath : input.id,
+        ...(projectSource ? { artifactResolver: resolveProjectSourcePath } : {}),
       }));
       return;
     }
