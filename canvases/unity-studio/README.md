@@ -50,8 +50,10 @@ After creation or selection, the app workspace becomes the primary interface.
 The Unity logo and **Unity Studio** text link home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The main buttons are **Build → Run & Debug → Observe**, with a filled selected
-state marking the current workspace. Build opens first. Observe contains **App Map** and
+The main page navigation is **Build → Run & Debug → Observe**: one rounded,
+segmented strip with a filled, outlined selection marking the current page. This navigation
+is separated from the outlined **Set up** or runtime action; compact canvases put it
+on its own row below app identity. Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
 Build starts directly with customization areas and one focused preview, without a duplicate
 Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
@@ -61,8 +63,10 @@ not select a component based on the current file. Connect retains its source
 review and offers **Edit connections on App Map**. These entry points do not
 change files or start the app.
 Every workspace remains accessible regardless of readiness: this is not a
-locked wizard. The two Observe views use a compact, outlined switcher with
-map/log icons, a filled selected state, and keyboard tab navigation.
+locked wizard. The two Observe views use a compact tab row with
+map/log line icons and the same flat Run-style tabs used by Build: a shared baseline,
+subtle selected fill, and accent underline rather than individually outlined buttons.
+Keyboard tab navigation remains available across all three pages.
 Each view fills the workspace rather than sharing it
 with an always-visible map. Guide owns workflow progress and the next useful
 action, independently of the active workspace. Its inline toggle collapses the panel
@@ -118,19 +122,22 @@ and reset.
 Wheel and trackpad gestures
 zoom smoothly anywhere over the map surface. **Run/Debug** focuses on trying the
 app: contextual startup or recovery guidance, an available web-app link, the
-agent message, and a readable response. **Services**, **Diagnostics**, and
-**Deploy to Azure** are native expandable sections, initially collapsed.
-Their inset, tinted headings stay distinct from expanded content in both themes.
-Services retains component readiness, endpoint actions, and source links.
-Diagnostics retains stdout/stderr and recorded operations, with **Open all logs**
-handing off to Observe. Startup, failure, and cloud operations reveal diagnostics
-without moving keyboard focus; failed-operation counts and output-read errors
-remain visible on its collapsed heading. Disclosure state and input drafts
-survive status refreshes and workspace switches. There is no additional workspace
+agent message, and a readable response. A single **Output**, **Services**,
+**Operations**, **Deploy** tab row sits below this primary area, showing one
+supporting panel at a time. Output is first and selected by default, so command
+stdout/stderr is visible beneath the tester. **Open all logs** hands off to Observe.
+Services retains readiness, endpoint actions, and native source links; Operations
+separates recorded command/activity history from output. Error/failure indicators
+remain visible on inactive tabs. Explicit tab choices, input drafts, focus, and
+output scroll state survive refreshes, workspace switches, and lifecycle changes;
+starting or failing an operation does not force the user back to Output.
+There is no additional workspace
 navigation, custom debugger, or resizable diagnostics dock.
 
 The **Settings** gear opens a compact modal without leaving the current
-workspace. Appearance is a Studio-wide preference; **Model connection**,
+workspace. Appearance and **Preferred external editor** are Studio-wide
+preferences; VS Code is the default editor, while explicit saved choices are
+retained. **Model connection**,
 **Local ports**, and **Danger zone** apply to the named app. The model summary,
 setup blockers, and service port action open the relevant settings directly.
 Closing Settings or pressing Escape returns focus without discarding app input.
@@ -139,7 +146,7 @@ the read-only preview; Run's **Review key files** action returns to Build rather
 than introducing another editor or navigation bar.
 Delete local app remains a reviewed, stopped-app operation: it removes the local
 worktree/files and Unity-created branch, not Azure resources or source repositories.
-Landing-page Settings exposes appearance only. Studio preferences are separate
+Landing-page Settings exposes appearance and the preferred external editor. Studio preferences are separate
 from app source and runtime configuration.
 
 Map inspection opens a separate resizable
@@ -150,14 +157,24 @@ remembered and bounded to leave the map visible, including in compact panes.
 New inspector content starts at the top. Opening, closing, or resizing the
 inspector does not pan or zoom the map; use the map controls to adjust the view.
 **Invoke agent** stays in the main run area; stdout/stderr and component details
-are available through the corresponding disclosures.
+are available through the Output and Services tabs.
 **Observe → Logs** is a dedicated view for all captured local service output, including
 registered supporting services such as Azurite. Runtime component cards and their
 inspectors open the same workspace with that service selected. Service and stream
 filters, text search, **Pause**, **Resume**, and **Refresh** narrow a bounded recent
-tail. Output is grouped by service and stream, not presented as a fabricated
-global timeline. Automatic reads stop when paused or when you leave Logs.
-Missing capture, partial read errors, and truncation are explicit. Lifecycle
+tail. All services share one console-style text stream, with a muted
+`[service/stdout]` or `[service/stderr]` prefix before each line instead of table rows
+and separators. Long messages wrap naturally without fixed row heights. Use **Services** to check
+one or more sources; every selected service stays in the same viewer, not a separate
+container. Select a row's service label to focus on that source; choose **All services**
+to clear the filter. Up to 24 services can be explicitly selected, under the same
+aggregate response limits. The toolbar stays in place while the log viewer scrolls;
+there are no per-service scrollbars or additional page scrolling. Original order within
+each stream and any source timestamps are preserved, not merged into a fabricated
+global timeline. Unchanged refreshes retain text selection and scroll position.
+Automatic reads stop when paused or when you leave Logs.
+**Capture details** groups missing output and source notices in a compact disclosure;
+read-error and no-output counts remain visible while collapsed. Truncation is explicit. Lifecycle
 command history remains in Run/Debug; Logs does not substitute command output
 for missing service logs or fetch cloud logs.
 Reads are bounded to 24 services, 1,200 lines, and 256 KiB across the response,
@@ -165,7 +182,7 @@ with at most 80 catalog entries; clipping is disclosed in the view.
 Build, Run, Logs, and inspector actions share compact 32px controls with the same
 typography, padding, and corner radius. Inspector actions form a wrapping row
 below the source path; Logs uses the same field sizing, heading hierarchy,
-muted metadata, and service-panel treatment as the other workspaces.
+muted metadata, and theme tokens as the other workspaces, without per-service output panels.
 New Minimal, Empty, and Dealer apps automatically receive available ports during
 creation, before the child session or code editor opens. The allocator excludes live
 listeners and saved assignments in sibling worktrees, then persists the new app's
@@ -192,7 +209,7 @@ disabled until its endpoint is ready. If gateway discovery finds none, Settings
 offers **Create or manage gateways** rather than an empty apply action. Run/Debug uses
 Studio-owned theme tokens, compact controls, quiet section dividers, and themed
 code blocks. Styles are isolated from the App Map.
-**Diagnostics → Operations** shows actual Azure discovery, lifecycle shell commands, and agent
+The **Operations** tab shows actual Azure discovery, lifecycle shell commands, and agent
 HTTP calls with running/succeeded/failed status and elapsed time. Its latest 60
 records survive a canvas reload; credentials are redacted before storage and
 agent message bodies are excluded. There is no separate command-example or
@@ -211,16 +228,23 @@ inventory and readiness polling do not change the timestamp.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
 **Build** selects artifacts from the app's own source and `unity.app.yaml` scope,
-not one universal template checklist. Its left navigation presents only supported
-customization areas backed by available source: **Agent behavior**, **Tools &
-contracts**, **Runtime**, and **Policies & limits**. Agent behavior appears first
-when available. Each area is a heading with its relevant files listed directly
-underneath in **Key files**. Click a file to open it; the selected row is
-highlighted, with parent paths distinguishing repeated filenames. There is no
-file dropdown in the preview pane.
-Click a section heading, or use Enter/Space, to expand or collapse its files.
-Sections start expanded and remember their state during in-panel refreshes and
-workspace switches. Collapsing a section does not close its preview.
+not one universal template checklist. It is a focused workspace for changing your
+app, not a file explorer, embedded IDE, or vertical catalog. Compact **Behavior**,
+**Tools**, **Runtime**, and **Policies** tabs appear only when backed by available
+source. Only the selected area is visible, with a short explanation of what you
+can change. The first available area is selected initially. Arrow keys, Home, and
+End move between tabs; Tab continues into the selected panel. Build, Run, and
+Observe use the same compact Studio tab treatment: purpose-specific line icons,
+rounded outlines on every tab, an accent border and fill for the selected tab,
+and clear hover/focus styling. There is no shared underline or trailing baseline.
+Where Tools has several source projects, a native **Tool** dropdown selects one
+by name, retaining a fixed footprint even with a large catalog. Other areas use
+compact named choices when needed. Tools shows only the selected tool's implementation,
+configuration, and contract rows, not every tool and file at once. Duplicate
+names include their project path as a qualifier. Area and project selections
+survive refreshes and workspace switches. Semantic labels lead, with actual
+file paths as secondary references. There is no sidebar, selected-file state,
+resizable split, or collapsed file rail.
 
 Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and
@@ -232,6 +256,11 @@ and read/open authorization remain scoped. Custom component paths reuse App
 Map discovery. Unsupported areas are omitted, not shown as missing features.
 An app with no supported customization points gets an explicit explanation and
 an **Open in &lt;editor&gt;** workspace handoff.
+Each file has its own bordered, subtly shaded container grouping its heading,
+path, edit actions, and **Preview source**, open by default for the selected project.
+Users can collapse individual previews; those choices survive refreshes and
+switching areas/projects. Source is created only for visited content, and its
+height is bounded so it does not take over the workspace.
 The read-only preview highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
@@ -240,13 +269,8 @@ line-number gutter includes the final blank line when the source ends with a
 newline. Long lines scroll horizontally inside the preview without moving the
 gutter or widening the Build pane; high-contrast mode uses readable plain text.
 A tokenizer failure reports the problem and keeps plain-text preview available.
-The customization navigation has a right-aligned icon-only collapse control with a tooltip and accessible
-label, plus a draggable, keyboard-accessible divider with a centered grip.
-Resizing and collapsing do not replace the
-selected preview. Below 600px of available pane width, the customization
-navigation replaces the preview rather than squeezing beside the Guide.
-When closed, a thin 40px rail remains visible; its customization icon reopens the
-navigation without floating over the preview or reserving an extra row above it.
+The same reading order works in compact and wide panes. Container-aware spacing
+and wrapping keep actions and paths within the available canvas width.
 
 **Edit in Files** is the primary action. It opens the selected, saved source
 file in the app's native Files canvas in the current session, not a scratch
@@ -258,11 +282,11 @@ Studio reports the limitation and the external-editor action remains available.
 Missing host support or a failed handoff produces a visible error, not a
 fallback to an unrelated file or editor.
 
-The secondary **Open in &lt;editor&gt;** split button opens the app worktree and
-selected file in VS Code or the saved preferred editor. Use its chevron to
-choose an editor. The picker retains native keyboard
-navigation and a visible focus outline. Both halves share hover and disabled
-styling. A **Code editor** field is also available
+The secondary **Open in &lt;editor&gt;** action opens the app worktree and
+chosen file in VS Code or the saved preferred editor. The **Preferred external
+editor** picker lives in shared **Settings**, rather than taking space on Build.
+It retains native keyboard
+navigation and a visible focus outline. A **Code editor** field is also available
 when reviewing a new app. Supported choices are **VS Code**,
 **VS Code Insiders**, **Cursor**, **Windsurf**, **Zed**, or **Sublime Text**.
 The preference is saved per user in `editor-preferences.json`, independently of
@@ -270,14 +294,20 @@ appearance settings, and is shared by Build, App Map source actions, and app
 creation. Custom executable paths and commands are not supported.
 The chosen editor must already be installed, with its CLI available where
 required; Studio reports launch failures rather than opening another editor.
+Changes in Settings update Build and app-creation actions together. External
+launches are disabled while the preference is loading/saving; failed saves retain
+the confirmed editor and surface an error. A small **About Build** info button
+beside the page heading replaces the former footer explanation. Its tooltip is
+available on hover, keyboard focus, or click, and dismisses with Escape.
 Save changes in Files or the external editor, then return to Build. Focus and
 visibility changes refresh saved source, as does re-entering Build.
-**Refresh preview** provides an explicit retry or refresh without leaving the
-page. File selection, section expansion, navigation size/visibility, and preview
-scroll positions are retained in the panel. Unchanged refreshes preserve the
-preview DOM and text selection. Late refresh responses cannot replace another
-workspace or overwrite newer results; an offscreen handoff cannot steal file
-selection. Refresh failures retain the previous preview and show an error.
+**Refresh source** provides an explicit retry or refresh without leaving the
+page. Area/project selection, preview expansion, keyboard focus, and page/preview scroll positions
+are retained in the panel. Unchanged refreshes preserve the preview DOM and text
+selection. Late refresh responses cannot replace another workspace or overwrite
+newer results. Handoff feedback belongs to its own customization row, even when
+different files open out of order. Refresh failures retain the previous guide
+and show an error.
 
 Build does not edit files, hold unsaved source drafts, or implement review/save
 controls. Its former diff and source-write endpoints are removed. Native Files
@@ -321,6 +351,18 @@ Generated browser snapshots, Playwright reports, test results, and local runtime
 state are excluded from source discovery. Captured UI text must not create
 phantom components or make a real connection appear ambiguous. The map is
 source-derived and remains connected when the app is stopped.
+
+Preview geometry coverage uses the full workspace renderer in Chromium and
+WebKit, including classic scrollbars and compact resizing. With `src/web`
+dependencies installed, prepare both browser engines using:
+
+```shell
+cd src/web
+npx playwright install chromium webkit
+```
+
+Run `npm test --prefix canvases/unity-studio` from the repository root.
+The preview-layout test explicitly reports missing browser engines as skipped.
 
 The document-processing app retains its instruction, validation-tool, contract,
 policy, and runtime cards, including the legacy tool layout. Only this app

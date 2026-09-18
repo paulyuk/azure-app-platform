@@ -10,7 +10,7 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build renders an accessible, scrollable and injection-safe read-only source preview", {
+test("Build lazily renders accessible, scrollable and injection-safe source previews", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const longLine = `# ${"wide source ".repeat(120)}`;
@@ -19,7 +19,12 @@ test("Build renders an accessible, scrollable and injection-safe read-only sourc
   const artifacts = [
     {
       id: "python", customizationArea: "behavior", title: "Agent implementation", path: "src/main.py",
+      projectPath: "src/agent", projectName: "Agent", focusLine: 50,
       content: [longLine, ...bodyLines, "", ""].join("\r\n"),
+    },
+    {
+      id: "fallback", customizationArea: "behavior", title: "Fallback source", path: "src/fallback.py",
+      projectPath: "src/fallback", projectName: "Fallback", content: "def fallback():\n    return True\n",
     },
     {
       id: "json", customizationArea: "runtime", title: "App configuration", path: "config/app.json",
@@ -29,7 +34,7 @@ test("Build renders an accessible, scrollable and injection-safe read-only sourc
       id: "plain", customizationArea: "policies", title: "Custom source", path: "notes.custom",
       content: '<script>window.injected = true;</script>\n<img src=x onerror="window.injected=true">\n',
     },
-  ].map((artifact) => ({ ...artifact, available: true, editable: true, sha: "base" }));
+  ].map((artifact) => ({ ...artifact, available: true, sha: "base" }));
   const requests = [];
   const html = `<!doctype html><html data-studio-theme="light"><style>
     body { margin:0; } #details { height:100vh; }
@@ -65,12 +70,16 @@ test("Build renders an accessible, scrollable and injection-safe read-only sourc
       else throw new Error(`Unexpected route ${path}`);
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-
+    await page.locator('.build-file[data-artifact="python"]').waitFor();
+    const pythonDisclosure = page.locator(
+      '.build-file[data-artifact="python"] .build-source-disclosure[data-preview-for="python"]');
+    assert.equal(await pythonDisclosure.evaluate((element) => element.open), true);
     const preview = page.getByRole("region", { name: "Agent implementation source preview", exact: true });
     const lineNumbers = preview.locator(".build-line-numbers");
     const highlight = preview.locator("pre.build-highlight");
     await preview.waitFor();
     assert.equal(await preview.getAttribute("tabindex"), "0");
+    assert.equal(await preview.getAttribute("data-language"), "python");
     assert.equal(await lineNumbers.getAttribute("aria-hidden"), "true");
     assert.equal(await highlight.getAttribute("aria-hidden"), null);
     assert.equal(await highlight.textContent(), artifacts[0].content.replaceAll("\r\n", "\n"));
@@ -80,49 +89,67 @@ test("Build renders an accessible, scrollable and injection-safe read-only sourc
     assert.equal(renderedLines.at(-1), "83");
     assert.equal(await page.locator("textarea,[contenteditable=true],.cm-editor").count(), 0);
     assert.equal(await page.getByRole("textbox").count(), 0);
-    assert.equal(await page.locator(".build-language").textContent(), "Python");
+    assert.equal(await pythonDisclosure.locator(".build-language").textContent(), "Python");
     assert.deepEqual(await highlight.locator(".keyword").allTextContents(), ["def", "return"]);
     assert.equal(await lineNumbers.evaluate((element) => getComputedStyle(element).userSelect), "none");
     assert.ok(await preview.evaluate((element) => element.scrollWidth > element.clientWidth));
-    assert.ok(await preview.evaluate((element) => element.scrollHeight > element.clientHeight),
-      "The full renderer constrains long source so the preview owns vertical scrolling");
+    assert.ok(await preview.evaluate((element) => element.scrollHeight > element.clientHeight));
+    assert.ok(await preview.evaluate((element) => element.scrollTop > 0),
+      "The first lazy render scrolls the focusLine into view");
     const [previewBounds, gutterBounds, sourceBounds] = await Promise.all([
       preview.boundingBox(), lineNumbers.boundingBox(), highlight.boundingBox(),
     ]);
     assert.ok(gutterBounds.width > 0);
-    assert.ok(Math.abs(gutterBounds.height - sourceBounds.height) < 1,
-      "The line-number gutter spans the same source height");
+    assert.ok(Math.abs(gutterBounds.height - sourceBounds.height) < 1);
     assert.ok(gutterBounds.x >= previewBounds.x
       && gutterBounds.x + gutterBounds.width < previewBounds.x + previewBounds.width);
     await preview.evaluate((element) => {
       element.scrollTop = 120;
       element.scrollLeft = 300;
+      element.dataset.cacheProbe = "python";
     });
     assert.ok(await preview.evaluate((element) => element.scrollTop > 0));
     assert.ok(await preview.evaluate((element) => element.scrollLeft > 0));
     assert.ok(Math.abs((await lineNumbers.boundingBox()).x - previewBounds.x) <= 2,
       "The sticky gutter remains visible while source scrolls horizontally");
+    const cachedScroll = await preview.evaluate((element) => [element.scrollTop, element.scrollLeft]);
     const textBeforeTyping = await highlight.textContent();
     await preview.focus();
     await page.keyboard.insertText("This must not edit source.");
     assert.equal(await highlight.textContent(), textBeforeTyping);
+
+    await pythonDisclosure.locator(":scope > summary").press("Space");
+    assert.equal(await pythonDisclosure.evaluate((element) => element.open), false);
+    assert.equal(await pythonDisclosure.locator(".build-source-preview").count(), 1,
+      "Closing a rendered preview may keep its DOM cached");
+    await pythonDisclosure.locator(":scope > summary").press("Space");
+    assert.equal(await preview.getAttribute("data-cache-probe"), "python");
+    assert.deepEqual(await preview.evaluate((element) => [element.scrollTop, element.scrollLeft]), cachedScroll);
 
     const lightKeyword = await highlight.locator(".keyword").first().evaluate((element) => getComputedStyle(element).color);
     await page.locator("html").evaluate((element) => { element.dataset.studioTheme = "dark"; });
     const darkKeyword = await highlight.locator(".keyword").first().evaluate((element) => getComputedStyle(element).color);
     assert.notEqual(lightKeyword, darkKeyword);
 
-    await page.locator('[data-file-id="json"]').click();
+    await page.getByRole("tab", { name: "Runtime", exact: true }).click();
+    const runtime = page.locator('.build-area[data-area-id="runtime"]');
+    const jsonDisclosure = runtime.locator('.build-source-disclosure[data-preview-for="json"]');
+    assert.equal(await jsonDisclosure.evaluate((element) => element.open), true);
     const jsonPreview = page.getByRole("region", { name: "App configuration source preview", exact: true });
     await jsonPreview.waitFor();
-    assert.equal(await page.locator(".build-language").textContent(), "JSON");
+    assert.equal(await jsonPreview.getAttribute("data-language"), "json");
+    assert.equal(await jsonDisclosure.locator(".build-language").textContent(), "JSON");
     assert.ok(await jsonPreview.locator(".property").count() > 0);
 
-    await page.locator('[data-file-id="plain"]').click();
+    await page.getByRole("tab", { name: "Policies", exact: true }).click();
+    const policies = page.locator('.build-area[data-area-id="policies"]');
+    const plainDisclosure = policies.locator('.build-source-disclosure[data-preview-for="plain"]');
+    assert.equal(await plainDisclosure.evaluate((element) => element.open), true);
     const plainPreview = page.getByRole("region", { name: "Custom source source preview", exact: true });
     await plainPreview.waitFor();
-    assert.equal(await page.locator(".build-language").textContent(), "Plain text");
-    assert.equal(await plainPreview.locator(".build-highlight").textContent(), artifacts[2].content);
+    assert.equal(await plainPreview.getAttribute("data-language"), "plain");
+    assert.equal(await plainDisclosure.locator(".build-language").textContent(), "Plain text");
+    assert.equal(await plainPreview.locator(".build-highlight").textContent(), artifacts[3].content);
     assert.equal(await plainPreview.locator("script,img,.token").count(), 0);
     assert.equal(await page.evaluate(() => window.injected), undefined);
 
@@ -130,11 +157,16 @@ test("Build renders an accessible, scrollable and injection-safe read-only sourc
       window.originalBuildHighlight = buildSyntax.highlight;
       buildSyntax.highlight = () => { throw new Error("Simulated tokenizer failure."); };
     });
-    await page.locator('[data-file-id="python"]').click();
+    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
+    await page.locator('.build-project-list [data-project-path="src/fallback"]').click();
+    const fallbackDisclosure = page.locator(
+      '.build-file[data-artifact="fallback"] .build-source-disclosure[data-preview-for="fallback"]');
+    assert.equal(await fallbackDisclosure.evaluate((element) => element.open), true);
+    const fallbackPreview = page.getByRole("region", { name: "Fallback source source preview", exact: true });
     await page.getByRole("alert").filter({ hasText: /plain text preview is still available/i }).waitFor();
-    assert.equal(await preview.locator(".build-highlight").textContent(), artifacts[0].content);
-    assert.equal(await preview.locator(".token").count(), 0);
-    assert.equal(await preview.isVisible(), true);
+    assert.equal(await fallbackPreview.locator(".build-highlight").textContent(), artifacts[1].content);
+    assert.equal(await fallbackPreview.locator(".token").count(), 0);
+    assert.equal(await fallbackPreview.isVisible(), true);
     await page.evaluate(() => { buildSyntax.highlight = window.originalBuildHighlight; });
 
     assert.equal(requests.some(({ path }) => path === "/api/build-diff" || path === "/api/build-file"), false);

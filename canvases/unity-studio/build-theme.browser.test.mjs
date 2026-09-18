@@ -18,7 +18,7 @@ function luminance(color) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-test("Build navigation and read-only preview remain legible in light, dark, compact and forced-color layouts", {
+test("Build guide and an expanded preview remain legible in light, dark, compact and forced-color layouts", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const browser = await chromium.launch();
@@ -26,7 +26,7 @@ test("Build navigation and read-only preview remain legible in light, dark, comp
     const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
     await page.setContent(`<!doctype html><html data-studio-theme="light"><style>
       ${renderThemeStyles()} ${BUILD_PANEL_CSS}
-      body { margin:0; background:var(--bg); color:var(--text); }
+      body { margin:0; background:var(--studio-bg); color:var(--studio-ink); }
       #details { height:100vh; }
     </style><div id="details" data-mode="build"></div><script>
       ${BUILD_SYNTAX_SCRIPT}
@@ -34,17 +34,24 @@ test("Build navigation and read-only preview remain legible in light, dark, comp
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {},
         request: async () => ({ artifacts: [
-          { id: "agent", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/main.py", available: true, sha: "base", content: 'def main():\\n    return "hello"\\n' },
-          { id: "prompt", customizationArea: "behavior", title: "Prompt", path: "src/agent/prompts/system.md", available: true, sha: "base", content: "# Instructions" },
-          { id: "runtime", customizationArea: "runtime", title: "Runtime", path: "config/runtime.json", available: true, sha: "base", content: '{"agentRuntime":"local"}' },
-          { id: "policy", customizationArea: "policies", title: "Policy", path: "config/policy.json", available: true, sha: "base", content: '{"maxBytes":4096}' }
+          { id: "agent", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/main.py",
+            projectPath: "src/agent", projectName: "Agent", available: true, sha: "base",
+            content: 'def main():\\n    return "hello"\\n' },
+          { id: "prompt", customizationArea: "behavior", title: "Prompt", path: "src/agent/prompts/system.md",
+            projectPath: "src/agent", projectName: "Agent", available: true, sha: "base", content: "# Instructions" },
+          { id: "runtime", customizationArea: "runtime", title: "Runtime", path: "config/runtime.json",
+            available: true, sha: "base", content: '{"agentRuntime":"local"}' },
+          { id: "policy", customizationArea: "policies", title: "Policy", path: "config/policy.json",
+            available: true, sha: "base", content: '{"maxBytes":4096}' }
         ], editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] } })
       });
       panel.show();
     </script></html>`);
+    const row = page.locator('.build-file[data-artifact="agent"]');
+    await row.waitFor();
     const preview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
-    const explorer = page.getByRole("navigation", { name: "Key files" });
     await preview.waitFor();
+
     const collectContrast = (locator) => locator.evaluateAll((elements) => {
       const values = [];
       for (const element of elements) {
@@ -69,48 +76,56 @@ test("Build navigation and read-only preview remain legible in light, dark, comp
       }
     };
 
-    for (const width of [1000, 420]) {
+    for (const width of [1000, 620, 380]) {
       await page.setViewportSize({ width, height: 800 });
-      await page.waitForFunction((compact) =>
-        document.querySelector(".build-workspace")?.dataset.compact === String(compact), width < 600);
-      const toggle = page.locator("[data-build-files-toggle]");
-      if (!await explorer.isVisible()) await toggle.click();
       for (const theme of ["light", "dark"]) {
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
-        assert.equal(await explorer.evaluate((element) => getComputedStyle(element).backgroundColor),
-          theme === "light" ? "rgb(240, 243, 248)" : "rgb(32, 35, 43)");
-        await assertContrast(explorer.locator(
-          "h3, summary, .build-file-button, .build-file-name, .build-file-location, .build-files-toggle"),
-        `${theme} navigation at ${width}px`);
-        if (width < 600) await toggle.click();
         await assertContrast(page.locator(
-          ".build-file h3, .build-file code, .build-language, .build-line-numbers, .build-highlight, " +
-          "[data-editor-launch-primary], [data-editor-launch], .build-editor-picker"),
+          ".build-area-title, .build-area-description, .build-file-heading h4, .build-source-path, " +
+          ".build-source-disclosure > summary, .build-help-button"),
+        `${theme} guide at ${width}px`);
+        await assertContrast(page.locator(
+          ".build-language, .build-line-numbers, .build-highlight, [data-files-launch], [data-editor-launch]"),
         `${theme} preview at ${width}px`);
         assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
-        assert.ok(await page.locator(".build-editor").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+        assert.ok(await page.locator(".build-workspace").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+        assert.ok(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+        const sections = await page.locator(".build-file").evaluateAll((elements) => elements.map((element) => {
+          const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          const source = element.querySelector(".build-source-preview");
+          const sourceBounds = source.getBoundingClientRect();
+          return {
+            top: bounds.top, bottom: bounds.bottom,
+            outlined: ["Top", "Right", "Bottom", "Left"].every((side) =>
+              style["border" + side + "Style"] === "solid" && parseFloat(style["border" + side + "Width"]) >= 1),
+            padding: parseFloat(style.paddingInlineStart),
+            rounded: parseFloat(style.borderTopLeftRadius) > 0,
+            distinctSurface: style.backgroundColor !== getComputedStyle(source).backgroundColor,
+            containsSource: sourceBounds.left > bounds.left && sourceBounds.right < bounds.right &&
+              sourceBounds.top > bounds.top && sourceBounds.bottom < bounds.bottom,
+          };
+        }));
+        assert.equal(sections.length, 2);
+        for (const section of sections) {
+          assert.ok(section.outlined && section.rounded, `${theme} file section has its own boundary at ${width}px`);
+          assert.ok(section.padding >= 12 && section.distinctSurface && section.containsSource,
+            `${theme} file section groups its header, actions, and preview at ${width}px`);
+        }
+        assert.ok(sections[1].top - sections[0].bottom >= 16, "Separate file sections have a visible gap");
         assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
-        if (width < 600) await toggle.click();
       }
-      await toggle.click();
-      assert.equal(Math.round((await page.locator(".build-explorer-reopen").boundingBox()).width), 40);
-      assert.equal(await toggle.locator('[data-icon="customize"]').count(), 1);
-      await toggle.click();
     }
 
     await page.setViewportSize({ width: 1000, height: 800 });
-    await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "false");
     await page.emulateMedia({ forcedColors: "active" });
-    const splitter = page.getByRole("separator", { name: "Resize key files" });
-    assert.equal(await splitter.isVisible(), true);
-    assert.notEqual(await splitter.evaluate((element) =>
-      getComputedStyle(element, "::before").backgroundColor), "rgba(0, 0, 0, 0)");
+    assert.equal(await page.getByRole("separator", { name: /Resize key files/i }).count(), 0);
     assert.equal(await preview.isVisible(), true);
     assert.notEqual(await preview.locator(".build-highlight").evaluate((element) =>
       getComputedStyle(element).color), "rgba(0, 0, 0, 0)");
     await preview.focus();
     assert.equal(await preview.evaluate((element) => element === document.activeElement), true);
-    const launch = page.locator("[data-editor-launch]");
+    const launch = row.locator('[data-editor-launch][data-artifact-id="agent"]');
     await launch.focus();
     assert.equal(await launch.evaluate((element) => element === document.activeElement), true);
     await page.emulateMedia({ forcedColors: "none" });

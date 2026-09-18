@@ -45,7 +45,13 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     assert.match(agent.title, /instructions/);
     assert.equal(agent.content, source);
     assert.equal(agent.customizationArea, "behavior");
+    assert.equal(agent.projectPath, "src/agent");
+    assert.equal(agent.projectName, "deal-finder-agent");
     assert.equal(agent.focusLine, 1);
+    const skillArtifacts = state.artifacts.filter((item) => item.customizationArea === "tools");
+    assert.ok(skillArtifacts.length > 1);
+    assert.deepEqual([...new Set(skillArtifacts.map((item) => item.projectPath))], ["src/skills/inventory"]);
+    assert.deepEqual([...new Set(skillArtifacts.map((item) => item.projectName))], ["inventory"]);
     assert.deepEqual(state.artifacts.filter((item) => item.customizationArea).map((item) => [item.path, item.customizationArea]).sort(), [
       ["src/agent/main.py", "behavior"],
       ["src/agent/agent.yaml", "runtime"],
@@ -108,6 +114,7 @@ test("custom declared paths scope read and open away from unrelated apps and lef
     const worker = state.artifacts.find((item) => item.path === "services/assistant/worker.ts");
     assert.ok(worker);
     assert.equal(worker.customizationArea, "behavior");
+    assert.equal(worker.projectPath, "services/assistant");
     assert.equal(worker.focusLine, 1);
     assert.equal(await resolveBuildArtifactPath(root, worker.id), join(root, worker.path));
     assert.equal(await resolveProjectSourcePath(root, "services/assistant"), join(root, worker.path));
@@ -187,6 +194,9 @@ test("document Build honors the declared legacy tool instead of an unrelated new
     ]);
     const tool = state.artifacts.find((item) => item.id === "tool");
     assert.equal(tool.path, "src/sandbox/tool/main.py");
+    assert.equal(tool.projectPath, "src/sandbox/tool");
+    assert.equal(tool.projectName, "Document validation");
+    assert.equal(state.artifacts.find((item) => item.id === "contract").projectPath, tool.projectPath);
     assert.match(tool.content, /selected legacy/);
     assert.equal(await resolveBuildArtifactPath(root, "tool"), join(root, tool.path));
     assert.equal(await resolveProjectSourcePath(root, "src/sandbox/tool"), join(root, tool.path));

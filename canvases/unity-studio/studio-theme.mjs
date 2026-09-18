@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { SETTINGS_CSS, createStudioSettings } from "./studio-settings.mjs";
+import { SETTINGS_CSS, createEditorPreference, createStudioSettings } from "./studio-settings.mjs";
 
 export function studioPreferencesDirectory() {
   return join(process.env.COPILOT_HOME || join(homedir(), ".copilot"), "extensions", "unity-studio", "artifacts");
@@ -120,19 +120,23 @@ export function renderThemeToggle(theme = "light") {
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.7 2.4-2 .9L4 5.7 2 9l1.7 1.8v2.4L2 15l2 3.3 2.3-.6 2 .9L9 21h4l.7-2.4 2-.9 2.3.6 2-3.3-1.7-1.8v-2.4L20 9l-2-3.3-2.3.6-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
     </button>
     <span class="studio-theme-error" role="status"></span>
+    <span class="studio-theme-error" data-studio-editor-status role="status"></span>
     <dialog class="studio-settings" aria-labelledby="studio-settings-title">
       <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>×</button></div>
       <div class="studio-settings-content">
         <label>Appearance<select aria-label="Appearance" data-studio-theme-select><option value="light"${theme === "light" ? " selected" : ""}>Light</option><option value="dark"${theme === "dark" ? " selected" : ""}>Dark</option></select></label>
         <p>Applies to Unity Studio across your apps.</p>
         <p class="error studio-settings-error" role="alert"></p>
+        <label class="studio-editor-preference">Preferred external editor<select aria-label="Preferred external editor" data-studio-editor-select><option value="vscode">VS Code</option></select></label>
+        <p>Used for external-editor actions across your apps. VS Code is the default.</p>
+        <p class="error studio-settings-error" data-studio-editor-error role="alert"></p>
         <div data-settings-app></div>
       </div>
     </dialog>
   </div>`;
 }
 
-export function renderThemeClientScript(apiToken) {
+export function renderThemeClientScript(apiToken, editorSettings = { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] }) {
   const token = JSON.stringify(apiToken).replaceAll("<", "\\u003c");
   return `
     (() => {
@@ -140,8 +144,26 @@ export function renderThemeClientScript(apiToken) {
       const errorDisplay = document.querySelector(".studio-theme-error");
       const settingsError = document.querySelector(".studio-settings-error");
       const dialog = document.querySelector(".studio-settings");
+      const editorPreference = (${createEditorPreference.toString()})({
+        select: dialog.querySelector("[data-studio-editor-select]"),
+        errorDisplay: dialog.querySelector("[data-studio-editor-error]"),
+        globalError: document.querySelector("[data-studio-editor-status]"),
+        dialog,
+        initialSettings: ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")},
+        request: async (path, options = {}) => {
+          const response = await fetch(path, {
+            ...options, headers: { "Content-Type": "application/json", "X-Unity-Studio-Token": ${token} },
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Editor preference request failed.");
+          return result;
+        },
+        onChange: (state) => window.dispatchEvent(new CustomEvent("unity-editor-settings-change", { detail: state })),
+      });
+      window.unityStudioEditorPreference = editorPreference;
       window.unityStudioSettings = (${createStudioSettings.toString()})({
         dialog, trigger: document.querySelector("[data-studio-settings-toggle]"),
+        onOpen: () => { void editorPreference.refresh(); },
       });
       window.dispatchEvent(new Event("unity-studio-settings-ready"));
       let saving = false;
@@ -181,6 +203,7 @@ export function renderThemeClientScript(apiToken) {
         }
       });
       window.addEventListener("focus", async () => {
+        void editorPreference.refresh();
         if (saving) return;
         const readEpoch = ++epoch;
         try {

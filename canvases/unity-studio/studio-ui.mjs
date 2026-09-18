@@ -366,6 +366,23 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       const apiToken = ${JSON.stringify(apiToken)};
       const capabilities = ${JSON.stringify(capabilities)};
       let editorSettings = ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")};
+      let editorPreferenceBusy = false, appBusy = false;
+      window.addEventListener("unity-editor-settings-change", (event) => {
+        editorSettings = event.detail.settings;
+        editorPreferenceBusy = event.detail.busy;
+        syncEditorControls();
+      });
+      function syncEditorControls() {
+        const picker = document.getElementById("preferred-editor");
+        if (picker) {
+          picker.value = editorSettings.editorId;
+          picker.disabled = editorPreferenceBusy || appBusy;
+          document.getElementById("next").disabled = editorPreferenceBusy || appBusy;
+        }
+        const label = document.getElementById("open-editor-label");
+        if (label) label.textContent = " Open the new worktree in " +
+          editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label;
+      }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
@@ -418,9 +435,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function setBusy(busy, message = "") {
+        appBusy = busy;
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
           control.disabled = busy;
         });
+        syncEditorControls();
         status.textContent = message;
       }
 
@@ -925,11 +944,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
         document.getElementById("preferred-editor").addEventListener("change", async (event) => {
           const previous = editorSettings;
+          const editorId = event.target.value;
           setBusy(true, "Saving code editor preference...");
           try {
-            editorSettings = await request("/api/editor-settings", {
-              method: "POST", body: JSON.stringify({ editorId: event.target.value })
-            });
+            const result = await window.unityStudioEditorPreference.save(editorId);
+            if (!result.ok) throw new Error(result.error);
+            editorSettings = result.settings;
             document.getElementById("open-editor-label").textContent = " Open the new worktree in " +
               editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label;
             clearStatus("Code editor preference saved.");
@@ -941,6 +961,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             setBusy(false, status.textContent);
           }
         });
+        syncEditorControls();
       }
 
       function appMapVisual(appMap) {
@@ -1316,6 +1337,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function submit() {
+        if (editorPreferenceBusy) {
+          error("Wait for the preferred editor to finish loading or saving.");
+          return;
+        }
         draft.openInEditor = document.getElementById("open-editor").checked;
         const sourceBindings = draft.journey === "assemble"
           ? draft.tierIds.map((tierId) => ({
@@ -1356,7 +1381,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       renderLanding();
       ${intro ? renderStudioIntroClientScript() : ""}
-      ${renderThemeClientScript(apiToken)}
+      ${renderThemeClientScript(apiToken, editorSettings)}
     </script>
   </body>
 </html>`;

@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
-import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
+import { RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
-import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
@@ -13,6 +13,7 @@ import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
 import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
+import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -535,10 +536,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
     }
     .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
-    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 8px; }
-    .header-actions > button { ${ACTION_BUTTON_STYLE} }
-    .header-actions > button[aria-pressed="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue); }
-    .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--studio-line); border-radius: 8px; background: var(--studio-panel); }
+    .header-actions > button { ${ACTION_BUTTON_STYLE} border: 1px solid transparent; background: transparent; color: var(--studio-muted); cursor: pointer; }
+    .header-actions > button:hover { background: var(--studio-raised); color: var(--studio-ink); }
+    .header-actions > button[aria-pressed="true"] { background: var(--studio-raised); color: var(--studio-ink); border-color: var(--studio-accent); }
+    .header-actions > button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: -2px; }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -579,19 +581,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
     }
     #header-runtime-action { border-radius: 6px; }
-    .workspace-tabs > button {
-      ${ACTION_BUTTON_STYLE} flex: 0 0 auto; min-width: 104px;
-      border: 1px solid var(--border); background: var(--surface); color: var(--text);
-    }
-    .workspace-tabs > button[aria-selected="true"] {
-      background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue);
-    }
-    .workspace-tabs > button:hover { border-color: var(--true-color-blue); color: var(--true-color-blue); }
-    .workspace-tabs > button:focus-visible { outline-offset: 1px; }
-    .workspace-tabs svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     #observe-views {
-      display: flex; flex: 0 0 auto; align-self: flex-start; gap: 4px; margin: 4px 12px; padding: 3px;
-      border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted);
+      --studio-tab-count:2;
+      flex:0 0 auto; align-self:stretch; margin:4px 0 0;
     }
     #structure-guidance {
       display: flex; flex: 0 0 auto; align-items: center; gap: 12px; margin: 0 12px 8px; padding: 8px 10px;
@@ -841,7 +833,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     @media (max-width: 680px) {
       header {
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity";
+        grid-template-areas: "brand utilities" "identity identity" "workspaces workspaces";
         gap: 8px 10px; padding: 8px 12px;
       }
       .heading { padding-left: 0; border-left: 0; }
@@ -858,8 +850,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
     }
-    ${RUN_PANEL_CSS}
-    ${BUILD_PANEL_CSS}
+    ${STUDIO_TABS_CSS}
+    ${RUN_PANEL_CONTENT_CSS}
+    ${BUILD_PANEL_CONTENT_CSS}
     ${COMPONENT_LOGS_CSS}
     ${APP_LOGS_CSS}
     ${renderThemeStyles()}
@@ -886,9 +879,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </header>
   <main>
     <section id="workspace-shell" role="region" aria-labelledby="build-app">
-    <div id="observe-views" class="workspace-tabs" role="tablist" aria-label="Observe views" hidden>
-      <button id="map-view" role="tab" type="button" aria-selected="true" aria-controls="workspace"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="7" y="2" width="6" height="4" rx="1"/><rect x="2" y="14" width="6" height="4" rx="1"/><rect x="12" y="14" width="6" height="4" rx="1"/><path d="M10 6v4M5 14v-4h10v4"/></svg>App Map</button>
-      <button id="logs-app" role="tab" type="button" aria-selected="false" aria-controls="workspace" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2" y="2" width="16" height="16" rx="2"/><path d="M5 6h1m3 0h6M5 10h1m3 0h6M5 14h1m3 0h6"/></svg>Logs</button>
+    <div id="observe-views" class="workspace-tabs studio-tabs" role="tablist" aria-label="Observe views" hidden>
+      <button id="map-view" class="studio-tab" role="tab" type="button" aria-label="App Map" aria-selected="true" aria-controls="workspace"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--map" aria-hidden="true"></span><span class="studio-tab-label">App Map</span></span></button>
+      <button id="logs-app" class="studio-tab" role="tab" type="button" aria-label="Logs" aria-selected="false" aria-controls="workspace" tabindex="-1"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--logs" aria-hidden="true"></span><span class="studio-tab-label">Logs</span></span></button>
     </div>
     <section id="structure-guidance" aria-label="App structure guidance" tabindex="-1" hidden>
       <p><strong>Edit app structure.</strong> Use <strong>+ Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
@@ -1061,23 +1054,31 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       },
       onModel: () => openAppSettings("connection"),
     });
+    window.addEventListener("unity-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
       renderDeployment,
-      renderDiagnostics: (container) => {
+      renderOutput: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "h3", "Command output");
         actions.append(actionButton("Open all logs", () => renderLogsPanel()));
         const output = appendText(container, "pre", latestOutput, "command-output live-output");
         output.dataset.runtimeOutput = "true";
+        output.dataset.runScrollKey = "output";
         output.tabIndex = 0;
         output.setAttribute("aria-label", "Runtime output");
+      },
+      renderOperations: (container) => {
+        const actions = appendText(container, "div", "", "run-section-actions");
+        appendText(actions, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
+        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
         appendText(container, "h3", "Operations");
-        appendText(container, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
         const feed = appendText(container, "div", "", "command-feed");
         feed.dataset.commandFeed = "true";
+        feed.dataset.runScrollKey = "operations";
+        renderCommandFeed(feed);
       },
       onConnection: () => openAppSettings("connection"),
     });
@@ -1991,8 +1992,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.mode = "logs";
       appLogs = mountAppLogs({
         parent: details, nodeId, isActive: () => panelMode === "logs",
-        load: ({ serviceId, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
-          (serviceId ? "&serviceId=" + encodeURIComponent(serviceId) : ""), { signal }),
+        load: ({ serviceId, serviceIds, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
+          (serviceIds ?? (serviceId ? [serviceId] : [])).map((id) => "&serviceId=" + encodeURIComponent(id)).join(""), { signal }),
       });
     }
 
@@ -3143,16 +3144,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
-      const oldOutput = details.querySelector("[data-runtime-output]");
-      const scrollTop = oldOutput?.scrollTop || 0;
-      const following = !oldOutput || oldOutput.scrollHeight - oldOutput.scrollTop - oldOutput.clientHeight < 40;
       details.dataset.empty = "false";
       details.dataset.mode = "manage";
       runWorkspace.render({ state: operationalState.app?.state, readiness: operationalState.readiness, services: runtimeEntrypoints });
       if (entering) details.scrollTop = 0;
-      const output = details.querySelector("[data-runtime-output]");
-      output.scrollTop = following ? output.scrollHeight : scrollTop;
-      renderCommandFeed();
       void refreshRunOutput();
       if (openGateway) openAppSettings("connection");
     }
@@ -3164,7 +3159,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
         latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
         latestCommands = result.commands || [];
-        runWorkspace.diagnostics({ failures: latestCommands.filter((record) => record.status === "failed").length });
+        runWorkspace.diagnostics({
+          failures: latestCommands.filter((record) => record.status === "failed").length,
+          operations: latestCommands.length,
+        });
         renderCommandFeed();
         const output = details.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
@@ -3174,23 +3172,34 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       } catch (error) {
         const output = details.querySelector("[data-runtime-output]");
-        runWorkspace.diagnostics({ failures: latestCommands.filter((record) => record.status === "failed").length, error: error.message });
+        runWorkspace.diagnostics({
+          failures: latestCommands.filter((record) => record.status === "failed").length,
+          operations: latestCommands.length,
+          error: error.message,
+        });
         if (output) output.textContent = "Unable to load output: " + error.message;
       } finally { outputRefreshing = false; }
     }
 
-    function renderCommandFeed() {
-      const container = details.querySelector("[data-command-feed]");
+    function renderCommandFeed(target) {
+      const container = target || details.querySelector("[data-command-feed]");
       if (!container) return;
       const fingerprint = JSON.stringify(latestCommands);
       if (container.dataset.fingerprint === fingerprint) return;
+      const scrollTop = container.scrollTop;
+      const following = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
+      const open = new Map([...container.querySelectorAll("[data-run-disclosure]")]
+        .map((node) => [node.dataset.runDisclosure, node.open]));
       container.dataset.fingerprint = fingerprint;
       clearElement(container);
       if (!latestCommands.length) appendText(container, "p", "No operations recorded yet. Run the app or invoke its agent.");
-      for (const record of latestCommands) {
-        const row = document.createElement("div");
+      for (const [index, record] of latestCommands.entries()) {
+        const row = document.createElement("details");
         row.className = "command-record";
         row.dataset.status = record.status;
+        row.dataset.runDisclosure = "operation-" + index;
+        row.open = open.get(row.dataset.runDisclosure) || false;
+        const summary = document.createElement("summary");
         const heading = document.createElement("div");
         heading.className = "command-head";
         appendText(heading, "span", record.kind, "command-badge command-kind");
@@ -3199,17 +3208,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(heading, "strong", title, "command-title");
         const badge = appendText(heading, "span", humanize(record.status), "command-badge");
         badge.dataset.state = record.status;
-        row.append(heading);
+        summary.append(heading);
         const metadata = document.createElement("div");
         metadata.className = "command-meta";
         appendText(metadata, "span", new Date(record.startedAt).toLocaleTimeString());
         if (record.durationMs != null) appendText(metadata, "span",
           record.durationMs < 1000 ? record.durationMs + " ms" : (record.durationMs / 1000).toFixed(1) + " s");
         if (record.note) appendText(metadata, "span", record.note);
-        row.append(metadata);
-        appendText(row, "pre", record.command, "command-code");
+        summary.append(metadata);
+        row.append(summary);
+        const body = appendText(row, "div", "", "command-record-body");
+        appendText(body, "pre", record.command, "command-code");
         container.append(row);
       }
+      container.scrollTop = following ? container.scrollHeight : scrollTop;
     }
 
     function renderTools(container) {
@@ -4052,11 +4064,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     for (const tabs of document.querySelectorAll(".workspace-tabs")) {
       tabs.addEventListener("keydown", (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const items = [...tabs.querySelectorAll("[role='tab']")];
         const index = items.indexOf(event.target);
         if (index < 0) return;
-        const next = event.key === "ArrowRight" ? (index + 1) % items.length
-          : event.key === "ArrowLeft" ? (index + items.length - 1) % items.length
+        const direction = getComputedStyle(tabs).direction === "rtl" ? -1 : 1;
+        const next = event.key === "ArrowRight" ? (index + direction + items.length) % items.length
+          : event.key === "ArrowLeft" ? (index - direction + items.length) % items.length
             : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : null;
         if (next === null) return;
         event.preventDefault();
@@ -4136,7 +4150,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     void refreshOperationalState();
     setInterval(() => { void refreshOperationalState(); }, 2000);
     setInterval(() => { void refreshRunOutput(); }, 1000);
-    ${renderThemeClientScript(apiToken)}
+    ${renderThemeClientScript(apiToken, editorSettings)}
   </script>
 </body>
 </html>`;

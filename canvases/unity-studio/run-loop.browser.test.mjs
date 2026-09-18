@@ -12,7 +12,7 @@ try {
   if (error.code !== "MODULE_NOT_FOUND") throw error;
 }
 
-test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and lifecycle actions", {
+test("Focused Run preserves setup, ports, output, operations, endpoints, invocation and lifecycle actions", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const gateway = { name: "demo-gateway", resourceGroup: "rg", subscriptionId: "sub", endpoint: "https://example.test" };
@@ -52,7 +52,18 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
       const request = route.request();
       const path = new URL(request.url()).pathname;
       let data;
-      if (path === "/api/preferences") data = { theme: "light" };
+      if (path === "/api/editor-settings") data = {
+        editorId: "vscode",
+        editors: [
+          { id: "vscode", label: "VS Code" },
+          { id: "vscode-insiders", label: "VS Code Insiders" },
+          { id: "cursor", label: "Cursor" },
+          { id: "windsurf", label: "Windsurf" },
+          { id: "zed", label: "Zed" },
+          { id: "sublime", label: "Sublime Text" },
+        ],
+      };
+      else if (path === "/api/preferences") data = { theme: "light" };
       else if (path === "/api/app-status") data = {
         state: appState, recovered,
         entrypoints: [{ name: "agent", port: agentPort, expected: true, ready: appState === "running",
@@ -119,10 +130,11 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     }));
     await page.locator("#manage-app").click();
     await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-pressed") === "true");
-    assert.equal(await page.locator('[data-run-section="services"]').evaluate((el) => el.open), false);
-    assert.equal(await page.locator('[data-run-section="deployment"]').evaluate((el) => el.open), false);
+    assert.deepEqual(await page.locator(".run-tabs [role=tab]").evaluateAll((tabs) =>
+      tabs.map((tab) => tab.getAttribute("aria-label"))), ["Output", "Services", "Operations", "Deploy"]);
+    assert.equal(await page.getByRole("tab", { name: "Output", exact: true }).getAttribute("aria-selected"), "true");
+    assert.equal(await page.locator('[role="tabpanel"]:visible').count(), 1);
     assert.equal(await page.locator("#details").getByRole("button", { name: /Delete/ }).count(), 0);
-    await page.locator('[data-run-section="diagnostics"] > summary').click();
     await page.locator("[data-runtime-output]").waitFor({ state: "visible" });
     assert.equal(await page.getByLabel("Document file", { exact: true }).count(), 0);
     for (const colorScheme of ["light", "dark"]) {
@@ -135,7 +147,7 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     assert.equal(await page.locator("#details").getAttribute("data-mode"), "manage");
     assert.equal(await page.locator(".section-title").filter({ hasText: "Command reference" }).count(), 0);
     assert.equal(await page.locator(".section-title").filter({ hasText: "Test & troubleshoot" }).count(), 0);
-    await page.locator('[data-run-section="services"] > summary').click();
+    await page.getByRole("tab", { name: "Services", exact: true }).click();
     const sourceWeb = page.locator('[data-source-only="true"]').filter({ hasText: "driveline-web" });
     assert.ok(await sourceWeb.getByText("Source only", { exact: true }).isVisible());
     assert.equal(await sourceWeb.getByRole("button", { name: /Open web/ }).count(), 0);
@@ -185,6 +197,7 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     await page.getByRole("button", { name: "Close settings" }).click();
     await page.getByRole("button", { name: "Run app", exact: true }).first().click();
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Starting your app"));
+    assert.equal(await page.getByRole("tab", { name: "Services", exact: true }).getAttribute("aria-selected"), "true");
     assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"), "Cancel startup");
     assert.equal(await page.locator("#header-runtime-action").isEnabled(), true);
     await page.locator("#header-runtime-action").click();
@@ -201,6 +214,8 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Hello dealer");
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".agent-response")?.textContent === "Hello from the agent");
+    assert.equal(await page.locator(".run-primary .agent-response").count(), 1);
+    assert.equal(await page.locator('[data-run-panel="output"] .agent-response').count(), 0);
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Hello dealer" });
     await page.locator(".run-tool-activity > summary").click();
     await page.getByText("inventory_search · Call reported", { exact: true }).waitFor();
@@ -209,8 +224,10 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     assert.equal(await page.getByRole("button", { name: "Pick available ports", exact: true }).isDisabled(), true);
     await page.getByRole("button", { name: "Close settings" }).click();
     await page.waitForFunction(() => document.querySelector("[data-command-feed]")?.textContent.includes("HTTP 200"));
+    await page.getByRole("tab", { name: "Operations", exact: true }).click();
     assert.equal(await page.locator(".endpoint-heading strong").first().evaluate((el) => getComputedStyle(el).fontSize), "12px");
     assert.equal(selections, 1);
+    await page.locator(".command-record > summary").first().click();
     assert.equal(await page.locator(".command-record .command-code").first().evaluate((el) => getComputedStyle(el).minHeight), "0px");
     assert.equal(await page.locator(".command-record .command-code").first().evaluate((el) => getComputedStyle(el).fontSize), "12px");
     recovered = true;
@@ -242,6 +259,9 @@ test("Focused Run preserves setup, ports, diagnostics, endpoints, invocation and
     log = "Startup failed: agent health check returned HTTP 503";
     await page.waitForFunction(() => document.querySelector("[data-runtime-output]")?.textContent.includes("HTTP 503"));
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Last operation failed"));
+    assert.equal(await page.getByRole("tab", { name: "Operations", exact: true }).getAttribute("aria-selected"), "true");
+    await page.getByRole("tab", { name: "Output", exact: true }).locator(".run-tab-summary")
+      .getByText("Needs review", { exact: true }).waitFor();
     assert.equal(await page.locator("#app-status-badge").textContent(), "Needs attention");
     assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "Hello dealer");
     assert.equal(selections, 1);

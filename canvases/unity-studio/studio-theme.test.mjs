@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readStudioPreferences, renderThemeClientScript, renderThemeStyles, renderThemeToggle, writeStudioPreferences } from "./studio-theme.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
 
 test("appearance defaults light and persists independently of app/server origin", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "unity-studio-theme-test-"));
+  const directory = await mkdtemp(join(
+    fileURLToPath(new URL("../../", import.meta.url)), ".unity-studio-theme-test-"));
   try {
     assert.deepEqual(await readStudioPreferences(directory), { theme: "light" });
     await writeStudioPreferences({ theme: "dark" }, directory);
@@ -34,11 +35,15 @@ test("home and map render explicit initial preference with shared settings and a
       assert.match(html, /aria-label="Unity Studio utilities"/);
       assert.match(html, /data-studio-settings-toggle/);
       assert.match(html, /data-studio-theme-select/);
+      assert.match(html, /aria-label="Preferred external editor"/);
+      assert.match(html, /data-studio-editor-select/);
       assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
       assert.match(html, /class="studio-logo"[^>]+aria-hidden="true"/);
       assert.match(html, /title="Settings"/);
       assert.doesNotMatch(html, />Light<\/button>|>Dark<\/button>/);
       assert.match(html, /\/api\/preferences/);
+      assert.match(html, /\/api\/editor-settings/);
+      assert.match(html, /unity-editor-settings-change/);
       assert.match(html, /X-Unity-Studio-Token/);
       for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) {
         assert.doesNotThrow(() => new Function(match[1]));
@@ -51,7 +56,8 @@ test("home and map render explicit initial preference with shared settings and a
   assert.match(workspace, /id="build-app"[^>]*>Build<\/button>/);
   assert.match(workspace, /id="manage-app"[^>]*>Run &amp; Debug<\/button>/);
   assert.match(workspace, /id="map-app"[^>]*>Observe<\/button>/);
-  assert.match(workspace, /id="map-view"[^>]*>[\s\S]*?App Map<\/button>/);
+  const mapTab = workspace.match(/<button id="map-view"[^>]*>([\s\S]*?)<\/button>/)?.[1] ?? "";
+  assert.match(mapTab, /<span class="studio-tab-label">App Map<\/span>/);
   assert.match(workspace, /id="show-other-resources"/);
   assert.doesNotMatch(workspace, /id="implementation-view"/);
   assert.doesNotMatch(workspace, /component-requests|workspace-styles/);

@@ -9,26 +9,31 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build groups curated files and preserves navigation state through resize and re-entry", {
+test("Build focuses one category and selected tool while preserving preview and picker state", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
+  const tools = Array.from({ length: 32 }, (_, index) => ({
+    id: `tool-${index}`, customizationArea: "tools",
+    path: `src/skills/tool-${index}/main.py`,
+    title: `Tool ${index} entry point`,
+    projectPath: `src/skills/tool-${index}`,
+    projectName: index === 30 || index === 31 ? "Duplicate tool" : `Tool ${index}`,
+  }));
   const artifacts = [
-    { id: "agent", customizationArea: "behavior", path: "src/agent/main.py", title: "Agent behavior" },
-    { id: "inventory", customizationArea: "tools", path: "src/skills/inventory/main.py", title: "Inventory tool" },
-    { id: "pricing", customizationArea: "tools", path: "src/skills/pricing/main.py", title: "Pricing tool" },
+    {
+      id: "agent", customizationArea: "behavior", path: "src/agent/main.py", title: "Agent behavior",
+      projectPath: "src/agent", projectName: "Deal agent",
+    },
+    ...tools,
     { id: "config", customizationArea: "runtime", path: "config/settings.json", title: "App settings" },
-    { id: "policy", customizationArea: "policies", path: "config/policy.json", title: "Policy" },
-    ...Array.from({ length: 20 }, (_, index) => ({
-      id: `extra-${index}`, path: `src/skills/extra/long-component-file-name-${index}.py`, title: `Extra tool ${index}`,
-    })),
+    { id: "policy-a", customizationArea: "policies", path: "config/a/policy.json", title: "Policy A",
+      projectPath: "config/a", projectName: "Policy set" },
+    { id: "policy-b", customizationArea: "policies", path: "config/b/policy.json", title: "Policy B",
+      projectPath: "config/b", projectName: "Policy set" },
   ].map((item) => ({
-    ...item, available: true, editable: true, description: item.title,
+    ...item, available: true, description: `${item.title} description.`,
     content: `${item.title}\n${Array.from({ length: 80 }, (_, index) => `line ${index + 1}`).join("\n")}`, sha: "base",
   }));
-  artifacts.push(
-    { id: "missing", customizationArea: "policies", path: "config/missing.json", title: "Missing policy", available: false, detail: "File is missing." },
-    { id: "unknown", customizationArea: "advanced", path: "config/advanced.json", title: "Advanced", available: true, content: "{}" },
-  );
   let workspaceReads = 0;
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
@@ -53,148 +58,154 @@ test("Build groups curated files and preserves navigation state through resize a
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
   try {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", async (route) => {
-      const path = new URL(route.request().url()).pathname;
-      if (path === "/api/build-workspace") {
+      if (new URL(route.request().url()).pathname === "/api/build-workspace") {
         workspaceReads++;
         await route.fulfill({ json: { artifacts } });
       } else {
-        throw new Error(`Unexpected route ${path}`);
+        throw new Error(`Unexpected route ${new URL(route.request().url()).pathname}`);
       }
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const explorer = page.getByRole("navigation", { name: "Key files" });
-    const file = (id) => page.locator(`[data-file-id="${id}"]`);
-    const tools = explorer.locator('[data-area-id="tools"]');
-    const toolsSummary = tools.locator("summary");
-    const toggle = page.locator("[data-build-files-toggle]");
-    const rail = page.locator(".build-explorer-reopen");
-    const splitter = page.getByRole("separator", { name: "Resize key files" });
-    const preview = () => page.locator(".build-source-preview");
-    await preview().waitFor();
+    const tablist = page.getByRole("tablist", { name: "App customization areas", exact: true });
+    const tabs = tablist.getByRole("tab");
+    const area = (id) => page.locator(`.build-area[data-area-id="${id}"]`);
+    const row = (id) => page.locator(`.build-file[data-artifact="${id}"]`);
+    assert.deepEqual(await tabs.allTextContents(), ["Behavior", "Tools", "Runtime", "Policies"]);
+    assert.equal(await tablist.locator('.studio-tab-icon[aria-hidden="true"]').count(), 4);
+    assert.deepEqual(await tablist.locator(".studio-tab-icon").evaluateAll((icons) =>
+      icons.map((icon) => [...icon.classList].find((name) => name.startsWith("studio-tab-icon--")))),
+    ["studio-tab-icon--behavior", "studio-tab-icon--tools", "studio-tab-icon--runtime", "studio-tab-icon--policies"]);
+    assert.equal(await tablist.locator(".studio-tab-icon").evaluateAll((icons) =>
+      icons.every((icon) => getComputedStyle(icon).webkitMaskImage !== "none")), true);
+    assert.equal(await area("behavior").isVisible(), true);
+    assert.equal(await row("agent").count(), 1);
+    assert.equal(await row("agent").locator(".build-source-disclosure").evaluate((element) => element.open), true);
+    await tabs.first().press("ArrowRight");
+    assert.equal(await tabs.nth(1).getAttribute("aria-selected"), "true");
 
-    assert.equal(await explorer.getByRole("heading", { name: "Key files", exact: true }).count(), 1);
-    assert.deepEqual(await explorer.locator("[data-area-id]").evaluateAll((items) =>
-      items.map((item) => item.dataset.areaId)), ["behavior", "tools", "runtime", "policies"]);
-    assert.deepEqual(await explorer.locator("summary").allTextContents(),
-      ["Agent behavior", "Tools & contracts", "Runtime", "Policies & limits"]);
-    assert.equal(await explorer.locator("details").count(), 4);
-    assert.equal(await explorer.locator("[data-file-id]").count(), 5, "Only curated files appear in Key files");
-    assert.deepEqual(await tools.locator("[data-file-id]").evaluateAll((items) =>
-      items.map((item) => item.dataset.fileId)), ["inventory", "pricing"]);
-    assert.equal(await file("inventory").locator(".build-file-name").textContent(), "main.py");
-    assert.equal(await file("pricing").locator(".build-file-name").textContent(), "main.py");
-    assert.notEqual(await file("inventory").locator(".build-file-location").textContent(),
-      await file("pricing").locator(".build-file-location").textContent());
-    assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
-    assert.equal(await page.locator('[data-artifact="missing"],[data-artifact="unknown"]').count(), 0);
+    const picker = area("tools").getByRole("combobox", { name: "Tool", exact: true });
+    await picker.waitFor();
+    assert.equal(await area("tools").locator(".build-project-list").count(), 0);
+    assert.equal(await picker.locator("option").count(), 32);
+    assert.equal(await picker.locator('option[value="src/skills/tool-30"]').textContent(),
+      "Duplicate tool (src/skills/tool-30)");
+    assert.equal(await picker.locator('option[value="src/skills/tool-31"]').textContent(),
+      "Duplicate tool (src/skills/tool-31)");
+    assert.equal(await picker.inputValue(), "src/skills/tool-0");
+    assert.equal(await area("tools").locator(".build-customization").getAttribute("data-project-path"),
+      "src/skills/tool-0");
+    assert.equal(await row("tool-0").count(), 1);
+    assert.equal(await row("tool-1").count(), 0);
+    const pickerHeight = (await picker.boundingBox()).height;
+    assert.ok(pickerHeight >= 34 && pickerHeight <= 40, "Many tools remain a fixed-height native control");
 
-    await file("inventory").focus();
-    await file("inventory").press("Tab");
-    assert.equal(await file("pricing").evaluate((element) => element === document.activeElement), true);
-    await file("pricing").press("Enter");
-    const pricingPreview = page.getByRole("region", { name: "Pricing tool source preview", exact: true });
-    await pricingPreview.waitFor();
-    assert.equal(await file("pricing").getAttribute("aria-current"), "true");
-    assert.equal(await explorer.locator('[aria-current="true"]').count(), 1);
-    assert.ok((await explorer.boundingBox()).x + (await explorer.boundingBox()).width <= (await preview().boundingBox()).x);
+    const firstDisclosure = row("tool-0").locator(".build-source-disclosure");
+    assert.equal(await firstDisclosure.evaluate((element) => element.open), true);
+    const firstPreview = row("tool-0").locator(".build-source-preview");
+    await firstPreview.waitFor();
+    await firstDisclosure.locator(":scope > summary").click();
+    assert.equal(await firstDisclosure.evaluate((element) => element.open), false);
 
-    await toolsSummary.click();
-    assert.equal(await tools.evaluate((group) => group.open), false);
-    assert.equal(await file("pricing").isVisible(), false);
-    assert.equal(await file("agent").isVisible(), true);
-    assert.ok((await toolsSummary.boundingBox()).height >= 32);
-    await toolsSummary.press("Tab");
-    assert.equal(await explorer.locator('[data-area-id="runtime"] summary').evaluate(
-      (element) => element === document.activeElement), true);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await pricingPreview.waitFor();
-    assert.equal(await tools.evaluate((group) => group.open), false);
-    assert.equal(await file("pricing").getAttribute("aria-current"), "true");
+    await picker.selectOption("src/skills/tool-20");
+    assert.equal(await picker.inputValue(), "src/skills/tool-20");
+    assert.equal(await picker.evaluate((element) => element === document.activeElement), true);
+    assert.equal(await area("tools").locator(".build-customization").getAttribute("data-project-path"),
+      "src/skills/tool-20");
+    assert.equal(await row("tool-0").count(), 0);
+    assert.equal(await row("tool-20").count(), 1);
+    assert.equal(await row("tool-20").locator(".build-source-disclosure").evaluate((element) => element.open), true,
+      "A different tool uses its own default preview state");
+    assert.equal(await row("tool-20").locator(".build-handoff-feedback").innerText(), "");
+
+    const refreshResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/build-workspace");
+    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+    await refreshResponse;
+    assert.equal(await picker.inputValue(), "src/skills/tool-20");
+
+    await tabs.nth(2).click();
+    const runtimeDisclosure = row("config").locator(".build-source-disclosure");
+    assert.equal(await runtimeDisclosure.evaluate((element) => element.open), true);
+    await runtimeDisclosure.locator(":scope > summary").click();
+    assert.equal(await runtimeDisclosure.evaluate((element) => element.open), false);
+
+    await tabs.nth(3).click();
+    const projectList = area("policies").locator(".build-project-list");
+    const projectButtons = projectList.locator("button[data-project-path]");
+    assert.equal(await projectButtons.count(), 2);
+    assert.deepEqual(await projectButtons.evaluateAll((items) => items.map((item) => ({
+      text: item.childNodes[0].textContent,
+      qualifier: item.querySelector("small")?.textContent,
+    }))), [
+      { text: "Policy set", qualifier: "config/a" },
+      { text: "Policy set", qualifier: "config/b" },
+    ]);
+    assert.deepEqual(await projectButtons.evaluateAll((items) =>
+      items.map((item) => item.getAttribute("aria-current"))), ["true", "false"]);
+    await projectButtons.nth(1).click();
+    assert.equal(await area("policies").locator(".build-customization").getAttribute("data-project-path"), "config/b");
+
+    await tabs.nth(1).click();
+    assert.equal(await picker.inputValue(), "src/skills/tool-20");
+    await picker.selectOption("src/skills/tool-0");
+    assert.equal(await firstDisclosure.evaluate((element) => element.open), false,
+      "An explicit collapsed state survives project switching");
+    await tabs.nth(2).click();
+    assert.equal(await runtimeDisclosure.evaluate((element) => element.open), false,
+      "An explicit collapsed state survives area switching");
+
     await page.evaluate(() => {
       window.panelActive = false;
       window.buildPanel.hide();
       window.panelActive = true;
       window.buildPanel.show();
     });
-    await pricingPreview.waitFor();
-    assert.equal(await tools.evaluate((group) => group.open), false, "Section collapse persists across Build re-entry");
-    assert.equal(await file("pricing").getAttribute("aria-current"), "true");
+    assert.equal(await tabs.nth(2).getAttribute("aria-selected"), "true");
+    assert.equal(await runtimeDisclosure.evaluate((element) => element.open), false);
 
-    assert.equal(await toggle.getAttribute("aria-label"), "Hide key files");
-    assert.equal(await toggle.locator('svg[aria-hidden="true"]').count(), 1);
-    assert.equal(await splitter.getAttribute("aria-orientation"), "vertical");
-    assert.equal(await splitter.getAttribute("title"), "Drag to resize navigation. Arrow keys also adjust the width.");
-    assert.equal(await splitter.evaluate((element) => getComputedStyle(element).cursor), "col-resize");
-    assert.notEqual(await splitter.evaluate((element) => getComputedStyle(element, "::after").backgroundColor), "rgba(0, 0, 0, 0)");
-
-    const originalWidth = (await explorer.boundingBox()).width;
-    let divider = await splitter.boundingBox();
-    await page.mouse.move(divider.x + divider.width / 2, divider.y + 100);
-    await page.mouse.down();
-    await page.mouse.move(divider.x + 150, divider.y + 100);
-    await page.mouse.up();
-    const pointerWidth = (await explorer.boundingBox()).width;
-    assert.ok(pointerWidth > originalWidth);
-    await splitter.focus();
-    await splitter.press("Home");
-    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemin"));
-    await splitter.press("ArrowLeft");
-    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemin"));
-    await splitter.press("End");
-    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemax"));
-    await splitter.press("ArrowRight");
-    assert.equal(await splitter.getAttribute("aria-valuenow"), await splitter.getAttribute("aria-valuemax"));
-
-    await toggle.click();
-    assert.equal(await explorer.isVisible(), false);
-    assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(await toggle.getAttribute("aria-label"), "Show key files");
-    const railBounds = await rail.boundingBox();
-    const workspaceBounds = await page.locator(".build-workspace").boundingBox();
-    const editorBounds = await page.locator(".build-editor").boundingBox();
-    assert.equal(Math.round(railBounds.width), 40);
-    assert.equal(railBounds.x, workspaceBounds.x);
-    assert.equal(railBounds.y, workspaceBounds.y);
-    assert.equal(railBounds.height, workspaceBounds.height);
-    assert.equal(editorBounds.x, railBounds.x + railBounds.width);
-    assert.equal(await splitter.isVisible(), false);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await pricingPreview.waitFor();
-    assert.equal(await explorer.isVisible(), false, "Collapsed Key files state persists through refresh");
-    await toggle.click();
-    assert.equal(await toolsSummary.evaluate((element) => element === document.activeElement), true,
-      "Reopening navigation focuses the collapsed group containing the selected file");
-
-    await page.locator("#details").evaluate((element) => { element.style.width = "460px"; });
-    await page.waitForFunction(() => document.querySelector(".build-workspace")?.dataset.compact === "true");
-    assert.equal(await explorer.isVisible(), false);
-    assert.equal(Math.round((await rail.boundingBox()).width), 40);
-    assert.equal(await preview().isVisible(), true);
-    await toggle.press("Enter");
-    assert.equal(await explorer.isVisible(), true);
-    assert.equal(await preview().isVisible(), false);
-    assert.equal(await toolsSummary.evaluate((element) => element === document.activeElement), true);
-    await toolsSummary.press("Enter");
-    assert.equal(await tools.evaluate((group) => group.open), true);
-    await file("config").press("Enter");
-    const configPreview = page.getByRole("region", { name: "App settings source preview", exact: true });
-    await configPreview.waitFor();
-    assert.equal(await explorer.isVisible(), false);
-    assert.equal(await file("config").getAttribute("aria-current"), "true");
-    assert.equal(await page.locator(".build-file h3").evaluate((element) => element === document.activeElement), true);
-    for (const width of [320, 460, 800]) {
-      await page.locator("#details").evaluate((element, value) => { element.style.width = value + "px"; }, width);
-      await page.waitForFunction((value) =>
-        document.querySelector(".build-workspace")?.dataset.compact === String(value < 600), width);
+    await tabs.nth(1).click();
+    for (const width of [380, 620, 1200]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.mouse.move(0, 0);
       assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
-      assert.ok(await page.locator(".build-editor").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+      assert.ok(await picker.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+      assert.equal(Math.round((await picker.boundingBox()).height), Math.round(pickerHeight));
+      const tabBounds = await tablist.evaluate((element) => ({
+        width: element.getBoundingClientRect().width,
+        scrollWidth: element.scrollWidth,
+        tabs: [...element.querySelectorAll('[role="tab"]')].map((tab) => ({
+          height: tab.getBoundingClientRect().height,
+          right: tab.getBoundingClientRect().right,
+          parentRight: element.getBoundingClientRect().right,
+        })),
+      }));
+      assert.ok(tabBounds.scrollWidth <= tabBounds.width + 1);
+      assert.ok(tabBounds.tabs.every((tab) => tab.height >= 48 && tab.right <= tab.parentRight + 1));
+      const selectedStyle = await tablist.locator('[role="tab"][aria-selected="true"]').evaluate((tab) => {
+        const style = getComputedStyle(tab);
+        return { border: style.borderBottomWidth, fill: style.backgroundColor, color: style.color };
+      });
+      const otherStyle = await tablist.locator('[role="tab"][aria-selected="false"]').first().evaluate((tab) => {
+        const style = getComputedStyle(tab);
+        return {
+          fill: style.backgroundColor, color: style.color, border: style.borderTopWidth,
+          radius: style.borderTopLeftRadius, bottomRadius: style.borderBottomLeftRadius, cursor: style.cursor,
+        };
+      });
+      assert.equal(selectedStyle.border, "3px");
+      assert.equal(otherStyle.border, "0px");
+      assert.equal(otherStyle.radius, "6px");
+      assert.equal(otherStyle.bottomRadius, "0px");
+      assert.equal(otherStyle.cursor, "pointer");
+      assert.equal(otherStyle.fill, "rgba(0, 0, 0, 0)");
+      assert.notEqual(selectedStyle.fill, otherStyle.fill);
+      assert.notEqual(selectedStyle.color, otherStyle.color);
     }
-    assert.ok(workspaceReads >= 3);
-    assert.equal(await page.locator(".build-file-status,.build-area-status").count(), 0, "No unsaved status badges remain");
+    assert.ok(workspaceReads >= 2);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

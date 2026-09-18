@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdir, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -10,8 +10,7 @@ const execute = promisify(execFile);
 const source = fileURLToPath(new URL("./", import.meta.url));
 
 test("installed payload opens and materializes templates without checkout dependencies", async () => {
-  const root = join(source, "..", "..", `.plugin-portability-${process.pid}-${Date.now()}`);
-  await mkdir(root);
+  const root = await mkdtemp(join(source, "..", "..", ".plugin-portability-"));
   try {
     const payload = join(root, "installed plugin");
     const workspace = join(root, "unrelated workspace");
@@ -287,7 +286,11 @@ test("installed payload opens and materializes templates without checkout depend
         const map = await fetch(mapUrl);
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
-        assert.match(mapHtml, /Key files/);
+        assert.match(mapHtml, /Change your app/);
+        assert.match(mapHtml, /aria-label="Preferred external editor"/);
+        assert.match(mapHtml, /build-help-tooltip/);
+        assert.doesNotMatch(mapHtml, /About these customization points/);
+        assert.doesNotMatch(mapHtml, /Resize key files/);
       } finally {
         await canvas.onClose(context);
       }

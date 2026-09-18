@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 
 import {
   APP_LOG_MAX_BYTES,
+  APP_LOG_MAX_CATALOG_SERVICES,
   APP_LOG_MAX_LINES,
   APP_LOG_MAX_SERVICES,
   LOG_READ_BYTES,
@@ -291,6 +292,21 @@ test("application logs include registered supporting services, alias them once, 
     });
     assert.equal(targeted.scope.serviceId, supporting[0].id);
     assert.deepEqual(targeted.services.map((service) => service.id), [supporting[0].id]);
+    const selectedIds = [supporting[0].id, component.id];
+    const multi = await readAppLogs(root, { nodes: [agent], serviceIds: selectedIds });
+    assert.equal(multi.scope.serviceId, null);
+    assert.deepEqual(multi.scope.serviceIds, selectedIds);
+    assert.deepEqual(multi.services.map((service) => service.id), selectedIds);
+    assert.equal(multi.clipping.services.total, 2);
+    assert.doesNotMatch(JSON.stringify(multi), /private-storage-key/);
+    for (const serviceIds of [[supporting[0].id, "unknown"], ["unknown", supporting[0].id]]) {
+      await assert.rejects(readAppLogs(root, { nodes: [agent], serviceIds }), (error) => error.statusCode === 404);
+    }
+    for (const serviceIds of ["not-an-array", [null], [""], [supporting[0].id, supporting[0].id],
+      Array.from({ length: APP_LOG_MAX_SERVICES + 1 }, (_, index) => `service-${index}`)]) {
+      await assert.rejects(readAppLogs(root, { nodes: [agent], serviceIds }), (error) => error.statusCode === 400);
+    }
+    await assert.rejects(readAppLogs(root, { serviceId: component.id, serviceIds: selectedIds }), /Choose serviceId or/);
     await assert.rejects(
       readAppLogs(root, { nodes: [agent], serviceId: "runtime:not-real" }),
       (error) => error.statusCode === 404 && /unknown/.test(error.message),
@@ -314,6 +330,21 @@ test("application logs preserve path and symlink confinement for supporting serv
     assert.equal(result.services[0].availability, "unavailable");
     assert.match(result.services[0].reason, /symlink|escapes/i);
     assert.doesNotMatch(JSON.stringify(result), /PRIVATE SUPPORTING DATA/);
+  });
+});
+
+test("explicit service selection stays available beyond the default catalog window", async () => {
+  await fixture(async (root) => {
+    const nodes = Array.from({ length: APP_LOG_MAX_CATALOG_SERVICES + 5 }, (_, index) =>
+      node("agent", `src/agent-${String(index).padStart(3, "0")}`));
+    const all = await readAppLogs(root, { nodes });
+    assert.equal(all.catalog.length, APP_LOG_MAX_CATALOG_SERVICES);
+    assert.equal(all.catalog.some((service) => service.id === nodes.at(-1).id), false);
+    const serviceIds = [nodes[0].id, nodes.at(-1).id];
+    const selected = await readAppLogs(root, { nodes, serviceIds });
+    assert.deepEqual(selected.services.map((service) => service.id), serviceIds);
+    assert.ok(serviceIds.every((id) => selected.catalog.some((service) => service.id === id)));
+    assert.equal(selected.catalog.length, APP_LOG_MAX_CATALOG_SERVICES);
   });
 });
 
@@ -341,5 +372,13 @@ test("all-service application logs enforce and disclose aggregate service, line,
     assert.equal(result.clipping.clipped, true);
     assert.match(result.clipping.notices.join(" "), /Showing \d+ of \d+ discovered services/);
     assert.match(result.clipping.notices.join(" "), /limited to 1200 lines/);
+    const ids = result.catalog.slice(-APP_LOG_MAX_SERVICES).map((service) => service.id);
+    const multi = await readAppLogs(root, { serviceIds: ids });
+    const multiLines = multi.services.flatMap((service) => service.streams.flatMap((stream) => stream.lines));
+    assert.ok(multiLines.length <= APP_LOG_MAX_LINES);
+    assert.ok(multiLines.reduce((bytes, line) => bytes + Buffer.byteLength(line) + 1, 0) <= APP_LOG_MAX_BYTES);
+    assert.deepEqual(multi.scope.serviceIds, ids);
+    assert.ok(multi.services.every((service) => ids.includes(service.id)));
+    assert.match(multi.clipping.notices.join(" "), /Showing \d+ of 24 selected services/);
   });
 });

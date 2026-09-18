@@ -13,6 +13,7 @@ export const SETTINGS_CSS = `
   .studio-settings select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; min-height:34px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.5 system-ui; }
   .studio-settings p { color:var(--studio-muted); font-size:12px; line-height:1.5; margin:8px 0; overflow-wrap:anywhere; }
   .studio-settings-app-name { margin-top:20px !important; padding-top:16px; border-top:1px solid var(--studio-line); font-weight:600; color:var(--studio-ink) !important; }
+  .studio-settings .studio-editor-preference { margin-top:16px; }
   .studio-settings-section { border-bottom:1px solid var(--studio-line); }
   .studio-settings-section > summary { display:list-item; padding:12px 0; cursor:pointer; font-size:13px; font-weight:600; }
   .studio-settings-section > div { display:grid; gap:10px; padding:0 0 16px; min-width:0; }
@@ -30,7 +31,89 @@ export const SETTINGS_CSS = `
   .studio-settings [data-settings-section="danger"] > summary { color:var(--studio-danger); }
 `;
 
-export function createStudioSettings({ dialog, trigger }) {
+export function createEditorPreference({ select, errorDisplay, globalError, dialog, initialSettings, request, onChange }) {
+  function validate(settings) {
+    if (!Array.isArray(settings?.editors) || !settings.editors.length
+      || settings.editors.some((editor) => typeof editor?.id !== "string" || typeof editor.label !== "string")
+      || new Set(settings.editors.map((editor) => editor.id)).size !== settings.editors.length
+      || !settings.editors.some((editor) => editor.id === settings.editorId)) {
+      throw new Error("Studio returned an invalid editor preference.");
+    }
+    return settings;
+  }
+  let confirmed = validate(initialSettings);
+  let current = confirmed;
+  let busy = false;
+  function report(message) {
+    errorDisplay.textContent = message;
+    globalError.textContent = dialog.open ? "" : message;
+  }
+  function render(notify = true) {
+    select.replaceChildren();
+    for (const editor of current.editors) {
+      const option = document.createElement("option");
+      option.value = editor.id;
+      option.textContent = editor.label;
+      select.append(option);
+    }
+    select.value = current.editorId;
+    select.disabled = busy;
+    if (notify) onChange({ settings: current, busy });
+  }
+  const api = {
+    async refresh() {
+      if (busy) return;
+      busy = true;
+      report("");
+      render();
+      try {
+        current = confirmed = validate(await request("/api/editor-settings"));
+      } catch (error) {
+        current = confirmed;
+        report("Could not load editor preference: " + error.message);
+      } finally {
+        busy = false;
+        render();
+      }
+    },
+    async save(editorId) {
+      if (busy) {
+        const error = "Wait for the current editor preference request to finish.";
+        report(error);
+        return { ok: false, error };
+      }
+      if (!confirmed.editors.some((editor) => editor.id === editorId)) {
+        const error = "Choose a supported external editor.";
+        report(error);
+        return { ok: false, error };
+      }
+      if (editorId === confirmed.editorId) return { ok: true, settings: confirmed };
+      busy = true;
+      current = { ...confirmed, editorId };
+      report("");
+      render();
+      try {
+        current = confirmed = validate(await request("/api/editor-settings", {
+          method: "POST", body: JSON.stringify({ editorId }),
+        }));
+        return { ok: true, settings: confirmed };
+      } catch (cause) {
+        current = confirmed;
+        const error = "Could not save editor preference: " + cause.message;
+        report(error);
+        return { ok: false, error };
+      } finally {
+        busy = false;
+        render();
+      }
+    },
+  };
+  select.addEventListener("change", () => { void api.save(select.value); });
+  render(false);
+  return api;
+}
+
+export function createStudioSettings({ dialog, trigger, onOpen }) {
   let app;
   let returnFocus;
   const sections = new Map();
@@ -82,6 +165,7 @@ export function createStudioSettings({ dialog, trigger }) {
       if (!dialog.open) {
         returnFocus = document.activeElement;
         dialog.showModal();
+        onOpen?.();
         for (const id of sections.keys()) {
           if (id !== section) render(id);
         }

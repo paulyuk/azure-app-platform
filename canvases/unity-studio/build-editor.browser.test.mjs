@@ -21,26 +21,11 @@ function deferred() {
   return { promise, resolve };
 }
 
-test("Build hands the selected source to native Files once and does not steal selection", {
-  skip: !chromium && "Install src/web dependencies to run browser coverage.",
-}, async () => {
-  const artifacts = [
-    {
-      id: "agent", title: "Agent source", path: "src/agent/main.py", description: "Agent implementation.",
-      customizationArea: "behavior", available: true, editable: true, content: "print('agent')\n", sha: "base",
-    },
-    {
-      id: "tool", title: "Inventory tool", path: "src/skills/inventory/main.py", description: "Inventory implementation.",
-      customizationArea: "tools", available: true, editable: true, content: "print('tool')\n", sha: "base",
-    },
-  ];
-  const filesRequests = [];
-  let gate = { release: deferred(), completed: deferred() };
-  let failOpen = false;
-  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
+function pageHtml() {
+  return `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({
+    window.buildPanel = (${createBuildPanel.toString()})({
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
       onRun() {}, onModel() {},
@@ -51,11 +36,35 @@ test("Build hands the selected source to native Files once and does not steal se
         return body;
       }
     });
-    panel.show();
+    window.buildPanel.show();
     </script>`;
+}
+
+function artifacts() {
+  return [
+    {
+      id: "agent", title: "Agent source", path: "src/agent/main.py", description: "Agent implementation.",
+      projectPath: "src/agent", projectName: "Deal agent", customizationArea: "behavior",
+      available: true, content: "print('agent')\n", sha: "base",
+    },
+    {
+      id: "tool", title: "Inventory entry point", path: "src/skills/inventory/main.py",
+      description: "Inventory implementation.", projectPath: "src/skills/inventory",
+      projectName: "Inventory search", customizationArea: "tools",
+      available: true, content: "print('tool')\n", sha: "base",
+    },
+  ];
+}
+
+test("Build scopes native Files handoff state per artifact and suppresses duplicate launches", {
+  skip: !chromium && "Install src/web dependencies to run browser coverage.",
+}, async () => {
+  const filesRequests = [];
+  const pending = new Map();
+  const fail = new Set();
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(pageHtml());
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -66,95 +75,82 @@ test("Build hands the selected source to native Files once and does not steal se
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/build-workspace") {
-        await route.fulfill({ json: { artifacts, editorSettings: { editorId: "vscode", editors } } });
+        await route.fulfill({ json: { artifacts: artifacts(), editorSettings: { editorId: "vscode", editors } } });
       } else if (path === "/api/open-build-file-canvas") {
         const input = route.request().postDataJSON();
         filesRequests.push(input);
-        await gate.release.promise;
-        if (failOpen) await route.fulfill({ status: 500, json: { error: "Files could not be opened." } });
+        const gate = deferred();
+        pending.set(input.id, gate);
+        await gate.promise;
+        if (fail.has(input.id)) await route.fulfill({ status: 500, json: { error: `${input.id} Files failed.` } });
         else await route.fulfill({ json: {
-          path: artifacts.find((artifact) => artifact.id === input.id).path,
+          path: artifacts().find((artifact) => artifact.id === input.id).path,
           canvas: { canvasId: "editor", instanceId: `build-file-${input.id}`, scope: "repo" },
         } });
-        gate.completed.resolve();
       } else {
         throw new Error(`Unexpected route ${path}`);
       }
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const primary = page.getByRole("button", { name: "Edit in Files", exact: true });
-    await primary.waitFor();
-    await primary.click();
-    await page.locator(".build-edit-files").click({ force: true });
-    await page.waitForFunction(() => document.querySelector(".build-edit-files")?.disabled);
-    assert.equal(filesRequests.length, 1, "Duplicate clicks are suppressed while Files is opening");
-    assert.deepEqual(filesRequests[0], { root: "/fixture", id: "agent" });
-    assert.equal(Object.hasOwn(filesRequests[0], "content"), false);
-    assert.equal(Object.hasOwn(filesRequests[0], "baseSha"), false);
+    const agentRow = page.locator('.build-file[data-artifact="agent"]');
+    const toolRow = page.locator('.build-file[data-artifact="tool"]');
+    const agentLaunch = agentRow.locator('[data-files-launch][data-artifact-id="agent"]');
+    const toolLaunch = toolRow.locator('[data-files-launch][data-artifact-id="tool"]');
+    await agentLaunch.waitFor();
 
-    await page.locator('[data-file-id="tool"]').click();
-    const toolPreview = page.getByRole("region", { name: "Inventory tool source preview", exact: true });
-    await toolPreview.waitFor();
-    gate.release.resolve();
-    await gate.completed.promise;
-    assert.equal(await page.locator('[data-file-id="tool"]').getAttribute("aria-current"), "true");
-    assert.equal(await toolPreview.isVisible(), true);
+    await agentLaunch.click();
+    await agentLaunch.click({ force: true });
+    await page.getByRole("tab", { name: "Tools", exact: true }).click();
+    await toolLaunch.waitFor();
+    await toolLaunch.click();
+    await page.waitForFunction(() => document.querySelectorAll("[data-files-launch]:disabled").length === 2);
+    assert.deepEqual(filesRequests, [
+      { root: "/fixture", id: "agent" },
+      { root: "/fixture", id: "tool" },
+    ], "The same artifact is suppressed while another artifact may launch independently");
 
-    gate = { release: deferred(), completed: deferred() };
-    failOpen = true;
-    await primary.click();
-    gate.release.resolve();
-    await gate.completed.promise;
-    await page.getByRole("alert").filter({ hasText: "Files could not be opened." }).waitFor();
-    assert.equal(await primary.isEnabled(), true);
-    assert.deepEqual(filesRequests.at(-1), { root: "/fixture", id: "tool" });
+    pending.get("tool").resolve();
+    await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').filter({ hasText: /Opened in Files/ }).waitFor();
+    assert.equal(await agentRow.locator('.build-handoff-feedback[data-artifact-id="agent"]').innerText(), "");
+    assert.equal(await toolLaunch.isEnabled(), true);
+    assert.equal(await agentLaunch.isDisabled(), true);
 
-    gate = { release: deferred(), completed: deferred() };
-    failOpen = false;
-    await primary.click();
-    gate.release.resolve();
-    await gate.completed.promise;
-    assert.equal(filesRequests.length, 3);
+    pending.get("agent").resolve();
+    await page.waitForFunction(() =>
+      document.querySelector('.build-handoff-feedback[data-artifact-id="agent"]')
+        ?.textContent.includes("Opened in Files"));
+    assert.match(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(), /Opened in Files/);
+
+    fail.add("agent");
+    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
+    await agentLaunch.click();
+    await page.waitForFunction(() => document.querySelector('[data-files-launch][data-artifact-id="agent"]')?.disabled);
+    pending.get("agent").resolve();
+    await agentRow.getByRole("alert").filter({ hasText: "agent Files failed." }).waitFor();
+    assert.equal(await agentLaunch.isEnabled(), true);
+    assert.match(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(), /Opened in Files/,
+      "Failure feedback cannot leak into another artifact");
+
     assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
     assert.deepEqual(errors, []);
   } finally {
-    gate.release.resolve();
+    for (const gate of pending.values()) gate.resolve();
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
   }
 });
 
-test("Build retains the external editor split control and persists its preference", {
+test("Build follows shared editor settings without owning a picker or accepting stale workspace preferences", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
-  const artifact = {
-    id: "agent", title: "Agent source", path: "src/agent/main.py", description: "Agent implementation.",
-    customizationArea: "behavior", available: true, editable: true, content: "print('original')\n", sha: "base",
-  };
-  let editorSettings = { editorId: "vscode", editors };
-  let settingsFailure = "";
-  let openFailure = "";
-  const settingsWrites = [];
+  const workspaceEditorSettings = { editorId: "vscode", editors };
+  let workspaceGate;
+  let selectedEditor = "vscode";
   const opened = [];
-  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
-    <aside id="details" data-mode="build"></aside><script>
-    ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({
-      container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
-      editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
-      onRun() {}, onModel() {},
-      request: async (path, options) => {
-        const response = await fetch(path, options);
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error);
-        return body;
-      }
-    });
-    panel.show();
-    </script>`;
+  const requests = [];
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(pageHtml());
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -164,60 +160,79 @@ test("Build retains the external editor split control and persists its preferenc
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
+      requests.push({ path, method: route.request().method() });
       if (path === "/api/build-workspace") {
-        await route.fulfill({ json: { artifacts: [artifact], editorSettings } });
-      } else if (path === "/api/editor-settings") {
-        const input = route.request().postDataJSON();
-        settingsWrites.push(input);
-        if (settingsFailure) await route.fulfill({ status: 500, json: { error: settingsFailure } });
-        else {
-          editorSettings = { editorId: input.editorId, editors };
-          await route.fulfill({ json: editorSettings });
+        if (workspaceGate) {
+          const current = workspaceGate;
+          current.started.resolve();
+          await current.reply.promise;
+          await route.fulfill({ json: { artifacts: artifacts(), editorSettings: workspaceEditorSettings } });
+          current.completed.resolve();
+        } else {
+          await route.fulfill({ json: { artifacts: artifacts(), editorSettings: workspaceEditorSettings } });
         }
       } else if (path === "/api/open-build-file") {
-        opened.push(route.request().postDataJSON());
-        if (openFailure) await route.fulfill({ status: 400, json: { error: openFailure } });
-        else await route.fulfill({ json: { outcome: "opened-in-editor", editorId: editorSettings.editorId, editorLabel: "Cursor" } });
+        const input = route.request().postDataJSON();
+        opened.push(input);
+        if (input.id === "tool") await route.fulfill({ status: 400, json: { error: "Cursor is unavailable." } });
+        else await route.fulfill({ json: {
+          outcome: "opened-in-editor", editorId: selectedEditor,
+          editorLabel: editors.find((editor) => editor.id === selectedEditor)?.label,
+        } });
       } else {
         throw new Error(`Unexpected route ${path}`);
       }
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const preview = page.getByRole("region", { name: "Agent source source preview", exact: true });
-    const launch = page.locator("[data-editor-launch]");
-    const select = page.getByRole("combobox", { name: "Supported editor" });
-    await preview.waitFor();
-    assert.equal(await launch.getAttribute("aria-label"), "Open in VS Code");
-    assert.equal(await select.inputValue(), "vscode");
-    assert.ok((await launch.boundingBox()).width > 0);
-    assert.equal((await select.boundingBox()).width, 28);
-    await launch.focus();
-    await page.keyboard.press("Tab");
-    assert.equal(await select.evaluate((element) => element === document.activeElement), true);
+    const launches = page.locator("[data-editor-launch]");
+    const agentRow = page.locator('.build-file[data-artifact="agent"]');
+    await launches.first().waitFor();
+    assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
+    assert.deepEqual(await launches.allTextContents(), ["Open in VS Code"]);
 
-    const preferenceResponse = page.waitForResponse((response) => response.url().endsWith("/api/editor-settings"));
-    await select.selectOption("cursor");
-    await preferenceResponse;
-    assert.deepEqual(settingsWrites[0], { editorId: "cursor" });
-    assert.equal(await launch.getAttribute("aria-label"), "Open in Cursor");
-    assert.equal(await preview.locator(".build-highlight").textContent(), artifact.content);
+    workspaceGate = { started: deferred(), reply: deferred(), completed: deferred() };
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await workspaceGate.started.promise;
+    selectedEditor = "cursor";
+    await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
+      { editorId: "cursor", editors });
+    assert.deepEqual(await launches.allTextContents(), ["Open in Cursor"]);
+    assert.equal(await launches.first().isDisabled(), true);
+    await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: false }),
+      { editorId: "cursor", editors });
+    workspaceGate.reply.resolve();
+    await workspaceGate.completed.promise;
+    workspaceGate = undefined;
+    assert.deepEqual(await launches.allTextContents(), ["Open in Cursor"],
+      "A stale workspace response cannot replace a newer settings event");
+    assert.equal(await launches.first().isEnabled(), true);
 
-    await launch.click();
+    await launches.first().click();
     assert.deepEqual(opened[0], { root: "/fixture", id: "agent" });
-    openFailure = "Cursor is unavailable.";
-    await launch.click();
-    await page.getByRole("alert").filter({ hasText: "Cursor is unavailable." }).waitFor();
-    assert.equal(await launch.isEnabled(), true);
+    await page.getByRole("tab", { name: "Tools", exact: true }).click();
+    const toolLaunch = page.locator('[data-editor-launch][data-artifact-id="tool"]');
+    await toolLaunch.click();
+    await page.locator('.build-file[data-artifact="tool"] .build-handoff-feedback[role="alert"]')
+      .filter({ hasText: "Cursor is unavailable." }).waitFor();
+    assert.equal(await toolLaunch.isEnabled(), true);
 
-    settingsFailure = "Zed could not be saved.";
-    await select.selectOption("zed");
-    await page.getByRole("alert").filter({ hasText: /Zed could not be saved|Could not save editor preference/ }).waitFor();
-    assert.equal(await select.inputValue(), "cursor");
-    assert.equal(await launch.getAttribute("aria-label"), "Open in Cursor");
-    assert.equal(await preview.locator(".build-highlight").textContent(), artifact.content);
-    assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
+    selectedEditor = "zed";
+    await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
+      { editorId: "zed", editors });
+    assert.equal(await toolLaunch.innerText(), "Open in Zed");
+    assert.equal(await toolLaunch.isDisabled(), true);
+    await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: false }),
+      { editorId: "zed", editors });
+    assert.equal(await toolLaunch.isEnabled(), true);
+    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
+    assert.equal(await page.locator('[data-editor-launch][data-artifact-id="agent"]').innerText(), "Open in Zed");
+    assert.equal(await agentRow.locator(".build-handoff-feedback").innerText(), "Opened the worktree and file in Cursor.",
+      "Tool handoff failure does not replace another artifact's feedback");
+    assert.equal(requests.some(({ path }) => path === "/api/editor-settings"), false,
+      "Build does not own editor preference reads or writes");
     assert.deepEqual(errors, []);
   } finally {
+    workspaceGate?.reply.resolve();
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
   }

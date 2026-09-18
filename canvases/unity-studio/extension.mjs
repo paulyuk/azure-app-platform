@@ -1055,10 +1055,11 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         throw error;
       }
       const graph = await traceUnityApp({ root });
+      const serviceIds = url.searchParams.getAll("serviceId");
       sendJson(response, 200, await readAppLogs(root, {
         nodes: graph.nodes,
         runtimeProfile: await readAppRuntimeProfile(root),
-        serviceId: url.searchParams.has("serviceId") ? url.searchParams.get("serviceId") : null,
+        serviceIds,
       }));
       return;
     }

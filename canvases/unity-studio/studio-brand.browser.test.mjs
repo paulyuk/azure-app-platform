@@ -21,6 +21,17 @@ test("Unity branding and opening animation work in the browser", {
         response.end(JSON.stringify({ theme: "light" }));
         return;
       }
+      if (url.pathname === "/api/editor-settings") {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({
+          editorId: "vscode",
+          editors: [
+            { id: "vscode", label: "VS Code" },
+            { id: "cursor", label: "Cursor" },
+          ],
+        }));
+        return;
+      }
       response.writeHead(200, { "Content-Type": "text/html" });
       response.end(renderStudioHtml("brand-fixture", "fixture", {
         theme: url.searchParams.get("theme") || "light",
@@ -161,6 +172,9 @@ test("Unity branding and opening animation work in the browser", {
             await page.getByRole("button", { name: "Settings", exact: true }).click();
             const settings = page.getByRole("dialog", { name: "Settings", exact: true });
             assert.equal(await settings.getByRole("combobox", { name: "Appearance" }).inputValue(), theme);
+            assert.equal(await settings.getByRole("combobox", {
+              name: "Preferred external editor",
+            }).inputValue(), "vscode");
             assert.equal(await settings.locator("[data-settings-section]").count(), 0);
             await page.keyboard.press("Escape");
           }

@@ -38,7 +38,18 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       let body;
-      if (path === "/api/app-status") body = {
+      if (path === "/api/editor-settings") body = {
+        editorId: "vscode",
+        editors: [
+          { id: "vscode", label: "VS Code" },
+          { id: "vscode-insiders", label: "VS Code Insiders" },
+          { id: "cursor", label: "Cursor" },
+          { id: "windsurf", label: "Windsurf" },
+          { id: "zed", label: "Zed" },
+          { id: "sublime", label: "Sublime Text" },
+        ],
+      };
+      else if (path === "/api/app-status") body = {
         state, entrypoints: [{ name: "agent", port: 8091, ready: state === "running", healthStatus: health, url: "http://localhost:8091" }],
       };
       else if (path === "/api/local-readiness") body = {
@@ -99,7 +110,7 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.equal(await document.isDisabled(), true);
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);
     health = "Health refreshed";
-    await page.locator('[data-run-section="services"] > summary').click();
+    await page.getByRole("tab", { name: "Services", exact: true }).click();
     await page.getByText("Health refreshed", { exact: true }).waitFor();
     assert.equal(await enforce.isDisabled(), true);
     releaseTest();
@@ -114,8 +125,10 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
     await page.getByRole("button", { name: "Review key files", exact: true }).click();
+    await page.getByRole("tab", { name: "Runtime", exact: true }).click();
     const preview = page.getByRole("region", { name: "Runtime configuration source preview", exact: true });
     await preview.waitFor();
+    assert.equal(await page.locator('[data-artifact="runtime"] .build-source-disclosure').evaluate((el) => el.open), true);
     assert.equal(await page.locator("#details textarea,#details [contenteditable=true]").count(), 0);
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     await preview.evaluate((element) => { element.dataset.previewProbe = "preserved"; });

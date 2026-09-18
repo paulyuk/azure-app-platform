@@ -14,10 +14,19 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
     edges: [], summary: { projectNodes: 3, operationNodes: 0, edges: 0 },
   };
   const gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" };
+  const editors = [
+    { id: "vscode", label: "VS Code" },
+    { id: "vscode-insiders", label: "VS Code Insiders" },
+    { id: "cursor", label: "Cursor" },
+    { id: "windsurf", label: "Windsurf" },
+    { id: "zed", label: "Zed" },
+    { id: "sublime", label: "Sublime Text" },
+  ];
   const state = {
     app: "running", operation: null, error: "", theme: "light", configured: true, gatewayAvailable: true,
     outputError: false, preferenceError: false, deleteError: false, documentInput: false,
-    health: "Healthy", commands: [], lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
+    health: "Healthy", editorId: "vscode", commands: [],
+    lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
   };
   const mutations = [];
   const server = createServer(async (request, response) => {
@@ -48,7 +57,10 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
       const body = input ? JSON.parse(input) : null;
       if (request.method === "POST") mutations.push({ path, body });
       let result;
-      if (path === "/api/preferences") {
+      if (path === "/api/editor-settings") {
+        if (body) state.editorId = body.editorId;
+        result = { editorId: state.editorId, editors };
+      } else if (path === "/api/preferences") {
         if (state.preferenceError) throw new Error("Could not save appearance.");
         if (body) state.theme = body.theme;
         result = { theme: state.theme };

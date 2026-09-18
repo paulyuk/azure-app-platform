@@ -197,32 +197,36 @@ the repository or subscription.
 
 ### Workspace and Guide
 
-The app interface has three main buttons: Build, Run & Debug, and Observe.
-Build starts directly with customization areas and one focused preview rather
-than a second heading/navigation bar. Its collapse control is right-aligned in
-the customization header. When closed, a 40px rail retains a customization-icon reopen control;
-Run and general App Map navigation remain in the top
-bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
+The app interface has three primary pages: Build, Run & Debug, and Observe.
+Build presents compact category tabs and one focused customization area, with
+optional source previews instead of a file explorer or vertical catalog. Run and general App Map
+navigation remain in the top bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
 editor, select a component from the current file, or perform a mutation.
 Connect preserves source-backed review, with an entry point to edit on the map.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
-highlight. Build's selected preview is retained across these transitions.
+highlight. Build's area/project selections and preview expansion are retained across these transitions.
 They share one compact top bar whose Unity logo and name link home, with no
 separate Home button. The same bar contains app identity,
 runtime status and start/stop, Docs, and Settings. There is no separate
 workspace header row at full width. Explicit grid areas keep Docs and Settings
 at the top right. At 960px and below, workspace buttons move together to row two.
-At 680px and below, app identity and runtime controls move to row three, leaving
+At 680px and below, app identity and runtime controls occupy row two and page
+navigation moves to row three, leaving
 the utilities on row one. App names truncate; controls never wrap independently.
 Observe has App Map and Logs views, with the last-used view retained during
-the current visit. Main buttons have a filled selected state, not tab
-underlines; they do not claim readiness or successful execution. Every
-workspace remains accessible before the app runs. Observe's two subordinate
-tabs form a compact, outlined view switcher with map/log icons and a filled
-selected state. They retain selected state, roving focus, and labeled tabpanel relationships.
-Arrow keys, Home, and End move their focus without activation; Enter or Space
-opens the focused view.
+the current visit. Primary page navigation is a single rounded segmented strip,
+with a raised-surface fill and accent outline marking the current page.
+Its grouped track, rather than a divider or underline, distinguishes page navigation from
+Set up and runtime actions. Selection does not claim readiness or successful execution. Every
+workspace remains accessible before the app runs. Build, Run, and Observe share
+one Studio-owned subordinate tab treatment: compact equal-width tabs, purpose-specific
+line icons, and the original flat Run tab treatment. A shared baseline and accent
+underline ground the row; only the selected tab has a subtle persistent fill.
+Tabs have no individual outlines. Clear hover/focus styling reinforces clickability.
+Observe retains its map/log icons, selected state, roving focus, and labelled
+tabpanel relationships. Arrow keys, Home, and End move focus without activation,
+respecting text direction; Enter or Space opens the focused Observe view.
 Build is the initial view. Build, Run, and Logs use the main content region; the graph and its
 view/search controls are visible only in Map. Map details are a contextual
 inspector, not the container for every app workflow.
@@ -270,39 +274,54 @@ agent instructions remain in their original runtime file; the preview does not
 extract or rewrite Python strings to manufacture a prompt file. Generic artifact
 IDs are bound to file paths, and read and editor-open operations resolve the same
 catalog. Inventory changes cannot redirect an existing file ID.
-Both profiles use a short, evidence-backed customization navigation and one
-selected read-only preview. **Agent behavior**, **Tools & contracts**, **Runtime**, and
+Both profiles use a focused, purpose-led customization workspace rather than
+an IDE layout or stacked catalog. **Agent behavior**, **Tools & contracts**, **Runtime**, and
 **Policies & limits** appear only when supported by available source. Recognized
 inline instruction declarations retain their original file and supply a 1-based
 initial preview position. General implementation files and boilerplate are not
 navigation items. This is a UI projection of the existing authorized catalog,
 not a broader filesystem API or proof that a runtime loads a recognized file.
 
-Each area is a native details/summary disclosure above an indented list of file buttons in
-Key files, not another selection step or dropdown in the preview. File icons and
-names lead; parent paths disambiguate repeated filenames. Only the selected
-file row is highlighted. A chevron indicates
-expansion; the whole heading is clickable and supports native Enter/Space.
-Sections start open, retain their open/closed state in-panel, and never replace
-the preview when toggled. File selection and scroll positions survive in-panel
-refreshes and workspace switches. Missing or no-longer-recognized points leave the
-navigation after refresh; no unsaved source lives in Build.
-The navigation has a right-aligned icon-only in-pane collapse control with a tooltip and accessible
-label, and a bounded, pointer- and keyboard-resizable divider whose grip stays
-centered on the rule in normal, hover, and focus states. Width and visibility changes leave the selected
-preview intact. Below 600px of available pane width it replaces,
-rather than crowds, the preview. Choosing a file returns focus to the content
-heading. Reopening navigation focuses the selected file, or its section heading
-if the file is collapsed. Hidden files leave the tab order. Native Tab/Enter/Space
-behavior follows the displayed file order; long lists scroll within navigation.
-Navigation surfaces use Studio-owned theme tokens, not the host's background
-tokens, so choosing light mode inside a dark host retains readable labels.
-The content pane leads with the customization's purpose, then the actual file
-path and a consistent action bar. **Edit in Files** is the primary action, with
-the supported external-editor split button secondary. Build explains which
-files matter and why; the host Files canvas or external editor owns editing and
+The compact **Behavior**, **Tools**, **Runtime**, and **Policies** tab strip
+provides the overview; only one area's content is visible. Each tab controls a
+labelled panel, with roving tabindex and ArrowLeft/Right/Home/End navigation.
+Its line icons and selected treatment match the Run and Observe tab rows without
+adding status badges or metadata to these source categories.
+The first available area is selected initially. Its purpose-led heading and
+short description explain the job before presenting edit actions.
+Related artifacts are grouped by their recognized source project. Multiple
+projects in Tools appear in a native **Tool** dropdown, not a wrapping chip list
+or another file tree. The picker stays a fixed size as the catalog grows and
+retains native keyboard/type-ahead behavior. Other categories use named choices
+when needed. Selecting a tool shows only its implementation/configuration/contract rows.
+Duplicate names gain secondary project-path qualifiers. Areas and projects are
+remembered independently, so returning to Tools restores the chosen tool.
+Semantic labels lead and paths remain supporting references. There is no file
+explorer, selected-file model, resizable split, or collapsed navigation rail.
+The active content adapts to the actual canvas width; the Guide remains the only
+right-hand rail.
+
+**Edit in Files** is the primary row action; a quiet **Open in &lt;editor&gt;**
+action remains secondary. The shared editor picker lives in **Settings** beside
+Appearance, with VS Code as the default and explicit saved choices respected.
+Build's former footer explanation becomes a small **About Build** info tooltip
+beside its heading: hover/focus/click reveals it, Escape dismisses it, and the
+pointer can enter the tooltip without it disappearing. Build explains what
+can be changed and where; the host Files canvas or external editor owns editing and
 saving. Do not recreate editor inputs, in-memory source drafts, runtime forms,
 review/save controls, or a second draft-durability contract in Build.
+Each file is a distinct bordered container with a Studio-panel background,
+grouping its heading, path, actions, and preview. Separate containers have a
+20px gap; inner padding reduces from 16px to 12px in compact canvases.
+Each file's **Preview source** disclosure starts open for the selected project
+and has a bounded height. Users can collapse individual previews; explicit closed
+state is preserved rather than reopened on every refresh. Unvisited categories
+remain lazy. Area/project selections and preview state
+survive refreshes and workspace switches; changed refreshes also preserve
+page/preview scrolling and keyboard focus.
+Missing or no-longer-recognized points leave the guide after refresh.
+All surfaces use Studio-owned theme tokens so either theme stays readable
+independently of the host's appearance.
 Filename-selected syntax highlighting uses a shipped, licensed Prism bundle,
 not a runtime dependency or CDN. Highlighted source is accessible, selectable
 read-only text, not an overlay on a hidden editor. A separate,
@@ -320,7 +339,7 @@ keeps horizontal overflow inside its compact scroller.
 Top-level workspace navigation and Guide actions remain available during
 discovery failures and empty states; Build does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
-Only document-capable profiles show document-test copy and runtime information.
+Only document-capable profiles show a single document-test action and runtime information.
 Unsupported areas are omitted, not presented as incomplete
 capabilities. Empty customization discovery explains the limitation and offers
 the saved external-editor preference's workspace handoff.
@@ -340,29 +359,34 @@ outside the session worktree reports the limitation and stays available through
 the external-editor option. Missing host support and launch failures are explicit.
 Repeated opens reuse the file's canvas rather than creating duplicate drafts.
 
-Focus, visibility, workspace re-entry, and **Refresh preview** reload saved
+Focus, visibility, workspace re-entry, and **Refresh source** reload saved
 source. Unchanged refreshes retain the source DOM and text selection. Changed
-refreshes preserve selected file, disclosure state, and navigation/preview
-scrolling. Failed refreshes retain the last preview with an error and retry.
+refreshes preserve selection/disclosure state and page/preview scrolling. Failed refreshes
+retain the last guide with an error and retry. Handoff status/errors remain local
+to the requested artifact; concurrent opens never overwrite another row's feedback.
 `panel.hide()` invalidates outstanding loads and cancels scheduled refreshes.
 Late responses cannot replace another workspace or newer results.
 Every available artifact, including operator policy and tool contracts,
 is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
 an allowlisted, non-symlink artifact, then opens the whole worktree and the file.
 A per-user supported-editor preference is shared by Build, app creation, and
-source actions. Build combines opening and selection into a compact split button:
-the editor name opens the file; the chevron exposes the native supported-editor
-picker, retaining keyboard behavior and visible focus. Both halves use the same
-hover background and disabled opacity, and disabled controls do not react to hover.
+source actions. Build uses a quiet external-editor action beside each native Files
+handoff and one native supported-editor picker in shared Settings.
+Preference changes update all launch labels, retain keyboard behavior and visible
+focus, and disable external launches while saving; failures restore the saved
+preference with an explicit error.
 The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
 Zed, and Sublime Text; there are no custom commands. Preference persistence is
-independent of theme settings and does not launch an editor.
+independent of theme settings and does not launch an editor. Settings and the
+app-creation review picker share one client-side preference controller. Reads and
+saves synchronize launch labels and disabled state; stale Build reads cannot
+overwrite a newer preference, and failed saves roll back with an explicit error.
 Launchers use separate executable/argument values, macOS application fallbacks,
 and direct Electron CLI invocation on Windows rather than `.cmd` shell execution.
 Missing editors report remediation; an optional launch failure never deletes a
 successfully created app. Explicit legacy VS Code actions remain compatible.
-Completing an offscreen handoff never changes the selected file. Launch errors
-remain associated with their file when navigating between previews.
+Completing an offscreen handoff never switches workspaces or expands previews.
+Launch errors remain associated with their own customization row.
 The runtime model has no access to this loopback authoring API.
 
 Document tests and invocations use an owned local agent endpoint and omit document
@@ -449,8 +473,26 @@ Runtime component cards and inspectors open this same workspace with the
 component's service selected; the Logs tab starts with all services,
 including registered supporting services without map cards. Sources resolve
 from the authorized app root and registered service identity, never a
-caller-provided file path. Output stays grouped by service and stream because
-untimestamped lines cannot establish a global chronological order. Automatic
+caller-provided file path. A single scrollable viewer replaces stacked service
+consoles. Each line carries a muted, monospace `[service/stream]` prefix; selecting the service
+label narrows the viewer using an authorized service request. The Services checkbox
+picker supports multiple sources in that same viewer; All services clears the filter.
+Repeated `serviceId` query parameters are validated as one bounded selection, including
+unknown/duplicate rejection and the same aggregate byte/line budgets as All services.
+The filter retains selected sources even beyond the default all-services response window.
+The toolbar remains outside the single log scroller, and the containing Logs page
+does not scroll independently. Repeated
+labels remain clickable, with only one keyboard stop per service. Text uses normal
+block/inline flow, not grid rows, fixed heights, or separators. Long lines wrap at
+every canvas width. This also avoids WebKit's stale grid-row heights on resize;
+full-renderer Chromium/WebKit tests assert actual text fragment containment.
+Rows retain source order within each service stream because untimestamped lines
+cannot establish a global chronological order. Source timestamps remain unchanged;
+the visible ordering note explicitly disclaims a global timeline. One collapsed
+Capture details disclosure holds missing-output reasons and source notices, with
+read-error/no-output counts visible even when closed. No output is not a health signal.
+Unchanged polls retain the output DOM and text selection; refreshed output preserves
+the reader's scroll offset, while explicit filtering starts at the top. Automatic
 refresh runs only while Logs is active and unpaused. Navigation cancels pending
 reads and discards stale responses. Service tails remain separate from lifecycle
 command history. Missing capture, partial read failures, and truncation remain
@@ -503,14 +545,15 @@ independent of the selected workspace and component.
 **Run/Debug** is a focused run/test surface, not an embedded IDE or debugger.
 The main area contains state-specific startup/recovery guidance, an available
 web-app action, **Invoke agent**, and its readable result. The connected model
-summary links directly to Settings. Native **Services**, **Diagnostics**, and
-**Deploy to Azure** disclosures preserve the full existing feature set without
-competing with the primary task. They retain expansion across polling and
-workspace switches. Tinted header bands, stronger titles, and open-state dividers
-separate headings from inset content without introducing another layer of cards.
-Starting, failing, provisioning, and deploying reveal
-diagnostics without stealing focus; failure counts and read errors remain visible
-when collapsed. Deeper investigation uses the existing Observe logs workspace,
+summary links directly to Settings. A flat **Output**, **Services**, **Operations**,
+**Deploy** tab row preserves the full supporting feature set without stacked
+accordions or nested Diagnostics tabs. Output is first/default, putting command
+stdout/stderr below the tester. Only one supporting panel is visible. Tabs use
+ARIA tab/tabpanel semantics and keyboard navigation, retaining explicit selection
+across polling, workspace switches, and lifecycle transitions without stealing
+focus. Their line icons and active treatment match Build and Observe while Run's
+useful status summaries remain specific to runtime state. Failure counts, output-read errors, readiness, and deployment activity remain
+discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. There is no resizable diagnostics dock.
 An optional document disclosure appears beside the message when readiness advertises
 document support. File reading, pasted-text limits, removal, and in-flight state
@@ -519,21 +562,22 @@ surface rather than maintaining a separate test form. Document and message draft
 remain in panel memory across polling and mode switches, never in command history.
 Actual command/HTTP
 activity (bounded, redacted before storage, with status and timing) is the sole
-Diagnostics operations list; separate command-example and troubleshooting cards are omitted. A scoped
+Operations tab; separate command-example and troubleshooting cards are omitted. A scoped
 `run-panel-styles.mjs` uses Studio-owned colors, compact forms, quiet dividers,
 and readable response typography without changing the App Map. Agent answers are separate from raw
 responses. Source-discovered Hosted Skills and sandbox implementations are not
 presented as successful tool calls; only response-reported tool evidence is shown.
 The persistent runtime badge opens this panel
 directly, and starting an operation keeps the run panel visible.
-The top-right Settings gear opens a native modal with appearance and app-scoped
+The top-right Settings gear opens a native modal with Studio-wide appearance and
+preferred external editor, plus app-scoped
 model connection, local ports, and a separated Danger zone. Focus stays in the
 dialog and returns to its trigger on close/Escape; underlying drafts remain intact.
 Appearance persists at Studio scope; app operations use the current app root.
 Opening Settings does not configure models or perform destructive actions.
 Deleting the local worktree requires a separate confirmation, a stopped app, and
 known lifecycle state; errors remain in the modal. Azure resources and source
-repositories are not deleted. Landing Settings contains appearance only.
+repositories are not deleted. Landing Settings contains appearance and preferred external editor.
 Local port controls persist validated assignments in `.unity-studio/ports.env`.
 Allocation is serialized and checks both live loopback bindings and other
 discovered app profiles. The same settings feed scripts, readiness, and links;

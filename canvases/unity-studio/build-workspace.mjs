@@ -5,9 +5,9 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
-  { id: "tool", customizationArea: "tools", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
-  { id: "contract", customizationArea: "tools", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
+  { id: "instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
+  { id: "tool", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
+  { id: "contract", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
   { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
   { id: "runtime", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary." },
 ];
@@ -111,6 +111,8 @@ function sourceArtifact(path, candidate) {
   return {
     id: `source-${sha(path).slice(0, 20)}`, path,
     title: name && name !== "." ? `${title} · ${name}` : title,
+    projectPath: candidate.projectPath,
+    projectName: candidate.name,
     description,
     customizationArea,
   };
@@ -182,9 +184,10 @@ async function appArtifact(root, artifact) {
         || await realpath(directory) !== join(await realpath(root), toolDirectory)) {
       throw new Error("Document validation tool must be a directory inside the selected app, not a symlink.");
     }
-    return { ...artifact, path: artifact.path.replace("src/tools/document-validation", toolDirectory) };
+    return { ...artifact, projectPath: toolDirectory, path: artifact.path.replace("src/tools/document-validation", toolDirectory) };
   }
-  return { ...artifact, path: artifact.path.replace("src/tools/document-validation", directories[0] ?? "src/tools/document-validation") };
+  const toolDirectory = directories[0] ?? "src/tools/document-validation";
+  return { ...artifact, projectPath: toolDirectory, path: artifact.path.replace("src/tools/document-validation", toolDirectory) };
 }
 
 async function artifactPath(root, artifact) {

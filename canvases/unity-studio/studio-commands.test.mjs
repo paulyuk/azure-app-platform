@@ -1922,9 +1922,10 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, />Run &amp; Debug<\/button>/);
   assert.match(html, />Observe<\/button>/);
   assert.match(html, /function createRunWorkspace/);
+  assert.match(html, /"Output"/);
   assert.match(html, /"Services"/);
-  assert.match(html, /"Diagnostics"/);
-  assert.match(html, /"Deploy to Azure"/);
+  assert.match(html, /"Operations"/);
+  assert.match(html, /"Deploy"/);
   assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
@@ -1990,7 +1991,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /@media \(max-width: 620px\)/);
   assert.match(html, /grid-template-areas: "brand identity workspaces utilities"/);
   assert.match(html, /grid-template-areas: "brand identity utilities" "workspaces workspaces workspaces"/);
-  assert.match(html, /grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity"/);
+  assert.match(html, /grid-template-areas: "brand utilities" "identity identity" "workspaces workspaces"/);
   assert.match(html, /id="logs-app"/);
   assert.match(html, /function renderLogsPanel/);
   assert.match(html, /\/api\/app-logs\?root=/);
