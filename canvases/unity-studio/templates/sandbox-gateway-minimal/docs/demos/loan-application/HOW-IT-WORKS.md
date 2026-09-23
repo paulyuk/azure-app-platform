@@ -55,14 +55,15 @@ from links in the generated Markdown.
 | **document validation tool** | [`src/tools/document-validation/main.py`](../../../src/tools/document-validation/main.py.template); [`contract.json`](../../../src/tools/document-validation/contract.json) alongside it | Plain Python request/document validation and sanitation; JSON defines limits, extensions, and descriptive schemas that Python reads and enforces explicitly |
 | **Shared policy code** | [`src/policy/enforcement.py`](../../../src/policy/enforcement.py); [`config/document-policy.json`](../../../config/document-policy.json) | Python checks used by the harness and tool, not a separate service |
 | **Runtime selection** | [`config/runtime.json`](../../../config/runtime.json.template) | Selects local processing or separately configured ACA custom-container sandboxes; selection does not provision or deploy them |
-| **AI Gateway / model** | **Run/Debug → AI model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
+| **AI Gateway / model** | **Settings → Model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
 
-**Build** provides compact editors for the instructions, document validation
-tool, contract, policy, and runtime settings. **Edit in Code** opens the whole
-worktree and selected file; use the Code file tree for the harness and shared
-policy implementation. Inline saves require review, a stopped app, and an
-unchanged base version. Developer editing does not grant the runtime model write
-access.
+**Build** groups read-only previews of the instructions, document validation tool,
+contract, policy, and runtime settings into purpose-led categories. **Edit in Files**
+opens the actual source in the native Files canvas. **Open in &lt;editor&gt;** uses
+the external editor selected in **Settings**; use its file tree for the harness
+and shared policy implementation. Files and external editors own saving, and
+runtime changes may need a restart or rebuild. Developer editing does not grant
+the runtime model write access.
 
 For loan-specific behavior, edit `src/agent/prompts/system.md`. Its
 loan-processing guidance is conditional; preserve the generic default behavior

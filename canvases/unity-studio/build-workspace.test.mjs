@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
 import { invocationBody } from "./run-contract.mjs";
 
 async function fixture(action, toolDirectory = "src/tools/document-validation") {
-  const root = await mkdtemp(join(tmpdir(), "unity-build-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "unity-build-")));
   try {
     for (const [path, content] of Object.entries({
       "src/agent/prompts/system.md": "Use registered tools.",
@@ -23,38 +23,28 @@ async function fixture(action, toolDirectory = "src/tools/document-validation") 
   } finally { await rm(root, { recursive: true, force: true }); }
 }
 
-test("Build reads canonical files, saves reviewed instructions and rejects stale concurrent writes", async () => {
+test("Build reads canonical files for preview without advertising inline mutation", async () => {
   await fixture(async (root) => {
     const { artifacts } = await readBuildWorkspace(root);
     assert.equal(artifacts.length, 5);
     assert.ok(artifacts.every((item) => item.available));
     const instructions = artifacts.find((item) => item.id === "instructions");
-    const results = await Promise.allSettled([
-      saveBuildArtifact(root, { id: "instructions", baseSha: instructions.sha, content: "Process documents." }),
-      saveBuildArtifact(root, { id: "instructions", baseSha: instructions.sha, content: "Stale draft" }),
-    ]);
-    assert.deepEqual(results.map((item) => item.status).sort(), ["fulfilled", "rejected"]);
-    assert.equal(results.find((item) => item.status === "rejected").reason.statusCode, 409);
-    assert.equal(await readFile(join(root, instructions.path), "utf8"),
-      results.find((item) => item.status === "fulfilled").value.content);
+    assert.equal(instructions.content, await readFile(join(root, instructions.path), "utf8"));
+    assert.equal("editable" in instructions, false);
+    assert.equal("sha" in instructions, false);
+    assert.equal(await resolveBuildArtifactPath(root, instructions.id), join(root, instructions.path));
   });
 });
 
-test("Build permits reviewed developer JSON edits but rejects arbitrary paths and symlinked source", async () => {
+test("Build resolves allowlisted developer files and rejects arbitrary paths and symlinked source", async () => {
   await fixture(async (root) => {
     const { artifacts } = await readBuildWorkspace(root);
-    assert.ok(artifacts.every((item) => item.editable));
+    assert.ok(artifacts.every((item) => !("editable" in item)));
     for (const id of ["policy", "contract"]) {
       const artifact = artifacts.find((item) => item.id === id);
-      const input = { id, baseSha: artifact.sha, content: '{"developerChange":true}' };
-      await assert.rejects(saveBuildArtifact(root, { ...input, content: "broken json" }), SyntaxError);
-      await assert.rejects(saveBuildArtifact(root, { ...input, content: "[]" }), /JSON object/);
-      await saveBuildArtifact(root, input);
-      assert.equal(await readFile(join(root, artifact.path), "utf8"), input.content);
       assert.ok((await resolveBuildArtifactPath(root, id)).endsWith(artifact.path));
     }
     for (const id of ["../.env", "src/agent/main.py"]) {
-      await assert.rejects(saveBuildArtifact(root, { id, content: "{}" }), /not editable/);
       await assert.rejects(resolveBuildArtifactPath(root, id), /known Build artifact/);
     }
     const path = join(root, "src/agent/prompts/system.md");
@@ -67,9 +57,9 @@ test("Build permits reviewed developer JSON edits but rejects arbitrary paths an
 
 test("Build reports missing artifacts and validates runtime selection without fallback", async () => {
   await fixture(async (root) => {
-    const runtime = (await readBuildWorkspace(root)).artifacts.find((item) => item.id === "runtime");
-    await assert.rejects(saveBuildArtifact(root, { id: "runtime", baseSha: runtime.sha, content: '{"agentRuntime":"magic"}' }), /Choose agentRuntime/);
-    await saveBuildArtifact(root, { id: "runtime", baseSha: runtime.sha, content: '{"agentRuntime":"copilot-sdk-sandbox"}' });
+    await writeFile(join(root, "config/runtime.json"), '{"agentRuntime":"magic"}');
+    await assert.rejects(readBuildRuntime(root), /choose agentRuntime/);
+    await writeFile(join(root, "config/runtime.json"), '{"agentRuntime":"copilot-sdk-sandbox"}');
     assert.match(await documentDeploymentBlocker(root), /inherited Dealer configuration/);
     await rm(join(root, "src/agent/prompts/system.md"));
     assert.equal((await readBuildWorkspace(root)).artifacts.find((item) => item.id === "instructions").available, false);
@@ -84,10 +74,6 @@ test("Build and Code retain the legacy tool layout without creating a second imp
       assert.ok(artifact.available);
       assert.ok(artifact.path.startsWith("src/sandbox/tool/"));
       assert.ok((await resolveBuildArtifactPath(root, id)).endsWith(artifact.path));
-      const content = id === "tool" ? "print('reviewed legacy tool')" : '{"reviewed":true}';
-      const saved = await saveBuildArtifact(root, { id, baseSha: artifact.sha, content });
-      assert.equal(saved.path, artifact.path);
-      assert.equal(await readFile(join(root, artifact.path), "utf8"), content);
     }
     await assert.rejects(readFile(join(root, "src/tools/document-validation/main.py")), { code: "ENOENT" });
   }, "src/sandbox/tool");
@@ -102,7 +88,6 @@ test("Build never mixes new and legacy tool files or falls back around an unsafe
     assert.equal(artifacts.find((item) => item.id === "tool").path, "src/tools/document-validation/main.py");
     assert.equal(artifacts.find((item) => item.id === "contract").available, false);
     await assert.rejects(resolveBuildArtifactPath(root, "contract"), { code: "ENOENT" });
-    await assert.rejects(saveBuildArtifact(root, { id: "contract", content: '{"changed":true}' }), { code: "ENOENT" });
     await rm(directory, { recursive: true });
     await symlink(join(root, "src/sandbox/tool"), directory);
     await assert.rejects(readBuildWorkspace(root), /not a symlink/);

@@ -2,14 +2,18 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
-import { RUN_PANEL_CSS } from "./run-panel-styles.mjs";
-import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
+import { createRunWorkspace } from "./run-workspace.mjs";
+import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
+import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
 import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
+import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -433,7 +437,7 @@ function renderNoScriptFallback(model) {
   }).join("");
 }
 
-export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light" } = {}) {
+export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light", editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
   const model = buildInteractiveAppMapModel(appMap);
   const appName = providedAppName ||
     model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
@@ -532,10 +536,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
     }
     .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
-    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 8px; }
-    .header-actions > button { ${ACTION_BUTTON_STYLE} }
-    .header-actions > button[aria-pressed="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue); }
-    .header-actions > button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--studio-line); border-radius: 8px; background: var(--studio-panel); }
+    .header-actions > button { ${ACTION_BUTTON_STYLE} border: 1px solid transparent; background: transparent; color: var(--studio-muted); cursor: pointer; }
+    .header-actions > button:hover { background: var(--studio-raised); color: var(--studio-ink); }
+    .header-actions > button[aria-pressed="true"] { background: var(--studio-raised); color: var(--studio-ink); border-color: var(--studio-accent); }
+    .header-actions > button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: -2px; }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -570,25 +575,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     button { padding: 4px 10px; cursor: pointer; }
-    #back-apps, #header-runtime-action, #app-status-badge {
+    #header-runtime-action, #app-status-badge {
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
       height: 32px; min-height: 32px; padding: 0 10px;
       font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
     }
     #header-runtime-action { border-radius: 6px; }
-    .workspace-tabs > button {
-      ${ACTION_BUTTON_STYLE} flex: 0 0 auto; min-width: 104px;
-      border: 1px solid var(--border); background: var(--surface); color: var(--text);
-    }
-    .workspace-tabs > button[aria-selected="true"] {
-      background: var(--true-color-blue-muted); color: var(--true-color-blue); border-color: var(--true-color-blue);
-    }
-    .workspace-tabs > button:hover { border-color: var(--true-color-blue); color: var(--true-color-blue); }
-    .workspace-tabs > button:focus-visible { outline-offset: 1px; }
-    .workspace-tabs svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     #observe-views {
-      display: flex; flex: 0 0 auto; align-self: flex-start; gap: 4px; margin: 4px 12px; padding: 3px;
-      border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted);
+      --studio-tab-count:2;
+      flex:0 0 auto; align-self:stretch; margin:4px 0 0;
     }
     #structure-guidance {
       display: flex; flex: 0 0 auto; align-items: center; gap: 12px; margin: 0 12px 8px; padding: 8px 10px;
@@ -598,7 +593,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #structure-guidance:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
     #close-structure-guidance { flex: none; width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
     button:hover { border-color: var(--accent); }
-    .back-link { border: 0; padding-inline: 2px 8px; color: var(--accent); background: transparent; }
     button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
     }
@@ -626,11 +620,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #guide-rail[data-collapsed="true"] { flex-basis: 46px; width: 46px; }
     #guide-rail[data-collapsed="true"] .guide-heading { padding: 6px 5px; border-bottom: 0; }
     #guide-rail[data-collapsed="true"] .guide-heading h2 { display: none; }
-    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 5px 6px 14px; border-bottom: 1px solid var(--border); }
     #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
     .guide-panel-icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
     .guide-chevron { transform-origin: 8px 10px; }
-    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 6px; border: 0; background: transparent; flex: none; }
+    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: auto; padding: 6px; border: 0; background: transparent; flex: none; }
     #action-center:hover { background: var(--surface-muted); }
     #action-center[aria-expanded="false"] .guide-chevron { transform: scaleX(-1); }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
@@ -839,7 +833,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     @media (max-width: 680px) {
       header {
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity";
+        grid-template-areas: "brand utilities" "identity identity" "workspaces workspaces";
         gap: 8px 10px; padding: 8px 12px;
       }
       .heading { padding-left: 0; border-left: 0; }
@@ -856,8 +850,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
     }
-    ${RUN_PANEL_CSS}
-    ${BUILD_PANEL_CSS}
+    ${STUDIO_TABS_CSS}
+    ${RUN_PANEL_CONTENT_CSS}
+    ${BUILD_PANEL_CONTENT_CSS}
     ${COMPONENT_LOGS_CSS}
     ${APP_LOGS_CSS}
     ${renderThemeStyles()}
@@ -867,7 +862,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <header>
     <div class="studio-site-nav" role="navigation" aria-label="Unity Studio navigation">
       ${renderStudioBrand()}
-      <button id="back-apps" class="back-link" type="button">Home</button>
     </div>
     <div class="heading">
       <div class="app-title-row">
@@ -885,9 +879,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </header>
   <main>
     <section id="workspace-shell" role="region" aria-labelledby="build-app">
-    <div id="observe-views" class="workspace-tabs" role="tablist" aria-label="Observe views" hidden>
-      <button id="map-view" role="tab" type="button" aria-selected="true" aria-controls="workspace"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="7" y="2" width="6" height="4" rx="1"/><rect x="2" y="14" width="6" height="4" rx="1"/><rect x="12" y="14" width="6" height="4" rx="1"/><path d="M10 6v4M5 14v-4h10v4"/></svg>App Map</button>
-      <button id="logs-app" role="tab" type="button" aria-selected="false" aria-controls="workspace" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2" y="2" width="16" height="16" rx="2"/><path d="M5 6h1m3 0h6M5 10h1m3 0h6M5 14h1m3 0h6"/></svg>Logs</button>
+    <div id="observe-views" class="workspace-tabs studio-tabs" role="tablist" aria-label="Observe views" hidden>
+      <button id="map-view" class="studio-tab" role="tab" type="button" aria-label="App Map" aria-selected="true" aria-controls="workspace"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--map" aria-hidden="true"></span><span class="studio-tab-label">App Map</span></span></button>
+      <button id="logs-app" class="studio-tab" role="tab" type="button" aria-label="Logs" aria-selected="false" aria-controls="workspace" tabindex="-1"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--logs" aria-hidden="true"></span><span class="studio-tab-label">Logs</span></span></button>
     </div>
     <section id="structure-guidance" aria-label="App structure guidance" tabindex="-1" hidden>
       <p><strong>Edit app structure.</strong> Use <strong>+ Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
@@ -950,6 +944,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <script>
     "use strict";
     const MODEL = ${safeJson(model)};
+    const INITIAL_EDITOR_SETTINGS = ${safeJson(editorSettings)};
     const API_TOKEN = ${safeJson(apiToken)};
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
     const mountAppLogs = (${createAppLogsPanel.toString()});
@@ -1024,6 +1019,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentResponseText = "The agent response will appear here.";
     let invokingAgent = false;
     let agentDocument = null;
+    let documentInputExpanded = false;
     let documentError = "";
     let documentLoading = false;
     let documentReadVersion = 0;
@@ -1042,19 +1038,49 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedGateway = null;
     let selectedModel = "";
     let gatewayApplying = false;
-    const autoGatewayAttempts = new Set();
     let panelMode = "build";
     let observeView = "map";
+    ${BUILD_SYNTAX_SCRIPT}
+    let deleteConfirming = false;
+    let deletingApp = false;
+    let deleteError = "";
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest,
+      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS,
       isActive: () => panelMode === "build",
       onRun: () => {
         renderManagePanel();
         details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
-      onModel: () => renderManagePanel({ openGateway: true }),
-      onStructure: renderStructureMap,
+      onModel: () => openAppSettings("connection"),
+    });
+    window.addEventListener("unity-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
+    const runWorkspace = (${createRunWorkspace.toString()})({
+      container: details,
+      renderTry: renderTryApp,
+      renderServices: renderRuntimeServices,
+      renderDeployment,
+      renderOutput: (container) => {
+        const actions = appendText(container, "div", "", "run-section-actions");
+        appendText(actions, "h3", "Command output");
+        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
+        const output = appendText(container, "pre", latestOutput, "command-output live-output");
+        output.dataset.runtimeOutput = "true";
+        output.dataset.runScrollKey = "output";
+        output.tabIndex = 0;
+        output.setAttribute("aria-label", "Runtime output");
+      },
+      renderOperations: (container) => {
+        const actions = appendText(container, "div", "", "run-section-actions");
+        appendText(actions, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
+        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
+        appendText(container, "h3", "Operations");
+        const feed = appendText(container, "div", "", "command-feed");
+        feed.dataset.commandFeed = "true";
+        feed.dataset.runScrollKey = "operations";
+        renderCommandFeed(feed);
+      },
+      onConnection: () => openAppSettings("connection"),
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -1864,19 +1890,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       target.focus({ preventScroll: true });
     }
 
-    function managementSection(title, open = false) {
-      const section = document.createElement("details");
-      section.className = "management-section";
-      section.open = open;
-      const summary = document.createElement("summary");
-      appendText(summary, "span", title, "section-title");
-      const body = document.createElement("div");
-      body.className = "section-body";
-      section.append(summary, body);
-      details.append(section);
-      return body;
-    }
-
     function appendField(container, title, control) {
       const label = document.createElement("label");
       label.className = "studio-field";
@@ -1886,6 +1899,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateModeHighlight() {
+      if (panelMode !== "build") buildPanel.hide();
       const mode = ["build", "manage", "logs"].includes(panelMode) ? panelMode : "map";
       if (panelMode !== "map") setStructureGuidance(false);
       const observing = mode === "map" || mode === "logs";
@@ -1978,8 +1992,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.mode = "logs";
       appLogs = mountAppLogs({
         parent: details, nodeId, isActive: () => panelMode === "logs",
-        load: ({ serviceId, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
-          (serviceId ? "&serviceId=" + encodeURIComponent(serviceId) : ""), { signal }),
+        load: ({ serviceId, serviceIds, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
+          (serviceIds ?? (serviceId ? [serviceId] : [])).map((id) => "&serviceId=" + encodeURIComponent(id)).join(""), { signal }),
       });
     }
 
@@ -2148,10 +2162,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (operationalState.readiness) {
         appendText(card, "strong", "Finish setup before running");
         appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
-        card.append(keyedActionButton("finish-setup", "Finish setup", () => {
-          const gateway = MODEL.tiers.find((tier) => tier.id === "gateway");
-          renderTierAddPanel(gateway);
-        }, true));
+        card.append(keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
       } else {
         appendText(card, "strong", "Checking app status");
         appendText(card, "p", "Unity is checking what is ready and what still needs setup.");
@@ -2398,7 +2409,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         () => apiRequest("/api/gateway-options?" + params), refresh);
       try {
         const options = await discovery.promise;
-        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
         gatewayState = options;
         selectedSubscriptionId = options.subscription?.id || "";
@@ -2509,6 +2520,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 setStatus(error.message, true);
               } finally {
                 gatewayApplying = false;
+                window.unityStudioSettings.refreshApp();
                 if (panelMode === "manage") renderManagePanel();
               }
             },
@@ -2516,44 +2528,60 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           );
           apply.disabled = !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state);
           container.append(apply);
-          const suggested = gatewayState.suggested;
-          const attemptKey = suggested && suggested.subscriptionId + "/" + suggested.resourceGroup + "/" + suggested.name;
-          if (!gatewayState.active && suggested && models.length && !autoGatewayAttempts.has(attemptKey)
-            && !lifecycleOperation && !ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)
-            && operationalState.app?.state !== "running") {
-            autoGatewayAttempts.add(attemptKey);
-            apply.click();
-          }
         } else {
           appendText(container, "p", "No AI Gateway found in this subscription. Create one to connect a model.");
         }
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Create or manage gateways", () => openTierStudio(gatewayTier)));
+        container.append(actionButton("Create or manage gateways", () => {
+          window.unityStudioSettings.close();
+          openTierStudio(gatewayTier);
+        }));
       } catch (error) {
-        if (!container.isConnected || panelMode !== "manage" || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
         appendText(container, "p", error.message, "error");
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Open guided gateway setup", () => openTierStudio(gatewayTier), true));
+        container.append(actionButton("Open guided gateway setup", () => {
+          window.unityStudioSettings.close();
+          openTierStudio(gatewayTier);
+        }, true));
       }
     }
 
-    function renderDeleteConfirmation() {
-      panelMode = "manage";
-      updateModeHighlight();
-      clearElement(details);
-      details.dataset.empty = "false";
-      appendPanelBack();
-      appendText(details, "h2", "Delete this local app?");
+    function renderDeleteSettings(container) {
+      appendText(container, "h3", deleteConfirming ? "Delete " + document.querySelector("header h1").textContent + "?" : "Delete local app");
       appendText(
-        details,
+        container,
         "p",
         "This permanently removes the app Git worktree, local files, and its Unity-created branch. Azure resources and source repositories are not deleted.",
       );
       const actions = document.createElement("div");
       actions.className = "actions";
+      if (operationalState.app?.state === "running" || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)) {
+        appendText(container, "p", operationalState.app?.state === "running"
+          ? "Stop the local app before deleting its worktree."
+          : "Wait for the current operation to finish before deleting this app.");
+        return;
+      }
+      if (!operationalState.app) {
+        appendText(container, "p", "App status is unavailable. Wait for a successful status check before deleting.");
+        return;
+      }
+      if (deleteError) appendText(container, "p", deleteError, "error").setAttribute("role", "alert");
+      if (!deleteConfirming) {
+        const review = actionButton("Delete local app...", () => {
+          deleteConfirming = true;
+          window.unityStudioSettings.refreshApp();
+        });
+        review.className = "danger";
+        container.append(review);
+        return;
+      }
       const confirm = actionButton("Delete local worktree", async () => {
+        if (deletingApp) return;
+        deletingApp = true;
+        deleteError = "";
         for (const button of actions.querySelectorAll("button")) button.disabled = true;
         try {
           await apiRequest("/api/delete-app", {
@@ -2562,14 +2590,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           });
           location.assign("/");
         } catch (error) {
-          for (const button of actions.querySelectorAll("button")) button.disabled = false;
+          deleteError = error.message;
           setStatus(error.message, true);
+        } finally {
+          deletingApp = false;
+          window.unityStudioSettings.refreshApp();
         }
       });
       confirm.className = "danger";
-      actions.append(confirm);
-      actions.append(actionButton("Cancel", renderManagePanel));
-      details.append(actions);
+      const cancel = actionButton("Cancel deletion", () => {
+        deleteConfirming = false;
+        deleteError = "";
+        window.unityStudioSettings.refreshApp();
+      });
+      confirm.disabled = cancel.disabled = deletingApp;
+      actions.append(cancel, confirm);
+      container.append(actions);
     }
 
     function syncAgentInputControls() {
@@ -2627,9 +2663,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderDocumentInput(container) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
+      const disclosure = document.createElement("details");
+      disclosure.className = "run-document";
+      disclosure.open = documentInputExpanded || Boolean(documentError);
+      const summary = appendText(disclosure, "summary", agentDocument ? "Document · " + agentDocument.name : "Document (optional)");
+      summary.setAttribute("aria-label", "Document attachment");
+      disclosure.addEventListener("toggle", () => {
+        if (disclosure.isConnected) documentInputExpanded = disclosure.open;
+      });
       const input = document.createElement("div");
       input.className = "document-input";
-      appendText(input, "strong", "Document (optional)");
       const sourceBadge = appendText(input, "span", "Untrusted source", "command-badge");
       sourceBadge.dataset.state = "unknown";
       appendText(input, "p", "Choose text/Markdown or paste below. Up to 64 KiB. Document checks run before the model; use synthetic documents in local mode.");
@@ -2694,7 +2737,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       remove.dataset.removeDocument = "true";
       input.append(file, text, remove);
       if (documentLoading) appendText(input, "p", "Reading document...");
-      container.append(input);
+      disclosure.append(input);
+      container.append(disclosure);
     }
 
     function renderDocumentTest(container, actions) {
@@ -2735,7 +2779,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderAgentTester(container) {
       const tester = document.createElement("div");
       tester.className = "developer-tool-card agent-tester";
-      appendText(tester, "strong", "Invoke agent");
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       if (!agentEntrypoint) {
@@ -2753,19 +2796,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               ? "The agent service did not start with the rest of the app."
               : "Run the app to bring its agent endpoint online.",
         );
-        const steps = document.createElement("ol");
-        steps.className = "setup-steps";
-        const stepLabels = needsGateway
-          ? [
-              ...(appRunning ? ["Stop the web preview."] : []),
-              "Connect an AI Gateway.",
-              "Run the app again.",
-            ]
-          : appRunning
-            ? ["Stop the current app.", "Run the app again."]
-            : ["Run the app."];
-        for (const label of stepLabels) appendText(steps, "li", label);
-        tester.append(steps);
         const prompt = document.createElement("textarea");
         appendText(tester, "strong", "Message");
         prompt.maxLength = 2000;
@@ -2791,13 +2821,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ));
         } else if (appRunning) {
           actions.append(actionButton("Stop app", () => runAppOperation("stop-local"), true));
-        } else {
-          actions.append(actionButton("Run app", () => runAppOperation("run-local"), true));
         }
         tester.append(prompt);
         renderDocumentInput(tester);
         tester.append(actions);
         renderDocumentTest(tester, actions);
+        if (agentRawResponse) {
+          appendText(tester, "h3", "Last response");
+          appendText(tester, "div", agentResponseText, "agent-response");
+          renderTools(tester);
+        }
         container.append(tester);
         syncAgentInputControls();
         return;
@@ -2813,8 +2846,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       prompt.addEventListener("input", () => {
         agentPromptDraft = prompt.value;
       });
-      const response = document.createElement("pre");
-      response.className = "command-output agent-response";
+      const response = document.createElement("div");
+      response.className = "agent-response";
+      response.setAttribute("role", "region");
+      response.setAttribute("aria-label", "Agent response");
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions";
@@ -2875,10 +2910,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       tester.append(prompt);
       renderDocumentInput(tester);
-      tester.append(actions, response);
+      tester.append(actions);
+      appendText(tester, "h3", "Response");
+      tester.append(response);
       renderDocumentTest(tester, actions);
+      renderTools(tester);
       if (agentRawResponse) {
         const raw = document.createElement("details");
+        raw.dataset.runDisclosure = "raw-response";
         appendText(raw, "summary", "Raw agent response");
         appendText(raw, "pre", agentRawResponse, "command-output");
         tester.append(raw);
@@ -2891,7 +2930,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       portBusy = true;
       portMessage = "";
       portError = false;
-      renderManagePanel();
+      window.unityStudioSettings?.refreshApp();
       try {
         const result = await apiRequest("/api/ports/" + operation, {
           method: "POST",
@@ -2908,6 +2947,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         portError = true;
       } finally {
         portBusy = false;
+        window.unityStudioSettings?.refreshApp();
         if (panelMode === "manage") renderManagePanel();
       }
     }
@@ -2937,55 +2977,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         const confirm = actionButton("Confirm stop", () => portOperation("stop"));
         confirm.disabled = portBusy;
-        const cancel = actionButton("Cancel", () => { portReview = null; renderManagePanel(); });
+        const cancel = actionButton("Cancel", () => { portReview = null; window.unityStudioSettings.refreshApp(); });
         cancel.disabled = portBusy;
         confirmation.append(confirm, cancel);
         parent.append(confirmation);
       }
     }
 
-    function renderManagePanel({ openGateway = false } = {}) {
-      const previousScrollTop = panelMode === "manage" ? details.scrollTop : 0;
-      panelMode = "manage";
-      updateModeHighlight();
-      const previousOutput = details.querySelector("[data-runtime-output]");
-      const outputScrollTop = previousOutput?.scrollTop || 0;
-      const followOutput = !previousOutput ||
-        previousOutput.scrollHeight - previousOutput.scrollTop - previousOutput.clientHeight < 40;
-      const editingLabel = document.activeElement?.getAttribute("aria-label");
-      const editingMessage = ["Agent message", "Document text"].includes(editingLabel);
-      const messageSelection = editingMessage
-        ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
-      selectedId = null;
-      selectedEdgeId = null;
-      applySelection();
-      clearElement(details);
-      details.dataset.empty = "false";
-      appendText(details, "h2", "Run/Debug");
-      details.dataset.mode = "manage";
-      appendText(details, "p", "Run and test locally, connect model access, deploy to Azure, or troubleshoot this app.");
-
-      const appState = operationalState.app?.state;
-      const runtimeSection = managementSection("Local runtime", true);
-      renderRuntimeAction(runtimeSection);
-      renderPortControls(runtimeSection);
-      if (operationalState.readiness?.agentRuntime) {
-        appendText(runtimeSection, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
-          ? "Selected: Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
-          : "Local document-processing simulation. The tool runs as a subprocess, without OS or network isolation. Use synthetic documents only.");
-        runtimeSection.append(actionButton("Edit instructions & document tools", renderBuildPanel));
-      }
-      if (operationalState.app?.error) appendText(runtimeSection, "p", operationalState.app.error, "error");
-      appendText(runtimeSection, "h3", "Command output");
-      appendText(runtimeSection, "p", "Live stdout and stderr from startup, components, and app operations.");
-      const output = document.createElement("pre");
-      output.className = "command-output live-output";
-      output.dataset.runtimeOutput = "true";
-      output.textContent = latestOutput;
-      runtimeSection.append(output);
-      output.scrollTop = followOutput ? output.scrollHeight : outputScrollTop;
-      void refreshRunOutput();
-      appendText(runtimeSection, "h3", "Components & endpoints");
+    function renderRuntimeServices(runtimeSection) {
+      const tools = appendText(runtimeSection, "div", "", "run-section-actions");
+      appendText(tools, "p", "Local endpoints and source-discovered components. Readiness is not proof of a successful tool call.");
+      tools.append(actionButton("Port settings", () => openAppSettings("ports")));
       for (const entrypoint of runtimeEntrypoints) {
         const row = document.createElement("div");
         row.className = "endpoint-row";
@@ -3008,6 +3010,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         open.disabled = !entrypoint.ready;
         row.append(open);
+        const projects = MODEL.nodes.filter((node) => node.kind === "project" && entrypointForNode(node)?.port === entrypoint.port);
+        for (const project of projects) {
+          const source = actionButton("Open " + project.name + " source", () => openRuntimeSource(project));
+          source.classList.add("runtime-source-action");
+          row.append(source);
+        }
         runtimeSection.append(row);
       }
       for (const node of MODEL.nodes.filter((node) => node.kind === "project"
@@ -3023,59 +3031,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         row.append(heading);
         appendText(row, "code", node.projectPath);
         appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
-        row.append(actionButton("Review source", async () => {
-          try {
-            await apiRequest("/api/open-source", {
-              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
-            });
-          } catch (error) { setStatus(error.message, true); }
-        }));
+        row.append(actionButton("Review source", () => openRuntimeSource(node)));
         runtimeSection.append(row);
       }
-      renderAgentTester(runtimeSection);
-      renderTools(runtimeSection);
-      const activitySection = managementSection("Commands", true);
-      appendText(activitySection, "p", "Actual Azure, shell, and HTTP operations. Message bodies and credentials are not recorded.");
-      const feed = document.createElement("div");
-      feed.className = "command-feed";
-      feed.dataset.commandFeed = "true";
-      activitySection.append(feed);
-      renderCommandFeed();
-      const gatewaySection = managementSection(
-        "AI model connection",
-        openGateway || !operationalState.readiness?.gatewayConfigured,
-      );
-      const readiness = operationalState.readiness;
-      const connectionSummary = document.createElement("span");
-      connectionSummary.className = "connection-summary";
-      connectionSummary.textContent = readiness?.gatewayConfigured
-        ? readiness.model + " · " + readiness.activeGateway.name
-        : readiness?.activeGateway
-          ? readiness.activeGateway.name + " · " + (readiness.model || "Model validation pending")
-          : "Choose a subscription and gateway; model is selected during validation.";
-      const gatewaySummary = gatewaySection.parentElement.querySelector("summary");
-      const connectionState = appendText(gatewaySummary, "span",
-        readiness?.gatewayConfigured ? "Connected" : "Setup needed", "command-badge connection-state");
-      connectionState.dataset.state = readiness?.gatewayConfigured ? "succeeded" : "unknown";
-      gatewaySummary.append(connectionSummary);
-      details.insertBefore(gatewaySection.parentElement, runtimeSection.parentElement);
-      const gatewayControls = document.createElement("div");
-      gatewayControls.className = "gateway-fields";
-      appendText(
-        gatewayControls,
-        "p",
-        ACTIVE_LIFECYCLE_STATES.includes(appState)
-          ? humanize(appState) + " is in progress. Model access can be changed when it finishes."
-          : appState === "running"
-            ? "Stop the local app before changing its AI Gateway."
-          : "Loading available AI Gateways…",
-      );
-      gatewaySection.append(gatewayControls);
-      if (!ACTIVE_LIFECYCLE_STATES.includes(appState) && appState !== "running") {
-        void loadGatewayControls(gatewayControls);
+      if (!runtimeEntrypoints.length && !MODEL.nodes.some((node) => node.kind === "project")) {
+        appendText(runtimeSection, "p", "No local components were discovered for this app.");
       }
+    }
 
-      const deploymentSection = managementSection("Azure deployment");
+    async function openRuntimeSource(node) {
+      try {
+        const opened = await apiRequest("/api/open-source-canvas", {
+          method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
+        });
+        setStatus("Opened " + opened.path + " in Files.");
+      } catch (error) { setStatus(error.message, true); }
+    }
+
+    function renderDeployment(deploymentSection) {
+      const appState = operationalState.app?.state;
       appendText(deploymentSection, "p", "These actions use the app's checked-in Azure configuration and may change cloud resources.");
       const cloudActions = document.createElement("div");
       cloudActions.className = "actions";
@@ -3093,26 +3067,89 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }));
       }
       deploymentSection.append(cloudActions);
+    }
 
-      const dangerSection = managementSection("Delete app");
-      const dangerActions = document.createElement("div");
-      dangerActions.className = "actions";
-      if (appState === "running") {
-        appendText(dangerActions, "p", "Stop the local app before deleting its worktree.");
-      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(dangerActions, "p", "Wait for the current operation to finish before deleting this app.");
-      } else {
-        const deleteButton = actionButton("Delete app…", renderDeleteConfirmation);
-        deleteButton.className = "danger";
-        dangerActions.append(deleteButton);
+    function renderTryApp(container) {
+      const state = operationalState.app?.state;
+      if (state !== "running") renderRuntimeAction(container);
+      else {
+        const web = runtimeEntrypoints.find((entry) => entry.ready && normalized(entry.name) === "web");
+        if (web) {
+          const actions = appendText(container, "div", "", "run-open-app");
+          appendText(actions, "p", "Try the web experience, or send a message to the agent below.");
+          actions.append(actionButton("Open app", async () => {
+            try {
+              await apiRequest("/api/open-entrypoint", {
+                method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
+              });
+            } catch (error) { setStatus(error.message, true); }
+          }, true));
+        }
       }
-      dangerSection.append(dangerActions);
-      details.scrollTop = previousScrollTop;
-      if (editingMessage) {
-        const message = details.querySelector('[aria-label="' + editingLabel + '"]');
-        message?.focus({ preventScroll: true });
-        if (message && messageSelection) message.setSelectionRange(...messageSelection);
+      if (operationalState.app?.foreignEntrypoints?.length) {
+        container.append(actionButton("Resolve port conflict", () => openAppSettings("ports")));
       }
+      if (operationalState.readiness?.agentRuntime) {
+        appendText(container, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
+          ? "Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
+          : "Local simulation: the document tool has no OS or network isolation. Use synthetic documents only.", "run-runtime-notice");
+        container.append(actionButton("Review key files", renderBuildPanel));
+      }
+      renderAgentTester(container);
+    }
+
+    function openAppSettings(section) {
+      window.unityStudioSettings.open(section);
+    }
+
+    function renderAppSettingsSection(section, container) {
+      if (section === "ports") { renderPortControls(container); return; }
+      if (section === "danger") { renderDeleteSettings(container); return; }
+      const appState = operationalState.app?.state;
+      const readiness = operationalState.readiness;
+      appendText(container, "p", readiness?.gatewayConfigured
+        ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name
+        : "Connect an AI Gateway and model to enable the agent workflow.");
+      if (appState === "running" || ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(container, "p", appState === "running" ? "Stop the local app before changing its AI Gateway."
+          : humanize(appState) + " is in progress. Model access can be changed when it finishes.");
+        return;
+      }
+      if (!operationalState.app) {
+        appendText(container, "p", "Checking app status before changing model access.");
+        return;
+      }
+      const controls = appendText(container, "div", "", "gateway-fields");
+      appendText(controls, "p", "Loading available AI Gateways...");
+      void loadGatewayControls(controls);
+    }
+
+    window.addEventListener("unity-studio-settings-ready", () => {
+      window.unityStudioSettings.configureApp({
+        name: document.querySelector("header h1").textContent,
+        renderSection: renderAppSettingsSection,
+      });
+      document.querySelector(".studio-settings").addEventListener("close", () => {
+        deleteConfirming = false;
+        deleteError = "";
+        portReview = null;
+        gatewayDiscovery.invalidate();
+      });
+    });
+
+    function renderManagePanel({ openGateway = false } = {}) {
+      const entering = panelMode !== "manage";
+      panelMode = "manage";
+      updateModeHighlight();
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      details.dataset.empty = "false";
+      details.dataset.mode = "manage";
+      runWorkspace.render({ state: operationalState.app?.state, readiness: operationalState.readiness, services: runtimeEntrypoints });
+      if (entering) details.scrollTop = 0;
+      void refreshRunOutput();
+      if (openGateway) openAppSettings("connection");
     }
 
     async function refreshRunOutput() {
@@ -3122,6 +3159,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
         latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
         latestCommands = result.commands || [];
+        runWorkspace.diagnostics({
+          failures: latestCommands.filter((record) => record.status === "failed").length,
+          operations: latestCommands.length,
+        });
         renderCommandFeed();
         const output = details.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
@@ -3131,22 +3172,39 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       } catch (error) {
         const output = details.querySelector("[data-runtime-output]");
+        runWorkspace.diagnostics({
+          failures: latestCommands.filter((record) => record.status === "failed").length,
+          operations: latestCommands.length,
+          error: error.message,
+        });
         if (output) output.textContent = "Unable to load output: " + error.message;
       } finally { outputRefreshing = false; }
     }
 
-    function renderCommandFeed() {
-      const container = details.querySelector("[data-command-feed]");
+    function renderCommandFeed(target) {
+      const container = target || details.querySelector("[data-command-feed]");
       if (!container) return;
       const fingerprint = JSON.stringify(latestCommands);
       if (container.dataset.fingerprint === fingerprint) return;
+      const scrollTop = container.scrollTop;
+      const following = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
+      const open = new Map([...container.querySelectorAll("[data-run-disclosure]")]
+        .map((node) => [node.dataset.runDisclosure, node.open]));
+      const focusedRecord = container.contains(document.activeElement)
+        ? document.activeElement.closest("[data-run-disclosure]")?.dataset.runDisclosure : null;
+      let focusedSummary = null;
       container.dataset.fingerprint = fingerprint;
       clearElement(container);
       if (!latestCommands.length) appendText(container, "p", "No operations recorded yet. Run the app or invoke its agent.");
       for (const record of latestCommands) {
-        const row = document.createElement("div");
+        const row = document.createElement("details");
         row.className = "command-record";
         row.dataset.status = record.status;
+        row.dataset.runDisclosure = record.id;
+        row.open = open.get(row.dataset.runDisclosure) || false;
+        const summary = document.createElement("summary");
+        summary.dataset.actionKey = "operation-" + record.id;
+        if (record.id === focusedRecord) focusedSummary = summary;
         const heading = document.createElement("div");
         heading.className = "command-head";
         appendText(heading, "span", record.kind, "command-badge command-kind");
@@ -3155,43 +3213,28 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(heading, "strong", title, "command-title");
         const badge = appendText(heading, "span", humanize(record.status), "command-badge");
         badge.dataset.state = record.status;
-        row.append(heading);
+        summary.append(heading);
         const metadata = document.createElement("div");
         metadata.className = "command-meta";
         appendText(metadata, "span", new Date(record.startedAt).toLocaleTimeString());
         if (record.durationMs != null) appendText(metadata, "span",
           record.durationMs < 1000 ? record.durationMs + " ms" : (record.durationMs / 1000).toFixed(1) + " s");
         if (record.note) appendText(metadata, "span", record.note);
-        row.append(metadata);
-        appendText(row, "pre", record.command, "command-code");
+        summary.append(metadata);
+        row.append(summary);
+        const body = appendText(row, "div", "", "command-record-body");
+        appendText(body, "pre", record.command, "command-code");
         container.append(row);
       }
+      if (focusedRecord) (focusedSummary || details.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
+      container.scrollTop = following ? container.scrollHeight : scrollTop;
     }
 
     function renderTools(container) {
-      const section = document.createElement("div");
-      section.className = "developer-tool-card";
-      const nodes = MODEL.nodes.filter((node) =>
-        node.kind === "project" && ["skills", "sandbox"].includes(node.tierId));
-      appendText(section, "strong", nodes.some((node) => node.tierId === "skills") ? "Hosted Skills & tools" : "Tools");
-      appendText(section, "p", "Source-discovered implementations; availability is shown separately from tool execution.");
-      for (const node of nodes) {
-        const row = document.createElement("div");
-        row.className = "endpoint-row";
-        const endpoint = entrypointForNode(node);
-        appendText(row, "strong", node.name + " · " + (endpoint?.healthStatus || "Source only"));
-        appendText(row, "code", node.projectPath);
-        row.append(actionButton("Open source", async () => {
-          try {
-            await apiRequest("/api/open-source", {
-              method: "POST", body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
-            });
-          } catch (error) { setStatus(error.message, true); }
-        }));
-        section.append(row);
-      }
-      if (!nodes.length) appendText(section, "p", "No Hosted Skill or sandbox implementation was discovered.");
-      appendText(section, "strong", "Tool activity · last response");
+      const section = document.createElement("details");
+      section.className = "run-tool-activity";
+      section.dataset.runDisclosure = "tool-activity";
+      appendText(section, "summary", "Tool activity · " + agentToolActivity.length + " reported");
       for (const tool of agentToolActivity) appendText(section, "p", tool.name + " · " + tool.status);
       if (!agentToolActivity.length) appendText(section, "p", "No tool activity was reported in the last response. This does not prove that no tools ran.");
       container.append(section);
@@ -3230,6 +3273,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();
+        if (changed) window.unityStudioSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
       } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
@@ -3238,6 +3282,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runtimeEntrypoints = [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();
+        if (changed) window.unityStudioSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }
@@ -3654,11 +3699,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (node.kind === "project") {
         actions.append(actionButton("Open source", async () => {
           try {
-            await apiRequest("/api/open-source", {
+            const opened = await apiRequest("/api/open-source", {
               method: "POST",
               body: JSON.stringify({ root: MODEL.root, projectPath: node.projectPath }),
             });
-            setStatus("Opened " + node.name + " in VS Code.");
+            setStatus("Opened " + node.name + " in " + opened.editorLabel + ".");
           } catch (error) {
             setStatus(error.message, true);
           }
@@ -4025,11 +4070,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     for (const tabs of document.querySelectorAll(".workspace-tabs")) {
       tabs.addEventListener("keydown", (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const items = [...tabs.querySelectorAll("[role='tab']")];
         const index = items.indexOf(event.target);
         if (index < 0) return;
-        const next = event.key === "ArrowRight" ? (index + 1) % items.length
-          : event.key === "ArrowLeft" ? (index + items.length - 1) % items.length
+        const direction = getComputedStyle(tabs).direction === "rtl" ? -1 : 1;
+        const next = event.key === "ArrowRight" ? (index + direction + items.length) % items.length
+          : event.key === "ArrowLeft" ? (index - direction + items.length) % items.length
             : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : null;
         if (next === null) return;
         event.preventDefault();
@@ -4060,7 +4107,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       renderManagePanel({ openGateway: true });
     });
-    document.querySelector("#back-apps").addEventListener("click", () => location.assign("/"));
     otherResourcesToggle.addEventListener("change", () => {
       applyLayout();
       try { localStorage.setItem(otherResourcesKey, String(otherResourcesToggle.checked)); }
@@ -4110,7 +4156,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     void refreshOperationalState();
     setInterval(() => { void refreshOperationalState(); }, 2000);
     setInterval(() => { void refreshRunOutput(); }, 1000);
-    ${renderThemeClientScript(apiToken)}
+    ${renderThemeClientScript(apiToken, editorSettings)}
   </script>
 </body>
 </html>`;

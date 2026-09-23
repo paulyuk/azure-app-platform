@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, saveBuildArtifact } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 
 async function fixture(files, action) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "unity-build-catalog-")));
@@ -44,15 +44,30 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     const agent = state.artifacts.find((item) => item.path === "src/agent/main.py");
     assert.match(agent.title, /instructions/);
     assert.equal(agent.content, source);
+    assert.equal(agent.customizationArea, "behavior");
+    assert.equal(agent.projectPath, "src/agent");
+    assert.equal(agent.projectName, "deal-finder-agent");
+    assert.equal(agent.focusLine, 1);
+    const skillArtifacts = state.artifacts.filter((item) => item.customizationArea === "tools");
+    assert.ok(skillArtifacts.length > 1);
+    assert.deepEqual([...new Set(skillArtifacts.map((item) => item.projectPath))], ["src/skills/inventory"]);
+    assert.deepEqual([...new Set(skillArtifacts.map((item) => item.projectName))], ["inventory"]);
+    assert.deepEqual(state.artifacts.filter((item) => item.customizationArea).map((item) => [item.path, item.customizationArea]).sort(), [
+      ["src/agent/main.py", "behavior"],
+      ["src/agent/agent.yaml", "runtime"],
+      ["src/skills/inventory/function_app.py", "tools"],
+      ["src/skills/inventory/agents.config.yaml", "tools"],
+    ].sort());
+    assert.ok(state.artifacts.filter((item) => item.path.startsWith("src/web/") || item.path.endsWith("/host.json"))
+      .every((item) => item.customizationArea === undefined), "The raw catalog remains available without turning boilerplate into customization decisions");
     assert.equal(await resolveBuildArtifactPath(root, agent.id), join(root, agent.path));
-    const next = source.replace("Find a vehicle.", "Only describe real inventory.");
-    await saveBuildArtifact(root, { id: agent.id, content: next, baseSha: agent.sha });
-    assert.equal(await readFile(join(root, agent.path), "utf8"), next);
-    await assert.rejects(saveBuildArtifact(root, { id: agent.id, content: source, baseSha: agent.sha }), { statusCode: 409 });
+    assert.equal(await resolveProjectSourcePath(root, "src/agent"), join(root, "src/agent/main.py"));
+    assert.equal(await resolveProjectSourcePath(root, "src/skills/inventory"), join(root, "src/skills/inventory/function_app.py"));
+    assert.equal(await resolveProjectSourcePath(root, "src/web"), join(root, "src/web/src/app/page.tsx"));
+    assert.equal("editable" in agent, false);
     assert.equal(await readBuildRuntime(root), null);
     assert.equal(await documentDeploymentBlocker(root), null);
     await assert.rejects(resolveBuildArtifactPath(root, "contract"), /known Build artifact/);
-    await assert.rejects(saveBuildArtifact(root, { id: "../.env", content: "stolen" }), /not editable/);
   });
 });
 
@@ -72,10 +87,17 @@ test("Empty Unity Build includes the prompt, starter runtime and declared skill 
       assert.ok(state.artifacts.some((item) => item.path === path), path);
     }
     assert.ok(!state.artifacts.some((item) => item.id === "policy" || item.id === "runtime"));
+    const areaFor = (path) => state.artifacts.find((item) => item.path === path)?.customizationArea;
+    assert.equal(areaFor("src/agent/prompts/system.md"), "behavior");
+    assert.equal(areaFor("src/agent/main.py"), undefined);
+    assert.equal(areaFor("src/skills/look-up/function_app.py"), "tools");
+    assert.equal(areaFor("config/domain.json"), "runtime");
+    assert.equal(areaFor("unity.app.yaml"), "runtime");
+    assert.ok(!state.artifacts.some((item) => item.customizationArea === "policies"));
   });
 });
 
-test("custom declared paths scope read, open and save away from unrelated apps and leftover document files", async () => {
+test("custom declared paths scope read and open away from unrelated apps and leftover document files", async () => {
   await fixture({
     "unity.app.yaml": "components:\n  - tier: agent\n    path: services/assistant\n",
     "services/assistant/agent.yaml": "name: custom\nkind: hosted\n",
@@ -91,19 +113,48 @@ test("custom declared paths scope read, open and save away from unrelated apps a
     assert.ok(state.artifacts.every((item) => item.path.startsWith("services/assistant/") || item.path === "unity.app.yaml"));
     const worker = state.artifacts.find((item) => item.path === "services/assistant/worker.ts");
     assert.ok(worker);
+    assert.equal(worker.customizationArea, "behavior");
+    assert.equal(worker.projectPath, "services/assistant");
+    assert.equal(worker.focusLine, 1);
     assert.equal(await resolveBuildArtifactPath(root, worker.id), join(root, worker.path));
+    assert.equal(await resolveProjectSourcePath(root, "services/assistant"), join(root, worker.path));
+    await assert.rejects(resolveProjectSourcePath(root, "unrelated"), /source project discovered/);
     assert.equal(await readBuildRuntime(root), null);
-    const inventory = state.artifacts.find((item) => item.id === "app-inventory");
-    await assert.rejects(saveBuildArtifact(root, {
-      id: inventory.id, baseSha: inventory.sha,
-      content: "capabilities:\n  agent:\n    path: ../outside\n",
-    }), /app-relative path/);
-    await assert.rejects(saveBuildArtifact(root, {
-      id: inventory.id, baseSha: inventory.sha, content: "name: not-an-inventory\n",
-    }), /declare capabilities or components/);
+    await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: ../outside\n");
+    await assert.rejects(readBuildWorkspace(root), /app-relative path/);
+    await writeFile(join(root, "unity.app.yaml"), "name: not-an-inventory\n");
+    await assert.rejects(readBuildWorkspace(root), /declare capabilities or components/);
     await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: unrelated\n");
     await assert.rejects(resolveBuildArtifactPath(root, worker.id), /known Build artifact/);
-    await assert.rejects(saveBuildArtifact(root, { id: worker.id, content: "changed", baseSha: worker.sha }), /not editable/);
+  });
+});
+
+test("Run source review selects sandbox code, supports root projects, and rejects unsafe or unknown projects", async () => {
+  await fixture({
+    "unity.app.yaml": "capabilities:\n  sandbox:\n    path: src/sandbox/prequal\n  web:\n    path: .\n",
+    "src/sandbox/prequal/main.py": "print('prequal')",
+    "src/sandbox/prequal/contract.json": "{}",
+    "src/sandbox/prequal/Dockerfile": "FROM python:3.12",
+    "src/sandbox/prequal/egress-policy.md": "Deny outbound access.",
+    "package.json": '{"dependencies":{"next":"1.0"}}',
+    "src/app/page.tsx": "export default function Page() { return null; }",
+  }, async (root) => {
+    assert.equal(await resolveProjectSourcePath(root, "src\\sandbox\\prequal"), join(root, "src/sandbox/prequal/main.py"));
+    assert.equal(await resolveProjectSourcePath(root, "."), join(root, "src/app/page.tsx"),
+      "A root web project must not borrow a nested sandbox's source");
+    for (const project of ["../outside", "src/../sandbox", "/outside", "C:\\outside", "", null]) {
+      await assert.rejects(resolveProjectSourcePath(root, project), (error) =>
+        error.statusCode === 400 && /app-relative source project/.test(error.message));
+    }
+    await assert.rejects(resolveProjectSourcePath(root, "src/not-discovered"), /source project discovered/);
+    const source = join(root, "src/app/page.tsx");
+    await rm(source);
+    await symlink(join(root, "src/sandbox/prequal/main.py"), source);
+    assert.equal(await resolveProjectSourcePath(root, "."), join(root, "package.json"),
+      "A symlinked implementation must not be opened; only another allowlisted file is eligible");
+    await rm(join(root, "package.json"));
+    await assert.rejects(resolveProjectSourcePath(root, "."), (error) =>
+      error.statusCode === 404 && /No recognized source file/.test(error.message));
   });
 });
 
@@ -121,7 +172,6 @@ test("generic source IDs remain bound to paths and cannot follow swapped symlink
     await rm(join(root, before.path));
     await symlink(join(root, "private.txt"), join(root, before.path));
     await assert.rejects(resolveBuildArtifactPath(root, before.id), /known Build artifact|not symlinks/);
-    await assert.rejects(saveBuildArtifact(root, { id: before.id, content: "overwrite", baseSha: before.sha }), /not editable|not symlinks/);
     assert.equal(await readFile(join(root, "private.txt"), "utf8"), "not source");
   });
 });
@@ -139,12 +189,46 @@ test("document Build honors the declared legacy tool instead of an unrelated new
   }, async (root) => {
     const state = await readBuildWorkspace(root);
     assert.equal(state.supportsDocuments, true);
+    assert.deepEqual(state.artifacts.map((item) => [item.id, item.customizationArea]), [
+      ["instructions", "behavior"], ["tool", "tools"], ["contract", "tools"], ["policy", "policies"], ["runtime", "runtime"],
+    ]);
     const tool = state.artifacts.find((item) => item.id === "tool");
     assert.equal(tool.path, "src/sandbox/tool/main.py");
+    assert.equal(tool.projectPath, "src/sandbox/tool");
+    assert.equal(tool.projectName, "Document validation");
+    assert.equal(state.artifacts.find((item) => item.id === "contract").projectPath, tool.projectPath);
     assert.match(tool.content, /selected legacy/);
     assert.equal(await resolveBuildArtifactPath(root, "tool"), join(root, tool.path));
-    await saveBuildArtifact(root, { id: tool.id, content: "print('updated legacy tool')", baseSha: tool.sha });
+    assert.equal(await resolveProjectSourcePath(root, "src/sandbox/tool"), join(root, tool.path));
+    assert.equal(await resolveProjectSourcePath(root, "src/agent"), join(root, "src/agent/prompts/system.md"));
     assert.equal(await readFile(join(root, "src/tools/document-validation/main.py"), "utf8"), "print('unrelated new tool')");
+  });
+
+});
+
+test("inline customization requires recognized instruction evidence and points to the original source line", async () => {
+  await fixture({
+    "src/agent/agent.yaml": "kind: hosted\n",
+    "src/agent/main.py": "agent = Agent()\n",
+  }, async (root) => {
+    const path = "src/agent/main.py";
+    const cases = [
+      ["# instructions = 'Comment only'\nagent = Agent()\n", undefined],
+      ["import os\n\nINSTRUCTIONS: str = 'Customize here'\n", 3],
+      ["import os\nagent = Agent(\n  instructions='Customize here'\n)\n", 3],
+      ["// instructions: comment only\nexport const SYSTEM_PROMPT = 'Customize here';\n", 2],
+    ];
+    let id;
+    for (const [content, focusLine] of cases) {
+      await writeFile(join(root, path), content);
+      const artifact = (await readBuildWorkspace(root)).artifacts.find((item) => item.path === path);
+      assert.equal(artifact.content, content, "Instruction strings must never be extracted into synthetic files");
+      assert.equal(artifact.focusLine, focusLine);
+      assert.equal(artifact.customizationArea, focusLine ? "behavior" : undefined);
+      if (id) assert.equal(artifact.id, id);
+      id = artifact.id;
+      assert.equal(await resolveBuildArtifactPath(root, id), join(root, path));
+    }
   });
 });
 

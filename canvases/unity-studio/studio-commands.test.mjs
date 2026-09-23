@@ -548,6 +548,8 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       },
       sourceBindings: [],
       openInVsCode: true,
+      openInEditor: false,
+      editorId: undefined,
     });
     assert.throws(() => normalizeWorkspaceRequest({
       appName: "../claims",
@@ -1904,7 +1906,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /if \(event\.key === "ArrowUp"\)/);
   const mapTools = html.match(/<details class="map-tools">([\s\S]*?)<\/details>/)?.[1] ?? "";
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
-  assert.match(html, />Home<\/button>/);
+  assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
+  assert.doesNotMatch(html, /id="back-apps"/);
   assert.match(html, /id="app-status-badge"/);
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
@@ -1918,7 +1921,11 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /role="tablist" aria-label="Observe views"/);
   assert.match(html, />Run &amp; Debug<\/button>/);
   assert.match(html, />Observe<\/button>/);
-  assert.match(html, /managementSection\("Local runtime", true\)/);
+  assert.match(html, /function createRunWorkspace/);
+  assert.match(html, /"Output"/);
+  assert.match(html, /"Services"/);
+  assert.match(html, /"Operations"/);
+  assert.match(html, /"Deploy"/);
   assert.doesNotMatch(html, /Test & troubleshoot/);
   assert.match(html, /appStatusBadge\.addEventListener\("click", renderManagePanel\)/);
   assert.match(html, /function appendFlowAdd/);
@@ -1948,7 +1955,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Choose a component that belongs in this part of the request flow/);
   assert.match(html, /Add another/);
   assert.match(html, /Search &amp; layout<\/summary>/);
-  assert.match(html, /Run and test locally, connect model access, deploy to Azure/);
+  assert.match(html, /Try your app/);
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
@@ -1958,7 +1965,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /agentPromptDraft = prompt\.value/);
   assert.match(html, /Agent unavailable/);
   assert.match(html, /local agent cannot start until this app has an AI Gateway connection/);
-  assert.match(html, /className = "setup-steps"/);
+  assert.match(html, /openAppSettings\("connection"\)/);
   assert.match(html, /Connect AI Gateway/);
   assert.match(html, /Stop preview/);
   assert.doesNotMatch(html, /Send test prompt|Agent test prompt/);
@@ -1967,7 +1974,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /data-runtime-output/);
   assert.match(html, /refreshRunOutput\(\); \}, 1000/);
   assert.doesNotMatch(html, /Command reference & HTTP examples/);
-  assert.match(html, /renderAgentTester\(runtimeSection\)/);
+  assert.match(html, /renderAgentTester\(container\)/);
   assert.match(html, /subscriptionSelect/);
   assert.match(html, /connection-summary/);
   assert.match(html, /updateModeHighlight/);
@@ -1984,7 +1991,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /@media \(max-width: 620px\)/);
   assert.match(html, /grid-template-areas: "brand identity workspaces utilities"/);
   assert.match(html, /grid-template-areas: "brand identity utilities" "workspaces workspaces workspaces"/);
-  assert.match(html, /grid-template-areas: "brand utilities" "workspaces workspaces" "identity identity"/);
+  assert.match(html, /grid-template-areas: "brand utilities" "identity identity" "workspaces workspaces"/);
   assert.match(html, /id="logs-app"/);
   assert.match(html, /function renderLogsPanel/);
   assert.match(html, /\/api\/app-logs\?root=/);

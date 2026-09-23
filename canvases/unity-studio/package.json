@@ -6,7 +6,11 @@
   "private": true,
   "description": "Implementation inventory and navigation hub for the nine-tier Unity platform pattern.",
   "scripts": {
-    "test": "node --test *.test.mjs"
+    "test": "node --test *.test.mjs",
+    "vendor:syntax": "node scripts/build-syntax-vendor.mjs"
+  },
+  "devDependencies": {
+    "prismjs": "1.30.0"
   },
   "keywords": [
     "unity",

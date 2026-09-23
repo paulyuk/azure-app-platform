@@ -3,126 +3,47 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build preserves newer and reverted drafts across pending saves and panel reloads", {
-  skip: !chromium && "Install src/web dependencies to run browser coverage.",
-}, async () => {
-  let artifact = {
-    id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md",
-    available: true, editable: true, content: "Original instructions.", sha: "base",
-  };
-  const writes = [];
-  let releaseSave;
-  let saveStarted;
-  let pendingSave;
-  const server = createServer((_request, response) => {
-    response.setHeader("Content-Type", "text/html");
-    response.end(`<div id="details"></div><script>
-      const panel = (${createBuildPanel.toString()})({
-        container: document.querySelector("#details"), root: "/fixture", isActive: () => true,
-        onRun() {}, onModel() {}, onStructure() {},
-        request: async (path, options) => (await fetch(path, options)).json()
-      });
-      panel.show();
-    </script>`);
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const browser = await chromium.launch();
-  try {
-    const page = await browser.newPage();
-    const errors = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.route("**/api/**", async (route) => {
-      if (new URL(route.request().url()).pathname === "/api/build-workspace") {
-        await route.fulfill({ json: { artifacts: [artifact], supportsDocuments: true } });
-        return;
-      }
-      assert.equal(new URL(route.request().url()).pathname, "/api/build-file");
-      const input = route.request().postDataJSON();
-      writes.push(input);
-      saveStarted?.();
-      await pendingSave;
-      artifact = { ...artifact, content: input.content, sha: `saved-${writes.length}` };
-      await route.fulfill({ json: artifact });
-    });
-    await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const editor = page.getByRole("textbox", { name: "Agent instructions source" });
-    const review = page.getByRole("button", { name: "Review changes", exact: true });
-    const discard = page.getByRole("button", { name: "Discard draft & reload" });
-    for (const reloadDuringSave of [false, true]) {
-      const original = artifact.content;
-      const reviewed = `Reviewed revision ${writes.length}.`;
-      const baseSha = artifact.sha;
-      const started = new Promise((resolve) => { saveStarted = resolve; });
-      pendingSave = new Promise((resolve) => { releaseSave = resolve; });
-      await editor.fill(reviewed);
-      await review.click();
-      await page.getByRole("button", { name: "Save reviewed changes" }).click();
-      await started;
-      assert.equal(await review.isDisabled(), true);
-      assert.equal(await discard.isDisabled(), true);
-      if (reloadDuringSave) {
-        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-        await editor.waitFor();
-        assert.equal(await review.isDisabled(), true);
-      }
-      const newer = reloadDuringSave ? original : "Newer unsaved instructions.";
-      await editor.fill(newer);
-      const response = page.waitForResponse((response) => response.url().endsWith("/api/build-file"));
-      releaseSave();
-      await response;
-      await page.waitForFunction(() => {
-        const button = [...document.querySelectorAll("button")].find((button) => button.textContent === "Review changes");
-        return button && !button.disabled;
-      });
-      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await editor.waitFor();
-      assert.equal(await editor.inputValue(), newer);
-      assert.equal(writes.at(-1).baseSha, baseSha);
-      assert.equal(writes.at(-1).content, reviewed);
-      assert.equal(await page.getByText(/saved file changed in Code/).count(), 0);
-      const savedSha = artifact.sha;
-      pendingSave = null;
-      saveStarted = null;
-      await review.click();
-      await page.getByRole("button", { name: "Save reviewed changes" }).click();
-      await page.getByText(/Saved\. Restart/).waitFor();
-      assert.equal(writes.at(-1).baseSha, savedSha);
-      assert.equal(writes.at(-1).content, newer);
-    }
-    assert.deepEqual(errors, []);
-  } finally {
-    releaseSave?.();
-    await browser.close();
-    await new Promise((resolve) => server.close(resolve));
-  }
-});
-
-test("Build exposes compact editors, Code actions, reviewed policy edits and external-edit conflicts", {
+test("Build is a focused read-only customization workspace with document and Runtime model actions", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const artifacts = [
-    { id: "instructions", title: "Agent instructions", path: "src/agent/prompts/system.md", editable: true, content: "Use the document tool." },
-    { id: "tool", title: "Document validation tool", path: "src/tools/document-validation/main.py", editable: true, content: "def main(): pass" },
-    { id: "contract", title: "Tool contract", path: "src/tools/document-validation/contract.json", editable: true, content: '{"additionalProperties":false}' },
-    { id: "policy", title: "Enforcement policy", path: "config/document-policy.json", editable: true, content: '{"maxBytes":4096}' },
-    { id: "runtime", title: "Runtime & access", path: "config/runtime.json", editable: true, content: '{"agentRuntime":"local","other":"preserve"}' },
-  ].map((item) => ({ ...item, description: item.title, available: true, sha: "base" }));
-  const saved = [];
-  const opened = [];
-  let codeFails = false;
-  let workspaceFails = false;
-  let supportsDocuments = true;
-  let diagnostics = [];
-  const html = `<!doctype html><style>${BUILD_PANEL_CSS}</style><aside id="details" data-mode="build"></aside><script>
+    {
+      id: "instructions", customizationArea: "behavior", title: "Agent instructions",
+      path: "src/agent/prompts/system.md", projectPath: "src/agent", projectName: "Document agent",
+      description: "Shape the agent's decisions and responses.", available: true,
+      content: "Use the document tool.", sha: "base",
+    },
+    {
+      id: "tool", customizationArea: "tools", title: "Document validation entry point",
+      path: "src/tools/document-validation/main.py", projectPath: "src/tools/document-validation",
+      projectName: "Document validation", description: "Validate documents.", available: true,
+      content: "def main(): pass\n", sha: "base",
+    },
+    {
+      id: "runtime", customizationArea: "runtime", title: "Runtime & access",
+      path: "config/runtime.json", description: "Choose the model connection and runtime.", available: true,
+      content: '{"agentRuntime":"local","other":"preserve"}', sha: "base",
+    },
+    {
+      id: "policy", customizationArea: "policies", title: "Enforcement policy",
+      path: "config/document-policy.json", description: "Set document limits.", available: true,
+      content: '{"maxBytes":4096}', sha: "base",
+    },
+  ];
+  const requests = [];
+  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
+    <aside id="details" data-mode="build"></aside><script>
+    ${BUILD_SYNTAX_SCRIPT}
     const panel = (${createBuildPanel.toString()})({
-      container: document.querySelector("#details"), root: "/app", isActive: () => true,
-      onRun: () => { document.body.dataset.runRequested = "true"; }, onModel: () => {},
-      onStructure: () => { document.body.dataset.structureRequested = "true"; },
+      container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
+      onRun: () => { document.body.dataset.runRequested = "true"; },
+      onModel: () => { document.body.dataset.modelRequested = "true"; },
       request: async (path, options) => {
         const response = await fetch(path, options);
         const body = await response.json();
@@ -132,143 +53,212 @@ test("Build exposes compact editors, Code actions, reviewed policy edits and ext
     });
     panel.show();
     </script>`;
-  const server = createServer((_request, response) => { response.setHeader("Content-Type", "text/html"); response.end(html); });
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end(html);
+  });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      requests.push({ path, method: route.request().method(), body: route.request().postDataJSON() });
+      if (path === "/api/build-workspace") {
+        await route.fulfill({ json: { artifacts, supportsDocuments: true } });
+      } else {
+        throw new Error(`Unexpected route ${path}`);
+      }
+    });
+    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.getByRole("heading", { name: "Change your app", exact: true }).waitFor();
+
+    const tabs = page.getByRole("tablist", { name: "App customization areas", exact: true });
+    assert.deepEqual(await tabs.getByRole("tab").allTextContents(), ["Behavior", "Tools", "Runtime", "Policies"]);
+    assert.deepEqual(await tabs.getByRole("tab").evaluateAll((items) => items.map((item) => ({
+      selected: item.getAttribute("aria-selected"),
+      tabIndex: item.tabIndex,
+    }))), [
+      { selected: "true", tabIndex: 0 },
+      { selected: "false", tabIndex: -1 },
+      { selected: "false", tabIndex: -1 },
+      { selected: "false", tabIndex: -1 },
+    ]);
+    const areas = page.locator(".build-area[data-area-id]");
+    assert.deepEqual(await areas.evaluateAll((items) => items.map((item) => ({
+      id: item.dataset.areaId,
+      hidden: item.hidden,
+      role: item.getAttribute("role"),
+    }))), [
+      { id: "behavior", hidden: false, role: "tabpanel" },
+      { id: "tools", hidden: true, role: "tabpanel" },
+      { id: "runtime", hidden: true, role: "tabpanel" },
+      { id: "policies", hidden: true, role: "tabpanel" },
+    ]);
+    assert.match(await page.locator('.build-area[data-area-id="behavior"]').innerText(), /Agent behavior.*respond/si);
+    assert.equal(await page.locator(".build-area > summary").count(), 0);
+    assert.equal(await page.locator(".build-explorer,.build-explorer-reopen,[role=separator]").count(), 0);
+    const behaviorPreview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
+    await behaviorPreview.waitFor();
+    assert.equal(await page.locator(".build-source-preview").count(), 1,
+      "The active project's previews open by default");
+    assert.equal(await page.locator('.build-area[data-area-id="runtime"] .build-source-preview').count(), 0,
+      "Inactive areas remain lazy");
+    assert.equal(await page.locator("textarea,[contenteditable=true],.cm-editor").count(), 0);
+    assert.equal(await page.getByRole("textbox").count(), 0);
+    assert.equal(await page.getByRole("button", { name: /review changes|save reviewed changes|discard draft/i }).count(), 0);
+    assert.equal(await page.locator(".build-diff,.build-review-summary").count(), 0);
+    assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
+
+    const help = page.getByRole("button", { name: "About Build", exact: true });
+    const tooltip = page.getByRole("tooltip");
+    assert.equal(await help.getAttribute("aria-describedby"), "build-help-tooltip");
+    assert.equal(await tooltip.isHidden(), true);
+    await help.hover();
+    await tooltip.waitFor();
+    assert.match(await tooltip.innerText(), /recognized customization points.*saved source.*external editor/si);
+    await tooltip.hover();
+    assert.equal(await tooltip.isVisible(), true, "Pointer can move into the tooltip");
+    await page.mouse.move(900, 700);
+    await tooltip.waitFor({ state: "hidden" });
+    await help.focus();
+    await tooltip.waitFor();
+    await page.keyboard.press("Escape");
+    assert.equal(await tooltip.isHidden(), true);
+    await help.click();
+    assert.equal(await tooltip.isVisible(), true);
+    await page.mouse.move(900, 700);
+    assert.equal(await tooltip.isVisible(), true, "Click pins the tooltip");
+    await page.getByRole("button", { name: "Refresh source", exact: true }).focus();
+    await tooltip.waitFor({ state: "hidden" });
+    await page.setViewportSize({ width: 380, height: 800 });
+    await help.hover();
+    const [tooltipBounds, detailsBounds] = await Promise.all([
+      tooltip.boundingBox(), page.locator("#details").boundingBox(),
+    ]);
+    assert.ok(tooltipBounds.x >= detailsBounds.x
+      && tooltipBounds.x + tooltipBounds.width <= detailsBounds.x + detailsBounds.width + 1,
+    "The tooltip stays within compact Build bounds");
+    await page.setViewportSize({ width: 1000, height: 800 });
+
+    assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
+    await page.getByRole("button", { name: "Test with a document", exact: true }).click();
+    assert.equal(await page.locator("body").getAttribute("data-run-requested"), "true");
+
+    await tabs.getByRole("tab", { name: "Tools", exact: true }).click();
+    const toolsArea = page.locator('.build-area[data-area-id="tools"]');
+    assert.equal(await toolsArea.getByRole("heading", { name: "Document validation", exact: true }).count(), 1,
+      "A single tool project still shows its name");
+    assert.equal(await toolsArea.locator(".build-project-list").count(), 0);
+
+    await tabs.getByRole("tab", { name: "Runtime", exact: true }).click();
+    const runtimeArea = page.locator('.build-area[data-area-id="runtime"]');
+    assert.equal(await runtimeArea.getByRole("heading", { name: "Runtime", exact: true }).count(), 1);
+    assert.match(await runtimeArea.innerText(), /Model connections and ports live in Settings/);
+    const modelAction = runtimeArea.getByRole("button", { name: "Model connection", exact: true });
+    await modelAction.click();
+    assert.equal(await page.locator("body").getAttribute("data-model-requested"), "true");
+    assert.ok(await runtimeArea.getByText(/Local subprocess simulation/).count() > 0,
+      "Runtime remains informational");
+
+    const disclosure = runtimeArea.locator('.build-source-disclosure[data-preview-for="runtime"]');
+    assert.equal(await disclosure.evaluate((element) => element.open), true);
+    const preview = page.getByRole("region", { name: "Runtime & access source preview", exact: true });
+    await preview.waitFor();
+    const before = await preview.locator(".build-highlight").textContent();
+    await preview.focus();
+    await page.keyboard.insertText('{"agentRuntime":"changed"}');
+    assert.equal(await preview.locator(".build-highlight").textContent(), before);
+    assert.equal(requests.some(({ path }) => path === "/api/build-diff" || path === "/api/build-file"), false);
+    assert.equal(requests.some(({ method }) => method !== "GET"), false);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("Build provides explicit empty and discovery-error recovery with workspace access", {
+  skip: !chromium && "Install src/web dependencies to run browser coverage.",
+}, async () => {
+  let mode = "empty";
+  let reads = 0;
+  const openedWorkspaces = [];
+  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
+    <aside id="details" data-mode="build"></aside><script>
+    ${BUILD_SYNTAX_SCRIPT}
+    const panel = (${createBuildPanel.toString()})({
+      container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
+      editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
+      onRun() {}, onModel() {},
+      request: async (path, options) => {
+        const response = await fetch(path, options);
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        return body;
+      }
+    });
+    panel.show();
+    </script>`;
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end(html);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
-      let body;
-      if (path === "/api/build-workspace" && workspaceFails) {
-        await route.fulfill({ status: 503, json: { error: "Source discovery unavailable." } });
-        return;
+      if (path === "/api/build-workspace") {
+        reads++;
+        if (mode === "error") await route.fulfill({ status: 503, json: { error: "Source discovery unavailable." } });
+        else if (mode === "ready") await route.fulfill({ json: { artifacts: [{
+          id: "agent", customizationArea: "behavior", title: "Agent source", path: "src/agent/main.py",
+          projectPath: "src/agent", projectName: "Agent", available: true, content: "print('ready')\n",
+        }] } });
+        else await route.fulfill({ json: {
+          artifacts: [
+            { id: "missing", customizationArea: "behavior", title: "Missing source", path: "src/missing.py", available: false, detail: "File is missing." },
+            { id: "unknown", customizationArea: "advanced", title: "Advanced", path: "config/advanced.json", available: true, content: "{}" },
+          ],
+          diagnostics: [{ path: "unity.app.yaml", message: "Agent path was not found." }],
+          editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
+        } });
+      } else if (path === "/api/open-editor") {
+        openedWorkspaces.push(route.request().postDataJSON());
+        await route.fulfill({ json: { outcome: "opened-in-editor", editorLabel: "VS Code" } });
+      } else {
+        throw new Error(`Unexpected route ${path}`);
       }
-      if (path === "/api/build-workspace") body = { artifacts, supportsDocuments, diagnostics };
-      else if (path === "/api/build-file") {
-        const input = route.request().postDataJSON();
-        saved.push(input);
-        body = Object.assign(artifacts.find((item) => item.id === input.id), { content: input.content, sha: "saved" });
-      } else if (path === "/api/open-build-file") {
-        opened.push(route.request().postDataJSON());
-        if (codeFails) {
-          await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "VS Code is unavailable." }) });
-          return;
-        }
-        body = { outcome: "opened-in-vscode" };
-      } else throw new Error(`Unexpected route ${path}`);
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const instructions = page.locator('[data-artifact="instructions"]');
-    await instructions.getByRole("textbox").waitFor();
-    const structure = page.locator(".build-structure");
-    assert.equal(await structure.getByRole("heading", { name: "App structure" }).count(), 1);
-    assert.ok((await structure.boundingBox()).y < (await instructions.boundingBox()).y);
-    await structure.getByRole("button", { name: "Edit on App Map" }).click();
-    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
-    assert.equal(saved.length, 0);
-    assert.equal(opened.length, 0);
-    assert.equal(await page.getByRole("textbox").count(), 5);
-    for (const editor of await page.getByRole("textbox").all()) {
-      assert.equal(await editor.getAttribute("readonly"), null);
-      assert.ok((await editor.boundingBox()).height <= 120);
-    }
-    await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
-    await instructions.getByText(/Opened the worktree and file/).waitFor();
-    assert.deepEqual(opened[0], { root: "/app", id: "instructions" });
-    assert.equal(await instructions.locator(".code-edit svg").count(), 1);
-    await instructions.getByRole("textbox").fill("Summarize only approved results.");
-    assert.equal(saved.length, 0);
-    await instructions.getByRole("button", { name: "Review changes" }).click();
-    assert.equal(saved.length, 0);
-    await instructions.getByRole("button", { name: "Save reviewed changes" }).click();
-    await instructions.getByText(/Saved\. Restart/).waitFor();
-    assert.equal(saved[0].baseSha, "base");
-    assert.equal(saved[0].content, "Summarize only approved results.");
-    const policy = page.locator('[data-artifact="policy"]');
-    await policy.getByRole("textbox").fill('{"maxBytes":2048}');
-    await policy.getByRole("button", { name: "Review changes" }).click();
-    assert.equal(saved.length, 1);
-    await policy.getByRole("button", { name: "Save reviewed changes" }).click();
-    await policy.getByText(/Saved\. Restart/).waitFor();
-    assert.equal(saved[1].id, "policy");
-    codeFails = true;
-    await policy.getByRole("button", { name: "Edit in Code", exact: true }).click();
-    await policy.getByText("VS Code is unavailable.", { exact: true }).waitFor();
-    assert.equal(await policy.getByRole("button", { name: "Edit in Code", exact: true }).isEnabled(), true);
-    await page.getByRole("combobox", { name: "Agent runtime" }).selectOption("copilot-sdk-sandbox");
-    const runtime = page.locator('[data-artifact="runtime"]');
-    const config = JSON.parse(await runtime.getByRole("textbox").inputValue());
-    assert.equal(config.agentRuntime, "copilot-sdk-sandbox");
-    assert.equal(config.other, "preserve");
-    await instructions.getByRole("textbox").fill("Unsaved inline draft.");
-    codeFails = false;
-    await instructions.getByRole("button", { name: "Edit in Code", exact: true }).click();
-    await instructions.getByText(/inline draft has not been saved/).waitFor();
-    assert.equal(saved.length, 2);
-    Object.assign(artifacts[0], { content: "Changed in VS Code.", sha: "external-change" });
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await instructions.getByText(/saved file changed in Code/).waitFor();
-    assert.equal(await instructions.getByRole("textbox").inputValue(), "Unsaved inline draft.");
-    await instructions.getByRole("button", { name: "Review changes" }).click();
-    assert.equal(await instructions.getByRole("button", { name: "Save reviewed changes" }).count(), 0);
-    await instructions.getByRole("button", { name: "Discard draft & reload" }).click();
-    await page.waitForFunction(() => document.querySelector('[data-artifact="instructions"] textarea')?.value === "Changed in VS Code.");
-    assert.equal(await page.getByRole("button", { name: "Invoke agent", exact: true }).count(), 0);
-    await instructions.getByRole("button", { name: "Test with a document" }).click();
-    assert.equal(await page.locator("body").getAttribute("data-run-requested"), "true");
-    supportsDocuments = false;
-    artifacts.splice(0, artifacts.length, {
-      id: "source-agent", path: "src/agent/main.py", title: "Agent implementation & instructions",
-      description: "Inline instructions and tool registrations.", available: true, editable: true,
-      content: 'INSTRUCTIONS = "Find real inventory."\nagent = Agent(instructions=INSTRUCTIONS)',
-      sha: "dealer-base",
-    }, {
-      id: "source-skill", path: "src/skills/inventory/function_app.py", title: "Inventory tool",
-      description: "Registered inventory skill.", available: true, editable: true,
-      content: "def inventory(): return []", sha: "skill-base",
-    });
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    const dealer = page.locator('[data-artifact="source-agent"]');
-    await dealer.getByRole("textbox").waitFor();
-    assert.equal(await page.getByRole("button", { name: "Test with a document" }).count(), 0);
-    assert.equal(await page.getByRole("combobox", { name: "Agent runtime" }).count(), 0);
-    assert.equal(await page.locator(".build-warning").count(), 0);
-    assert.equal(await page.getByRole("textbox").count(), 1);
-    const skill = page.locator('[data-artifact="source-skill"]');
-    await skill.locator("summary").click();
-    await skill.getByRole("textbox").fill("def inventory(): return ['real inventory']");
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await skill.getByRole("textbox").waitFor();
-    assert.equal(await skill.getByRole("textbox").inputValue(), "def inventory(): return ['real inventory']");
-    assert.equal(await skill.getAttribute("open"), "");
-    assert.match(await dealer.getByRole("textbox").inputValue(), /INSTRUCTIONS/);
-    await dealer.getByRole("button", { name: "Edit in Code", exact: true }).click();
-    await dealer.getByText(/Opened the worktree and file/).waitFor();
-    assert.deepEqual(opened.at(-1), { root: "/app", id: "source-agent" });
-    await dealer.getByRole("textbox").fill('INSTRUCTIONS = "Never invent inventory."\nagent = Agent(instructions=INSTRUCTIONS)');
-    await dealer.getByRole("button", { name: "Review changes" }).click();
-    await dealer.getByRole("button", { name: "Save reviewed changes" }).click();
-    await dealer.getByText(/Saved\. Restart/).waitFor();
-    assert.equal(saved.at(-1).id, "source-agent");
-    assert.equal(saved.at(-1).baseSha, "dealer-base");
-    artifacts.splice(0);
-    diagnostics = [{ path: "unity.app.yaml", message: "Agent path was not found." }];
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.getByText(/No supported editable source was discovered/).waitFor();
-    assert.equal(await page.getByRole("textbox").count(), 0);
+    await page.getByText(/No supported customization points were found/).waitFor();
+    assert.match(await page.locator("#details").innerText(), /Files|general implementation/i);
+    assert.equal(await page.locator(".build-source-preview,textarea,[contenteditable=true]").count(), 0);
+    assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
+    assert.equal(await page.locator('[data-artifact="missing"],[data-artifact="unknown"]').count(), 0);
     assert.equal(await page.getByText("unity.app.yaml: Agent path was not found.", { exact: true }).count(), 1);
-    assert.equal(await page.getByText(/Not implemented in this app/).count(), 0);
-    assert.equal(await structure.getByRole("button", { name: "Edit on App Map" }).isEnabled(), true);
-    workspaceFails = true;
+    await page.getByRole("button", { name: "Open in VS Code", exact: true }).click();
+    assert.deepEqual(openedWorkspaces, [{ root: "/app" }]);
+
+    mode = "error";
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.getByText("Source discovery unavailable.", { exact: true }).waitFor();
-    await page.evaluate(() => delete document.body.dataset.structureRequested);
-    await structure.getByRole("button", { name: "Edit on App Map" }).click();
-    assert.equal(await page.locator("body").getAttribute("data-structure-requested"), "true");
+    await page.getByRole("alert").filter({ hasText: "Source discovery unavailable." }).waitFor();
+    const retry = page.getByRole("button", { name: "Refresh source", exact: true });
+    assert.equal(await retry.count(), 1);
+    mode = "ready";
+    await retry.click();
+    const row = page.locator('.build-file[data-artifact="agent"]');
+    await row.waitFor();
+    const preview = page.getByRole("region", { name: "Agent source source preview", exact: true });
+    await preview.waitFor();
+    assert.equal(await preview.locator(".build-highlight").textContent(), "print('ready')\n");
+    assert.ok(reads >= 3);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

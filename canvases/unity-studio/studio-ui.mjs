@@ -2,6 +2,7 @@ import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { renderStudioBrand, renderStudioWelcomeBrand } from "./studio-brand.mjs";
 import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScript } from "./studio-intro.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
+import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -76,7 +77,7 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false } = {}) {
+export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false, editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
     name: tier.name,
@@ -364,6 +365,24 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <script>
       const apiToken = ${JSON.stringify(apiToken)};
       const capabilities = ${JSON.stringify(capabilities)};
+      let editorSettings = ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")};
+      let editorPreferenceBusy = false, appBusy = false;
+      window.addEventListener("unity-editor-settings-change", (event) => {
+        editorSettings = event.detail.settings;
+        editorPreferenceBusy = event.detail.busy;
+        syncEditorControls();
+      });
+      function syncEditorControls() {
+        const picker = document.getElementById("preferred-editor");
+        if (picker) {
+          picker.value = editorSettings.editorId;
+          picker.disabled = editorPreferenceBusy || appBusy;
+          document.getElementById("next").disabled = editorPreferenceBusy || appBusy;
+        }
+        const label = document.getElementById("open-editor-label");
+        if (label) label.textContent = " Open the new worktree in " +
+          editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label;
+      }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
@@ -385,7 +404,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         tierIds: [],
         sourceBindings: {},
         azureBindings: {},
-        openInVsCode: true
+        openInEditor: true
       };
 
       function escape(value) {
@@ -416,9 +435,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function setBusy(busy, message = "") {
+        appBusy = busy;
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
           control.disabled = busy;
         });
+        syncEditorControls();
         status.textContent = message;
       }
 
@@ -901,8 +922,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '</p></section><section><h3>Capabilities</h3><div class="review-list">' +
           draft.tierIds.map(capabilityReview).join("") + '</div></section><section><h3>Workspace</h3>' +
           '<p>New isolated Git worktree. Selected sources are copied or hydrated; source locations are never modified.</p>' +
-          '<label><input id="open-vscode" type="checkbox"' + (draft.openInVsCode ? " checked" : "") +
-          '> Open the new worktree in VS Code</label></section></div>' +
+          '<label for="preferred-editor">Code editor</label><select id="preferred-editor">' +
+          editorSettings.editors.map((editor) => '<option value="' + escape(editor.id) + '"' +
+            (editor.id === editorSettings.editorId ? " selected" : "") + '>' + escape(editor.label) + '</option>').join("") +
+          '</select><p><small>Remembered across Unity Studio. The editor must already be installed.</small></p>' +
+          '<label><input id="open-editor" type="checkbox"' + (draft.openInEditor ? " checked" : "") +
+          '><span id="open-editor-label"> Open the new worktree in ' +
+          escape(editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label) + '</span></label></section></div>' +
           '<div class="notice">No Azure resources will be created or changed.</div>' +
           actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
             (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") });
@@ -913,6 +939,29 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
         wireTopBack(draft.journey === "assemble" ? renderAzure :
           (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities));
+        document.getElementById("open-editor").addEventListener("change", (event) => {
+          draft.openInEditor = event.target.checked;
+        });
+        document.getElementById("preferred-editor").addEventListener("change", async (event) => {
+          const previous = editorSettings;
+          const editorId = event.target.value;
+          setBusy(true, "Saving code editor preference...");
+          try {
+            const result = await window.unityStudioEditorPreference.save(editorId);
+            if (!result.ok) throw new Error(result.error);
+            editorSettings = result.settings;
+            document.getElementById("open-editor-label").textContent = " Open the new worktree in " +
+              editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label;
+            clearStatus("Code editor preference saved.");
+          } catch (cause) {
+            editorSettings = previous;
+            event.target.value = previous.editorId;
+            error(cause.message);
+          } finally {
+            setBusy(false, status.textContent);
+          }
+        });
+        syncEditorControls();
       }
 
       function appMapVisual(appMap) {
@@ -1002,13 +1051,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           renderExistingApps();
          });
         document.querySelectorAll("[data-open-source]").forEach((button) => button.addEventListener("click", async () => {
-          setBusy(true, "Opening component source in VS Code…");
+          setBusy(true, "Opening component source in your code editor…");
           try {
-            await request("/api/open-source", {
+            const opened = await request("/api/open-source", {
               method: "POST",
               body: JSON.stringify({ root: result.worktreePath, projectPath: button.dataset.openSource })
             });
-            clearStatus("Source opened in VS Code.");
+            clearStatus("Source opened in " + opened.editorLabel + ".");
           } catch (cause) {
             error(cause.message);
           } finally {
@@ -1288,7 +1337,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function submit() {
-        draft.openInVsCode = document.getElementById("open-vscode").checked;
+        if (editorPreferenceBusy) {
+          error("Wait for the preferred editor to finish loading or saving.");
+          return;
+        }
+        draft.openInEditor = document.getElementById("open-editor").checked;
         const sourceBindings = draft.journey === "assemble"
           ? draft.tierIds.map((tierId) => ({
               tierId,
@@ -1309,7 +1362,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               templateRootId: draft.templateRootId || undefined,
               templateInputs: draft.templateInputs,
               sourceBindings,
-              openInVsCode: draft.openInVsCode
+              openInEditor: draft.openInEditor,
+              editorId: editorSettings.editorId
             })
           });
           if (result.worktreePath) {
@@ -1327,7 +1381,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       renderLanding();
       ${intro ? renderStudioIntroClientScript() : ""}
-      ${renderThemeClientScript(apiToken)}
+      ${renderThemeClientScript(apiToken, editorSettings)}
     </script>
   </body>
 </html>`;

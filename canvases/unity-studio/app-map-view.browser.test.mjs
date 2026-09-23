@@ -60,6 +60,16 @@ test("one App Map reveals other resources without changing request paths or Guid
         "/api/local-readiness": { ready: false, guidance: "Fixture requires setup." },
         "/api/gateway-options": { subscriptions: [], gateways: [], models: [] },
         "/api/app-output": { lines: [], commands: [] },
+        "/api/app-logs": {
+          root: graph.root,
+          scope: { serviceId: null, label: "All services", groupedByService: true, description: "No fixture logs." },
+          catalog: [], services: [],
+          clipping: {
+            clipped: false, services: { included: 0, total: 0, limit: 24 },
+            catalog: { included: 0, total: 0, limit: 80 },
+            lines: { included: 0, limit: 1200 }, bytes: { included: 0, limit: 262144 }, notices: [],
+          },
+        },
       };
       assert.ok(path in responses, `Unexpected request ${path}`);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path]) });
@@ -67,6 +77,68 @@ test("one App Map reveals other resources without changing request paths or Guid
     const url = `http://127.0.0.1:${server.address().port}/app-map`;
     await page.goto(url);
     await page.locator("#map-app").click();
+    const observeTabs = page.getByRole("tablist", { name: "Observe views", exact: true });
+    assert.equal(await observeTabs.locator('.studio-tab-icon[aria-hidden="true"]').count(), 2);
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
+      for (const width of [380, 620, 1440]) {
+        await page.setViewportSize({ width, height: 620 });
+        const { bounds, shell } = await observeTabs.evaluate((element) => ({
+          bounds: element.getBoundingClientRect().toJSON(),
+          shell: document.querySelector("#workspace-shell").getBoundingClientRect().toJSON(),
+        }));
+        assert.ok(bounds.x >= shell.x && bounds.x + bounds.width <= shell.x + shell.width,
+          JSON.stringify({ width, bounds, shell }));
+        assert.ok(bounds.width > shell.width - 32);
+        assert.equal(await observeTabs.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true);
+        assert.equal(await observeTabs.getByRole("tab").evaluateAll((tabs) =>
+          tabs.every((tab) => tab.getBoundingClientRect().height >= 48)), true);
+        await page.mouse.move(0, 0);
+        const treatment = await observeTabs.evaluate((el) => {
+          const selected = getComputedStyle(el.querySelector('[aria-selected="true"]'));
+          const other = getComputedStyle(el.querySelector('[aria-selected="false"]'));
+          return {
+            border: selected.borderBottomWidth,
+            selectedFill: selected.backgroundColor,
+            otherFill: other.backgroundColor,
+            otherBorder: other.borderTopWidth,
+            radius: other.borderTopLeftRadius,
+            bottomRadius: other.borderBottomLeftRadius,
+            cursor: other.cursor,
+            labelWeight: Number(getComputedStyle(el.querySelector(".studio-tab-label")).fontWeight),
+          };
+        });
+        assert.equal(treatment.border, "3px");
+        assert.equal(treatment.otherBorder, "0px");
+        assert.equal(treatment.radius, "6px");
+        assert.equal(treatment.bottomRadius, "0px");
+        assert.equal(treatment.cursor, "pointer");
+        assert.equal(treatment.otherFill, "rgba(0, 0, 0, 0)");
+        assert.notEqual(treatment.selectedFill, treatment.otherFill);
+        assert.ok(treatment.labelWeight >= 700, `${theme} ${width}px Observe tab label`);
+      }
+    }
+    await page.locator("#map-view").press("ArrowRight");
+    assert.equal(await page.locator("#logs-app").evaluate((el) => el === document.activeElement), true);
+    assert.equal(await page.locator("#map-view").getAttribute("aria-selected"), "true");
+    assert.equal(await page.locator("body").getAttribute("data-workspace"), "map");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => document.body.dataset.workspace === "logs");
+    assert.equal(await page.locator("#logs-app").getAttribute("aria-selected"), "true");
+    await page.locator("#logs-app").press("ArrowLeft");
+    assert.equal(await page.locator("#map-view").evaluate((el) => el === document.activeElement), true);
+    assert.equal(await page.locator("#logs-app").getAttribute("aria-selected"), "true");
+    assert.equal(await page.locator("body").getAttribute("data-workspace"), "logs");
+    await page.keyboard.press("Space");
+    await page.waitForFunction(() => document.body.dataset.workspace === "map");
+    assert.equal(await page.locator("#map-view").getAttribute("aria-selected"), "true");
+    await page.evaluate(() => { document.documentElement.dir = "rtl"; });
+    await page.locator("#map-view").press("ArrowLeft");
+    assert.equal(await page.locator("#logs-app").evaluate((el) => el === document.activeElement), true);
+    assert.equal(await page.locator("#map-view").getAttribute("aria-selected"), "true");
+    await page.locator("#map-view").focus();
+    await page.evaluate(() => { document.documentElement.dir = ""; });
+    await page.setViewportSize({ width: 640, height: 620 });
     const openTools = async () => {
       if (!await page.locator(".map-tools").evaluate((el) => el.open)) await page.locator(".map-tools > summary").click();
     };

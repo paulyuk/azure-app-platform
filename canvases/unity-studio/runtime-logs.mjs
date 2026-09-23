@@ -656,21 +656,32 @@ export async function readAppLogs(root, {
   nodes = [],
   runtimeProfile = null,
   serviceId = null,
+  serviceIds = null,
 } = {}) {
-  if (serviceId != null && (typeof serviceId !== "string" || !serviceId || serviceId.length > 512)) {
+  if (serviceIds != null && (!Array.isArray(serviceIds) || serviceId != null)) {
+    throw invalid("Choose serviceId or a list of serviceIds for application logs.");
+  }
+  const requestedIds = serviceIds ?? (serviceId == null ? [] : [serviceId]);
+  if (requestedIds.length > APP_LOG_MAX_SERVICES) {
+    throw invalid(`Choose at most ${APP_LOG_MAX_SERVICES} application log services.`);
+  }
+  if (new Set(requestedIds).size !== requestedIds.length
+    || requestedIds.some((id) => typeof id !== "string" || !id || id.length > 512)) {
     throw invalid("Invalid application log service identifier.");
   }
   const { registry, services } = await discoverAppLogServices(root, nodes, runtimeProfile);
-  const selected = serviceId == null ? null : services.find((service) => service.id === serviceId);
-  if (serviceId != null && !selected) {
+  const selected = requestedIds.map((id) => services.find((service) => service.id === id));
+  if (selected.some((service) => !service)) {
     throw invalid("The selected application log service is unknown.", 404);
   }
 
   let catalogServices = services.slice(0, APP_LOG_MAX_CATALOG_SERVICES);
-  if (selected && !catalogServices.includes(selected)) {
-    catalogServices = [...catalogServices.slice(0, APP_LOG_MAX_CATALOG_SERVICES - 1), selected];
+  const missingSelected = selected.filter((service) => !catalogServices.includes(service));
+  if (missingSelected.length) {
+    catalogServices = [...catalogServices.filter((service) => !selected.includes(service))
+      .slice(0, APP_LOG_MAX_CATALOG_SERVICES - selected.length), ...selected];
   }
-  const candidates = selected ? [selected] : catalogServices.slice(0, APP_LOG_MAX_SERVICES);
+  const candidates = selected.length ? selected : catalogServices.slice(0, APP_LOG_MAX_SERVICES);
   const budget = { lines: 0, bytes: 0 };
   const results = [];
   let outputClipped = false;
@@ -692,7 +703,7 @@ export async function readAppLogs(root, {
       outputClipped ||= clipped.clipped;
       results.push(clipped.service);
     } catch (error) {
-      if (selected) throw error;
+      if (selected.length === 1) throw error;
       results.push({
         ...publicService(service),
         availability: "error",
@@ -702,11 +713,12 @@ export async function readAppLogs(root, {
     }
   }
 
-  const serviceClipped = selected == null && services.length > results.length;
+  const scopedCount = selected.length || services.length;
+  const serviceClipped = scopedCount > results.length;
   const catalogClipped = services.length > catalogServices.length;
   const notices = [
     serviceClipped
-      ? `Showing ${results.length} of ${services.length} discovered services.`
+      ? `Showing ${results.length} of ${scopedCount} ${selected.length ? "selected" : "discovered"} services.`
       : "",
     catalogClipped
       ? `The service filter lists ${catalogServices.length} of ${services.length} discovered services.`
@@ -718,8 +730,9 @@ export async function readAppLogs(root, {
   return {
     root,
     scope: {
-      serviceId: selected?.id ?? null,
-      label: selected?.label ?? "All services",
+      serviceId: selected.length === 1 ? selected[0].id : null,
+      serviceIds: requestedIds,
+      label: selected.length === 1 ? selected[0].label : selected.length ? `${selected.length} services` : "All services",
       groupedByService: true,
       description: "Logs are grouped by service and retain source order within each stream. No cross-service chronology is inferred.",
     },
@@ -727,7 +740,7 @@ export async function readAppLogs(root, {
     services: results,
     clipping: {
       clipped: serviceClipped || catalogClipped || outputClipped,
-      services: { included: results.length, total: services.length, limit: APP_LOG_MAX_SERVICES },
+      services: { included: results.length, total: scopedCount, limit: APP_LOG_MAX_SERVICES },
       catalog: { included: catalogServices.length, total: services.length, limit: APP_LOG_MAX_CATALOG_SERVICES },
       lines: { included: budget.lines, limit: APP_LOG_MAX_LINES },
       bytes: { included: budget.bytes, limit: APP_LOG_MAX_BYTES },

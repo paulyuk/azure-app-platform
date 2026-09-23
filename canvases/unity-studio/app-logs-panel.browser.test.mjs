@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
+import { renderThemeStyles } from "./studio-theme.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -13,10 +14,10 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const html = `<!doctype html>
-    <html><head><meta name="color-scheme" content="light dark"><style>
-      :root { --text:#17212b; --text-muted:#59636e; --border:#ccd3da; --surface:#fff; --surface-muted:#f4f6f8; --danger:#b42318; --font-mono:ui-monospace,monospace; }
-      @media (prefers-color-scheme:dark) { :root { --text:#ecf1f5; --text-muted:#aeb8c2; --border:#46515c; --surface:#1f252b; --surface-muted:#151a1f; } }
-      body { margin:16px; background:var(--surface); } ${APP_LOGS_CSS}
+    <html data-studio-theme="light"><head><meta name="color-scheme" content="light dark"><style>
+      ${renderThemeStyles()}
+      body { margin:16px; height:calc(100vh - 32px); background:var(--surface); }
+      #host { height:100%; } ${APP_LOGS_CSS}
     </style></head><body><main id="host"></main><script>
       const createAppLogsPanel = ${createAppLogsPanel.toString()};
       window.logsActive = false;
@@ -28,9 +29,9 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
           parent: host,
           nodeId,
           isActive: () => window.logsActive,
-          load: async ({ serviceId, signal }) => {
+          load: async ({ serviceId, serviceIds, signal }) => {
             const query = new URLSearchParams({ root: "/fixture-app" });
-            if (serviceId) query.set("serviceId", serviceId);
+            for (const id of serviceIds ?? (serviceId ? [serviceId] : [])) query.append("serviceId", id);
             const response = await fetch("/api/app-logs?" + query, {
               signal, headers: { "x-unity-studio-token": "fixture" },
             });
@@ -60,7 +61,8 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
   const service = (id, availability, reason, streams) => ({
     ...descriptor(id), availability, reason, streams,
   });
-  const responseFor = (serviceId, generation) => {
+  const responseFor = (serviceIds, generation) => {
+    const serviceId = serviceIds.length === 1 ? serviceIds[0] : null;
     const longLine = `long:${"x".repeat(5000)}`;
     const services = [
       service("agent-service", "available", "", [
@@ -74,12 +76,13 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
         makeStream("stdout", "Inventory skill stdout", [], "Log capture has not created this stream yet."),
       ]),
     ];
-    const selected = serviceId ? services.filter((item) => item.id === serviceId) : services;
+    const selected = serviceIds.length ? services.filter((item) => serviceIds.includes(item.id)) : services;
     return {
       root: "/fixture-app",
       scope: {
         serviceId,
-        label: serviceId ? descriptor(serviceId)?.label : "All services",
+        serviceIds,
+        label: serviceId ? descriptor(serviceId)?.label : serviceIds.length ? `${serviceIds.length} services` : "All services",
         groupedByService: true,
         description: "Logs are grouped by service and retain source order within each stream. No cross-service chronology is inferred.",
       },
@@ -99,6 +102,8 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
   let browser;
   let generation = 1;
   let fail = false;
+  let perServiceError = false;
+  let extraLines = [];
   let hold = false;
   let releaseHeld;
   let notifyHeld;
@@ -115,8 +120,8 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
       assert.equal(request.headers()["x-unity-studio-token"], "fixture");
       const url = new URL(request.url());
       assert.equal(url.searchParams.get("root"), "/fixture-app");
-      const serviceId = url.searchParams.get("serviceId");
-      requests.push(serviceId);
+      const serviceIds = url.searchParams.getAll("serviceId");
+      requests.push(serviceIds.length > 1 ? serviceIds : serviceIds[0] ?? null);
       if (hold) {
         notifyHeld?.();
         await new Promise((resolve) => { releaseHeld = resolve; });
@@ -125,20 +130,35 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
         await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"Fixture log read failed."}' });
         return;
       }
+      const body = responseFor(serviceIds, generation);
+      if (perServiceError) {
+        const skill = body.services.find((service) => service.id === "skill-service");
+        if (skill) Object.assign(skill, { availability: "error", reason: "Cannot read this service log.", streams: [] });
+      }
+      body.services.find((service) => service.id === "agent-service")?.streams[0].lines.push(...extraLines);
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify(responseFor(serviceId, generation)),
+        body: JSON.stringify(body),
       });
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/logs`);
     await page.clock.install();
+    const picker = page.locator(".app-logs-services");
+    const selectServices = async (...names) => {
+      if (!await picker.evaluate((el) => el.open)) await picker.locator("summary").click();
+      await picker.getByRole("button", { name: "All services", exact: true }).click();
+      if (!names.length) return;
+      await picker.locator("summary").click();
+      for (const name of names) await picker.getByRole("checkbox", { name, exact: true }).check();
+      await picker.locator("summary").press("Escape");
+    };
     assert.deepEqual(requests, []);
     assert.equal(await page.getByRole("heading", { name: "Logs", exact: true }).count(), 1);
     await page.evaluate(() => { window.logsActive = true; });
     await page.clock.runFor(300);
     await page.getByLabel("Deal agent Deal agent stdout").filter({ hasText: "Agent output 1" }).waitFor();
     assert.deepEqual(requests.slice(0, 2), [null, "agent-service"]);
-    assert.equal(await page.getByLabel("Service").inputValue(), "agent-service");
+    assert.equal(await picker.locator("summary").textContent(), "Deal agent");
     assert.equal(await page.evaluate(() => window.logExecuted), undefined);
 
     await page.getByLabel("Stream").selectOption("stderr");
@@ -146,7 +166,7 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
     await page.getByLabel("Search logs").fill("warning");
     await page.getByText("1 displayed line", { exact: false }).waitFor();
     await page.getByLabel("Search logs").fill("no-match");
-    assert.equal(await page.getByText("No lines in this stream match the search.", { exact: true }).count(), 1);
+    assert.equal(await page.getByText("No log lines match the current filters.", { exact: true }).count(), 1);
     await page.getByLabel("Search logs").fill("");
     await page.getByLabel("Stream").selectOption("");
 
@@ -159,11 +179,95 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
     await page.locator(".app-logs-output").filter({ hasText: "Agent output 2" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Resume", exact: true }).count(), 1);
 
-    await page.getByLabel("Service").selectOption("");
+    await selectServices();
     await page.getByText("Storage ready 2", { exact: true }).waitFor();
-    await page.getByText("Log capture has not created this stream yet.", { exact: true }).first().waitFor();
+    const capture = page.locator(".app-logs-capture");
+    assert.equal(await capture.evaluate((el) => el.open), false);
+    assert.match(await capture.locator("summary").textContent(), /1 without output/);
+    await capture.locator("summary").click();
+    await page.getByText("Inventory skill: Log capture has not created this stream yet.", { exact: true }).waitFor();
     assert.equal(await page.getByText("Showing 3 of 4 discovered services.", { exact: true }).count(), 1);
-    assert.match(await page.locator(".app-logs-explanation").textContent(), /not a global chronological trace/);
+    assert.match(await page.locator(".app-logs-explanation").textContent(), /Not a timeline/);
+    assert.match(await page.locator(".app-logs-explanation").getAttribute("title"), /untimestamped output/);
+    const viewer = page.getByRole("region", { name: "Application logs", exact: true });
+    assert.equal(await viewer.count(), 1);
+    assert.equal(await viewer.getAttribute("aria-live"), "off");
+    assert.equal(await page.locator(".app-logs-service,.app-logs-stream").count(), 0);
+    assert.deepEqual(await viewer.locator(".app-logs-entry").evaluateAll((rows) =>
+      rows.map((row) => [row.dataset.serviceId, row.dataset.stream])), [
+      ["agent-service", "stdout"], ["agent-service", "stdout"], ["agent-service", "stdout"],
+      ["agent-service", "stderr"], ["helper-service", "combined"],
+    ]);
+    assert.equal(await viewer.locator('.app-logs-source[tabindex="0"]').count(), 2,
+      "Only one keyboard stop per service, not one per line");
+    await capture.locator("summary").click();
+
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((theme) => { document.documentElement.dataset.studioTheme = theme; }, theme);
+      for (const width of [380, 620, 1120]) {
+        await page.setViewportSize({ width, height: 720 });
+        const geometry = await viewer.evaluate((el) => {
+          const bounds = el.getBoundingClientRect();
+          const row = el.querySelector(".app-logs-entry").getBoundingClientRect();
+          const origin = el.querySelector(".app-logs-origin").getBoundingClientRect();
+          const output = el.querySelector(".app-logs-output").getBoundingClientRect();
+          return {
+            height: bounds.height, bottom: bounds.bottom, viewportHeight: innerHeight,
+            scrolls: el.scrollHeight > el.clientHeight,
+            pageFits: document.documentElement.scrollWidth <= innerWidth,
+            fits: [...el.querySelectorAll(".app-logs-entry,.app-logs-output")].every((node) => node.scrollWidth <= node.clientWidth + 1),
+            innerScrollers: [...el.querySelectorAll("*")].filter((node) => /auto|scroll/.test(getComputedStyle(node).overflowY)).length,
+            origin: origin.toJSON(), output: output.toJSON(), row: row.toJSON(),
+          };
+        });
+        assert.ok(geometry.height >= 160 && geometry.bottom < geometry.viewportHeight);
+        assert.equal(geometry.scrolls, true);
+        assert.equal(geometry.pageFits && geometry.fits, true);
+        assert.equal(geometry.innerScrollers, 0, "All sources share one scroll surface");
+        assert.ok(geometry.output.top >= geometry.row.top - 1);
+        assert.equal(await viewer.locator(".app-logs-entry").first().evaluate((el) => getComputedStyle(el).display), "block");
+        assert.equal(await viewer.locator(".app-logs-entry").first().evaluate((el) => getComputedStyle(el).borderBottomWidth), "0px");
+      }
+    }
+    await viewer.evaluate((el) => {
+      el.scrollTop = 80;
+      window.retainedLogLine = el.querySelector(".app-logs-output");
+      window.retainedLogLine.dataset.retained = "yes";
+    });
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector(".app-logs").hasAttribute("aria-busy"));
+    assert.equal(await viewer.evaluate((el) => el.scrollTop), 80);
+    assert.equal(await viewer.locator(".app-logs-output").first().getAttribute("data-retained"), "yes",
+      "Unchanged polls retain source DOM and selection");
+    await viewer.getByRole("button", { name: "Show only Azurite", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector(".app-logs-status").textContent.includes("Azurite"));
+    assert.equal(await picker.locator("summary").textContent(), "Azurite");
+    assert.equal(await viewer.locator(".app-logs-entry").count(), 1);
+    assert.equal(await picker.locator("summary").evaluate((el) => el === document.activeElement), true);
+    await selectServices("Deal agent", "Azurite");
+    await page.waitForFunction(() => !document.querySelector(".app-logs").hasAttribute("aria-busy"));
+    assert.equal(await picker.locator("summary").textContent(), "2 services");
+    assert.deepEqual(requests.at(-1), ["agent-service", "helper-service"]);
+    assert.deepEqual(await viewer.locator(".app-logs-entry").evaluateAll((rows) =>
+      [...new Set(rows.map((row) => row.dataset.serviceId))]), ["agent-service", "helper-service"]);
+    assert.equal(await viewer.count(), 1, "Multiple selected services share the same viewer");
+    assert.equal(await capture.locator("li").filter({ hasText: "Inventory skill" }).count(), 0);
+    await picker.locator("summary").press("Enter");
+    assert.equal(await picker.getByRole("checkbox", { name: "Deal agent", exact: true }).isChecked(), true);
+    await picker.getByRole("checkbox", { name: "Deal agent", exact: true }).uncheck();
+    await picker.locator("summary").press("Escape");
+    assert.equal(await picker.locator("summary").textContent(), "Azurite");
+    assert.equal(await picker.evaluate((el) => el.open), false);
+    await selectServices();
+    await page.getByText("Agent output 2", { exact: true }).waitFor();
+    await page.waitForFunction(() => !document.querySelector(".app-logs").hasAttribute("aria-busy"));
+    perServiceError = true;
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector(".app-logs-capture").dataset.attention === "true");
+    assert.equal(await capture.evaluate((el) => el.open), false);
+    assert.match(await capture.locator("summary").textContent(), /1 read error/);
+    assert.equal(await page.getByText("Storage ready 2", { exact: true }).count(), 1);
+    perServiceError = false;
 
     fail = true;
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -188,8 +292,11 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
     assert.equal(await page.locator(".app-logs").count(), 0);
     assert.deepEqual(pageErrors, []);
 
+    extraLines = ["2026-09-18T16:34:12Z Later entry", "No timestamp supplied", "2026-09-18T16:33:01Z Earlier clock"];
     await page.evaluate(() => window.mountLogs(null));
     await page.getByText("long:", { exact: false }).waitFor();
+    assert.deepEqual(await page.locator('.app-logs-entry[data-service-id="agent-service"][data-stream="stdout"] .app-logs-output')
+      .allTextContents().then((lines) => lines.slice(-3)), extraLines, "Raw source order is not replaced with a fabricated timeline");
     const fitsNarrowView = await page.locator(".app-logs-output").first().evaluate((element) =>
       element.scrollWidth <= element.clientWidth + 1);
     assert.equal(fitsNarrowView, true);

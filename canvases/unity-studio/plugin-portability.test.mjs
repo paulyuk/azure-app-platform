@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -11,7 +10,7 @@ const execute = promisify(execFile);
 const source = fileURLToPath(new URL("./", import.meta.url));
 
 test("installed payload opens and materializes templates without checkout dependencies", async () => {
-  const root = await mkdtemp(join(tmpdir(), "unity plugin portability "));
+  const root = await mkdtemp(join(source, "..", "..", ".plugin-portability-"));
   try {
     const payload = join(root, "installed plugin");
     const workspace = join(root, "unrelated workspace");
@@ -21,6 +20,7 @@ test("installed payload opens and materializes templates without checkout depend
         && !path.endsWith(".test.mjs"),
     });
     await mkdir(workspace);
+    await execute("git", ["init", "--quiet", workspace]);
     const manifest = JSON.parse(await readFile(join(payload, ".github/plugin/plugin.json"), "utf8"));
     assert.equal(manifest.extensions, ".");
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
@@ -33,7 +33,7 @@ test("installed payload opens and materializes templates without checkout depend
 
     const { stdout } = await execute(process.execPath, ["--input-type=module", "--eval", `
       import assert from "node:assert/strict";
-      import { access, readFile, realpath } from "node:fs/promises";
+      import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
       import { isBuiltin, registerHooks } from "node:module";
       import { join, sep } from "node:path";
       import { pathToFileURL } from "node:url";
@@ -48,7 +48,24 @@ test("installed payload opens and materializes templates without checkout depend
         }
         export async function joinSession({ canvases }) {
           globalThis.portabilityCanvases = canvases;
-          return { sessionId: "portability-test" };
+          globalThis.portabilityEditorCanvases = [{
+            canvasId: "editor", extensionId: "host:editor", displayName: "Files", description: "Repository files",
+          }];
+          globalThis.portabilityCanvasOpenCalls = [];
+          globalThis.portabilityCanvasOpenFailure = null;
+          return {
+            sessionId: "portability-test",
+            rpc: {
+              canvas: {
+                list: async () => ({ canvases: globalThis.portabilityEditorCanvases }),
+                open: async (request) => {
+                  globalThis.portabilityCanvasOpenCalls.push(request);
+                  if (globalThis.portabilityCanvasOpenFailure) throw new Error(globalThis.portabilityCanvasOpenFailure);
+                  return { ...request, title: request.input.title };
+                },
+              },
+            },
+          };
         }
       \`);
       registerHooks({
@@ -62,10 +79,18 @@ test("installed payload opens and materializes templates without checkout depend
         },
       });
       await import(base + "extension.mjs");
+      const { createSyntaxHighlighter } = await import(base + "vendor/prism.mjs");
+      const { createBuildSyntax } = await import(base + "build-syntax.mjs");
+      const syntax = createBuildSyntax(createSyntaxHighlighter());
+      assert.match(syntax.highlight("def main(): return 42", "main.py"), /token keyword/);
+      assert.match(await readFile(join(payload, "vendor/prism-LICENSE.txt"), "utf8"), /MIT LICENSE/);
       assert.equal(globalThis.portabilityCanvases.length, 1);
       const [canvas] = globalThis.portabilityCanvases;
       assert.equal(canvas.id, "unity-studio");
-      const context = { instanceId: "portable-smoke", input: {} };
+      const context = {
+        instanceId: "portable-smoke", input: {},
+        session: { workingDirectory: process.cwd() + sep + "." },
+      };
       try {
         const opened = await canvas.open(context);
         assert.equal(new URL(opened.url).hostname, "127.0.0.1");
@@ -112,6 +137,160 @@ test("installed payload opens and materializes templates without checkout depend
         const home = await fetch(new URL("/", opened.url));
         assert.doesNotMatch(await home.text(), /id="skip-studio-intro"/);
         assert.doesNotMatch(html, /<(?:script|link|img)\\b[^>]+(?:src|href)=["'](?:https?:)?\\/\\//i);
+        const token = JSON.parse(/const apiToken = (".*?");/.exec(html)[1]);
+        const api = (path, input) => fetch(new URL(path, opened.url), {
+          method: input ? "POST" : "GET",
+          headers: { "x-unity-studio-token": token, "Content-Type": "application/json" },
+          ...(input ? { body: JSON.stringify(input) } : {}),
+        });
+        assert.ok(canvas.actions.some((action) => action.name === "open_in_editor"));
+        const initial = await api("/api/editor-settings");
+        assert.equal(initial.status, 200);
+        assert.equal((await initial.json()).editorId, "vscode");
+        const saved = await api("/api/editor-settings", { editorId: "cursor" });
+        assert.equal(saved.status, 200);
+        assert.equal((await saved.json()).editorId, "cursor");
+        const invalid = await api("/api/editor-settings", { editorId: "cursor", command: "custom" });
+        assert.equal(invalid.status, 400);
+        await invalid.arrayBuffer();
+        const unauthenticated = await fetch(new URL("/api/editor-settings", opened.url), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ editorId: "zed" }),
+        });
+        assert.equal(unauthenticated.ok, false);
+        await unauthenticated.arrayBuffer();
+        const { readEditorSettings } = await import(base + "editor-settings.mjs");
+        assert.equal((await readEditorSettings()).editorId, "cursor");
+        await mkdir("src/agent/prompts", { recursive: true });
+        await mkdir("src/tools/document-validation", { recursive: true });
+        await writeFile("src/agent/agent.yaml", "kind: hosted\\n");
+        await writeFile("src/agent/prompts/system.md", "Use the tool.\\n\\n");
+        const build = await api("/api/build-workspace?root=.");
+        const state = await build.json();
+        assert.equal(build.status, 200, JSON.stringify(state));
+        const canonicalContext = {
+          ...context, session: { workingDirectory: await realpath(process.cwd()) },
+        };
+        assert.equal((await canvas.open(canonicalContext)).url, opened.url);
+        const outside = await api("/api/build-workspace?root=..");
+        assert.equal(outside.ok, false);
+        assert.match((await outside.json()).error, /must stay within the current workspace/);
+        const unregistered = await api("/api/build-workspace?root=src");
+        assert.equal(unregistered.ok, false);
+        assert.match((await unregistered.json()).error, /not an authorized app workspace/);
+        assert.equal(state.editorSettings.editorId, "cursor");
+        const artifact = state.artifacts.find((item) => item.id === "instructions");
+        assert.equal(artifact.customizationArea, "behavior");
+        assert.equal("editable" in artifact, false);
+        const native = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
+        const nativeResult = await native.json();
+        assert.equal(native.status, 200, JSON.stringify(nativeResult));
+        assert.equal(nativeResult.path, "src/agent/prompts/system.md");
+        assert.equal(globalThis.portabilityCanvasOpenCalls.length, 1);
+        assert.deepEqual(globalThis.portabilityCanvasOpenCalls[0], {
+          extensionId: "host:editor",
+          canvasId: "editor",
+          instanceId: globalThis.portabilityCanvasOpenCalls[0].instanceId,
+          input: { scope: "repo", path: "src/agent/prompts/system.md", title: "system.md" },
+        });
+        assert.match(globalThis.portabilityCanvasOpenCalls[0].instanceId, /^unity-build-file-[a-f0-9]{24}$/);
+        const again = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
+        assert.equal(again.status, 200);
+        await again.arrayBuffer();
+        assert.equal(globalThis.portabilityCanvasOpenCalls[1].instanceId, globalThis.portabilityCanvasOpenCalls[0].instanceId);
+        const reviewedSource = await api("/api/open-source-canvas", { root: ".", projectPath: "src/agent" });
+        const reviewedResult = await reviewedSource.json();
+        assert.equal(reviewedSource.status, 200, JSON.stringify(reviewedResult));
+        assert.equal(reviewedResult.path, "src/agent/prompts/system.md");
+        assert.equal(globalThis.portabilityCanvasOpenCalls.at(-1).instanceId, globalThis.portabilityCanvasOpenCalls[0].instanceId);
+        const unsafeSource = await api("/api/open-source-canvas", { root: ".", projectPath: "../outside" });
+        assert.equal(unsafeSource.status, 400);
+        assert.match((await unsafeSource.json()).error, /app-relative source project/);
+        const unknownSource = await api("/api/open-source-canvas", { root: ".", projectPath: "private" });
+        assert.equal(unknownSource.status, 400);
+        assert.match((await unknownSource.json()).error, /source project discovered/);
+        const unauthorizedSource = await fetch(new URL("/api/open-source-canvas", opened.url), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root: ".", projectPath: "src/agent" }),
+        });
+        assert.equal(unauthorizedSource.ok, false);
+        await unauthorizedSource.arrayBuffer();
+        const outsideOpen = await api("/api/open-build-file-canvas", { root: "..", id: artifact.id });
+        assert.equal(outsideOpen.ok, false);
+        assert.match((await outsideOpen.json()).error, /must stay within the current workspace/);
+        const arbitrary = await api("/api/open-build-file-canvas", { root: ".", id: "../outside" });
+        assert.equal(arbitrary.status, 400);
+        assert.match((await arbitrary.json()).error, /known Build artifact/);
+        globalThis.portabilityEditorCanvases = [];
+        const missingCanvas = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
+        assert.equal(missingCanvas.status, 503);
+        assert.match((await missingCanvas.json()).error, /not registered.*external editor/i);
+        globalThis.portabilityEditorCanvases = [{
+          canvasId: "editor", extensionId: "host:editor", displayName: "Files", description: "Repository files",
+        }];
+        globalThis.portabilityCanvasOpenFailure = "host rejected the file";
+        const rejectedCanvas = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
+        assert.equal(rejectedCanvas.status, 502);
+        assert.match((await rejectedCanvas.json()).error, /host rejected the file.*external editor/i);
+        globalThis.portabilityCanvasOpenFailure = null;
+
+        await mkdir("apps/nested/src/agent/prompts", { recursive: true });
+        await mkdir("apps/nested/src/tools/document-validation", { recursive: true });
+        await writeFile("apps/nested/src/agent/agent.yaml", "kind: hosted\\n");
+        await writeFile("apps/nested/src/agent/prompts/system.md", "Nested instructions.\\n");
+        const nestedRoot = join(process.cwd(), "apps/nested");
+        const registered = await api("/api/sources", { path: nestedRoot });
+        assert.equal(registered.status, 200, await registered.text());
+        const nestedBuild = await api("/api/build-workspace?root=apps%2Fnested");
+        const nestedState = await nestedBuild.json();
+        assert.equal(nestedBuild.status, 200, JSON.stringify(nestedState));
+        const nestedArtifact = nestedState.artifacts.find((item) => item.id === "instructions");
+        const nestedOpen = await api("/api/open-build-file-canvas", {
+          root: "apps/nested/../nested", id: nestedArtifact.id,
+        });
+        const nestedResult = await nestedOpen.json();
+        assert.equal(nestedOpen.status, 200, JSON.stringify(nestedResult));
+        assert.equal(nestedResult.path, "apps/nested/src/agent/prompts/system.md");
+        assert.equal(globalThis.portabilityCanvasOpenCalls.at(-1).input.path, nestedResult.path);
+        const nestedReview = await api("/api/open-source-canvas", { root: "apps/nested", projectPath: "src/agent" });
+        const nestedReviewResult = await nestedReview.json();
+        assert.equal(nestedReview.status, 200, JSON.stringify(nestedReviewResult));
+        assert.equal(nestedReviewResult.path, nestedResult.path);
+
+        const outsideRoot = join(process.cwd(), "..", "outside app");
+        await mkdir(join(outsideRoot, "src/agent/prompts"), { recursive: true });
+        await mkdir(join(outsideRoot, "src/tools/document-validation"), { recursive: true });
+        await writeFile(join(outsideRoot, "src/agent/prompts/system.md"), "Outside instructions.\\n");
+        const outsideRegistered = await api("/api/sources", { path: outsideRoot });
+        assert.equal(outsideRegistered.status, 200, await outsideRegistered.text());
+        const outsideBuild = await api("/api/build-workspace?root=" + encodeURIComponent(outsideRoot));
+        const outsideState = await outsideBuild.json();
+        assert.equal(outsideBuild.status, 200, JSON.stringify(outsideState));
+        const externalOnly = await api("/api/open-build-file-canvas", {
+          root: outsideRoot, id: outsideState.artifacts.find((item) => item.id === "instructions").id,
+        });
+        assert.equal(externalOnly.status, 400);
+        assert.match((await externalOnly.json()).error, /outside the current session working tree.*external editor/i);
+
+        for (const endpoint of ["/api/build-diff", "/api/build-file"]) {
+          const discontinued = await api(endpoint, {
+            root: ".", id: artifact.id, baseSha: "discontinued", content: "MUST NOT WRITE\\n",
+          });
+          assert.equal(discontinued.status, 404);
+          await discontinued.arrayBuffer();
+        }
+        assert.equal(await readFile("src/agent/prompts/system.md", "utf8"), "Use the tool.\\n\\n");
+        const mapUrl = new URL("/app-map", opened.url);
+        mapUrl.searchParams.set("root", ".");
+        mapUrl.searchParams.set("token", token);
+        const map = await fetch(mapUrl);
+        const mapHtml = await map.text();
+        assert.equal(map.status, 200, mapHtml);
+        assert.match(mapHtml, /Change your app/);
+        assert.match(mapHtml, /aria-label="Preferred external editor"/);
+        assert.match(mapHtml, /build-help-tooltip/);
+        assert.doesNotMatch(mapHtml, /About these customization points/);
+        assert.doesNotMatch(mapHtml, /Resize key files/);
       } finally {
         await canvas.onClose(context);
       }
@@ -134,7 +313,7 @@ test("installed payload opens and materializes templates without checkout depend
       process.stdout.write("portable payload passed");
     `, payload], {
       cwd: workspace,
-      env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
+      env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "", COPILOT_HOME: join(root, "copilot-home") },
       timeout: 30_000,
     });
     assert.equal(stdout, "portable payload passed");
