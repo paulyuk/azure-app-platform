@@ -22,7 +22,9 @@
       "kind": "readme-rewrite",
       "sourceCommit": "d500e7465623830c8d5cac778870fbee5cf1f80f",
       "description": "Plain-English README rewrite from PR #18, retaining the later lifecycle-safety guidance.",
-      "paths": ["README.md"]
+      "paths": [
+        "README.md"
+      ]
     },
     {
       "kind": "studio-workflow-documentation",
@@ -138,7 +140,7 @@
     },
     {
       "path": "src/policy/enforcement.py",
-      "sha256": "3ec975d4107d130b8b6bb40f11c7865ba383f8a953e7546a754c771664931fd6"
+      "sha256": "0104b0ea9cab83417e2eccccae48d266c9e89454bef20b2a6258e0ecd1005c96"
     },
     {
       "path": "src/tools/document-validation/Dockerfile",
@@ -154,7 +156,7 @@
     },
     {
       "path": "src/tools/document-validation/main.py",
-      "sha256": "1e468e45ac09b5097d9a773524e9c7581359da22947c8eb5294f2cb7b12aae37"
+      "sha256": "6ef91001039a75659b4b887e046575c134aebf8382447c8c33142cf57fb53876"
     },
     {
       "path": "src/tools/document-validation/pyproject.toml",

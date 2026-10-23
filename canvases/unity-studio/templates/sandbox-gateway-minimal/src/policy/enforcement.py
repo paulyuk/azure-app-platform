@@ -32,6 +32,11 @@ OVERRIDE_PATTERN = re.compile(
     r"|<\s*/?\s*(?:system|developer)\s*>",
     re.IGNORECASE,
 )
+EGRESS_OVERRIDE_PATTERN = re.compile(
+    r"\b(?:exfiltrat\w*|curl|wget|fetch|webhook|POST|PUT)\b[^\n]{0,120}\bhttps?://(?!(?:api\.lender\.example\.com)\b)[A-Za-z0-9.-]+"
+    r"|\b(?:AZURE_AI_GATEWAY_API_KEY|AI_GATEWAY_API_KEY|AI_GATEWAY_BEARER_TOKEN|GITHUB_TOKEN|GH_TOKEN|COPILOT_GITHUB_TOKEN|AZURE_CLIENT_SECRET|OPENAI_API_KEY|IDENTITY_ENDPOINT|MSI_ENDPOINT)\b",
+    re.IGNORECASE,
+)
 REJECTION_MESSAGES = {
     "invalid-name": "Document name violates the filename policy.",
     "unsupported-format": "Only bounded UTF-8 text and Markdown are supported.",
@@ -39,6 +44,7 @@ REJECTION_MESSAGES = {
     "invalid-text-encoding": "Document must be valid UTF-8 text.",
     "binary-content": "Binary and unsupported control characters are forbidden.",
     "instruction-override": "Document contains a prohibited instruction-override pattern.",
+    "unauthorized-egress": "Blocked unauthorized outbound egress and sandbox credential probe (defaultDeny: true, documentToolEgressEnabled: false, allowedFqdns: api.lender.example.com; 0 credentials in tool environment).",
 }
 
 
@@ -81,5 +87,7 @@ def require_safe_output(content):
         raise ValueError("Output contains forbidden control characters.")
     if OVERRIDE_PATTERN.search(content):
         raise ValueError("Output contains a prohibited instruction-override pattern.")
+    if EGRESS_OVERRIDE_PATTERN.search(content):
+        raise ValueError("Output contains a prohibited egress or credential-probe pattern.")
     if sanitize_text(content)[0] != content:
         raise ValueError("Output contains unredacted sensitive patterns.")

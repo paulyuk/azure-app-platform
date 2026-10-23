@@ -19,7 +19,7 @@ from typing import Any
 
 TOOL_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOL_ROOT.parents[2] / "src" / "policy"))
-from enforcement import OVERRIDE_PATTERN, POLICY, REJECTION_MESSAGES, require_safe_output, sanitize_text
+from enforcement import EGRESS_OVERRIDE_PATTERN, OVERRIDE_PATTERN, POLICY, REJECTION_MESSAGES, require_safe_output, sanitize_text
 
 CONTRACT_PATH = TOOL_ROOT / "contract.json"
 FORBIDDEN_CREDENTIAL_ENV = {
@@ -130,6 +130,8 @@ def _validate_request(payload: Any) -> tuple[str, str]:
         )
     if OVERRIDE_PATTERN.search(content):
         raise DocumentRejection("instruction-override", REJECTION_MESSAGES["instruction-override"])
+    if EGRESS_OVERRIDE_PATTERN.search(content):
+        raise DocumentRejection("unauthorized-egress", REJECTION_MESSAGES["unauthorized-egress"])
     return extension, content.replace("\r\n", "\n").replace("\r", "\n")
 
 
