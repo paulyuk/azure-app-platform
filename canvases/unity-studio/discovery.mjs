@@ -140,8 +140,14 @@ export async function scanRepository(root, { maxDepth = 10, maxFiles = 20_000 } 
         break;
       }
       const absolutePath = join(directory, entry.name);
+      const relativeDirectory = toPosix(relative(resolvedRoot, absolutePath));
       if (entry.isDirectory()) {
-        if (!EXCLUDED_DIRECTORIES.has(entry.name) && resolve(absolutePath) !== SELF_DIRECTORY) {
+        if (
+          !EXCLUDED_DIRECTORIES.has(entry.name)
+          && resolve(absolutePath) !== SELF_DIRECTORY
+          && relativeDirectory !== "canvases/unity-studio"
+          && relativeDirectory !== ".github/extensions/unity-studio"
+        ) {
           await walk(absolutePath, depth + 1);
         }
       } else if (entry.isFile() && shouldReadFile(entry)) {
