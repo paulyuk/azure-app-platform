@@ -111,13 +111,24 @@ def _gateway_settings() -> tuple[str, str]:
 
 def _gateway_client() -> OpenAIChatClient:
     gateway_endpoint, gateway_key = _gateway_settings()
-    return BufferedGatewayChatClient(
+    chat_client = BufferedGatewayChatClient(
         model=os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL),
         base_url=gateway_endpoint + "/default/models/openai/v1/",
         # Transport placeholder so auth comes from Api-Key header.
         api_key=OPENAI_NO_BEARER_AUTH,
         default_headers={"Api-Key": gateway_key},
     )
+    raw_client = getattr(chat_client, "client", None)
+    if raw_client is not None and hasattr(raw_client, "_prepare_request"):
+        orig_prepare_request = raw_client._prepare_request
+
+        async def _strip_placeholder_bearer_auth(request):
+            await orig_prepare_request(request)
+            if request.headers.get("authorization") == f"Bearer {OPENAI_NO_BEARER_AUTH}":
+                del request.headers["authorization"]
+
+        raw_client._prepare_request = _strip_placeholder_bearer_auth
+    return chat_client
 
 
 def _foundry_toolbox() -> FoundryToolbox:

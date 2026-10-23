@@ -10,5 +10,17 @@ at localhost during local dev.
 """
 
 from azure_functions_agents import create_function_app
+from openai._client import AsyncOpenAI, WORKLOAD_IDENTITY_API_KEY_PLACEHOLDER
+
+_orig_prepare_request = AsyncOpenAI._prepare_request
+
+
+async def _strip_placeholder_bearer_auth(self, request):
+    await _orig_prepare_request(self, request)
+    if request.headers.get("authorization") == f"Bearer {WORKLOAD_IDENTITY_API_KEY_PLACEHOLDER}":
+        del request.headers["authorization"]
+
+
+AsyncOpenAI._prepare_request = _strip_placeholder_bearer_auth
 
 app = create_function_app()
