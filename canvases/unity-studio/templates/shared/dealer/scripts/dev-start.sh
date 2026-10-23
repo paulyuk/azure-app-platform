@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for candidate_bin in \
+  "/opt/homebrew/bin" \
+  "/usr/local/bin" \
+  "$HOME/.local/bin" \
+  $(ls -d "$HOME/.nvm/versions/node/"*/bin 2>/dev/null | sort -V | tail -n 1); do
+  if [[ -n "$candidate_bin" && -d "$candidate_bin" && ":$PATH:" != *":$candidate_bin:"* ]]; then
+    export PATH="$candidate_bin:$PATH"
+  fi
+done
+
 SCRIPT_DIR="${DEALER_SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 REPO_ROOT="${DEALER_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 RUN_DIR="$REPO_ROOT/.dev-run"

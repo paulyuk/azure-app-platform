@@ -16,7 +16,7 @@ import {
 import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
-import { isAbsolute, relative } from "node:path";
+import { dirname, isAbsolute, relative } from "node:path";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import { resolveDiscoveryRoot } from "./discovery.mjs";
@@ -804,6 +804,24 @@ async function startAppCommand(root, command, args, state, options = {}) {
     options = { ...options, completedState: "stopped" };
   }
   const commandEnvironment = { ...process.env };
+  const pathDelimiter = process.platform === "win32" ? ";" : ":";
+  const currentPathEntries = (commandEnvironment.PATH ?? "").split(pathDelimiter).filter(Boolean);
+  const candidateDirs = [
+    dirname(process.execPath),
+    ...(process.platform === "win32"
+      ? []
+      : [
+          process.env.HOME ? `${process.env.HOME}/.local/bin` : "",
+          "/opt/homebrew/bin",
+          "/usr/local/bin",
+        ]),
+  ].filter(Boolean);
+  for (const dir of candidateDirs.reverse()) {
+    if (!currentPathEntries.includes(dir)) {
+      currentPathEntries.unshift(dir);
+    }
+  }
+  commandEnvironment.PATH = currentPathEntries.join(pathDelimiter);
   for (const key of ["client_session", "CLIENT_SESSION", "AZURE_CORE_CLIENT_SESSION", "SESSION_ID", "COPILOT_AGENT_SESSION_ID", "AGENCY_SESSION_ID"]) {
     delete commandEnvironment[key];
   }

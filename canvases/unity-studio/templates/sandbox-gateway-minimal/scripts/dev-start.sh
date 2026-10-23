@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for candidate_bin in \
+  "/opt/homebrew/bin" \
+  "/usr/local/bin" \
+  "$HOME/.local/bin" \
+  $(ls -d "$HOME/.nvm/versions/node/"*/bin 2>/dev/null | sort -V | tail -n 1); do
+  if [[ -n "$candidate_bin" && -d "$candidate_bin" && ":$PATH:" != *":$candidate_bin:"* ]]; then
+    export PATH="$candidate_bin:$PATH"
+  fi
+done
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$ROOT/.dev-run"
 . "$ROOT/scripts/load-ports.sh"
