@@ -49,6 +49,8 @@ This is **source-pinned build-time consumption**, not an npm publication:
 [`e29e5511b6bde9cd99a5026e300c7712deb2add8`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/e29e5511b6bde9cd99a5026e300c7712deb2add8).
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
+The vendor directory disables Git text conversion so these exact bytes and
+hashes survive Windows checkouts with `core.autocrlf` enabled.
 
 Maintainers need Node.js (the recorded build uses 24.22.1), npm, `tar`, and an
 authenticated `gh` with read access to that repository. These commands work

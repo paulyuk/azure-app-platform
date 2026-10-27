@@ -26,6 +26,8 @@ test("installed payload opens and materializes templates without checkout depend
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
     assert.deepEqual(packageJson.dependencies ?? {}, {});
     assert.deepEqual(packageJson.optionalDependencies ?? {}, {});
+    assert.equal((await readFile(join(payload, "vendor/toolkit/.gitattributes"), "utf8")).trim(), "* -text",
+      "Vendored asset hashes must survive Git newline conversion on Windows");
     for (const path of ["README.md", ...manifest.skills.map((skill) => `${skill}/SKILL.md`)]) {
       const instructions = await readFile(join(payload, path), "utf8");
       assert.doesNotMatch(instructions, /bootstrap-extension\.mjs/);
