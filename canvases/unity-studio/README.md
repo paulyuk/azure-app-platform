@@ -82,14 +82,15 @@ stopping) therefore retain their original implementation and warning hierarchy.
 They require a toolkit-owned public appearance or an explicit design decision;
 this consumer does not approximate danger with private classes or token overrides.
 
-There is a second open upstream issue: without delivered host button tokens,
-the pinned primary Button's standalone dark fallback is `#79b8ff` with white
-text (about 2.07:1 contrast, below normal-text AA). Public host primary tokens
-work and update live, but do not prove native delivery. The consumer leaves the
-pin and component styles intact rather than hiding this with an unauthorized
-palette override. The primary migration slice remains blocked until an approved
-upstream source/artifact fixes that fallback; no Unity-only token bridge is
-authorized. Secondary/subtle adoption is independent of that block.
+The approved upstream fix resolves primary Button fallback contrast through public
+`--canvas-button-primary-bg` / `--canvas-button-primary-fg` tokens. Without host
+button tokens, light uses `#0969da` with white text (5.19:1), and dark uses
+`#79b8ff` with `#0d1117` text (9.11:1), including hover/pressed states. Delivered
+host primary tokens retain priority, and missing hover backgrounds retain the
+resolved rest background. Text-accent does not control primary backgrounds.
+The primary migration is no longer blocked on fallback contrast; no Unity-only
+fallback bridge or private CSS override is used. Synthetic host-token checks do
+not prove native delivery.
 
 `createStudioButtons` is one shared button owner per page, independent of the
 unchanged notice owner. `renderButton`/`update` retain roots and latest callbacks;
@@ -116,9 +117,18 @@ installed plugin, never the user's workspace or a sibling checkout.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`e29e5511b6bde9cd99a5026e300c7712deb2add8`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/e29e5511b6bde9cd99a5026e300c7712deb2add8).
+[`7f3fb1ee46a3ac17ceca2a40470a30666412ee17`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/7f3fb1ee46a3ac17ceca2a40470a30666412ee17).
+This is the explicitly approved, pushed **unmerged upstream fix artifact**, not a
+released package or a claim that the upstream branch has merged.
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
+The source archive/preparation path retains LF CSS: `styles.css` hashes to
+`f4188ad417039a227b67e7787ed127cf90154f02ddc08d4784bb44d9c3afc534` and
+`base.css` to `8f2df18a26a7b347abe3be5735727334bb74236d903abff140d738beb631dec8`.
+The upstream Windows-checkout evidence's `c8aaf1f1...` / `15a5350a...` hashes
+identify exactly the CRLF equivalents, not these retained bytes. Regeneration
+and an independent check compare the archive-produced bytes without newline
+rewriting. JavaScript chunks, license and dependency notices are unchanged.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 

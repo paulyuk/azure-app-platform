@@ -165,11 +165,11 @@
   border-color: var(--border-color-button-default-rest, var(--canvas-border));
 }
 .ct-button.ct-button[data-appearance="primary"] {
-  background: var(--background-color-button-primary-rest, var(--canvas-accent));
-  color: var(--text-color-button-primary-rest, #fff); border-color: transparent;
+  background: var(--background-color-button-primary-rest, var(--canvas-button-primary-bg));
+  color: var(--text-color-button-primary-rest, var(--canvas-button-primary-fg)); border-color: transparent;
 }
 .ct-button.ct-button[data-appearance="secondary"]:hover:not(:disabled) { background: var(--background-color-button-default-hover, var(--canvas-hover)); }
-.ct-button.ct-button[data-appearance="primary"]:hover:not(:disabled) { background: var(--background-color-button-primary-hover, var(--canvas-accent)); }
+.ct-button.ct-button[data-appearance="primary"]:hover:not(:disabled) { background: var(--background-color-button-primary-hover, var(--background-color-button-primary-rest, var(--canvas-button-primary-bg))); }
 .ct-split-button .ct-button.ct-button[data-appearance="secondary"] { background: var(--background-color-button-default-rest, var(--canvas-tint)); }
 .ct-button.ct-button:disabled, .ct-action-card.ct-action-card:disabled { opacity: .5; cursor: not-allowed; }
 .ct-provider :where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--canvas-focus); outline-offset: 2px; }
@@ -317,14 +317,14 @@
 .ct-action-card-description { color: var(--canvas-muted); font-size: var(--canvas-body); line-height: 20px; font-weight: 400; overflow-wrap: anywhere; }
 .ct-action-card-arrow { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--canvas-muted); }
 .ct-action-card.ct-action-card[data-variant="primary"] {
-  background: var(--background-color-button-primary-rest, var(--canvas-accent));
-  color: var(--text-color-button-primary-rest, #fff);
-  border-color: var(--background-color-button-primary-rest, var(--canvas-accent));
+  background: var(--background-color-button-primary-rest, var(--canvas-button-primary-bg));
+  color: var(--text-color-button-primary-rest, var(--canvas-button-primary-fg));
+  border-color: var(--background-color-button-primary-rest, var(--canvas-button-primary-bg));
 }
 .ct-action-card[data-variant="primary"] :where(.ct-action-card-description, .ct-action-card-arrow) { color: inherit; }
 .ct-action-card[data-variant="primary"] .ct-action-card-icon { color: inherit; background: #ffffff26; }
-.ct-action-card.ct-action-card[data-variant="primary"]:hover:not(:disabled) { background: var(--background-color-button-primary-hover, var(--canvas-accent)); }
-.ct-action-card.ct-action-card[data-variant="primary"]:active:not(:disabled) { background: var(--background-color-button-primary-active, var(--canvas-accent)); }
+.ct-action-card.ct-action-card[data-variant="primary"]:hover:not(:disabled) { background: var(--background-color-button-primary-hover, var(--background-color-button-primary-rest, var(--canvas-button-primary-bg))); }
+.ct-action-card.ct-action-card[data-variant="primary"]:active:not(:disabled) { background: var(--background-color-button-primary-active, var(--background-color-button-primary-rest, var(--canvas-button-primary-bg))); }
 .ct-action-card.ct-action-card[data-compact="true"] { grid-template-columns: 28px minmax(0, 1fr) auto; column-gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 6px; }
 .ct-action-card[data-compact="true"] .ct-action-card-icon { width: 28px; height: 28px; border-radius: 3px; }
 .ct-action-card[data-compact="true"] .ct-action-card-text { gap: 0; }

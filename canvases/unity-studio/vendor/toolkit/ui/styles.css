@@ -5,6 +5,8 @@
   --canvas-muted: var(--text-color-muted, light-dark(#656d76, #9da7b3));
   --canvas-border: var(--border-color-default, light-dark(#d1d9e0, #30363d));
   --canvas-accent: var(--text-color-accent, var(--true-color-blue, light-dark(#0969da, #79b8ff)));
+  --canvas-button-primary-bg: light-dark(#0969da, #79b8ff);
+  --canvas-button-primary-fg: light-dark(#ffffff, #0d1117);
   --canvas-danger: var(--text-color-danger, var(--true-color-red, light-dark(#cf222e, #ff7b72)));
   --canvas-success: var(--text-color-success, light-dark(#1a7f37, #3fb950));
   --canvas-attention: var(--text-color-attention, light-dark(#9a6700, #d29922));

@@ -157,6 +157,8 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
   const fixture = await createRunSettingsFixture();
   const browser = await chromium.launch();
   const captures = [];
+  const fallbackStates = [];
+  const hostStates = [];
   const output = process.env.UNITY_BUTTON_EVIDENCE_DIR;
   try {
     if (output) await mkdir(output, { recursive: true });
@@ -164,11 +166,12 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     for (const tone of ["light", "dark"]) {
-      fixture.state.theme = tone;
       for (const width of [320, 900]) {
+        fixture.state.theme = tone;
         await page.setViewportSize({ width, height: 900 });
         await page.goto(fixture.origin + "/app-map");
         await page.waitForFunction(() => window.unityStudioReady);
+        await page.waitForFunction(expected => document.documentElement.dataset.studioTheme === expected, tone);
         await page.locator("#manage-app").click();
         const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
         await invoke.waitFor();
@@ -176,6 +179,33 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
         assert.equal(await page.locator('[role="tab"].ct-button, .header-actions .ct-button').count(), 0);
         await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Keep my unsent draft");
         assert.equal(await page.locator("#details").evaluate(element => element.scrollWidth <= element.clientWidth), true);
+        await invoke.evaluate(element => { window.savedPrimaryButton = element; });
+        await page.evaluate(() => document.documentElement.style.setProperty("--text-color-accent", "rgb(255, 0, 255)"));
+        const measure = async state => {
+          const colors = await invoke.evaluate(element => ({
+            foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor,
+            active: element.matches(":active"), hovered: element.matches(":hover"),
+            sameControl: element === window.savedPrimaryButton,
+          }));
+          const ratio = contrastRatio(colors.foreground, colors.background);
+          assert.ok(ratio >= 4.5, `${tone}/${width}/${state}: ${ratio}:1 must meet normal-text AA`);
+          assert.equal(colors.background, tone === "light" ? "rgb(9, 105, 218)" : "rgb(121, 184, 255)");
+          assert.equal(colors.foreground, tone === "light" ? "rgb(255, 255, 255)" : "rgb(13, 17, 23)");
+          assert.equal(colors.sameControl, true);
+          assert.equal(colors.hovered, state !== "rest");
+          assert.equal(colors.active, state === "active");
+          fallbackStates.push({ tone, width, state, ...colors, contrastRatio: ratio });
+        };
+        await page.mouse.move(0, 0);
+        await measure("rest");
+        await invoke.hover();
+        await measure("hover");
+        await page.mouse.down();
+        assert.equal(await invoke.evaluate(element => element.matches(":active")), true);
+        await measure("active");
+        await page.mouse.move(0, 0);
+        await page.mouse.up();
+        await page.evaluate(() => document.documentElement.style.removeProperty("--text-color-accent"));
         if (output) {
           const label = `after-runtime-${tone}-${width}`;
           const html = await page.content();
@@ -235,6 +265,29 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
     assert.equal(initial.outline, "rgb(193, 47, 150) solid 2px");
     assert.equal(initial.focused, true);
     assert.ok(contrastRatio(initial.foreground, initial.background) >= 4.5);
+    const hostButton = page.locator("#host-action");
+    const measureHostState = async (label, background) => {
+      const style = await readStyle();
+      assert.equal(style.background, background);
+      assert.equal(style.foreground, "rgb(244, 249, 253)");
+      assert.equal(style.focused, true);
+      assert.equal(await hostButton.evaluate(element => element === window.hostAction), true);
+      hostStates.push({ label, ...style });
+    };
+    await hostButton.hover();
+    await measureHostState("missing-hover-retains-rest", "rgb(31, 83, 121)");
+    await page.mouse.down();
+    await measureHostState("missing-active-retains-rest", "rgb(31, 83, 121)");
+    await page.mouse.up();
+    await page.evaluate(() => document.documentElement.style.setProperty("--background-color-button-primary-hover", "rgb(22, 61, 93)"));
+    await measureHostState("delivered-hover", "rgb(22, 61, 93)");
+    await page.mouse.down();
+    await measureHostState("delivered-hover-while-pressed", "rgb(22, 61, 93)");
+    await page.mouse.up();
+    await page.evaluate(() => document.documentElement.style.setProperty("--background-color-button-primary-hover", "rgb(30, 45, 80)"));
+    await measureHostState("late-hover", "rgb(30, 45, 80)");
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => document.documentElement.style.removeProperty("--background-color-button-primary-hover"));
     const readSecondary = () => page.evaluate(() => {
       const style = getComputedStyle(window.hostSecondary);
       return { background: style.backgroundColor, foreground: style.color, border: style.borderTopColor,
@@ -268,15 +321,16 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
     if (output) {
       const sources = {};
       for (const name of ["studio-ui.mjs", "interactive-app-map.mjs", "studio-buttons.mjs", "studio-theme.mjs",
-        "build-panel.mjs", "app-logs-panel.mjs", "component-logs-panel.mjs", "studio-settings.mjs", "run-workspace.mjs", "studio-notice.mjs"]) {
+        "build-panel.mjs", "app-logs-panel.mjs", "component-logs-panel.mjs", "studio-settings.mjs", "run-workspace.mjs", "studio-notice.mjs",
+        "studio-buttons.browser.test.mjs", "scripts/prepare-toolkit-assets.mjs"]) {
         sources[name] = hash(await readFile(new URL(name, import.meta.url)));
       }
       await writeFile(join(output, "button-evidence.json"), JSON.stringify({
         baselineCommit: process.env.UNITY_BUTTON_BASELINE_COMMIT ?? null,
         browser: await browser.version(), synthetic: true, sources,
         toolkit: JSON.parse(await readFile(new URL("./vendor/toolkit/provenance.json", import.meta.url))),
-        captures, hostTokens: { initial, late, secondaryInitial, secondaryLate, sameControl: true },
-        primaryFallbackContrastBelowAA: captures.some(capture => capture.button.contrastRatio < 4.5),
+        captures, fallbackStates, hostTokens: { initial, late, secondaryInitial, secondaryLate, states: hostStates, sameControl: true },
+        primaryFallbackContrastBelowAA: fallbackStates.some(state => state.contrastRatio < 4.5),
         limitations: ["Native host delivery and VS Code adapter not verified", "No assistive-technology announcement claim"],
       }, null, 2) + "\n");
     }
