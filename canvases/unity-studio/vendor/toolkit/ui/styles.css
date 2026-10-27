@@ -1,0 +1,153 @@
+:root {
+  color-scheme: light dark;
+  --canvas-bg: var(--background-color-default, light-dark(#ffffff, #0d1117));
+  --canvas-fg: var(--text-color-default, light-dark(#1f2328, #e6edf3));
+  --canvas-muted: var(--text-color-muted, light-dark(#656d76, #9da7b3));
+  --canvas-border: var(--border-color-default, light-dark(#d1d9e0, #30363d));
+  --canvas-accent: var(--text-color-accent, var(--true-color-blue, light-dark(#0969da, #79b8ff)));
+  --canvas-danger: var(--text-color-danger, var(--true-color-red, light-dark(#cf222e, #ff7b72)));
+  --canvas-success: var(--text-color-success, light-dark(#1a7f37, #3fb950));
+  --canvas-attention: var(--text-color-attention, light-dark(#9a6700, #d29922));
+  --canvas-focus: var(--color-focus-outline, var(--canvas-accent));
+  --canvas-tint: var(--background-color-muted, color-mix(in srgb, var(--canvas-fg) 4%, var(--canvas-bg)));
+  --canvas-overlay: var(--background-color-overlay, var(--canvas-bg));
+  --canvas-hover: var(--background-color-control-transparent-hover, color-mix(in srgb, var(--canvas-fg) 7%, var(--canvas-bg)));
+  --canvas-selected: var(--background-color-accent-muted, color-mix(in srgb, var(--canvas-accent) 10%, var(--canvas-bg)));
+  --canvas-divider: var(--border-color-muted, color-mix(in srgb, var(--canvas-border) 65%, transparent));
+  --canvas-body: var(--text-body-medium, 14px);
+  --canvas-ui: var(--text-body-ui, 13px);
+  --canvas-small: var(--text-body-small, 12px);
+  --canvas-line: var(--leading-body-ui, 20px);
+  --canvas-radius: 8px;
+}
+
+/* External themes have a resolved tone without Primer's color-mode attributes. */
+:root[data-theme-tone="light"],
+:root:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="light"] { color-scheme: light; }
+:root[data-theme-tone="dark"],
+:root:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="dark"] { color-scheme: dark; }
+
+.canvas-theme-probe-bg { color: var(--canvas-bg); }
+.canvas-theme-probe-fg { color: var(--canvas-fg); }
+.canvas-theme-probe-muted { color: var(--canvas-muted); }
+.canvas-theme-probe-border { color: var(--canvas-border); }
+.canvas-theme-probe-accent { color: var(--canvas-accent); }
+.canvas-theme-probe-success { color: var(--canvas-success); }
+.canvas-theme-probe-attention { color: var(--canvas-attention); }
+.canvas-theme-probe-danger { color: var(--canvas-danger); }
+
+/* Keep the document's rem base intact: host type-ramp values are rem-based. */
+.canvas-ui {
+  margin: 0;
+  background: var(--canvas-bg);
+  color: var(--canvas-fg);
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--canvas-body);
+  line-height: var(--leading-body-medium, 20px);
+  font-synthesis: none;
+}
+.canvas-ui *, .canvas-ui *::before, .canvas-ui *::after { box-sizing: border-box; }
+.canvas-ui [hidden] { display: none !important; }
+.canvas-ui :where(button, input, select, textarea) { font: inherit; color: inherit; }
+.canvas-ui :where(button, a) { -webkit-tap-highlight-color: transparent; }
+.canvas-ui button { cursor: default; background: transparent; border: 1px solid transparent; }
+.canvas-ui :where(button, input, select, textarea, a) { border-radius: var(--canvas-radius); }
+.canvas-ui :where(button, input, select, textarea):disabled { cursor: not-allowed; opacity: .5; }
+.canvas-ui :where(button, input, select, textarea, a, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--canvas-focus);
+  outline-offset: 2px;
+}
+.canvas-ui :where(input, select, textarea) {
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+  background: var(--background-color-control-rest, var(--canvas-bg));
+  border: 1px solid var(--border-color-control-rest, var(--canvas-border));
+  font-size: var(--canvas-ui);
+  line-height: var(--canvas-line);
+}
+.canvas-ui :where(input, textarea)::placeholder { color: var(--canvas-muted); opacity: 1; }
+.canvas-ui :is(input[type="checkbox"], input[type="radio"]) {
+  width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0;
+  accent-color: var(--canvas-accent); flex: 0 0 auto; cursor: default;
+}
+.canvas-ui input[type="search"] { -webkit-appearance: none; appearance: none; }
+.canvas-ui a { color: var(--canvas-accent); text-decoration: none; }
+.canvas-ui a:hover { text-decoration: underline; }
+.canvas-icon { display: block; width: 16px; height: 16px; flex: 0 0 auto; }
+[data-canvas-icon] { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.canvas-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 44px; padding: 0 12px; flex-shrink: 0;
+  border-bottom: 1px solid var(--canvas-divider);
+}
+.canvas-ui :where(.primary-button, .secondary-button, .text-button, .icon-button) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 5px 12px;
+  font-size: var(--canvas-ui); line-height: var(--canvas-line);
+  font-weight: var(--font-weight-semibold, 600); white-space: nowrap;
+  border: 1px solid transparent; text-decoration: none; user-select: none;
+  transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+.canvas-ui .secondary-button {
+  background: var(--background-color-button-default-rest, var(--canvas-tint));
+  color: var(--text-color-button-default-rest, var(--canvas-fg));
+  border-color: var(--border-color-button-default-rest, var(--canvas-border));
+}
+.canvas-ui .secondary-button:hover:not(:disabled) {
+  background: var(--background-color-button-default-hover, var(--canvas-hover));
+  text-decoration: none;
+}
+.canvas-ui .secondary-button:active:not(:disabled) {
+  background: var(--background-color-button-default-active, var(--canvas-selected));
+}
+.canvas-ui .primary-button {
+  background: var(--background-color-button-primary-rest, light-dark(#1f883d, #238636));
+  color: var(--text-color-button-primary-rest, #ffffff);
+  border-color: var(--border-color-button-primary-rest, transparent);
+}
+.canvas-ui .primary-button:hover:not(:disabled) {
+  background: var(--background-color-button-primary-hover, light-dark(#1a7f37, #2ea043));
+}
+.canvas-ui .primary-button:active:not(:disabled) {
+  background: var(--background-color-button-primary-active, light-dark(#116329, #196c2e));
+}
+.canvas-ui :where(.icon-button, .text-button) {
+  background: var(--background-color-button-invisible-rest, transparent);
+  color: var(--text-color-button-invisible-rest, var(--canvas-fg));
+}
+.canvas-ui :where(.icon-button, .text-button):hover:not(:disabled) {
+  background: var(--background-color-button-invisible-hover, var(--canvas-hover));
+  text-decoration: none;
+}
+.canvas-ui :where(.icon-button, .text-button):active:not(:disabled) {
+  background: var(--background-color-button-invisible-active, var(--canvas-selected));
+}
+.canvas-ui .text-button { min-height: 28px; padding: 3px 8px; font-size: var(--canvas-small); }
+.canvas-ui .icon-button { width: 28px; min-width: 28px; min-height: 28px; padding: 5px; }
+:where(.pointer-on-hover) .canvas-ui :where(button, select, input[type="checkbox"], input[type="radio"], summary):not(:disabled),
+.canvas-ui.pointer-on-hover :where(button, select, input[type="checkbox"], input[type="radio"], summary):not(:disabled) { cursor: pointer; }
+.canvas-list {
+  min-width: 0;
+  background: var(--canvas-bg);
+  border: 1px solid var(--canvas-divider);
+  border-radius: var(--canvas-radius);
+  /* Clip row backgrounds without creating a scroll ancestor for sticky headers. */
+  overflow: clip;
+}
+.canvas-list-row {
+  position: relative; display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--canvas-divider);
+}
+.canvas-list > .canvas-list-row:last-child { border-bottom: 0; }
+.canvas-list-row:hover { background: var(--canvas-hover); }
+.canvas-list-row.is-selected { background: var(--canvas-selected); }
+.canvas-list-row.is-focused { box-shadow: inset 2px 0 0 var(--canvas-accent); }
+.canvas-list-title {
+  font-size: var(--canvas-body); line-height: var(--canvas-line);
+  color: var(--canvas-fg); font-weight: var(--font-weight-medium, 500);
+}
+.canvas-list-description { font-size: var(--canvas-small); line-height: 18px; color: var(--canvas-muted); }
+@media (prefers-reduced-motion: reduce) {
+  .canvas-ui *, .canvas-ui *::before, .canvas-ui *::after { transition: none !important; }
+}

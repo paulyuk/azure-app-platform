@@ -5,6 +5,7 @@ import test from "node:test";
 import { DEFAULT_EDITOR_SETTINGS, EDITOR_CHOICES } from "./editor-settings.mjs";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
+import { serveStudioAsset } from "./studio-assets.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -23,9 +24,12 @@ test("Settings and app review share one race-safe external editor preference", {
   let failPreference = false;
   let readGate;
   const requests = [];
-  const server = createServer((_request, response) => {
-    response.setHeader("Content-Type", "text/html");
-    response.end(renderStudioHtml("editor-fixture", "fixture", { editorSettings }));
+  const server = createServer((request, response) => {
+    void (async () => {
+      if (await serveStudioAsset(request, response, new URL(request.url, "http://localhost").pathname)) return;
+      response.setHeader("Content-Type", "text/html");
+      response.end(renderStudioHtml("editor-fixture", "fixture", { editorSettings }));
+    })().catch(cause => { response.writeHead(500); response.end(cause.message); });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({ headless: true });

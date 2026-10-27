@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "coreai-microsoft/canvases-cloud-foundation",
+    "commit": "e29e5511b6bde9cd99a5026e300c7712deb2add8",
+    "package": "@microsoft/canvas-toolkit",
+    "version": "0.1.0",
+    "published": false
+  },
+  "build": {
+    "node": "v24.22.1",
+    "npm": "11.19.1",
+    "esbuild": "0.25.12",
+    "lockSha256": "58506251f648905700430510e8bb76f1151e345d4ab5bfeb2d49a429039b2469",
+    "builderSha256": "69e3fa15a4716996bbbe1991cec09b79f54fe638eb1bf0b5a5208a5dd349df5e",
+    "command": "npm ci --ignore-scripts --workspace=@microsoft/canvas-toolkit --include-workspace-root --no-audit --no-fund; buildToolkitUi(); prepareCanvasUiAssets(output)",
+    "repeatBuildVerified": true
+  },
+  "files": [
+    {
+      "route": "/canvas-ui/base.mjs",
+      "file": "ui/browser/base.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "512a6b91b48c96974ed5c4bfc0359c25604eef8dedf0702d6f1dac6b4e87953a"
+    },
+    {
+      "route": "/canvas-ui/react-runtime.mjs",
+      "file": "ui/browser/react-runtime.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "b154cd9903f545a2b94275c2f4795758bb269283ccbd64c4614e4cf02f82d2e1"
+    },
+    {
+      "route": "/canvas-ui/styles.css",
+      "file": "ui/styles.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "f8d4a9ff7a29941cfe1c26b02cc2a1f2c2d3c9f509eac694417b3e1b84638a26"
+    },
+    {
+      "route": "/canvas-ui/base.css",
+      "file": "ui/base.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "71fb0cda7805f32a500da0fd1ea0ab0334b6ce432ed956f02d2f55f84b74549c"
+    },
+    {
+      "route": "/canvas-ui/THIRD_PARTY_NOTICES.txt",
+      "file": "ui/browser/THIRD_PARTY_NOTICES.txt",
+      "contentType": "text/plain; charset=utf-8",
+      "sha256": "bda96397871b2efd49b404eae9692746dd02cda7ff05a73e42db1d699a5ffddc"
+    },
+    {
+      "route": "/canvas-ui/LICENSE",
+      "file": "LICENSE",
+      "contentType": "text/plain; charset=utf-8",
+      "sha256": "d25deed12d803f6c973597348627b1939e2d19bbc28fda83c93ea0cde44702da"
+    }
+  ]
+}

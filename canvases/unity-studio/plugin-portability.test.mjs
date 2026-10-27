@@ -33,6 +33,7 @@ test("installed payload opens and materializes templates without checkout depend
 
     const { stdout } = await execute(process.execPath, ["--input-type=module", "--eval", `
       import assert from "node:assert/strict";
+      import { createHash } from "node:crypto";
       import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
       import { isBuiltin, registerHooks } from "node:module";
       import { join, sep } from "node:path";
@@ -129,7 +130,46 @@ test("installed payload opens and materializes templates without checkout depend
             await invalid.arrayBuffer();
           }
         }
-        for (const path of ["/assets/extension.mjs", "/assets/%2e%2e%2fextension.mjs"]) {
+        const toolkit = JSON.parse(await readFile(join(payload, "vendor/toolkit/provenance.json"), "utf8"));
+        assert.equal(toolkit.source.commit, "e29e5511b6bde9cd99a5026e300c7712deb2add8");
+        assert.equal(toolkit.source.published, false);
+        assert.deepEqual(toolkit.files.map(file => file.route).sort(), [
+          "/canvas-ui/LICENSE", "/canvas-ui/THIRD_PARTY_NOTICES.txt",
+          "/canvas-ui/base.css", "/canvas-ui/base.mjs", "/canvas-ui/react-runtime.mjs", "/canvas-ui/styles.css",
+        ].sort());
+        for (const file of toolkit.files) {
+          const assetUrl = new URL(file.route, opened.url);
+          const asset = await fetch(assetUrl);
+          const expected = await readFile(join(payload, "vendor/toolkit", file.file));
+          assert.equal(asset.status, 200);
+          assert.equal(asset.headers.get("content-type"), file.contentType);
+          assert.equal(asset.headers.get("x-content-type-options"), "nosniff");
+          const actual = Buffer.from(await asset.arrayBuffer());
+          assert.deepEqual(actual, expected);
+          assert.equal(createHash("sha256").update(actual).digest("hex"), file.sha256);
+          const head = await fetch(assetUrl, { method: "HEAD" });
+          assert.equal(head.status, 200);
+          assert.equal(head.headers.get("content-length"), String(expected.length));
+          assert.equal((await head.arrayBuffer()).byteLength, 0);
+          if (file.file.endsWith(".mjs")) {
+            const source = actual.toString();
+            for (const match of source.matchAll(/\\bfrom\\s*["']([^"']+)["']/g)) {
+              assert.equal(match[1], "./react-runtime.mjs", "Unprepared browser dependency");
+              assert.equal((await fetch(new URL(match[1], assetUrl))).status, 200);
+            }
+            assert.doesNotMatch(source, /(?:https?:\\/\\/|file:\\/\\/|[A-Z]:\\\\).*node_modules/);
+          }
+        }
+        const notices = await readFile(join(payload, "vendor/toolkit/ui/browser/THIRD_PARTY_NOTICES.txt"), "utf8");
+        for (const dependency of ["@base-ui/react@1.8.0", "@primer/octicons-react@19.38.0", "react@19.3.0", "react-dom@19.3.0", "scheduler@0.28.0"]) {
+          assert.ok(notices.includes(dependency), "Missing notice for " + dependency);
+        }
+        assert.match(await readFile(join(payload, "vendor/toolkit/LICENSE"), "utf8"), /MIT License/);
+        for (const path of [
+          "/assets/extension.mjs", "/assets/%2e%2e%2fextension.mjs",
+          "/canvas-ui/extension.mjs", "/canvas-ui/%2e%2e%2fextension.mjs",
+          "/canvas-ui/provenance.json", "/canvas-ui/fluent.mjs",
+        ]) {
           const missing = await fetch(new URL(path, opened.url));
           assert.equal(missing.status, 404);
           await missing.arrayBuffer();

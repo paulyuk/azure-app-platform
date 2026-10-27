@@ -3,6 +3,7 @@ import { renderStudioBrand, renderStudioWelcomeBrand } from "./studio-brand.mjs"
 import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScript } from "./studio-intro.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
+import { createStudioNotice } from "./studio-notice.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -90,6 +91,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
     <title>Unity Studio</title>
+    <link rel="stylesheet" href="/canvas-ui/styles.css">
+    <link rel="stylesheet" href="/canvas-ui/base.css">
     <style>
       :root {
         color-scheme: light dark;
@@ -263,6 +266,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         background: var(--true-color-blue-muted, #ddf4ff);
       }
       .error { background: #ffebe9; color: #82071e; }
+      .studio-toolkit { margin: 14px 0; }
       .mapping-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
       .mapping select { margin-top: 8px; }
       .source-option { display: block; }
@@ -385,6 +389,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
+      const reviewNotice = (${createStudioNotice.toString()})({
+        loadToolkit: () => import("/canvas-ui/base.mjs"),
+        onError: (message) => error(message),
+      });
+      window.addEventListener("pagehide", (event) => {
+        if (!event.persisted) reviewNotice.dispose();
+      });
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
       let azureInventory = null;
@@ -543,6 +554,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderLanding() {
         draft.journey = null;
         clearStatus();
+        reviewNotice.dispose();
         app.innerHTML = ${JSON.stringify(renderStudioWelcomeBrand())} +
           '<h1>What would you like to do?</h1>' +
           '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
@@ -586,6 +598,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderExistingApps() {
+        reviewNotice.dispose();
         const apps = sources?.apps || [];
         app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
@@ -649,6 +662,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderDetails() {
         clearStatus();
+        reviewNotice.dispose();
         const isNew = draft.journey === "new";
         app.innerHTML = topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
           '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
@@ -718,6 +732,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderCapabilities() {
         clearStatus();
+        reviewNotice.dispose();
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const heading = isSandboxGateway ? "Customize the Sandbox &amp; Gateway template" : "Customize the empty template";
         const intro = isSandboxGateway
@@ -776,6 +791,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderPieces() {
+        reviewNotice.dispose();
         clearStatus();
         const unused = capabilities.filter((tier) => !draft.tierIds.includes(tier.id));
         app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
@@ -868,6 +884,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderAzure(warning = "") {
         clearStatus();
+        reviewNotice.dispose();
         app.innerHTML = topBack("Back") + '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
           '<p>These mappings are references only. Unity Studio will not read keys, deploy, or change resources.</p>' +
           (warning ? '<div class="notice">' + escape(warning) + ' You can continue without Azure mappings.</div>' : "") +
@@ -911,6 +928,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderReview() {
         clearStatus();
+        reviewNotice.dispose();
         const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
         const total = draft.journey === "new" ? (selectedTemplate?.kind === "sample" ? 2 : 3) : 4;
         const starter = draft.journey === "assemble"
@@ -929,9 +947,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<label><input id="open-editor" type="checkbox"' + (draft.openInEditor ? " checked" : "") +
           '><span id="open-editor-label"> Open the new worktree in ' +
           escape(editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label) + '</span></label></section></div>' +
-          '<div class="notice">No Azure resources will be created or changed.</div>' +
+          '<div class="studio-toolkit" id="review-notice">No Azure resources will be created or changed.</div>' +
           actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
             (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") });
+        reviewNotice.mount(document.getElementById("review-notice"), {
+          children: "No Azure resources will be created or changed.",
+          intent: "info",
+        });
         wireActions({
           back: draft.journey === "assemble" ? renderAzure :
             (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities),
@@ -972,6 +994,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderInventory(result, inventory, appMap) {
+         reviewNotice.dispose();
          if (outputTimer) {
            clearInterval(outputTimer);
            outputTimer = null;

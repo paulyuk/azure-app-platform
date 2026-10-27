@@ -76,7 +76,8 @@ export function renderThemeStyles() {
       --edge-high: var(--studio-accent); --edge-medium: var(--studio-edge-medium);
       --edge-low: var(--studio-edge-low); --danger: var(--studio-danger);
     }
-    :root[data-studio-theme], :root[data-studio-theme] body {
+    /* Legacy Studio aliases stay on body; toolkit root aliases resolve host tokens. */
+    :root[data-studio-theme] body {
       --background-color-default: var(--studio-raised); --border-color-default: var(--studio-line);
       --text-color-default: var(--studio-ink); --text-color-muted: var(--studio-muted);
       --color-focus-outline: var(--studio-focus); --true-color-purple: var(--studio-accent);
