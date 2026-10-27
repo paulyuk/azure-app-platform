@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -25,7 +26,7 @@ function pageHtml() {
   return `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    window.buildPanel = (${createBuildPanel.toString()})({
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
       onRun() {}, onModel() {},
@@ -64,7 +65,7 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
   const fail = new Set();
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(pageHtml());
+    response.end(withToolkitButtons(pageHtml()));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -91,6 +92,8 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
         throw new Error(`Unexpected route ${path}`);
       }
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const agentRow = page.locator('.build-file[data-artifact="agent"]');
     const toolRow = page.locator('.build-file[data-artifact="tool"]');
@@ -150,7 +153,7 @@ test("Build follows shared editor settings without owning a picker or accepting 
   const requests = [];
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(pageHtml());
+    response.end(withToolkitButtons(pageHtml()));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -183,6 +186,8 @@ test("Build follows shared editor settings without owning a picker or accepting 
         throw new Error(`Unexpected route ${path}`);
       }
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const launches = page.locator("[data-editor-launch]");
     const agentRow = page.locator('.build-file[data-artifact="agent"]');

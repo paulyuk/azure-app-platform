@@ -13,7 +13,7 @@ export const COMPONENT_LOGS_CSS = `
   .node-logs:hover rect, .node-logs:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
 `;
 
-export function createComponentLogsPanel({ parent, node, load, isActive, initiallyOpen = false }) {
+export function createComponentLogsPanel({ parent, node, load, isActive, initiallyOpen = false, buttons }) {
   const section = document.createElement("details");
   section.className = "component-logs";
   section.open = initiallyOpen;
@@ -31,15 +31,9 @@ export function createComponentLogsPanel({ parent, node, load, isActive, initial
   select.disabled = true;
   label.append(select);
   controls.append(label);
-  const pause = document.createElement("button");
-  pause.type = "button";
-  pause.textContent = "Pause";
-  pause.setAttribute("aria-pressed", "false");
-  controls.append(pause);
-  const refresh = document.createElement("button");
-  refresh.type = "button";
-  refresh.textContent = "Refresh";
-  controls.append(refresh);
+  const pause = buttons.create({ children: "Pause", "aria-pressed": false });
+  const refresh = buttons.create({ children: "Refresh" });
+  buttons.append(controls, pause, refresh);
   body.append(controls);
   const status = document.createElement("p");
   status.className = "component-logs-status";
@@ -96,7 +90,7 @@ export function createComponentLogsPanel({ parent, node, load, isActive, initial
     if (!active() || controller) return;
     const request = new AbortController();
     controller = request;
-    refresh.disabled = true;
+    buttons.setDisabled(refresh, true);
     section.setAttribute("aria-busy", "true");
     if (!result) status.textContent = "Loading service logs…";
     try {
@@ -126,7 +120,7 @@ export function createComponentLogsPanel({ parent, node, load, isActive, initial
     } finally {
       if (controller === request) {
         controller = null;
-        refresh.disabled = false;
+        buttons.setDisabled(refresh, false);
         section.removeAttribute("aria-busy");
         schedule();
       }
@@ -137,14 +131,13 @@ export function createComponentLogsPanel({ parent, node, load, isActive, initial
     clearTimeout(timer);
     controller?.abort();
     controller = null;
-    refresh.disabled = false;
+    buttons.setDisabled(refresh, false);
     section.removeAttribute("aria-busy");
   }
 
   pause.addEventListener("click", () => {
     paused = !paused;
-    pause.textContent = paused ? "Resume" : "Pause";
-    pause.setAttribute("aria-pressed", String(paused));
+    buttons.update(pause, { children: paused ? "Resume" : "Pause", "aria-pressed": paused });
     if (paused) stop();
     if (result) render();
     if (!paused) void refreshLogs();
@@ -157,7 +150,7 @@ export function createComponentLogsPanel({ parent, node, load, isActive, initial
   });
   if (initiallyOpen) void refreshLogs();
   return {
-    dispose() { disposed = true; stop(); },
+    dispose() { disposed = true; stop(); buttons.clear(section); },
     open() { section.open = true; summary.focus({ preventScroll: true }); },
   };
 }

@@ -45,6 +45,64 @@ work and disposes that root; the same element can safely be reused. `dispose()`
 clears all owned roots before legacy DOM replacement. The first review notice
 uses this helper; no other notices are migrated here.
 
+Ordinary actions use the same pinned toolkit's actual Base UI-backed **Button**,
+through its public DOM mount API. Primary, secondary and subtle appearances use
+canonical toolkit geometry and host-delivered button tokens, not Unity's purple
+palette. Medium buttons use the toolkit's 32px minimum height, 14px/20px normal
+type and 5px/12px padding by default; this intentionally replaces the legacy
+12px semibold action styling. Existing action copy, order, enabled state and
+workflow ownership remain unchanged. Existing SVG glyphs are composed through
+the public `icon` prop; Button supplies no default icon. Legacy CSS is in a
+lower-priority cascade layer so it cannot override canonical component styles.
+Mount/provider wrappers use `display: contents` only to retain existing layout
+placement.
+
+| Surface | Button adoption |
+| --- | --- |
+| Create/assemble setup, review, back/continue and local-path actions | Migrated |
+| Existing app screen | Back and confirmation-cancel actions migrated; compound app rows and destructive actions retained |
+| Post-creation actions | Gateway, deployment, runtime, endpoints, source, agent invocation and map actions migrated |
+| Build | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
+| Run/Debug and Guide | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
+| Observe | Map reset/zoom/fit, inspector close and Guide collapse/dismiss actions migrated |
+| Logs | All-services action, pause/resume and refresh migrated, including the component-log panel |
+| Shared Settings | Open/close and ordinary app-section actions migrated |
+
+This is not a migration of every element with a button tag. Semantic tabs,
+workspace navigation, Build implementation selection, journey/app cards, the
+two-line model-connection control, Guide progress/status shortcuts, inline log
+service filters, SVG graph controls, links and the cinematic intro's Skip action
+remain their existing controls. They need their appropriate component slices,
+not conversion to generic Button. The separate `src/web` demo and generated
+application templates are outside this migration.
+
+The approved pin has no destructive/danger Button appearance. Delete controls
+and the header's stateful runtime action (which uses danger styling when
+stopping) therefore retain their original implementation and warning hierarchy.
+They require a toolkit-owned public appearance or an explicit design decision;
+this consumer does not approximate danger with private classes or token overrides.
+
+There is a second open upstream issue: without delivered host button tokens,
+the pinned primary Button's standalone dark fallback is `#79b8ff` with white
+text (about 2.07:1 contrast, below normal-text AA). Public host primary tokens
+work and update live, but do not prove native delivery. The consumer leaves the
+pin and component styles intact rather than hiding this with an unauthorized
+palette override. The primary migration slice remains blocked until an approved
+upstream source/artifact fixes that fallback; no Unity-only token bridge is
+authorized. Secondary/subtle adoption is independent of that block.
+
+`createStudioButtons` is one shared button owner per page, independent of the
+unchanged notice owner. `renderButton`/`update` retain roots and latest callbacks;
+`clear`/`dispose` unmount before DOM replacement. Imperative actions append the
+owned mount through `append`/`host`, not by moving a React-owned button out of
+its root. Disabled and label updates go through the component. Settings,
+Build, Run and log teardown release their owned subtrees before replacing them.
+Back/forward-cache suspension retains roots; final page departure disposes them.
+Startup waits for the shipped module before wiring actions, ignores a late load
+after departure, and reports a load failure with a reload-to-retry message rather
+than silently falling back to bespoke controls. Embedded synthetic previews can
+wait for `window.unityStudioReady` or the `unity-studio-ready` event.
+
 The pinned toolkit recognizes the current Copilot-style semantic names above;
 it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or

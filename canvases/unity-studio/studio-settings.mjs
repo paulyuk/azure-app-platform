@@ -113,7 +113,7 @@ export function createEditorPreference({ select, errorDisplay, globalError, dial
   return api;
 }
 
-export function createStudioSettings({ dialog, trigger, onOpen }) {
+export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => {} }) {
   let app;
   let returnFocus;
   const sections = new Map();
@@ -126,6 +126,7 @@ export function createStudioSettings({ dialog, trigger, onOpen }) {
     const focused = entry.body.contains(active);
     const label = active?.getAttribute("aria-label");
     const text = active?.textContent;
+    onClear(entry.body);
     entry.body.replaceChildren();
     app.renderSection(section, entry.body);
     if (focused) {
@@ -138,6 +139,7 @@ export function createStudioSettings({ dialog, trigger, onOpen }) {
   const api = {
     configureApp(value) {
       app = value;
+      onClear(content);
       content.replaceChildren();
       sections.clear();
       if (!app) return;
@@ -155,7 +157,7 @@ export function createStudioSettings({ dialog, trigger, onOpen }) {
         element.append(summary, body);
         sections.set(id, { element, body, summary });
         element.addEventListener("toggle", () => {
-          if (!element.open) body.replaceChildren();
+          if (!element.open) { onClear(body); body.replaceChildren(); }
           else if (dialog.open && !body.childElementCount) render(id);
         });
         content.append(element);
@@ -190,7 +192,7 @@ export function createStudioSettings({ dialog, trigger, onOpen }) {
   trigger.addEventListener("click", () => api.open());
   dialog.querySelector("[data-settings-close]").addEventListener("click", () => api.close());
   dialog.addEventListener("close", () => {
-    for (const entry of sections.values()) entry.body.replaceChildren();
+    for (const entry of sections.values()) { onClear(entry.body); entry.body.replaceChildren(); }
     (returnFocus?.isConnected ? returnFocus : trigger).focus({ preventScroll: true });
   });
   dialog.addEventListener("keydown", (event) => {

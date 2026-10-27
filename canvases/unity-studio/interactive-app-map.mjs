@@ -14,6 +14,7 @@ import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -464,7 +465,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <link rel="icon" href="data:,">
   <meta name="color-scheme" content="light dark">
   <title>Unity App Map</title>
+  <link rel="stylesheet" href="/canvas-ui/styles.css">
+  <link rel="stylesheet" href="/canvas-ui/base.css">
   <style>
+    ${STUDIO_BUTTON_MOUNT_CSS}
+    @layer studio-legacy {
     :root {
       color-scheme: light dark;
       --bg: #f3f2f1;
@@ -856,6 +861,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${COMPONENT_LOGS_CSS}
     ${APP_LOGS_CSS}
     ${renderThemeStyles()}
+    }
   </style>
 </head>
 <body>
@@ -885,7 +891,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     </div>
     <section id="structure-guidance" aria-label="App structure guidance" tabindex="-1" hidden>
       <p><strong>Edit app structure.</strong> Use <strong>+ Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
-      <button id="close-structure-guidance" type="button" aria-label="Dismiss app structure guidance" title="Dismiss app structure guidance"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      <button data-studio-button="subtle" id="close-structure-guidance" type="button" aria-label="Dismiss app structure guidance" title="Dismiss app structure guidance"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </section>
     <section id="workspace" aria-label="App workspace">
     <div id="graph-shell">
@@ -900,14 +906,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             <input id="show-other-resources" type="checkbox" aria-controls="graph-shell">
             <span>Show other resources (<span id="other-resource-count">${model.requestFlow.otherResourceCount}</span>)</span>
           </label>
-          <button id="reset-layout" type="button">Reset map</button>
+          <button data-studio-button="secondary" id="reset-layout" type="button">Reset map</button>
         </div>
       </details>
       <div class="icon-group" aria-label="Zoom controls">
-        <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-        <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        <button data-studio-button="subtle" id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+        <button data-studio-button="subtle" id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
       </div>
-      <button id="fit" type="button" aria-label="Fit map" title="Fit map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button>
+      <button data-studio-button="subtle" id="fit" type="button" aria-label="Fit map" title="Fit map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button>
       </nav>
       <svg id="graph" role="application" aria-label="Interactive source-derived Unity application graph">
         <defs>
@@ -930,7 +936,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <aside id="guide-rail" aria-label="Guide">
       <div class="guide-heading">
         <h2>Guide</h2>
-        <button id="action-center" type="button" aria-expanded="true" aria-controls="guide-content" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
+        <button data-studio-button="subtle" id="action-center" type="button" aria-expanded="true" aria-controls="guide-content" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
       </div>
       <div id="guide-shortcuts" role="group" aria-label="Guide progress" hidden>${guideShortcutsHtml}</div>
       <div id="guide-content"></div>
@@ -942,7 +948,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </footer>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
+    (async () => {
     "use strict";
+    let buttons, controlsDisposed = false;
+    window.addEventListener("pagehide", event => {
+      if (!event.persisted) { controlsDisposed = true; buttons?.dispose(); }
+    });
+    const toolkit = await import("/canvas-ui/base.mjs");
+    if (controlsDisposed) return;
+    buttons = (${createStudioButtons.toString()})(toolkit);
+    window.unityStudioButtons = buttons;
+    buttons.mountAll(document);
     const MODEL = ${safeJson(model)};
     const INITIAL_EDITOR_SETTINGS = ${safeJson(editorSettings)};
     const API_TOKEN = ${safeJson(apiToken)};
@@ -1045,7 +1061,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let deletingApp = false;
     let deleteError = "";
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS,
+      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons,
       isActive: () => panelMode === "build",
       onRun: () => {
         renderManagePanel();
@@ -1057,13 +1073,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     window.addEventListener("unity-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
+      onClear: buttons.clear,
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
       renderDeployment,
       renderOutput: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "h3", "Command output");
-        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
+        buttons.append(actions, actionButton("Open all logs", () => renderLogsPanel()));
         const output = appendText(container, "pre", latestOutput, "command-output live-output");
         output.dataset.runtimeOutput = "true";
         output.dataset.runScrollKey = "output";
@@ -1073,7 +1090,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderOperations: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
-        actions.append(actionButton("Open all logs", () => renderLogsPanel()));
+        buttons.append(actions, actionButton("Open all logs", () => renderLogsPanel()));
         appendText(container, "h3", "Operations");
         const feed = appendText(container, "div", "", "command-feed");
         feed.dataset.commandFeed = "true";
@@ -1245,8 +1262,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           : "Start app";
         operation = "run-local";
       }
-      headerRuntimeAction.textContent = actionLabel;
-      headerRuntimeAction.disabled = disabled;
+      buttons.setText(headerRuntimeAction, actionLabel);
+      buttons.setDisabled(headerRuntimeAction, disabled);
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
     }
@@ -1827,6 +1844,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function clearElement(element) {
+      buttons.clear(element);
       if (element === details) {
         appLogs?.dispose();
         appLogs = null;
@@ -1855,12 +1873,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function actionButton(label, handler, primary = false) {
+      return buttons.create({
+        children: label, onClick: handler, appearance: primary ? "primary" : "secondary",
+        className: "studio-action",
+      });
+    }
+
+    function destructiveButton(label, handler) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = label;
-      button.className = primary ? "studio-action primary" : "studio-action";
+      button.className = "studio-action danger";
       button.addEventListener("click", handler);
       return button;
+    }
+
+    function toolkitIconClose() {
+      return toolkit.createElement("svg", { viewBox: "0 0 16 16", width: 16, height: 16, "aria-hidden": true, focusable: false },
+        toolkit.createElement("path", { d: "m4 4 8 8M12 4l-8 8", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" }));
     }
 
     function keyedActionButton(key, label, handler, primary = false) {
@@ -1876,10 +1906,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (panelMode !== "manage") {
         button.setAttribute("aria-label", "Close details");
         button.title = "Close details";
-        button.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        buttons.update(button, { icon: toolkitIconClose() });
       }
-      button.className = "panel-back";
-      details.append(button);
+      buttons.update(button, { className: "panel-back", appearance: "subtle" });
+      buttons.append(details, button);
     }
 
     function closeMapDetails() {
@@ -1991,6 +2021,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.empty = "false";
       details.dataset.mode = "logs";
       appLogs = mountAppLogs({
+        buttons,
         parent: details, nodeId, isActive: () => panelMode === "logs",
         load: ({ serviceId, serviceIds, signal }) => apiRequest("/api/app-logs?root=" + encodeURIComponent(MODEL.root) +
           (serviceIds ?? (serviceId ? [serviceId] : [])).map((id) => "&serviceId=" + encodeURIComponent(id)).join(""), { signal }),
@@ -2080,7 +2111,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const web = runtimeEntrypoints.find((entrypoint) =>
           entrypoint.ready && normalized(entrypoint.name) === "web");
         if (web) {
-          card.append(keyedActionButton("open-app", "Open app", async () => {
+          buttons.append(card, keyedActionButton("open-app", "Open app", async () => {
             try {
               await apiRequest("/api/open-entrypoint", {
                 method: "POST",
@@ -2092,7 +2123,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             }
           }, true));
         }
-        card.append(keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
+        buttons.append(card, keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
       } else if (foreignEntrypoints.length) {
         appendText(card, "strong", "Another app is using the local ports");
         appendText(
@@ -2101,12 +2132,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           "Stop the other local app before starting this one. Ports in use: " +
             foreignEntrypoints.map((entrypoint) => String(entrypoint.port)).join(", ") + ".",
         );
-        card.append(actionButton("Back to apps", () => location.assign("/"), true));
+        buttons.append(card, actionButton("Back to apps", () => location.assign("/"), true));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         if (operationalState.app?.recovered) {
           appendText(card, "strong", "Startup needs attention");
           appendText(card, "p", "Some app services are still running, but the original startup command is no longer active. Stop them before trying again.");
-          card.append(keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
+          buttons.append(card, keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
         } else if (appState === "starting") {
           const expectedEntrypoints = runtimeEntrypoints.filter((entrypoint) => entrypoint.expected !== false);
           const readyCount = expectedEntrypoints.filter((entrypoint) => entrypoint.ready).length;
@@ -2122,7 +2153,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             progress.setAttribute("aria-label", String(readyCount) + " of " + String(totalCount) + " services ready");
             card.append(progress);
           }
-          card.append(keyedActionButton("cancel-startup", "Cancel startup", () => runAppOperation("stop-local")));
+          buttons.append(card, keyedActionButton("cancel-startup", "Cancel startup", () => runAppOperation("stop-local")));
         } else {
           const activeLabels = {
             stopping: "Stopping your app",
@@ -2137,11 +2168,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(card, "strong", "Last operation failed");
         appendText(card, "p", operationalState.app.error || "Review command output before retrying.", "error");
         if (runtimeEntrypoints.some((entry) => entry.ready)) {
-          card.append(keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
+          buttons.append(card, keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
         } else if (operationalState.app.operation === "configuring") {
-          card.append(actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
+          buttons.append(card, actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
         } else {
-          card.append(keyedActionButton("retry-app", "Retry startup", () => runAppOperation("run-local"), true));
+          buttons.append(card, keyedActionButton("retry-app", "Retry startup", () => runAppOperation("run-local"), true));
         }
       } else if (operationalState.readiness?.ready) {
         const previewMode = operationalState.readiness.mode === "preview";
@@ -2153,7 +2184,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             ? "Unity can start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
             : "Required local configuration was found. Unity can start the complete app for you.",
         );
-        card.append(keyedActionButton(
+        buttons.append(card, keyedActionButton(
           "run-app",
           previewMode ? "Run preview" : "Run app",
           () => runAppOperation("run-local"),
@@ -2162,7 +2193,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (operationalState.readiness) {
         appendText(card, "strong", "Finish setup before running");
         appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
-        card.append(keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
+        buttons.append(card, keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
       } else {
         appendText(card, "strong", "Checking app status");
         appendText(card, "p", "Unity is checking what is ready and what still needs setup.");
@@ -2199,7 +2230,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       card.className = "action-card " + opportunity.priority;
       appendText(card, "strong", opportunity.title);
       appendText(card, "p", opportunity.detail);
-      card.append(keyedActionButton(
+      buttons.append(card, keyedActionButton(
         "opportunity-" + opportunity.id,
         opportunity.action.label,
         () => runOpportunityAction(opportunity),
@@ -2222,7 +2253,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       heading.tabIndex = -1;
       appendText(details, "p", "These checks come from source discovery, not live requests. An uncertain connection does not mean a running service has failed.");
       const actions = appendText(details, "div", "", "actions");
-      actions.append(actionButton("Edit connections on App Map", renderStructureMap));
+      buttons.append(actions, actionButton("Edit connections on App Map", renderStructureMap));
       const checks = MODEL.actionCenter.opportunities.filter((item) =>
         item.stage === "connect" && item.id !== "resolve-connections");
       if (checks.length) {
@@ -2245,7 +2276,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             appendText(card, "p", "Possible destinations: " + reference.candidates
               .map((id) => nodeById.get(id)?.name || id).join(", "));
           }
-          if (source) card.append(actionButton("Inspect " + source.name, () => runOpportunityAction({
+          if (source) buttons.append(card, actionButton("Inspect " + source.name, () => runOpportunityAction({
             action: { kind: "inspect-node", nodeId: source.id },
           })));
         }
@@ -2261,9 +2292,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (!card) return;
       const action = card.querySelector('[data-action-key="observe-map"]');
       if (!["build", "manage", "logs"].includes(panelMode)) {
-        action?.remove();
+        if (action) {
+          const mount = buttons.host(action);
+          buttons.clear(mount);
+          mount.remove();
+        }
       } else if (!action) {
-        card.append(keyedActionButton("observe-map", "Open App Map", () => {
+        buttons.append(card, keyedActionButton("observe-map", "Open App Map", () => {
           renderMapPanel();
           document.querySelector("#map-app").focus({ preventScroll: true });
         }, true));
@@ -2286,7 +2321,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         notice.className = "action-card attention";
         appendText(notice, "strong", "App created");
         appendText(notice, "p", launchNotice);
-        notice.append(actionButton("Dismiss", () => {
+        buttons.append(notice, actionButton("Dismiss", () => {
           launchNotice = "";
           renderActionCenter();
         }));
@@ -2320,7 +2355,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             : keyedActionButton("review-connections", "", renderConnectionsPanel);
           content.className = "journey-stage-action";
           content.setAttribute("aria-label", stage.id === "build" ? "Build: edit app structure" : "Connect: review connections");
-          item.append(content);
+          buttons.append(item, content);
         }
         appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
         appendText(content, "strong", stage.label);
@@ -2427,7 +2462,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           subscriptionSelect.append(option);
         }
         appendField(container, "Azure subscription", subscriptionSelect);
-        container.append(actionButton("Refresh subscriptions & gateways", () => {
+        buttons.append(container, actionButton("Refresh subscriptions & gateways", () => {
           void loadGatewayControls(container, true);
         }));
         subscriptionSelect.addEventListener("change", () => {
@@ -2493,7 +2528,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               if (!select.value || !modelSelect.value || lifecycleOperation || gatewayApplying) return;
               gatewayApplying = true;
               gatewayDiscovery.invalidate();
-              apply.disabled = true;
+              buttons.setDisabled(apply, true);
               subscriptionSelect.disabled = select.disabled = modelSelect.disabled = true;
               try {
                 const gateway = options.gateways[Number(select.value)];
@@ -2526,13 +2561,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             },
             true,
           );
-          apply.disabled = !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state);
-          container.append(apply);
+          buttons.setDisabled(apply, !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
+          buttons.append(container, apply);
         } else {
           appendText(container, "p", "No AI Gateway found in this subscription. Create one to connect a model.");
         }
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Create or manage gateways", () => {
+        buttons.append(container, actionButton("Create or manage gateways", () => {
           window.unityStudioSettings.close();
           openTierStudio(gatewayTier);
         }));
@@ -2542,7 +2577,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         clearElement(container);
         appendText(container, "p", error.message, "error");
         const gatewayTier = tierById.get("gateway");
-        container.append(actionButton("Open guided gateway setup", () => {
+        buttons.append(container, actionButton("Open guided gateway setup", () => {
           window.unityStudioSettings.close();
           openTierStudio(gatewayTier);
         }, true));
@@ -2570,19 +2605,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       if (deleteError) appendText(container, "p", deleteError, "error").setAttribute("role", "alert");
       if (!deleteConfirming) {
-        const review = actionButton("Delete local app...", () => {
+        const review = destructiveButton("Delete local app...", () => {
           deleteConfirming = true;
           window.unityStudioSettings.refreshApp();
         });
         review.className = "danger";
-        container.append(review);
+        buttons.append(container, review);
         return;
       }
-      const confirm = actionButton("Delete local worktree", async () => {
+      const confirm = destructiveButton("Delete local worktree", async () => {
         if (deletingApp) return;
         deletingApp = true;
         deleteError = "";
-        for (const button of actions.querySelectorAll("button")) button.disabled = true;
+        for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, true);
         try {
           await apiRequest("/api/delete-app", {
             method: "POST",
@@ -2603,8 +2638,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         deleteError = "";
         window.unityStudioSettings.refreshApp();
       });
-      confirm.disabled = cancel.disabled = deletingApp;
-      actions.append(cancel, confirm);
+      buttons.setDisabled(confirm, deletingApp);
+      buttons.setDisabled(cancel, deletingApp);
+      buttons.append(actions, cancel, confirm);
       container.append(actions);
     }
 
@@ -2616,13 +2652,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const supportsDocuments = Boolean(operationalState.readiness?.documentInput);
       for (const input of tester.querySelectorAll("textarea, input")) input.disabled = busy;
       const send = tester.querySelector("[data-invoke-agent]");
-      if (send) send.disabled = !ready || busy || (supportsDocuments && Boolean(documentError));
+      if (send) buttons.setDisabled(send, !ready || busy || (supportsDocuments && Boolean(documentError)));
       const test = tester.querySelector("[data-test-document]");
-      if (test) test.disabled = !ready || busy || Boolean(documentError);
+      if (test) buttons.setDisabled(test, !ready || busy || Boolean(documentError));
       const egress = tester.querySelector("[data-test-egress]");
-      if (egress) egress.disabled = !ready || busy || Boolean(documentError);
+      if (egress) buttons.setDisabled(egress, !ready || busy || Boolean(documentError));
       const remove = tester.querySelector("[data-remove-document]");
-      if (remove) remove.disabled = invokingAgent || documentTesting;
+      if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
     }
 
     function clearDocumentAssessment() {
@@ -2737,7 +2773,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         renderManagePanel();
       });
       remove.dataset.removeDocument = "true";
-      input.append(file, text, remove);
+      buttons.append(input, file, text, remove);
       if (documentLoading) appendText(input, "p", "Reading document...");
       disclosure.append(input);
       container.append(disclosure);
@@ -2805,7 +2841,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       testOverride.dataset.testDocument = "true";
       const testEgress = actionButton("Test unsafe egress", () => runAdversarialTest("egress"));
       testEgress.dataset.testEgress = "true";
-      actions.append(testOverride, testEgress);
+      buttons.append(actions, testOverride, testEgress);
       renderDocumentAssessment(container);
       if (documentResultText) {
         const output = appendText(container, "pre", documentResultText, "command-output");
@@ -2846,18 +2882,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         actions.className = "actions";
         const send = actionButton("Invoke agent", () => {});
         send.dataset.invokeAgent = "true";
-        send.disabled = true;
-        actions.append(send);
+        buttons.setDisabled(send, true);
+        buttons.append(actions, send);
         if (needsGateway && appRunning) {
-          actions.append(actionButton("Stop preview", () => runAppOperation("stop-local"), true));
+          buttons.append(actions, actionButton("Stop preview", () => runAppOperation("stop-local"), true));
         } else if (needsGateway) {
-          actions.append(actionButton(
+          buttons.append(actions, actionButton(
             "Connect AI Gateway",
             () => renderManagePanel({ openGateway: true }),
             true,
           ));
         } else if (appRunning) {
-          actions.append(actionButton("Stop app", () => runAppOperation("stop-local"), true));
+          buttons.append(actions, actionButton("Stop app", () => runAppOperation("stop-local"), true));
         }
         tester.append(prompt);
         renderDocumentInput(tester);
@@ -2897,7 +2933,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           prompt.focus();
           return;
         }
-        send.disabled = true;
+        buttons.setDisabled(send, true);
         invokingAgent = true;
         clearDocumentAssessment();
         const assessmentEpoch = documentAssessmentEpoch;
@@ -2930,20 +2966,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           setStatus(error.message, true);
         } finally {
           invokingAgent = false;
-          send.disabled = false;
+          buttons.setDisabled(send, false);
           const currentResponse = details.querySelector(".agent-response");
           if (currentResponse) currentResponse.textContent = agentResponseText;
           const currentSend = details.querySelector("[data-invoke-agent]");
-          if (currentSend) currentSend.disabled = false;
+          if (currentSend) buttons.setDisabled(currentSend, false);
           if (panelMode === "manage") renderManagePanel();
         }
       }, true);
       send.dataset.invokeAgent = "true";
-      send.disabled = invokingAgent;
-      actions.append(send);
+      buttons.setDisabled(send, invokingAgent);
+      buttons.append(actions, send);
       const agentTier = tierById.get("agent");
       if (agentTier) {
-        actions.append(actionButton("Open agent setup", () => openTierStudio(agentTier)));
+        buttons.append(actions, actionButton("Open agent setup", () => openTierStudio(agentTier)));
       }
       tester.append(prompt);
       renderDocumentInput(tester);
@@ -2995,11 +3031,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const actions = document.createElement("div");
       actions.className = "actions";
       const pick = actionButton("Pick available ports", () => portOperation("pick"));
-      pick.disabled = portBusy || ["running", "starting", "stopping", "configuring"].includes(operationalState.app?.state);
+      buttons.setDisabled(pick, portBusy || ["running", "starting", "stopping", "configuring"].includes(operationalState.app?.state));
       pick.title = "Stop this app first. Save unused ports for both Run and the startup scripts.";
       const review = actionButton("Stop apps using these ports", () => portOperation("review-stop"));
-      review.disabled = portBusy || !runtimeEntrypoints.length;
-      actions.append(pick, review);
+      buttons.setDisabled(review, portBusy || !runtimeEntrypoints.length);
+      buttons.append(actions, pick, review);
       parent.append(actions);
       if (portBusy) appendText(parent, "p", "Checking ports and process ownership...");
       if (portMessage) appendText(parent, "p", portMessage, portError ? "error" : "");
@@ -3013,10 +3049,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           appendText(confirmation, "p", "PID " + target.pid + " · " + target.command + " · ports " + target.ports.join(", "));
         }
         const confirm = actionButton("Confirm stop", () => portOperation("stop"));
-        confirm.disabled = portBusy;
+        buttons.setDisabled(confirm, portBusy);
         const cancel = actionButton("Cancel", () => { portReview = null; window.unityStudioSettings.refreshApp(); });
-        cancel.disabled = portBusy;
-        confirmation.append(confirm, cancel);
+        buttons.setDisabled(cancel, portBusy);
+        buttons.append(confirmation, confirm, cancel);
         parent.append(confirmation);
       }
     }
@@ -3024,7 +3060,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderRuntimeServices(runtimeSection) {
       const tools = appendText(runtimeSection, "div", "", "run-section-actions");
       appendText(tools, "p", "Local endpoints and source-discovered components. Readiness is not proof of a successful tool call.");
-      tools.append(actionButton("Port settings", () => openAppSettings("ports")));
+      buttons.append(tools, actionButton("Port settings", () => openAppSettings("ports")));
       for (const entrypoint of runtimeEntrypoints) {
         const row = document.createElement("div");
         row.className = "endpoint-row";
@@ -3045,13 +3081,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             });
           } catch (error) { setStatus(error.message, true); }
         });
-        open.disabled = !entrypoint.ready;
-        row.append(open);
+        buttons.setDisabled(open, !entrypoint.ready);
+        buttons.append(row, open);
         const projects = MODEL.nodes.filter((node) => node.kind === "project" && entrypointForNode(node)?.port === entrypoint.port);
         for (const project of projects) {
           const source = actionButton("Open " + project.name + " source", () => openRuntimeSource(project));
           source.classList.add("runtime-source-action");
-          row.append(source);
+          buttons.append(row, source);
         }
         runtimeSection.append(row);
       }
@@ -3068,7 +3104,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         row.append(heading);
         appendText(row, "code", node.projectPath);
         appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
-        row.append(actionButton("Review source", () => openRuntimeSource(node)));
+        buttons.append(row, actionButton("Review source", () => openRuntimeSource(node)));
         runtimeSection.append(row);
       }
       if (!runtimeEntrypoints.length && !MODEL.nodes.some((node) => node.kind === "project")) {
@@ -3092,14 +3128,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       cloudActions.className = "actions";
       if (operationalState.readiness?.deploymentBlocker) {
         appendText(cloudActions, "p", operationalState.readiness.deploymentBlocker);
-        cloudActions.append(actionButton("Review runtime & access", renderBuildPanel));
+        buttons.append(cloudActions, actionButton("Review runtime & access", renderBuildPanel));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
       } else {
-        cloudActions.append(actionButton("Set up Azure resources", async () => {
+        buttons.append(cloudActions, actionButton("Set up Azure resources", async () => {
           await runAppOperation("provision-cloud");
         }));
-        cloudActions.append(actionButton("Deploy latest app", async () => {
+        buttons.append(cloudActions, actionButton("Deploy latest app", async () => {
           await runAppOperation("deploy-cloud");
         }));
       }
@@ -3114,7 +3150,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (web) {
           const actions = appendText(container, "div", "", "run-open-app");
           appendText(actions, "p", "Try the web experience, or send a message to the agent below.");
-          actions.append(actionButton("Open app", async () => {
+          buttons.append(actions, actionButton("Open app", async () => {
             try {
               await apiRequest("/api/open-entrypoint", {
                 method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
@@ -3124,13 +3160,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
       }
       if (operationalState.app?.foreignEntrypoints?.length) {
-        container.append(actionButton("Resolve port conflict", () => openAppSettings("ports")));
+        buttons.append(container, actionButton("Resolve port conflict", () => openAppSettings("ports")));
       }
       if (operationalState.readiness?.agentRuntime) {
         appendText(container, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
           ? "Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
           : "Local simulation: the document tool has no OS or network isolation. Use synthetic documents only.", "run-runtime-notice");
-        container.append(actionButton("Review key files", renderBuildPanel));
+        buttons.append(container, actionButton("Review key files", renderBuildPanel));
       }
       renderAgentTester(container);
     }
@@ -3413,14 +3449,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const missingActions = document.createElement("div");
         missingActions.className = "actions";
         if (!sources.length) {
-          missingActions.append(actionButton(
+          buttons.append(missingActions, actionButton(
             "Add to " + sourceGroup.label,
             () => renderAddToAppPanel(sourceGroup.tierIds, sourceGroup.label),
             true,
           ));
         }
         if (!targets.length) {
-          missingActions.append(actionButton(
+          buttons.append(missingActions, actionButton(
             "Add to " + targetGroup.label,
             () => renderAddToAppPanel(targetGroup.tierIds, targetGroup.label),
             true,
@@ -3465,7 +3501,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const actions = document.createElement("div");
       actions.className = "actions";
       if (!confirming) {
-        actions.append(actionButton("Review connection", () => renderConnectionPanel(
+        buttons.append(actions, actionButton("Review connection", () => renderConnectionPanel(
           sourceGroup,
           targetGroup,
           { sourceId: sourceField.select.value, targetId: targetField.select.value },
@@ -3476,7 +3512,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           discoveredEdge ? "Improve connection" : "Create connection",
           async () => {
             if (confirmButton.disabled) return;
-            for (const button of actions.querySelectorAll("button")) button.disabled = true;
+            for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, true);
             setStatus((discoveredEdge ? "Improving" : "Creating") + " connection…");
             try {
               const result = await apiRequest("/api/connection-request", {
@@ -3500,18 +3536,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               );
               const nextActions = document.createElement("div");
               nextActions.className = "actions";
-              nextActions.append(actionButton("Check for changes", () => location.reload(), true));
+              buttons.append(nextActions, actionButton("Check for changes", () => location.reload(), true));
               details.append(nextActions);
               setStatus("Connection implementation requested.");
             } catch (error) {
-              for (const button of actions.querySelectorAll("button")) button.disabled = false;
+              for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, false);
               setStatus(error.message, true);
             }
           },
           true,
         );
-        actions.append(confirmButton);
-        actions.append(actionButton("Back", () => renderConnectionPanel(
+        buttons.append(actions, confirmButton);
+        buttons.append(actions, actionButton("Back", () => renderConnectionPanel(
           sourceGroup,
           targetGroup,
           { sourceId: source.id, targetId: target.id },
@@ -3554,7 +3590,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           existing ? String(existing) + " implementation" + (existing === 1 ? "" : "s") + " already in this app" : "Not added yet",
           "action-priority",
         );
-        card.append(actionButton(existing ? "Add another" : "Add component", () => renderTierAddPanel(tier)));
+        buttons.append(card, actionButton(existing ? "Add another" : "Add component", () => renderTierAddPanel(tier)));
         list.append(card);
       }
       details.append(list);
@@ -3616,17 +3652,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           : "Find existing " + tier.name + " implementations →";
         const setupButton = actionButton(setupLabel, async () => {
           if (setupButton.disabled) return;
-          setupButton.disabled = true;
-          setupButton.textContent = "Opening setup…";
+          buttons.setDisabled(setupButton, true);
+          buttons.setText(setupButton, "Opening setup…");
           const result = await openTierStudio(tier);
           if (!setupButton.isConnected) return;
-          setupButton.disabled = false;
-          setupButton.textContent = result?.outcome === "canvas-opened"
+          buttons.setDisabled(setupButton, false);
+          buttons.setText(setupButton, result?.outcome === "canvas-opened"
             ? "Reopen " + tier.name + " setup →"
-            : setupLabel;
+            : setupLabel);
         }, true);
         setupButton.classList.add("setup-action");
-        actions.append(setupButton);
+        buttons.append(actions, setupButton);
       } else if (tierResult.outcome === "candidates-discovered" && tier.id === "gateway") {
         const chooseGateway = actionButton(
           "Choose an AI Gateway →",
@@ -3634,12 +3670,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           true,
         );
         chooseGateway.classList.add("setup-action");
-        actions.append(chooseGateway);
+        buttons.append(actions, chooseGateway);
       }
       if (confirming) {
         const confirmButton = actionButton("Confirm capability request", async () => {
           if (confirmButton.disabled) return;
-          for (const button of actions.querySelectorAll("button")) button.disabled = true;
+          for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, true);
           setStatus("Requesting a new " + tier.name + " source capability…");
           try {
             const result = await apiRequest("/api/capability-request", {
@@ -3658,18 +3694,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             );
             const nextActions = document.createElement("div");
             nextActions.className = "actions";
-            nextActions.append(actionButton("Check for changes", () => location.reload(), true));
+            buttons.append(nextActions, actionButton("Check for changes", () => location.reload(), true));
             details.append(nextActions);
             setStatus("Requested a new " + tier.name + " source capability.");
           } catch (error) {
-            for (const button of actions.querySelectorAll("button")) button.disabled = false;
+            for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, false);
             setStatus(error.message, true);
           }
         });
-        actions.append(confirmButton);
-        actions.append(actionButton("Cancel", () => renderTierAddPanel(tier)));
+        buttons.append(actions, confirmButton);
+        buttons.append(actions, actionButton("Cancel", () => renderTierAddPanel(tier)));
       } else {
-        actions.append(actionButton(
+        buttons.append(actions, actionButton(
           tier.id === "sre" ? "Set up observability" : "Build this capability",
           () => renderTierAddPanel(tier, true),
         ));
@@ -3697,7 +3733,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const internalActions = appendText(details, "div", "", "actions");
         for (const id of operationGroups.get(node.id).nodeIds) {
           const child = nodeById.get(id);
-          internalActions.append(actionButton("Inspect " + child.name, () => runOpportunityAction({
+          buttons.append(internalActions, actionButton("Inspect " + child.name, () => runOpportunityAction({
             action: { kind: "inspect-node", nodeId: id },
           })));
         }
@@ -3734,7 +3770,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
 
       if (node.kind === "project") {
-        actions.append(actionButton("Open source", async () => {
+        buttons.append(actions, actionButton("Open source", async () => {
           try {
             const opened = await apiRequest("/api/open-source", {
               method: "POST",
@@ -3747,12 +3783,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }, true));
       }
       if (node.kind === "project" && SERVICE_LOG_TIERS.has(node.tierId)) {
-        actions.append(actionButton("View service logs", () => renderLogsPanel(node.id)));
+        buttons.append(actions, actionButton("View service logs", () => renderLogsPanel(node.id)));
       }
-      actions.append(actionButton("Open tier studio", () => openTierStudio(tier)));
+      buttons.append(actions, actionButton("Open tier studio", () => openTierStudio(tier)));
       const entrypoint = entrypointForNode(node);
       if (entrypoint?.ready) {
-        actions.append(actionButton("Open local endpoint", async () => {
+        buttons.append(actions, actionButton("Open local endpoint", async () => {
           try {
             await apiRequest("/api/open-entrypoint", {
               method: "POST",
@@ -4194,6 +4230,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     setInterval(() => { void refreshOperationalState(); }, 2000);
     setInterval(() => { void refreshRunOutput(); }, 1000);
     ${renderThemeClientScript(apiToken, editorSettings)}
+    window.unityStudioReady = true;
+    window.dispatchEvent(new Event("unity-studio-ready"));
+    })().catch(cause => {
+      const status = document.getElementById("status");
+      status.textContent = "Could not load Studio controls: " + cause.message + ". Reload to retry.";
+      status.setAttribute("role", "alert");
+    });
   </script>
 </body>
 </html>`;

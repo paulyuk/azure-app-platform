@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -25,7 +26,7 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
         window.logsPanel?.dispose();
         const host = document.getElementById("host");
         host.replaceChildren();
-        window.logsPanel = createAppLogsPanel({
+        window.logsPanel = createAppLogsPanel({ buttons: window.unityStudioButtons,
           parent: host,
           nodeId,
           isActive: () => window.logsActive,
@@ -45,7 +46,7 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
     </script></body></html>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 
@@ -141,7 +142,10 @@ test("application logs workspace filters, pauses, refreshes, reports errors, and
         body: JSON.stringify(body),
       });
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}/logs`);
+    await page.waitForFunction(() => window.unityToolkitFixtureReady);
     await page.clock.install();
     const picker = page.locator(".app-logs-services");
     const selectServices = async (...names) => {

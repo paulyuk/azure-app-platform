@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -19,6 +20,8 @@ test("First-time setup clearly offers connection, preserves preview, and never c
     const page = await browser.newPage({ viewport: { width: 620, height: 850 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    await installToolkitRoutes(page);
+
     await page.goto(fixture.origin + "/app-map");
     await page.locator("#manage-app").click();
     const connect = page.locator(".run-heading").getByRole("button", { name: "Connect AI Gateway", exact: true });
@@ -69,6 +72,8 @@ test("Preview setup shortcuts show native agent evidence and missing-gateway gui
     const page = await browser.newPage({ viewport: { width: 620, height: 850 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    await installToolkitRoutes(page);
+
     await page.goto(fixture.origin + "/preview");
     await page.getByRole("button", { name: "Open agent setup", exact: true }).click();
     await page.getByRole("heading", { name: "Add to Agent", exact: true }).waitFor();
@@ -106,6 +111,8 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     const page = await browser.newPage({ viewport: { width: 780, height: 850 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    await installToolkitRoutes(page);
+
     await page.goto(fixture.origin + "/app-map");
     await page.locator("#manage-app").click();
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -118,7 +125,10 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     await page.waitForFunction(() =>
       document.querySelector('[aria-label="Preferred external editor"]')?.value === "cursor");
     await dialog.getByRole("combobox", { name: "Preferred external editor" }).selectOption("windsurf");
-    await page.waitForFunction(() => document.querySelector('[aria-label="Preferred external editor"]')?.value === "windsurf");
+    await page.waitForFunction(() => {
+      const picker = document.querySelector('[aria-label="Preferred external editor"]');
+      return picker?.value === "windsurf" && !picker.disabled;
+    });
     assert.equal(fixture.state.editorId, "windsurf");
     fixture.state.editorId = "zed";
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -192,6 +202,8 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     const page = await browser.newPage({ viewport: { width: 780, height: 850 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    await installToolkitRoutes(page);
+
     await page.goto(fixture.origin + "/app-map");
     await page.locator("#manage-app").click();
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -308,6 +320,8 @@ test("Run tabs are single-panel, responsive, themed, and support roving keyboard
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
+    await installToolkitRoutes(page);
+
     await page.goto(fixture.origin + "/app-map");
     await page.locator("#manage-app").click();
     await page.getByRole("tab", { name: "Services", exact: true }).waitFor();

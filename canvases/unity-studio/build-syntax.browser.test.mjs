@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -41,7 +42,7 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     ${renderThemeStyles()} ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({
+    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       onRun() {}, onModel() {},
       request: async (path, options) => {
@@ -55,7 +56,7 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     </script></html>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -69,6 +70,8 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
       if (path === "/api/build-workspace") await route.fulfill({ json: { artifacts } });
       else throw new Error(`Unexpected route ${path}`);
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.locator('.build-file[data-artifact="python"]').waitFor();
     const pythonDisclosure = page.locator(

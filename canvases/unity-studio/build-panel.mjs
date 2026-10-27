@@ -84,7 +84,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons }) {
   const areas = [
     { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior", description: "Shape what your agent does and how it responds." },
     { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts", description: "Choose a tool to change its implementation or the inputs it accepts." },
@@ -122,6 +122,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     return node;
   }
   function button(parent, label, action) {
+    const control = buttons.create({ children: label, onClick: action });
+    buttons.append(parent, control);
+    return control;
+  }
+  function navigationButton(parent, label, action) {
     const control = element("button", label, parent);
     control.type = "button";
     control.addEventListener("click", action);
@@ -138,17 +143,19 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   function updateEditorControls() {
     for (const control of container.querySelectorAll("[data-editor-launch]")) {
-      control.textContent = "Open in " + selectedEditorLabel();
+      buttons.setText(control, "Open in " + selectedEditorLabel());
       control.title = "Open the worktree and file in " + selectedEditorLabel();
-      control.disabled = editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId);
+      buttons.setDisabled(control, editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId));
     }
     for (const control of container.querySelectorAll("[data-workspace-launch]")) {
-      control.textContent = "Open in " + selectedEditorLabel();
-      control.disabled = workspaceOpening || editorSettingsSaving;
+      buttons.setText(control, "Open in " + selectedEditorLabel());
+      buttons.setDisabled(control, workspaceOpening || editorSettingsSaving);
     }
     for (const control of container.querySelectorAll("[data-files-launch]")) {
-      control.disabled = pendingFilesLaunches.has(control.dataset.artifactId);
-      control.textContent = control.disabled ? "Opening Files..." : "Edit in Files";
+      buttons.update(control, {
+        disabled: pendingFilesLaunches.has(control.dataset.artifactId),
+        children: pendingFilesLaunches.has(control.dataset.artifactId) ? "Opening Files..." : "Edit in Files",
+      });
     }
     for (const feedback of container.querySelectorAll(".build-handoff-feedback")) {
       const result = handoffFeedback.get(feedback.dataset.artifactId);
@@ -214,11 +221,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       dismissed = !pinned;
       tooltip.hidden = !pinned;
     });
-    control.className = "build-help-button";
+    buttons.update(control, { className: "build-help-button", appearance: "subtle" });
     control.setAttribute("aria-label", "About Build");
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
-    control.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 4.5v1"/></svg>';
+    buttons.update(control, { icon: buttons.icon('<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 4.5v1"/></svg>') });
     const tooltip = element("span", "Build shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";
@@ -294,12 +301,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     element("code", artifact.path, row, "build-source-path");
     const actions = element("div", undefined, row, "build-actions");
     const files = button(actions, "Edit in Files", () => openArtifact(artifact, true));
-    files.className = "build-edit-files";
+    buttons.update(files, { className: "build-edit-files" });
     files.dataset.filesLaunch = "true";
     files.dataset.artifactId = artifact.id;
     files.dataset.focusKey = "files-" + artifact.id;
     const external = button(actions, "Open in " + selectedEditorLabel(), () => openArtifact(artifact, false));
-    external.className = "build-open-editor";
+    buttons.update(external, { className: "build-open-editor" });
     external.dataset.editorLaunch = "true";
     external.dataset.artifactId = artifact.id;
     external.dataset.focusKey = "editor-" + artifact.id;
@@ -354,6 +361,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     }
   }
   function renderArea(panel, area) {
+    buttons.clear(panel);
     panel.replaceChildren();
     const header = element("div", undefined, panel, "build-area-header");
     element("h3", area.label, header, "build-area-title");
@@ -387,7 +395,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       choices.setAttribute("aria-label", area.id === "tools" ? "Tools" : area.label + " implementations");
       for (const project of projects) {
         const focusKey = "project-" + area.id + "-" + project.path;
-        const control = button(element("li", undefined, choices), project.name, () => {
+        const control = navigationButton(element("li", undefined, choices), project.name, () => {
           if (selectedProjects.get(area.id) === project.path) return;
           rememberView();
           selectedProjects.set(area.id, project.path);
@@ -435,9 +443,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     renderHelp(title);
     element("p", "Choose an area to customize. Editing opens the relevant source in Files.", intro);
     const refresh = button(header, "Refresh source", () => show({ refresh: true }));
-    refresh.className = "build-refresh";
+    buttons.update(refresh, { className: "build-refresh", disabled: refreshing });
     refresh.dataset.focusKey = "refresh";
-    refresh.disabled = refreshing;
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
@@ -469,7 +476,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       tabs.setAttribute("role", "tablist");
       tabs.setAttribute("aria-label", "App customization areas");
       for (const area of availableAreas) {
-        const tab = button(tabs, "", () => activateArea(area.id));
+        const tab = navigationButton(tabs, "", () => activateArea(area.id));
         tab.className = "build-tab studio-tab";
         tab.id = "build-tab-" + area.id;
         tab.dataset.focusKey = "area-" + area.id;
@@ -517,10 +524,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
     refreshing = true;
-    for (const control of container.querySelectorAll(".build-refresh")) control.disabled = true;
+    for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, true);
     let loading;
     if (!refresh || !container.childElementCount) {
       rememberView();
+      buttons.clear(container);
       container.replaceChildren();
       loading = element("p", "Loading app source...", container, "build-loading");
       loading.setAttribute("role", "status");
@@ -544,6 +552,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       artifacts = next;
       supportsDocuments = state.supportsDocuments === true;
       renderedState = signature;
+      buttons.clear(container);
       container.replaceChildren();
       areaPanels.clear();
       areaTabs.clear();
@@ -556,13 +565,13 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         loading?.remove();
         error(container, "Could not refresh saved files: " + cause.message);
         if (!container.querySelector(".build-refresh")) {
-          button(container, "Refresh source", () => show({ refresh: true })).className = "build-refresh";
+          buttons.update(button(container, "Refresh source", () => show({ refresh: true })), { className: "build-refresh" });
         }
       }
     } finally {
       if (version === loadVersion) {
         refreshing = false;
-        for (const control of container.querySelectorAll(".build-refresh")) control.disabled = false;
+        for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, false);
       }
     }
   }

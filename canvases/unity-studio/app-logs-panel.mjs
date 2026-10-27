@@ -52,7 +52,7 @@ export const APP_LOGS_CSS = `
   }
 `;
 
-export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
+export function createAppLogsPanel({ parent, load, isActive, nodeId = null, buttons }) {
   const root = document.createElement("section");
   root.className = "app-logs";
   const heading = document.createElement("h2");
@@ -91,13 +91,11 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
   serviceOptions.className = "app-logs-service-options";
   serviceOptions.setAttribute("role", "group");
   serviceOptions.setAttribute("aria-label", "Included services");
-  const allServices = document.createElement("button");
-  allServices.type = "button";
-  allServices.textContent = "All services";
+  const allServices = buttons.create({ children: "All services" });
   const serviceHint = document.createElement("p");
   serviceHint.textContent = "Choose up to 24 services. No selection shows all services.";
   const serviceChoices = document.createElement("div");
-  serviceOptions.append(allServices, serviceHint, serviceChoices);
+  buttons.append(serviceOptions, allServices, serviceHint, serviceChoices);
   servicePicker.append(serviceSummary, serviceOptions);
   serviceField.append(serviceCaption, servicePicker);
   controls.append(serviceField);
@@ -110,16 +108,11 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
   search.placeholder = "Search displayed logs";
   search.setAttribute("aria-label", "Search logs");
   controls.append(makeField("Search", search, "app-logs-search"));
-  const pause = document.createElement("button");
-  pause.type = "button";
-  pause.textContent = "Pause";
-  pause.setAttribute("aria-pressed", "false");
-  const refresh = document.createElement("button");
-  refresh.type = "button";
-  refresh.textContent = "Refresh";
+  const pause = buttons.create({ children: "Pause", "aria-pressed": false });
+  const refresh = buttons.create({ children: "Refresh" });
   const actions = document.createElement("div");
   actions.className = "app-logs-actions";
-  actions.append(pause, refresh);
+  buttons.append(actions, pause, refresh);
   controls.append(actions);
   root.append(controls);
 
@@ -421,7 +414,7 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
   function stopRequest() {
     controller?.abort();
     controller = null;
-    refresh.disabled = false;
+    buttons.setDisabled(refresh, false);
     root.removeAttribute("aria-busy");
   }
 
@@ -431,7 +424,7 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
     const serial = ++requestSerial;
     const requestedIds = [...selectedServiceIds];
     controller = request;
-    refresh.disabled = true;
+    buttons.setDisabled(refresh, true);
     root.setAttribute("aria-busy", "true");
     if (!response) render();
     let followUp = false;
@@ -470,7 +463,7 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
     } finally {
       if (controller === request) {
         controller = null;
-        refresh.disabled = false;
+        buttons.setDisabled(refresh, false);
         root.removeAttribute("aria-busy");
         if (followUp) void refreshLogs();
         else schedule();
@@ -527,8 +520,7 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
   search.addEventListener("input", filterLines);
   pause.addEventListener("click", () => {
     paused = !paused;
-    pause.textContent = paused ? "Resume" : "Pause";
-    pause.setAttribute("aria-pressed", String(paused));
+    buttons.update(pause, { children: paused ? "Resume" : "Pause", "aria-pressed": paused });
     if (paused) {
       clearTimeout(timer);
       stopRequest();
@@ -549,6 +541,7 @@ export function createAppLogsPanel({ parent, load, isActive, nodeId = null }) {
       timer = null;
       stopRequest();
       document.removeEventListener("pointerdown", closeServicePicker);
+      buttons.clear(root);
       root.remove();
     },
   };

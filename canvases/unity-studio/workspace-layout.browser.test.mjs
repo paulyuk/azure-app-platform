@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -127,6 +128,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       if (collapsed) await toggle.click();
     };
     await page.emulateMedia({ colorScheme: "dark" });
+    await installToolkitRoutes(page);
+
     await page.goto(url);
     const buildRow = page.locator('.build-file[data-artifact="instructions"]');
     const buildDisclosure = buildRow.locator(
@@ -178,6 +181,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
         radius: style.borderRadius, padding: style.padding, height: el.getBoundingClientRect().height };
     });
     const standardButton = { size: "12px", weight: "600", lineHeight: "18px", radius: "6px", padding: "6px 10px", height: 32 };
+    const toolkitButton = { size: "14px", weight: "400", lineHeight: "20px", radius: "6px", padding: "5px 12px", height: 32 };
     const assertHeaderLayout = async (width) => {
       const layout = await page.locator("header").evaluate((header) => {
         const rect = (el) => {
@@ -224,8 +228,11 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     for (const [state, recovered] of [["stopped", false], ["running", false], ["starting", false], ["starting", true], ["failed", false]]) {
       appState = state;
       appRecovered = recovered;
-      await page.evaluate(() => refreshOperationalState());
-      await page.waitForFunction(({ state, recovered }) => operationalState.app?.state === state && operationalState.app?.recovered === recovered, { state, recovered });
+      await page.waitForFunction(({ state, recovered }) =>
+        document.querySelector("#app-status-badge").textContent === ({
+          stopped: "Not running", running: "Running locally",
+          starting: recovered ? "Partial startup" : "Starting locally", failed: "Needs attention",
+        })[state], { state, recovered });
       for (const width of [320, 380, 620, 640, 679, 680, 681, 780, 959, 960, 961, 1000, 1440]) {
         await page.setViewportSize({ width, height: 1000 });
         await assertHeaderLayout(width);
@@ -233,7 +240,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     }
     appState = "stopped";
     appRecovered = false;
-    await page.evaluate(() => refreshOperationalState());
+    await page.waitForFunction(() => document.querySelector("#app-status-badge").textContent === "Not running");
     const assertObserveSwitcher = async () => {
       const views = page.getByRole("tablist", { name: "Observe views", exact: true });
       assert.deepEqual(await views.getByRole("tab").allTextContents(), ["App Map", "Logs"]);
@@ -263,7 +270,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.equal(styles.selectedBorderWidth, "3px");
       assert.equal(styles.overflow, false);
     };
-    assert.deepEqual(await buttonFormat(page.locator("#details .build-edit-files")), standardButton);
+    assert.deepEqual(await buttonFormat(page.locator("#details .build-edit-files")), toolkitButton);
     assert.equal(await page.locator("#details .build-header").count(), 0);
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
@@ -273,7 +280,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     await page.keyboard.press("Enter");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
-    assert.deepEqual(await buttonFormat(page.locator("#details .actions button").first()), standardButton);
+    assert.deepEqual(await buttonFormat(page.locator("#details .actions button").first()), toolkitButton);
     await page.locator("#manage-app").press("Tab");
     assert.equal(await page.locator("#map-app").evaluate((el) => el === document.activeElement), true);
     await page.locator("#build-app").focus();
@@ -284,7 +291,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       element.dataset.layoutProbe = "read-only-preview";
     });
     await openStructureFromGuide();
-    await page.waitForFunction(() => mapHasFitted);
+    await page.waitForFunction(() => /scale\(0\./.test(document.querySelector("#viewport").getAttribute("transform")));
     const structureGuidance = page.getByRole("region", { name: "App structure guidance", exact: true });
     assert.equal(await structureGuidance.isVisible(), true);
     assert.equal(await structureGuidance.evaluate((el) => el === document.activeElement), true);
@@ -356,7 +363,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#action-center").click();
     await page.getByRole("button", { name: "Open App Map", exact: true }).click();
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "map");
-    await page.waitForFunction(() => mapHasFitted);
+    await page.waitForFunction(() => /scale\(0\./.test(document.querySelector("#viewport").getAttribute("transform")));
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 0);
     assert.equal(await page.locator("#map-app").evaluate((el) => el === document.activeElement), true);
     const connectionReview = page.getByRole("button", { name: "Connect: review connections", exact: true });
@@ -430,7 +437,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
         else assert.equal(await page.locator("#observe-views").isVisible(), false);
         if (mode === "logs") {
           await page.locator("#details").filter({ hasText: "Agent service output" }).waitFor();
-          for (const button of await page.locator(".app-logs-controls button:visible").all()) assert.deepEqual(await buttonFormat(button), standardButton);
+          for (const button of await page.locator(".app-logs-controls button:visible").all()) assert.deepEqual(await buttonFormat(button), toolkitButton);
           for (const control of await page.locator('.app-logs-controls input:not([type="checkbox"]), .app-logs-controls select').all()) {
             const format = await buttonFormat(control);
             assert.ok(["normal", "18px"].includes(format.lineHeight), "Native single-line controls retain their line metrics");
@@ -493,18 +500,18 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "map");
     assert.equal(await page.getByRole("tab").count(), 2);
     // Keep a selected card near the bottom to catch implicit camera correction on open.
-    await page.evaluate(() => {
-      const card = nodeElements.get("agent").getBoundingClientRect();
-      const area = graphShell.getBoundingClientRect();
-      transform.y += area.bottom - 10 - card.bottom;
-      applyTransform();
-    });
+    const panCard = await page.locator('[data-node-id="agent"]').boundingBox();
+    const panArea = await page.locator("#graph-shell").boundingBox();
+    await page.mouse.move(panArea.x + 5, panArea.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(panArea.x + 5, panArea.y + 20 + panArea.y + panArea.height - 10 - panCard.y - panCard.height);
+    await page.mouse.up();
     const cameraBeforeDetails = await page.locator("#viewport").getAttribute("transform");
     const nodeBeforeDetails = await page.locator('[data-node-id="agent"]').boundingBox();
     await page.locator('[data-node-id="agent"]').press("Enter");
     assert.equal(await page.locator("#details h2").textContent(), "Loan agent");
     assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
-    for (const button of await page.locator("#details > .actions > button").all()) assert.deepEqual(await buttonFormat(button), standardButton);
+    for (const button of await page.locator("#details > .actions button").all()) assert.deepEqual(await buttonFormat(button), toolkitButton);
     const pathBounds = await page.locator("#details > code").boundingBox();
     const actionsBounds = await page.locator("#details > .actions").boundingBox();
     assert.ok(actionsBounds.y >= pathBounds.y + pathBounds.height + 8, "Inspector actions form a separate row below the source path");

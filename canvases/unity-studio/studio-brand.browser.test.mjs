@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -60,7 +61,10 @@ test("Unity branding and opening animation work in the browser", {
   };
   try {
     await scenario("real muted playback can be skipped immediately without replaying on navigation", async (page) => {
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await rememberVideo(page);
       assert.equal(await page.getByRole("button", { name: "Skip", exact: true }).evaluate((element) => element === document.activeElement), true);
       await page.waitForFunction(() => document.querySelector("video")?.currentTime > .1);
@@ -76,6 +80,7 @@ test("Unity branding and opening animation work in the browser", {
       assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
       assert.equal(new URL(page.url()).searchParams.has("intro"), false);
       await page.reload();
+      await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
       assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
       await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
@@ -87,11 +92,15 @@ test("Unity branding and opening animation work in the browser", {
       assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
       await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
       await page.getByRole("link", { name: "Unity Studio home" }).click();
+      await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
       assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
     });
     await scenario("real video completion opens the landing page automatically", async (page) => {
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await rememberVideo(page);
       await page.evaluate(() => { window.introVideo.addEventListener("ended", () => { window.didEnd = true; }); });
       await page.waitForFunction(() => window.didEnd, { }, { timeout: 16000 });
@@ -100,7 +109,10 @@ test("Unity branding and opening animation work in the browser", {
       assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     });
     await scenario("Escape dismisses the modal and keeps focus out of the background", async (page) => {
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await rememberVideo(page);
       assert.equal(await page.locator(".studio-intro").evaluate((dialog) => dialog.matches(":modal")), true);
       await page.locator("#new-app").evaluate((button) => button.focus());
@@ -112,13 +124,19 @@ test("Unity branding and opening animation work in the browser", {
       let mediaRequests = 0;
       page.on("request", (request) => { if (request.url().endsWith(".mp4")) mediaRequests++; });
       await page.emulateMedia({ reducedMotion: "reduce" });
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
       assert.equal(await page.getByRole("button", { name: /Create a new app/ }).isVisible(), true);
       assert.equal(mediaRequests, 0);
     });
     await scenario("switching to reduced motion ends active playback", async (page) => {
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await rememberVideo(page);
       await page.emulateMedia({ reducedMotion: "reduce" });
       await assertFinished(page);
@@ -129,7 +147,10 @@ test("Unity branding and opening animation work in the browser", {
         const play = HTMLMediaElement.prototype.play;
         HTMLMediaElement.prototype.play = function () { window.introVideo = this; return play.call(this); };
       });
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await assertFinished(page, "could not");
     });
     await scenario("blocked autoplay does not trap the user", async (page) => {
@@ -139,7 +160,10 @@ test("Unity branding and opening animation work in the browser", {
           return Promise.reject(new DOMException("Autoplay blocked", "NotAllowedError"));
         };
       });
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await assertFinished(page, "automatically");
     });
     await scenario("stalled loading times out instead of hiding the start page indefinitely", async (page) => {
@@ -152,7 +176,10 @@ test("Unity branding and opening animation work in the browser", {
         };
       });
       await page.clock.install();
+      await installToolkitRoutes(page);
+
       await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.unityStudioReady);
       await page.clock.fastForward(5001);
       await assertFinished(page, "too long");
     });
@@ -160,7 +187,10 @@ test("Unity branding and opening animation work in the browser", {
       for (const theme of ["light", "dark"]) {
         for (const width of [320, 400, 620, 840, 1440]) {
           await page.setViewportSize({ width, height: 740 });
+          await installToolkitRoutes(page);
+
           await page.goto(`${base}/?theme=${theme}`);
+          await page.waitForFunction(() => window.unityStudioReady);
           await page.waitForFunction(() => [...document.images].every((image) => image.complete && image.naturalWidth === 394));
           assert.equal(await page.locator(".studio-brand img").getAttribute("src"), "/assets/unity-symbol.png");
           assert.equal(await page.locator(".studio-welcome-brand img").getAttribute("src"), "/assets/unity-symbol.png");
@@ -191,7 +221,10 @@ test("Unity branding and opening animation work in the browser", {
         }
         for (const [width, height] of [[320, 480], [620, 400], [1440, 900]]) {
           await page.setViewportSize({ width, height });
+          await installToolkitRoutes(page);
+
           await page.goto(`${base}/?intro=1&theme=${theme}`);
+          await page.waitForFunction(() => window.unityStudioReady);
           const bodyBackground = await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor);
           const appearance = await page.locator(".studio-intro").evaluate((dialog) => ({
             background: getComputedStyle(dialog).backgroundColor,

@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -14,7 +15,7 @@ test("component logs are lazy, scoped, pausable and ignore responses after navig
   const root = "/tmp/unity-component-logs";
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+    response.end(withToolkitButtons(`<!doctype html><html lang="en"><head><meta charset="utf-8">
       <style>${COMPONENT_LOGS_CSS}</style></head><body><main id="details"></main><script>
       const mount = ${createComponentLogsPanel.toString()};
       let panel;
@@ -25,7 +26,7 @@ test("component logs are lazy, scoped, pausable and ignore responses after navig
         const heading = document.createElement("h2");
         heading.textContent = id;
         parent.append(heading);
-        panel = mount({ parent, node: { id, name: id }, initiallyOpen, isActive: () => true,
+        panel = mount({ buttons: window.unityStudioButtons, parent, node: { id, name: id }, initiallyOpen, isActive: () => true,
           load: async ({ nodeId, signal }) => {
             const response = await fetch("/api/component-logs?root=" + encodeURIComponent(${JSON.stringify(root)}) +
               "&nodeId=" + encodeURIComponent(nodeId), { signal, headers: { "x-unity-studio-token": "fixture" } });
@@ -35,7 +36,7 @@ test("component logs are lazy, scoped, pausable and ignore responses after navig
           }
         });
       }
-      </script></body></html>`);
+      </script></body></html>`));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   let browser;
@@ -82,7 +83,10 @@ test("component logs are lazy, scoped, pausable and ignore responses after navig
       }
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
+    await page.waitForFunction(() => window.unityToolkitFixtureReady);
     await page.clock.install();
     await page.evaluate(() => showComponent("agent", false));
     assert.equal(await page.locator(".component-logs").getAttribute("open"), null);

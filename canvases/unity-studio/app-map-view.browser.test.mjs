@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -75,6 +76,8 @@ test("one App Map reveals other resources without changing request paths or Guid
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path]) });
     });
     const url = `http://127.0.0.1:${server.address().port}/app-map`;
+    await installToolkitRoutes(page);
+
     await page.goto(url);
     await page.locator("#map-app").click();
     const observeTabs = page.getByRole("tablist", { name: "Observe views", exact: true });

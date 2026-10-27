@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -21,7 +22,7 @@ async function withPanel(routeWorkspace, action) {
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
     window.panelActive = true;
-    window.buildPanel = (${createBuildPanel.toString()})({
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/fixture",
       isActive: () => window.panelActive, syntax: buildSyntax, onRun() {}, onModel() {},
       request: async (path, options) => {
@@ -35,7 +36,7 @@ async function withPanel(routeWorkspace, action) {
     </script>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -49,6 +50,8 @@ async function withPanel(routeWorkspace, action) {
       if (path === "/api/build-workspace") await routeWorkspace(route);
       else throw new Error(`Unexpected route ${path}`);
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.locator('.build-file[data-artifact="agent"]').waitFor();
     await action(page);
