@@ -206,11 +206,14 @@ test("shipped toolkit notice preserves the review journey in light, dark and com
       const toolkit = await import("/canvas-ui/base.mjs");
       const create = (0, eval)(`(${factory})`);
       const host = document.createElement("div");
+      host.hidden = true;
       document.body.append(host);
       const controller = create({ loadToolkit: () => Promise.resolve(toolkit), onError: message => { throw new Error(message); } });
       const actions = [];
       controller.renderNotice(host, { children: "Stable notice", intent: "info", onClick: () => actions.push("stale"), tabIndex: 0 });
       await new Promise(resolve => setTimeout(resolve, 0));
+      if (!host.hidden) throw new Error("Mount changed notice visibility");
+      host.hidden = false;
       const node = host.querySelector(".ct-message");
       node.focus();
       let mutations = 0;
@@ -229,8 +232,10 @@ test("shipped toolkit notice preserves the review journey in light, dark and com
       if (document.activeElement !== node) throw new Error("Content refresh lost focus");
       controller.clearNotice(host);
       if (host.childNodes.length) throw new Error("Clear left React-owned DOM behind");
+      host.hidden = true;
       controller.renderNotice(host, { children: "Reused mount" });
       await new Promise(resolve => setTimeout(resolve, 0));
+      if (!host.hidden) throw new Error("Reuse changed notice visibility");
       if (host.querySelector(".ct-message")?.textContent !== "Reused mount") throw new Error("Cleared mount could not be reused");
       controller.dispose();
       if (host.childNodes.length) throw new Error("Dispose left React-owned DOM behind");
