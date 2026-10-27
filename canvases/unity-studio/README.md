@@ -33,6 +33,14 @@ There is no second appearance selector. React owns only the notice's mount
 container, with updates on the same root and disposal before navigation replaces
 the page. Unchanged updates do not re-announce the notice.
 
+`createStudioNotices` is the one shared notice helper. Its `renderNotice(element,
+props)` keeps a canonical MessageBar root keyed by the mount element, merges the
+latest props, and forwards callbacks through stable handlers so callback-only
+refreshes do not re-render or lose focus. `clearNotice(element)` cancels pending
+work and disposes that root; the same element can safely be reused. `dispose()`
+clears all owned roots before legacy DOM replacement. The first review notice
+uses this helper; no other notices are migrated here.
+
 The pinned toolkit recognizes the current Copilot-style semantic names above;
 it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or
