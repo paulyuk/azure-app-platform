@@ -4,12 +4,18 @@ import { fileURLToPath } from "node:url";
 const assets = new Map([
   ["/assets/unity-symbol.png", { path: fileURLToPath(new URL("./assets/unity-symbol.png", import.meta.url)), type: "image/png" }],
   ["/assets/unity-intro.mp4", { path: fileURLToPath(new URL("./assets/unity-intro.mp4", import.meta.url)), type: "video/mp4" }],
+  ["/canvas-ui/base.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/base.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],
+  ["/canvas-ui/react-runtime.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/react-runtime.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],
+  ["/canvas-ui/styles.css", { path: fileURLToPath(new URL("./vendor/toolkit/ui/styles.css", import.meta.url)), type: "text/css; charset=utf-8" }],
+  ["/canvas-ui/base.css", { path: fileURLToPath(new URL("./vendor/toolkit/ui/base.css", import.meta.url)), type: "text/css; charset=utf-8" }],
+  ["/canvas-ui/THIRD_PARTY_NOTICES.txt", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/THIRD_PARTY_NOTICES.txt", import.meta.url)), type: "text/plain; charset=utf-8" }],
+  ["/canvas-ui/LICENSE", { path: fileURLToPath(new URL("./vendor/toolkit/LICENSE", import.meta.url)), type: "text/plain; charset=utf-8" }],
 ]);
 
 export async function serveStudioAsset(request, response, pathname) {
   const asset = assets.get(pathname);
   if (!asset || !["GET", "HEAD"].includes(request.method)) return false;
-  // The allowlist bounds the cache to the two shipped brand assets, never workspace files.
+  // Only explicitly shipped brand/toolkit assets are cached, never workspace files.
   const content = asset.content ??= await readFile(asset.path);
   response.setHeader("Content-Type", asset.type);
   response.setHeader("X-Content-Type-Options", "nosniff");

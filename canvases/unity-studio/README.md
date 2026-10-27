@@ -17,6 +17,74 @@ The start page shows the large Unity logo and tagline only; the compact header
 branding appears on inner screens instead. Docs and the Settings gear remain
 available at the top right on every screen.
 
+## Shared toolkit browser assets
+
+The review page's **No Azure resources will be created or changed.** notice uses
+the canonical toolkit informational MessageBar, including its icon, border and
+status semantics. Its text, placement, visibility and workflow are unchanged.
+The chosen design is the toolkit's layout and informational icon (16px padding,
+6px radius), mapped to Copilot's delivered semantic tokens, rather than a
+compatibility variant of the old Unity notice. No internal icon hiding or
+Unity-specific MessageBar restyling is applied.
+The toolkit's unmodified `styles.css` maps the current host's delivered semantic tokens to
+`--canvas-*` aliases; `base.css` uses those aliases for MessageBar. For example,
+`--text-color-default` supplies `--canvas-fg`, `--border-color-default` supplies
+`--canvas-border`, and `--background-color-muted` supplies `--canvas-tint`.
+The existing Studio Appearance preference sets the fallback light/dark tone;
+it does not replace supplied host colors with Studio's palette. Legacy Studio
+aliases stay on `body` so they do not overwrite host tokens on `:root`.
+There is no second appearance selector. React owns only the notice's mount
+container, with updates on the same root and disposal before navigation replaces
+the page. Unchanged updates do not re-announce the notice.
+
+`createStudioNotices` is the one shared notice helper. Its `renderNotice(element,
+props)` keeps a canonical MessageBar root keyed by the mount element, merges the
+latest props, and forwards callbacks through stable handlers so callback-only
+refreshes do not re-render or lose focus. `clearNotice(element)` cancels pending
+work and disposes that root; the same element can safely be reused. `dispose()`
+clears all owned roots before legacy DOM replacement. The first review notice
+uses this helper; no other notices are migrated here.
+
+The pinned toolkit recognizes the current Copilot-style semantic names above;
+it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
+mapping into that contract. This change does not add another host adapter or
+claim that a synthetic browser fixture proves native host token delivery.
+
+The standalone plugin ships the prepared React/Base UI browser runtime, shared
+React chunk, CSS, upstream MIT license and complete bundled dependency notices
+under `vendor/toolkit/`. Nothing is downloaded or restored when the plugin opens.
+Only six explicitly allowed `/canvas-ui/` assets are served, relative to the
+installed plugin, never the user's workspace or a sibling checkout.
+
+This is **source-pinned build-time consumption**, not an npm publication:
+`@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
+[`e29e5511b6bde9cd99a5026e300c7712deb2add8`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/e29e5511b6bde9cd99a5026e300c7712deb2add8).
+`vendor/toolkit/provenance.json` records that source, the upstream lockfile and
+builder hashes, toolchain, and every shipped asset's SHA-256.
+The vendor directory disables Git text conversion so these exact bytes and
+hashes survive Windows checkouts with `core.autocrlf` enabled.
+
+Maintainers need Node.js (the recorded build uses 24.22.1), npm, `tar`, and an
+authenticated `gh` with read access to that repository. These commands work
+unchanged in PowerShell and macOS/Linux shells, from the repository root:
+
+```shell
+npm run vendor:toolkit --prefix canvases/unity-studio
+npm run check:toolkit --prefix canvases/unity-studio
+```
+
+The generator downloads only the exact pinned source into a temporary directory,
+restores its lockfile with scripts disabled, invokes the existing upstream
+`buildToolkitUi` and `prepareCanvasUiAssets` helpers, and selects the required
+browser assets without reimplementing bundling. It compares two builds within
+that restored source/toolchain before writing output. `check:toolkit` repeats the
+clean-source preparation and compares all checked-in bytes and hashes. Matching
+bytes prove the runs checked, not determinism across arbitrary toolchains.
+No sibling checkout, publication, customer bootstrap, or toolkit runtime package
+dependency is introduced.
+
+## Studio journeys
+
 The workspace uses one compact top bar for the Unity logo/home navigation,
 app name, runtime status and start/stop, workspace buttons, **Docs**, and the
 Settings gear. Docs and Settings remain at the top right at every width.

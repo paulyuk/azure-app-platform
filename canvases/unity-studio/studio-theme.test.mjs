@@ -63,6 +63,8 @@ test("home and map render explicit initial preference with shared settings and a
   assert.doesNotMatch(workspace, /component-requests|workspace-styles/);
   assert.doesNotMatch(renderThemeStyles(), /prefers-color-scheme/);
   assert.doesNotMatch(renderThemeClientScript("token"), /localStorage/);
+  assert.doesNotMatch(renderThemeStyles(), /--canvas-[\w-]+\s*:/, "Toolkit aliases must not be replaced with Studio palette colors");
+  assert.match(renderThemeStyles(), /:root\[data-studio-theme\] body\s*\{\s*--background-color-default:/);
   assert.throws(() => renderThemeToggle('"><script>'), /Choose light or dark/);
 });
 
