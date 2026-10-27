@@ -22,6 +22,10 @@ available at the top right on every screen.
 The review page's **No Azure resources will be created or changed.** notice uses
 the canonical toolkit informational MessageBar, including its icon, border and
 status semantics. Its text, placement, visibility and workflow are unchanged.
+The chosen design is the toolkit's layout and informational icon (16px padding,
+6px radius), mapped to Copilot's delivered semantic tokens, rather than a
+compatibility variant of the old Unity notice. No internal icon hiding or
+Unity-specific MessageBar restyling is applied.
 The toolkit's unmodified `styles.css` maps the current host's delivered semantic tokens to
 `--canvas-*` aliases; `base.css` uses those aliases for MessageBar. For example,
 `--text-color-default` supplies `--canvas-fg`, `--border-color-default` supplies
