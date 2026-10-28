@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { SETTINGS_CSS, createEditorPreference, createStudioSettings } from "./studio-settings.mjs";
+import { getStudioPresentation } from "./studio-presentation.mjs";
 
 export function studioPreferencesDirectory() {
   return join(process.env.COPILOT_HOME || join(homedir(), ".copilot"), "extensions", "unity-studio", "artifacts");
@@ -47,28 +48,9 @@ export async function writeStudioPreferences(input, directory = studioPreference
   return preferences;
 }
 
-export function renderThemeStyles() {
+export function renderThemeStyles(presentationProfile = "standalone") {
+  const presentation = getStudioPresentation(presentationProfile);
   return `
-    :root[data-studio-theme="light"] {
-      color-scheme: light;
-      --studio-bg: #f6f8fa; --studio-panel: #f0f3f8; --studio-raised: #ffffff;
-      --studio-line: #d1d9e0; --studio-ink: #1f2328; --studio-muted: #59636e;
-      --studio-accent: #6b3fd6; --studio-accent-2: #5c2eb8; --studio-accent-soft: #f1eaff;
-      --studio-ok: #137333; --studio-warn: #9a5100; --studio-danger: #b42318;
-      --studio-focus: #0969da; --studio-edge-medium: #0969da; --studio-edge-low: #68717a;
-      --studio-blue-soft: #e7f1ff;
-      --studio-on-accent: #ffffff;
-    }
-    :root[data-studio-theme="dark"] {
-      color-scheme: dark;
-      --studio-bg: #15171c; --studio-panel: #20232b; --studio-raised: #1b1e25;
-      --studio-line: #454b57; --studio-ink: #edf0f5; --studio-muted: #b6becb;
-      --studio-accent: #c5a6ff; --studio-accent-2: #d6c0ff; --studio-accent-soft: #36264e;
-      --studio-ok: #7bdba0; --studio-warn: #f0b563; --studio-danger: #ff9b91;
-      --studio-focus: #81baff; --studio-edge-medium: #81baff; --studio-edge-low: #a6afbb;
-      --studio-blue-soft: #182d46;
-      --studio-on-accent: #20132f;
-    }
     :root[data-studio-theme] {
       --bg: var(--studio-bg); --surface: var(--studio-raised); --surface-muted: var(--studio-panel);
       --border: var(--studio-line); --text: var(--studio-ink); --muted: var(--studio-muted);
@@ -76,15 +58,7 @@ export function renderThemeStyles() {
       --edge-high: var(--studio-accent); --edge-medium: var(--studio-edge-medium);
       --edge-low: var(--studio-edge-low); --danger: var(--studio-danger);
     }
-    /* Legacy Studio aliases stay on body; toolkit root aliases resolve host tokens. */
-    :root[data-studio-theme] body {
-      --background-color-default: var(--studio-raised); --border-color-default: var(--studio-line);
-      --text-color-default: var(--studio-ink); --text-color-muted: var(--studio-muted);
-      --color-focus-outline: var(--studio-focus); --true-color-purple: var(--studio-accent);
-      --true-color-blue: var(--studio-edge-medium); --true-color-green: var(--studio-ok);
-      --true-color-blue-muted: var(--studio-blue-soft);
-      --true-color-red: var(--studio-danger); --true-color-orange: var(--studio-warn);
-    }
+    ${presentation.legacyStyles}
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
     .studio-logo { flex: 0 0 auto; width: 32px; height: 28px; object-fit: contain; }
@@ -113,8 +87,9 @@ export function renderThemeStyles() {
   `;
 }
 
-export function renderThemeToggle(theme = "light") {
+export function renderThemeToggle(theme = "light", presentationProfile = "standalone") {
   validateTheme(theme);
+  const presentation = getStudioPresentation(presentationProfile);
   return `<div class="studio-theme-control" role="group" aria-label="Unity Studio utilities">
     <a class="studio-docs" href="https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme" target="_blank" rel="noopener noreferrer">Docs</a>
     <button data-studio-button="subtle" class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
@@ -126,7 +101,7 @@ export function renderThemeToggle(theme = "light") {
       <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button data-studio-button="subtle" type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>×</button></div>
       <div class="studio-settings-content">
         <label>Appearance<select aria-label="Appearance" data-studio-theme-select><option value="light"${theme === "light" ? " selected" : ""}>Light</option><option value="dark"${theme === "dark" ? " selected" : ""}>Dark</option></select></label>
-        <p>Applies to Unity Studio across your apps.</p>
+        <p>${presentation.appearanceDescription}</p>
         <p class="error studio-settings-error" role="alert"></p>
         <label class="studio-editor-preference">Preferred external editor<select aria-label="Preferred external editor" data-studio-editor-select><option value="vscode">VS Code</option></select></label>
         <p>Used for external-editor actions across your apps. VS Code is the default.</p>

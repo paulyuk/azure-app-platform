@@ -9,8 +9,11 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Build preview scrollbars stay inside file containers when resized in ${name}`, {
+for (const [name, engine, presentationProfile] of [
+  ["Chromium", chromium, "standalone"], ["Chromium", chromium, "github-app"],
+  ["WebKit", webkit, "standalone"], ["WebKit", webkit, "github-app"],
+]) {
+  test(`Build preview scrollbars stay inside file containers when resized in ${name} (${presentationProfile})`, {
     skip: !engine || !existsSync(engine.executablePath())
       ? "Install src/web Playwright dependencies and chromium/webkit browsers for scrollbar coverage." : false,
   }, async () => {
@@ -32,7 +35,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const path = new URL(route.request().url()).pathname;
         if (path === "/") return route.fulfill({
           contentType: "text/html",
-          body: renderInteractiveAppMapHtml(graph, { apiToken: "fixture", theme: "light" }),
+          body: renderInteractiveAppMapHtml(graph, { apiToken: "fixture", theme: "light", presentationProfile }),
         });
         const responses = {
           "/api/build-workspace": { artifacts },

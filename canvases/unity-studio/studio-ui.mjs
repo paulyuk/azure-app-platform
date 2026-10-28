@@ -5,6 +5,7 @@ import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from ".
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
+import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -79,14 +80,15 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false, editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
+export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false, editorSettings = DEFAULT_EDITOR_SETTINGS, presentationProfile = "standalone" } = {}) {
+  const presentation = getStudioPresentation(presentationProfile);
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
     name: tier.name,
     role: tier.role,
   }));
   return `<!doctype html>
-<html lang="en" data-studio-theme="${escapeHtml(theme)}">
+<html lang="en" class="${presentation.className}" data-studio-theme="${escapeHtml(theme)}" data-studio-presentation="${presentation.id}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -94,23 +96,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <title>Unity Studio</title>
     <link rel="stylesheet" href="/canvas-ui/styles.css">
     <link rel="stylesheet" href="/canvas-ui/base.css">
+    ${presentation.stylesheet ? `<link rel="stylesheet" href="${presentation.stylesheet}">` : ""}
     <style>
       ${STUDIO_BUTTON_MOUNT_CSS}
+      ${renderPresentationStyles(presentation.id)}
       @layer studio-legacy {
-      :root {
-        color-scheme: light dark;
-        --studio-bg: var(--background-color-default, #fff);
-        --studio-panel: color-mix(in srgb, var(--background-color-default, #fff) 94%, var(--true-color-blue-muted, #ddf4ff));
-        --studio-raised: var(--background-color-default, #fff);
-        --studio-line: var(--border-color-default, #d1d9e0);
-        --studio-ink: var(--text-color-default, #1f2328);
-        --studio-muted: var(--text-color-muted, #59636e);
-        --studio-accent: #6b3fd6;
-        --studio-accent-2: #7b52e0;
-        --studio-ok: #0f9d6e;
-        --studio-warn: #b45309;
-        --studio-danger: #cf222e;
-      }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         padding: 28px 24px 48px;
@@ -343,7 +333,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         .component-status { grid-template-columns: 1fr; }
         .surface-head { align-items: flex-start; flex-direction: column; }
       }
-      ${renderThemeStyles()}
+      ${renderThemeStyles(presentation.id)}
       ${renderStudioIntroStyles()}
       .studio-site-nav { max-width: 840px; margin: 0 auto 24px; }
       body:has(.studio-welcome-brand) > .studio-site-nav { justify-content: flex-end; }
@@ -362,7 +352,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
   <body>
     <nav class="studio-site-nav" aria-label="Unity Studio navigation">
       ${renderStudioBrand()}
-      ${renderThemeToggle(theme)}
+      ${renderThemeToggle(theme, presentation.id)}
     </nav>
     <main>
       <div class="studio-intro-notice" role="status"></div>

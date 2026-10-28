@@ -142,11 +142,21 @@
 .ct-badge[data-color="danger"] { color: var(--canvas-danger); }
 .ct-badge[data-color="warning"] { color: var(--canvas-attention); }
 .ct-badge[data-appearance="outline"] { border: 1px solid var(--canvas-border); background: transparent; }
-.ct-button[data-size="small"] { min-height: 28px; padding: 3px 8px; font-size: var(--canvas-small); }
-.ct-button[data-size="large"] { min-height: 40px; padding: 9px 16px; }
+.ct-button[data-size="small"] {
+  --_canvas-button-min-height: var(--canvas-button-small-min-height, var(--canvas-button-min-height, 32px));
+  --_canvas-button-padding-block: var(--canvas-button-small-padding-block, var(--canvas-button-padding-block, 5px));
+  --_canvas-button-padding-inline: var(--canvas-button-small-padding-inline, var(--canvas-button-padding-inline, 12px));
+  min-height: 28px; padding: 3px 8px; font-size: var(--canvas-small);
+}
+.ct-button[data-size="large"] {
+  --_canvas-button-min-height: var(--canvas-button-large-min-height, var(--canvas-button-min-height, 32px));
+  --_canvas-button-padding-block: var(--canvas-button-large-padding-block, var(--canvas-button-padding-block, 5px));
+  --_canvas-button-padding-inline: var(--canvas-button-large-padding-inline, var(--canvas-button-padding-inline, 12px));
+  min-height: 40px; padding: 9px 16px;
+}
 .ct-message { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; border: 1px solid var(--canvas-border); background: var(--canvas-tint); }
 .ct-message-body { flex: 1; }
-.ct-message-icon { display: inline-flex; align-items: center; height: 20px; flex: none; color: var(--canvas-accent); }
+.ct-message-icon { display: inline-flex; align-items: center; height: var(--canvas-message-line-height, 20px); flex: none; color: var(--canvas-accent); }
 .ct-message[data-intent="error"] { background: color-mix(in srgb, var(--canvas-danger) 12%, var(--canvas-bg)); border-color: color-mix(in srgb, var(--canvas-danger) 45%, var(--canvas-bg)); }
 .ct-message[data-intent="warning"] { background: color-mix(in srgb, var(--canvas-attention) 12%, var(--canvas-bg)); border-color: color-mix(in srgb, var(--canvas-attention) 45%, var(--canvas-bg)); }
 .ct-message[data-intent="error"] .ct-message-icon { color: var(--canvas-danger); }
@@ -154,9 +164,11 @@
 .ct-message[data-intent="success"] .ct-message-icon { color: var(--canvas-success); }
 .ct-message-actions { grid-column: 2; justify-self: end; margin-top: 8px; }
 .ct-button.ct-button {
-  min-height: 32px; min-width: 0; padding: 5px 12px; border-radius: 6px;
-  font-size: var(--canvas-body); line-height: var(--leading-body-medium, 20px);
-  font-weight: 400; white-space: normal; overflow-wrap: anywhere;
+  min-height: var(--_canvas-button-min-height, var(--canvas-button-min-height, 32px)); min-width: 0;
+  padding: var(--_canvas-button-padding-block, var(--canvas-button-padding-block, 5px)) var(--_canvas-button-padding-inline, var(--canvas-button-padding-inline, 12px));
+  border-radius: var(--canvas-button-radius, 6px); gap: var(--canvas-button-gap, 8px);
+  font-size: var(--canvas-body); line-height: var(--canvas-button-line-height, var(--leading-body-medium, 20px));
+  font-weight: var(--canvas-button-font-weight, 400); white-space: normal; overflow-wrap: anywhere;
 }
 .ct-button.ct-button:not(.ct-toolbar-button) { flex-shrink: 0; }
 .ct-button.ct-button[data-appearance="secondary"] {
@@ -422,9 +434,9 @@
 .ct-progress.ct-progress { height: 8px; border-radius: 3px; background: var(--canvas-border); }
 .ct-progress .ct-progress-indicator { height: 8px; border-radius: 3px; }
 .ct-badge.ct-badge, .ct-counter.ct-counter { font-size: var(--canvas-small); line-height: 16px; font-weight: 400; border-radius: 999px; }
-.ct-message.ct-message { min-width: 0; padding: 16px; border-radius: 6px; gap: 8px; }
-.ct-message .ct-message-title { display: block; margin: 0 0 4px; font-size: var(--canvas-body); line-height: 20px; font-weight: 400; }
-.ct-message .ct-message-body { font-size: var(--canvas-body); line-height: 20px; }
+.ct-message.ct-message { min-width: 0; padding: var(--canvas-message-padding, 16px); border-radius: var(--canvas-message-radius, 6px); gap: var(--canvas-message-gap, 8px); }
+.ct-message .ct-message-title { display: block; margin: 0 0 4px; font-size: var(--canvas-body); line-height: var(--canvas-message-line-height, 20px); font-weight: 400; }
+.ct-message .ct-message-body { font-size: var(--canvas-body); line-height: var(--canvas-message-line-height, 20px); }
 .ct-message[data-intent="success"] { border-color: color-mix(in srgb, var(--canvas-success) 45%, var(--canvas-bg)); background: color-mix(in srgb, var(--canvas-success) 16%, var(--canvas-bg)); }
 .ct-filter-pill.ct-filter-pill { min-height: 24px; padding: 3px 10px; border: 1px solid var(--canvas-border); border-radius: 999px; background: var(--canvas-tint); color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 16px; font-weight: 400; }
 .ct-filter-pill[aria-pressed="true"] { border-color: var(--canvas-accent); background: var(--canvas-selected); color: var(--canvas-fg); }

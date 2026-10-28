@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "source": {
     "repository": "coreai-microsoft/canvases-cloud-foundation",
-    "commit": "7f3fb1ee46a3ac17ceca2a40470a30666412ee17",
+    "commit": "63280d0d3b3a515bde6c1e48e9a3192bf8768b41",
     "package": "@microsoft/canvas-toolkit",
     "version": "0.1.0",
     "published": false
@@ -39,7 +39,31 @@
       "route": "/canvas-ui/base.css",
       "file": "ui/base.css",
       "contentType": "text/css; charset=utf-8",
-      "sha256": "8f2df18a26a7b347abe3be5735727334bb74236d903abff140d738beb631dec8"
+      "sha256": "8a61805b2af819308931e752c5e3d07b2ee15c73d8bb7ff9d40e5debbc91f92b"
+    },
+    {
+      "route": "/canvas-ui/visual-profiles.mjs",
+      "file": "ui/visual-profiles.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "2646c87f2f130fafd63635f482422af3475ed57922a8a707f8e65873d0b1fd79"
+    },
+    {
+      "route": "/canvas-ui/profiles/github-app.css",
+      "file": "ui/profiles/github-app.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "06185010c79026f67384ac8703c67cbf3f59b77bc7b759adc70cb9f1a3fcf7de"
+    },
+    {
+      "route": "/canvas-ui/hosts/github-app/design.md",
+      "file": "ui/hosts/github-app/design.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "647d57c51d13f4da00948df4a3bede7bdad26fc0b649c6310aa7ba3f6a61becf"
+    },
+    {
+      "route": "/canvas-ui/hosts/github-app/theming.md",
+      "file": "ui/hosts/github-app/theming.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "beb5c62b8edb5f5fe6caa11244e8da44287870495424b6e39f01834472410e73"
     },
     {
       "route": "/canvas-ui/THIRD_PARTY_NOTICES.txt",

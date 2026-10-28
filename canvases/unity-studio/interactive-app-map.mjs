@@ -9,6 +9,7 @@ import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
+import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { COMPONENT_LOGS_CSS } from "./component-logs-panel.mjs";
 import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
@@ -438,7 +439,8 @@ function renderNoScriptFallback(model) {
   }).join("");
 }
 
-export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light", editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
+export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: providedAppName, theme = "light", editorSettings = DEFAULT_EDITOR_SETTINGS, presentationProfile = "standalone" } = {}) {
+  const presentation = getStudioPresentation(presentationProfile);
   const model = buildInteractiveAppMapModel(appMap);
   const appName = providedAppName ||
     model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
@@ -458,7 +460,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   ).join("");
 
   return `<!doctype html>
-<html lang="en" data-studio-theme="${escapeHtml(theme)}">
+<html lang="en" class="${presentation.className}" data-studio-theme="${escapeHtml(theme)}" data-studio-presentation="${presentation.id}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -467,41 +469,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <title>Unity App Map</title>
   <link rel="stylesheet" href="/canvas-ui/styles.css">
   <link rel="stylesheet" href="/canvas-ui/base.css">
+  ${presentation.stylesheet ? `<link rel="stylesheet" href="${presentation.stylesheet}">` : ""}
   <style>
     ${STUDIO_BUTTON_MOUNT_CSS}
+    ${renderPresentationStyles(presentation.id)}
     @layer studio-legacy {
     :root {
-      color-scheme: light dark;
-      --bg: #f3f2f1;
-      --surface: #ffffff;
-      --surface-muted: #faf9f8;
-      --border: #d2d0ce;
-      --text: #201f1e;
-      --muted: #605e5c;
-      --accent: #5c2d91;
-      --accent-soft: #f3e8ff;
-      --focus: #0078d4;
-      --edge-high: #5c2d91;
-      --edge-medium: #0078d4;
-      --edge-low: #8a8886;
-      --danger: #a4262c;
       font-family: "Segoe UI", system-ui, sans-serif;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #1b1a19;
-        --surface: #252423;
-        --surface-muted: #201f1e;
-        --border: #484644;
-        --text: #f3f2f1;
-        --muted: #c8c6c4;
-        --accent: #c19bf5;
-        --accent-soft: #3b2754;
-        --focus: #60cdff;
-        --edge-high: #c19bf5;
-        --edge-medium: #60cdff;
-        --edge-low: #a19f9d;
-      }
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -860,7 +834,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${BUILD_PANEL_CONTENT_CSS}
     ${COMPONENT_LOGS_CSS}
     ${APP_LOGS_CSS}
-    ${renderThemeStyles()}
+    ${renderThemeStyles(presentation.id)}
     }
   </style>
 </head>
@@ -881,7 +855,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="manage-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Run &amp; Debug</button>
       <button id="map-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Observe</button>
     </div>
-    ${renderThemeToggle(theme)}
+    ${renderThemeToggle(theme, presentation.id)}
   </header>
   <main>
     <section id="workspace-shell" role="region" aria-labelledby="build-app">
