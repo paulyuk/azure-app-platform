@@ -14,6 +14,12 @@ import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { OCTICON_MARKUP, octiconMask, renderOcticon } from "./studio-icons.mjs";
+
+export const NODE_TIER_ICONS = {
+  web: "browser", agent: "agent", gateway: "shield-lock", skills: "tools",
+  sandbox: "codespaces", connectors: "link", workflows: "workflow", sre: "meter", data: "database",
+};
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -445,15 +451,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
-  const guideIcon = '<svg class="guide-panel-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="1.5"/><path d="M12.5 4v12"/><path class="guide-chevron" d="m6.5 7 3 3-3 3"/></svg>';
+  const guideIcon = renderOcticon("sidebar-collapse", { size: 20, className: "guide-panel-icon" });
   const guideStageIcons = {
-    build: '<path d="m8 5-5 5 5 5m4-10 5 5-5 5"/>',
-    connect: '<path d="m8 12 4-4M7 13l-1 1a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0m2 0 1-1a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0"/>',
-    run: '<path d="m6 3 11 7-11 7z"/>',
-    observe: '<path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6"/><circle cx="10" cy="10" r="2.5"/>',
+    build: "code",
+    connect: "link",
+    run: "play",
+    observe: "eye",
   };
   const guideShortcutsHtml = model.actionCenter.stages.map((stage) =>
-    `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status"><svg viewBox="0 0 20 20" aria-hidden="true">${guideStageIcons[stage.id]}</svg><span class="guide-state-icon" aria-hidden="true">…</span></button>`,
+    `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status">${renderOcticon(guideStageIcons[stage.id], { size: 20 })}<span class="guide-state-icon" aria-hidden="true">${renderOcticon("stopwatch", { size: 12 })}</span></button>`,
   ).join("");
 
   return `<!doctype html>
@@ -526,7 +532,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
       color: var(--muted); background: var(--surface-muted); font-size: 10px; font-weight: 700;
     }
-    .runtime-badge::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .runtime-badge::before { width:12px; height:12px; background:currentColor; content:""; mask:${octiconMask("dot-fill")} center/contain no-repeat; }
     .runtime-badge[data-tone="success"] { border-color: #107c10; color: #107c10; background: rgb(16 124 16 / .1); }
     .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
     .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
@@ -548,14 +554,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       box-shadow: 0 4px 16px rgb(0 0 0 / .12); font-size: 12px;
     }
     .map-palette > button, .map-palette .icon-group button { min-width: 36px; min-height: 36px; padding: 4px; }
-    .map-palette svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .map-palette svg { width:18px; height:18px; fill:currentColor; stroke:none; }
     .map-tools { position: static; }
     .map-tools > summary {
       min-height: 36px; display: flex; align-items: center; gap: 6px; padding: 4px 8px;
       border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; list-style: none;
     }
     .map-tools > summary::-webkit-details-marker { display: none; }
-    .map-tools > summary::after { margin-left: 6px; content: "▾"; color: var(--muted); font-size: 10px; }
+    .map-tools > summary::after { margin-left:6px; content:""; width:16px; height:16px; background:currentColor; color:var(--muted); mask:${octiconMask("chevron-down")} center/contain no-repeat; }
     .map-tools[open] > summary { border-color: var(--accent); }
     .toolbar {
       position: absolute; z-index: 5; top: calc(100% + 8px); right: 0;
@@ -622,22 +628,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #guide-rail[data-collapsed="true"] .guide-heading h2 { display: none; }
     .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 5px 6px 14px; border-bottom: 1px solid var(--border); }
     #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
-    .guide-panel-icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-    .guide-chevron { transform-origin: 8px 10px; }
+    .guide-panel-icon { width:20px; height:20px; flex:none; fill:currentColor; stroke:none; }
     #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: auto; padding: 6px; border: 0; background: transparent; flex: none; }
     #action-center:hover { background: var(--surface-muted); }
-    #action-center[aria-expanded="false"] .guide-chevron { transform: scaleX(-1); }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
     #guide-content h3 { margin-top: 14px; }
     #guide-content .journey { margin: 10px 0; }
     #guide-content .journey-stage { padding-block: 8px; }
     #guide-shortcuts { display: grid; gap: 8px; padding: 4px 4px 12px; overflow: auto; }
     .guide-shortcut { position: relative; display: grid; place-items: center; width: 36px; min-height: 40px; padding: 7px; border: 0; background: transparent; color: var(--muted); }
-    .guide-shortcut > svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .guide-shortcut > svg { width:20px; height:20px; fill:currentColor; stroke:none; }
     .guide-shortcut:hover { background: var(--surface-muted); color: var(--text); }
     .guide-shortcut[data-current="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); }
     .guide-shortcut:focus-visible { outline-offset: -2px; }
     .guide-state-icon { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; min-width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted); font: 700 10px/1 system-ui; }
+    .guide-state-icon svg { width:12px; height:12px; }
     .guide-shortcut[data-state="complete"] .guide-state-icon { color: var(--true-color-green); }
     .guide-shortcut[data-state="attention"] .guide-state-icon { color: var(--true-color-orange); }
     .guide-shortcut[data-current="true"] .guide-state-icon { color: var(--true-color-blue); }
@@ -653,18 +658,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .flow-region.operations > rect { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 7 5; }
     .flow-region-title { fill: var(--text); font-size: 14px; font-weight: 650; }
     .flow-region-role { fill: var(--muted); font-size: 10px; }
-    .flow-add { cursor: pointer; }
+    .flow-add { cursor:pointer; color:var(--accent); }
     .flow-add rect { fill: var(--surface-muted); stroke: var(--border); }
     .flow-add text { fill: var(--accent); font-size: 10px; font-weight: 650; pointer-events: none; }
     .flow-add:focus-visible rect { stroke: var(--focus); stroke-width: 2; }
-    .flow-connect { cursor: pointer; }
+    .flow-connect { cursor:pointer; color:var(--accent); }
     .flow-connect rect { fill: var(--accent-soft); stroke: var(--accent); }
     .flow-connect text { fill: var(--accent); font-size: 11px; font-weight: 650; pointer-events: none; }
     .flow-connect:hover rect, .flow-connect:focus-visible rect { fill: var(--accent); }
     .flow-connect:hover text, .flow-connect:focus-visible text { fill: #fff; }
+    .flow-connect:hover, .flow-connect:focus-visible { color:#fff; }
     .flow-connect:focus-visible { outline: none; }
     .structure-editing :is(.flow-add, .flow-connect) rect { fill: var(--true-color-blue-muted); stroke: var(--true-color-blue); stroke-width: 2; }
     .structure-editing :is(.flow-add, .flow-connect) text { fill: var(--true-color-blue); }
+    .structure-editing :is(.flow-add, .flow-connect) { color:var(--true-color-blue); }
     .edge { color: var(--edge-medium); }
     .edge.high { color: var(--edge-high); }
     .edge.low { color: var(--edge-low); }
@@ -692,10 +699,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .node-visual[data-tier-id="skills"], .node-visual[data-tier-id="data"] { color: #038387; }
     .node-visual[data-tier-id="sandbox"] { color: #605e5c; }
     .node-visual-bg { fill: currentColor; opacity: .12; stroke: none; }
-    .node-visual-shape {
-      fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
-    }
-    .node-visual-fill { fill: currentColor; stroke: none; }
     .muted { opacity: .18; }
     .hidden { display: none; }
     #empty-state {
@@ -732,7 +735,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .endpoint-row button { grid-column: 2; grid-row: 1; }
     .endpoint-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .endpoint-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
-    .endpoint-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .endpoint-status::before { content:""; width:12px; height:12px; background:currentColor; mask:${octiconMask("dot-fill")} center/contain no-repeat; }
     .endpoint-row[data-ready="true"] .endpoint-status { color: var(--true-color-green, #1a7f37); }
     .connection-summary { display: block; font-size: 12px; font-weight: normal; margin-top: 4px; overflow-wrap: anywhere; }
     .live-output { min-height: 200px; }
@@ -884,14 +887,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="logs-app" class="studio-tab" role="tab" type="button" aria-label="Logs" aria-selected="false" aria-controls="workspace" tabindex="-1"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--logs" aria-hidden="true"></span><span class="studio-tab-label">Logs</span></span></button>
     </div>
     <section id="structure-guidance" aria-label="App structure guidance" tabindex="-1" hidden>
-      <p><strong>Edit app structure.</strong> Use <strong>+ Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
-      <button id="close-structure-guidance" type="button" aria-label="Dismiss app structure guidance" title="Dismiss app structure guidance"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      <p><strong>Edit app structure.</strong> Use <strong>Add component</strong> within a stage, or <strong>Connect</strong> between stages. Changes are reviewed before they are applied.</p>
+      <button id="close-structure-guidance" type="button" aria-label="Dismiss app structure guidance" title="Dismiss app structure guidance">${renderOcticon("x")}</button>
     </section>
     <section id="workspace" aria-label="App workspace">
     <div id="graph-shell">
       <nav class="map-palette" aria-label="App Map controls">
       <details class="map-tools">
-        <summary><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 5 5"/></svg>Search &amp; layout</summary>
+        <summary>${renderOcticon("search")}Search &amp; layout</summary>
         <div class="toolbar" role="group" aria-label="Search and layout options">
           <label><span>Search nodes</span><input id="search" type="search" placeholder="Find a component…" aria-label="Search nodes"></label>
           <label><span>Component type</span><select id="tier-filter" aria-label="Filter by tier"><option value="">All component types</option>${tierOptions}</select></label>
@@ -904,10 +907,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         </div>
       </details>
       <div class="icon-group" aria-label="Zoom controls">
-        <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-        <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">${renderOcticon("zoom-out")}</button>
+        <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">${renderOcticon("zoom-in")}</button>
       </div>
-      <button id="fit" type="button" aria-label="Fit map" title="Fit map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/></svg></button>
+      <button id="fit" type="button" aria-label="Fit map" title="Fit map">${renderOcticon("screen-full")}</button>
       </nav>
       <svg id="graph" role="application" aria-label="Interactive source-derived Unity application graph">
         <defs>
@@ -944,6 +947,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <script>
     "use strict";
     const MODEL = ${safeJson(model)};
+    const ICONS = ${safeJson(OCTICON_MARKUP)};
+    const TIER_ICONS = ${safeJson(NODE_TIER_ICONS)};
     const INITIAL_EDITOR_SETTINGS = ${safeJson(editorSettings)};
     const API_TOKEN = ${safeJson(apiToken)};
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
@@ -1113,6 +1118,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return String(value ?? "").replaceAll("-", " ");
     }
 
+    function appendSvgOcticon(parent, name, x, y, size = 16) {
+      const wrapper = svgElement("g");
+      wrapper.innerHTML = ICONS[name];
+      const icon = wrapper.firstElementChild;
+      for (const [key, value] of Object.entries({ x, y, width: size, height: size })) {
+        icon.setAttribute(key, value);
+      }
+      parent.append(icon);
+    }
+
     function appendNodeVisual(parent, tierId) {
       const visual = svgElement("svg", {
         x: NODE_WIDTH - 46,
@@ -1132,56 +1147,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         rx: 9,
         class: "node-visual-bg",
       }));
-      const shape = (name, attributes) => visual.append(svgElement(name, {
-        ...attributes,
-        class: "node-visual-shape",
-      }));
-      const fill = (name, attributes) => visual.append(svgElement(name, {
-        ...attributes,
-        class: "node-visual-fill",
-      }));
-      switch (tierId) {
-        case "web":
-          shape("rect", { x: 8, y: 9, width: 20, height: 15, rx: 2 });
-          shape("path", { d: "M13 28h10M18 24v4" });
-          break;
-        case "agent":
-          shape("circle", { cx: 17, cy: 18, r: 8 });
-          shape("path", { d: "M17 10v16M10 18h14M12 13c3 2 7 2 10 0M12 23c3-2 7-2 10 0" });
-          fill("path", { d: "M27 7l1.1 2.9L31 11l-2.9 1.1L27 15l-1.1-2.9L23 11l2.9-1.1z" });
-          break;
-        case "gateway":
-          shape("path", { d: "M18 7l9 4v6c0 6-3.8 10-9 12-5.2-2-9-6-9-12v-6z" });
-          shape("path", { d: "M13 18h10M20 14l4 4-4 4" });
-          break;
-        case "skills":
-          shape("path", { d: "M9 11h7v5h5v-5h6v7h-5v6h5v4H9v-7h5v-5H9z" });
-          break;
-        case "sandbox":
-          shape("rect", { x: 7, y: 8, width: 22, height: 20, rx: 3 });
-          shape("path", { d: "M7 13h22M11 18l3 3-3 3M17 24h6" });
-          break;
-        case "connectors":
-          shape("path", { d: "M14 11l-3-3M22 25l3 3M12 22l-2 2a5 5 0 007 7l3-3M24 14l2-2a5 5 0 00-7-7l-3 3M13 23l10-10" });
-          break;
-        case "workflows":
-          shape("circle", { cx: 10, cy: 10, r: 3 });
-          shape("circle", { cx: 26, cy: 18, r: 3 });
-          shape("circle", { cx: 10, cy: 27, r: 3 });
-          shape("path", { d: "M13 10h4a5 5 0 015 5v0M22 21v1a5 5 0 01-5 5h-4" });
-          break;
-        case "sre":
-          shape("path", { d: "M7 19h5l3-7 5 13 3-6h6" });
-          shape("circle", { cx: 18, cy: 18, r: 12 });
-          break;
-        case "data":
-          shape("ellipse", { cx: 18, cy: 10, rx: 10, ry: 4 });
-          shape("path", { d: "M8 10v8c0 2 4.5 4 10 4s10-2 10-4v-8M8 18v8c0 2 4.5 4 10 4s10-2 10-4v-8" });
-          break;
-        default:
-          shape("rect", { x: 9, y: 9, width: 18, height: 18, rx: 4 });
-          shape("path", { d: "M14 18h8M18 14v8" });
-      }
+      appendSvgOcticon(visual, TIER_ICONS[tierId] || "apps", 8, 8, 20);
       parent.append(visual);
     }
 
@@ -1377,9 +1343,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         role: "button",
         "aria-label": "Add component to " + label,
       });
-      add.append(svgElement("rect", { x, y, width: 88, height: 24, rx: 4 }));
-      const addText = svgElement("text", { x: x + 44, y: y + 16, "text-anchor": "middle" });
-      addText.textContent = "+ Add component";
+      add.append(svgElement("rect", { x, y, width: 100, height: 24, rx: 4 }));
+      appendSvgOcticon(add, "plus", x + 4, y + 6, 12);
+      const addText = svgElement("text", { x: x + 58, y: y + 16, "text-anchor": "middle" });
+      addText.textContent = "Add component";
       add.append(addText);
       const open = () => {
         const tiers = tierIds.map((tierId) => tierById.get(tierId)).filter(Boolean);
@@ -1413,12 +1380,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
       connection.append(svgElement("rect", { x, y, width, height, rx: 14 }));
       const text = svgElement("text", {
-        x: x + width / 2,
+        x: x + 30,
         y: y + 18,
         "text-anchor": "middle",
       });
-      text.textContent = "Connect →";
+      text.textContent = "Connect";
       connection.append(text);
+      appendSvgOcticon(connection, "arrow-right", x + 58, y + 8, 12);
       const open = () => renderConnectionPanel(sourceGroup, targetGroup);
       connection.addEventListener("pointerdown", (event) => event.stopPropagation());
       connection.addEventListener("click", open);
@@ -1871,12 +1839,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function appendPanelBack() {
       const button = panelMode === "manage"
-        ? actionButton("← Run/Debug", renderManagePanel)
+        ? actionButton("Run/Debug", renderManagePanel)
         : actionButton("", closeMapDetails);
-      if (panelMode !== "manage") {
+      if (panelMode === "manage") {
+        button.insertAdjacentHTML("afterbegin", ICONS["arrow-left"] + " ");
+      } else {
         button.setAttribute("aria-label", "Close details");
         button.title = "Close details";
-        button.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        button.innerHTML = ICONS.x;
       }
       button.className = "panel-back";
       details.append(button);
@@ -1935,6 +1905,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       guideContent.hidden = collapsed;
       document.querySelector("#guide-shortcuts").hidden = !collapsed;
       const toggle = document.querySelector("#action-center");
+      toggle.innerHTML = ICONS[collapsed ? "sidebar-expand" : "sidebar-collapse"];
+      toggle.firstElementChild.classList.add("guide-panel-icon");
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.title = collapsed ? "Expand Guide" : "Collapse Guide";
       toggle.setAttribute("aria-label", toggle.title);
@@ -2382,14 +2354,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateGuideShortcuts(stages, currentStage) {
-      const symbols = { complete: "✓", attention: "!", active: "●", ready: "✓", next: "→", blocked: "–", runtime: "…" };
+      const symbols = { complete: "check", attention: "alert", active: "dot-fill", ready: "check", next: "arrow-right", blocked: "skip", runtime: "stopwatch" };
       for (const stage of stages) {
         const button = document.querySelector('[data-guide-stage="' + stage.id + '"]');
         button.dataset.state = stage.state;
         button.dataset.current = String(stage === currentStage);
         button.title = stage.label + ": " + journeyStateLabel(stage.state) + ". " + stage.detail;
         button.setAttribute("aria-label", button.title);
-        button.querySelector(".guide-state-icon").textContent = symbols[stage.state] || "…";
+        button.querySelector(".guide-state-icon").innerHTML = ICONS[symbols[stage.state] || "stopwatch"];
       }
     }
 
@@ -3612,8 +3584,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       actions.className = "actions";
       if (!tierResult) {
         const setupLabel = tier.hasSpecialistStudio
-          ? "Open " + tier.name + " setup →"
-          : "Find existing " + tier.name + " implementations →";
+          ? "Open " + tier.name + " setup"
+          : "Find existing " + tier.name + " implementations";
         const setupButton = actionButton(setupLabel, async () => {
           if (setupButton.disabled) return;
           setupButton.disabled = true;
@@ -3622,17 +3594,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           if (!setupButton.isConnected) return;
           setupButton.disabled = false;
           setupButton.textContent = result?.outcome === "canvas-opened"
-            ? "Reopen " + tier.name + " setup →"
+            ? "Reopen " + tier.name + " setup"
             : setupLabel;
+          setupButton.insertAdjacentHTML("beforeend", " " + ICONS["arrow-right"]);
         }, true);
+        setupButton.insertAdjacentHTML("beforeend", " " + ICONS["arrow-right"]);
         setupButton.classList.add("setup-action");
         actions.append(setupButton);
       } else if (tierResult.outcome === "candidates-discovered" && tier.id === "gateway") {
         const chooseGateway = actionButton(
-          "Choose an AI Gateway →",
+          "Choose an AI Gateway",
           () => renderManagePanel({ openGateway: true }),
           true,
         );
+        chooseGateway.insertAdjacentHTML("beforeend", " " + ICONS["arrow-right"]);
         chooseGateway.classList.add("setup-action");
         actions.append(chooseGateway);
       }

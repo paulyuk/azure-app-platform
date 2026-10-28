@@ -43,6 +43,7 @@ test("installed payload opens and materializes templates without checkout depend
 
       const payload = await realpath(process.argv[1]);
       const base = pathToFileURL(payload + sep).href;
+      const checkpoint = (stage) => process.stderr.write("Portable payload: " + stage + "\\n");
       // Only host registration is substituted; every provider/UI module is real.
       const sdk = "data:text/javascript," + encodeURIComponent(\`
         export const createCanvas = (options) => options;
@@ -82,6 +83,14 @@ test("installed payload opens and materializes templates without checkout depend
         },
       });
       await import(base + "extension.mjs");
+      checkpoint("provider imported");
+      const { renderOcticon } = await import(base + "studio-icons.mjs");
+      assert.match(renderOcticon("gear"), /data-octicon="gear"/);
+      const iconManifest = JSON.parse(await readFile(join(payload, "vendor/octicons/provenance.json"), "utf8"));
+      assert.equal(iconManifest.package, "@primer/octicons");
+      assert.equal(iconManifest.version, "19.41.0");
+      assert.equal(createHash("sha256").update(await readFile(join(payload, "vendor/octicons/icons.json"))).digest("hex"), iconManifest.sha256);
+      assert.match(await readFile(join(payload, "vendor/octicons/LICENSE"), "utf8"), /MIT/);
       const { createSyntaxHighlighter } = await import(base + "vendor/prism.mjs");
       const { createBuildSyntax } = await import(base + "build-syntax.mjs");
       const syntax = createBuildSyntax(createSyntaxHighlighter());
@@ -96,6 +105,7 @@ test("installed payload opens and materializes templates without checkout depend
       };
       try {
         const opened = await canvas.open(context);
+        checkpoint("canvas opened");
         assert.equal(new URL(opened.url).hostname, "127.0.0.1");
         const response = await fetch(opened.url);
         assert.equal(response.status, 200);
@@ -177,6 +187,7 @@ test("installed payload opens and materializes templates without checkout depend
           await missing.arrayBuffer();
         }
         const home = await fetch(new URL("/", opened.url));
+        checkpoint("shipped assets verified");
         assert.doesNotMatch(await home.text(), /id="skip-studio-intro"/);
         assert.doesNotMatch(html, /<(?:script|link|img)\\b[^>]+(?:src|href)=["'](?:https?:)?\\/\\//i);
         const token = JSON.parse(/const apiToken = (".*?");/.exec(html)[1]);
@@ -333,6 +344,7 @@ test("installed payload opens and materializes templates without checkout depend
         assert.match(mapHtml, /build-help-tooltip/);
         assert.doesNotMatch(mapHtml, /About these customization points/);
         assert.doesNotMatch(mapHtml, /Resize key files/);
+        checkpoint("workspace actions verified");
       } finally {
         await canvas.onClose(context);
       }
@@ -340,6 +352,7 @@ test("installed payload opens and materializes templates without checkout depend
       const { LOCAL_TEMPLATES } = await import(base + "source-catalog.mjs");
       assert.equal(LOCAL_TEMPLATES.length, 2);
       for (const template of LOCAL_TEMPLATES) {
+        checkpoint("materializing " + template.id);
         const destination = join(process.cwd(), template.id);
         const generated = await materializeTemplate({
           appName: "Portable app", purpose: "Review loan documents",
@@ -356,7 +369,8 @@ test("installed payload opens and materializes templates without checkout depend
     `, payload], {
       cwd: workspace,
       env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "", COPILOT_HOME: join(root, "copilot-home") },
-      timeout: 30_000,
+      // Real Git/discovery calls can exceed 30s on a shared Windows host.
+      timeout: 120_000,
     });
     assert.equal(stdout, "portable payload passed");
   } finally {

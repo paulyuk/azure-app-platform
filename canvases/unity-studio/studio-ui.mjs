@@ -4,6 +4,7 @@ import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScri
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
+import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -36,12 +37,12 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
       nodes.map((node) => {
         const links = (outgoing.get(node.id) || []).map((edge) => {
           const target = nodesById.get(edge.to);
-          return '<div class="map-link"><span class="arrow">→</span><span>' +
+          return '<div class="map-link"><span class="arrow">' + renderOcticon("arrow-right") + '</span><span>' +
             escapeHtml(edge.kind.replaceAll("-", " ")) + ' <b>' +
             escapeHtml(target?.name || edge.to) + '</b></span></div>';
         });
         const missing = (unresolved.get(node.id) || []).map((item) =>
-          '<div class="map-link unresolved"><span class="arrow">?</span><span>Unresolved <b>' +
+          '<div class="map-link unresolved"><span class="arrow">' + renderOcticon("question") + '</span><span>Unresolved <b>' +
           escapeHtml(item.reference) + '</b></span></div>');
         const evidence = node.evidence?.[0];
         const details = (node.details || []).map((detail) =>
@@ -209,7 +210,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       details.surface > summary { cursor: pointer; list-style: none; }
       details.surface > summary::-webkit-details-marker { display: none; }
-      details.surface > summary::before { content: "›"; color: var(--studio-accent); font-size: 17px; transition: transform .2s; }
+      details.surface > summary::before { content:""; flex:none; width:16px; height:16px; background:currentColor; mask:${octiconMask("chevron-right")} center/contain no-repeat; color:var(--studio-accent); transition:transform .2s; }
       details.surface[open] > summary::before { transform: rotate(90deg); }
       .surface-head h2 { margin: 0; font-size: 13px; font-weight: 650; }
       .surface-head small { color: var(--studio-muted); }
@@ -234,7 +235,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         font: 600 11px var(--font-mono, "SFMono-Regular", Consolas, monospace);
       }
       .command-panel > summary::-webkit-details-marker { display: none; }
-      .command-panel > summary::before { content: "›"; color: #9b87e8; font-size: 15px; transition: transform .2s; }
+      .command-panel > summary::before { content:""; flex:none; width:16px; height:16px; background:currentColor; mask:${octiconMask("chevron-right")} center/contain no-repeat; color:var(--studio-accent); transition:transform .2s; }
       .command-panel[open] > summary::before { transform: rotate(90deg); }
       .command-summary { margin-left: auto; color: #7f8ca3; font-weight: 400; }
       .command-panel pre { margin: 0; min-height: 96px; max-height: 280px; overflow: auto; padding: 11px; color: #dbe5f7; font: 12px/1.55 var(--font-mono, "SFMono-Regular", Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -612,7 +613,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               : 'Last opened: Not recorded') +
             '</small></button><button type="button" class="icon-button danger" data-delete-existing-app="' +
             escape(item.path) + '" aria-label="Delete ' + escape(item.name) + '" title="Delete app">' +
-            '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1.5h6l.6 1.5H14v1H2V3h2.4L5 1.5Zm-2 4h10l-.6 9H3.6l-.6-9Zm3 1v6h1V6.5H6Zm3 0v6h1V6.5H9Z"/></svg></button></div>').join("") +
+            ${JSON.stringify(renderOcticon("trash"))} + '</button></div>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
           '';
         wireTopBack(renderLanding);
@@ -1033,7 +1034,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
           '<div class="surface-body"><div class="map-toolbar"><button type="button" class="icon-button map-expand" id="open-app-map"' +
           (appMap ? "" : " disabled") + ' aria-label="Open expanded App Map" title="Open expanded App Map">' +
-          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4a1 1 0 1 0 0 2h2.59l-5.3 5.29a1 1 0 0 0 1.42 1.42L18 7.41V10a1 1 0 1 0 2 0V4h-6ZM5 6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3a1 1 0 1 0-2 0v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h3a1 1 0 0 0 0-2H5Z"/></svg></button></div>' +
+          ${JSON.stringify(renderOcticon("link-external"))} + '</button></div>' +
           appMapVisual(appMap) +
           '<div class="configuration-actions"><button type="button" id="trace-app">' +
           (appMap ? "Refresh map" : "Tracing…") + '</button></div></div></details>' +

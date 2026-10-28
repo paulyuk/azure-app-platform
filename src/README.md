@@ -114,10 +114,10 @@ Find me an EV under $40,000 with at least 250 miles of range
 
 Watch the badge in the top-right of the page header: it reads the actual
 per-response `source` reported by `/api/chat`, not a guess from env vars —
-**"● Live agent"** (green) means the reply came from the real agent, while
-**"⚠ Mock agent (no live agent reachable)"** (amber) means it silently fell
-back because nothing is listening on the agent port, and **"✖ Live agent
-reachable, turn failed"** (red) means the agent process itself answered but
+**"Live agent"** with an Octicon dot (green) means the reply came from the real agent, while
+**"Mock agent (no live agent reachable)"** with an Octicon alert (amber) means it silently fell
+back because nothing is listening on the agent port, and **"Live agent
+reachable, turn failed"** with an Octicon error (red) means the agent process itself answered but
 the turn failed server-side — most commonly its MCP tool sources (the
 Hosted Skills below) aren't connected yet. The chat bubble shows the actual
 error message in that case; see "Start the Hosted Skills locally" below.

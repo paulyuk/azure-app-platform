@@ -17,6 +17,32 @@ The start page shows the large Unity logo and tagline only; the compact header
 branding appears on inner screens instead. Docs and the Settings gear remain
 available at the top right on every screen.
 
+## Icons
+
+Authored UI icons use official **Octicons 19.41.0**: settings, navigation,
+disclosures, Guide stages/statuses, map tools and capability cards. Labels and
+tooltips retain their meaning; decorative SVGs are hidden from assistive
+technology and inherit the current theme's text color. CSS masks use the same
+official paths, not separately drawn approximations.
+
+The portable plugin ships a selected subset from `@primer/octicons` under
+`vendor/octicons/`, with its MIT license, package integrity and content hash.
+`studio-icons.mjs` renders only known bundled names. No package install, CDN or
+checkout dependency is needed when opening Studio. Maintainers regenerate the
+subset after restoring this canvas's development dependencies:
+
+```shell
+npm ci --prefix canvases/unity-studio
+npm run vendor:icons --prefix canvases/unity-studio
+```
+
+Unity logos/intro, documentation illustrations, graph edges and timeline
+geometry, native browser control indicators, and user/agent content are not
+authored UI icons and remain unchanged. The Dealer web app uses the official
+`@primer/octicons-react` package for status and copy-feedback icons. Its vehicle
+cards retain their car illustration: Octicons has no car/vehicle symbol, so
+substituting an unrelated icon would lose meaning.
+
 ## Shared toolkit browser assets
 
 The review page's **No Azure resources will be created or changed.** notice uses

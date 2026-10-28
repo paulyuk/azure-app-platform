@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { CheckIcon } from "@primer/octicons-react";
 
 // Compact markdown rendering for chat bubbles — no external typography
 // plugin, just enough element styling to make tables/lists/bold readable
@@ -102,7 +103,7 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
             onClick={handleCopyStarter}
             className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
           >
-            {copied ? "Copied ✓" : "Copy & fill"}
+            {copied ? <>Copied <CheckIcon size={16} aria-hidden="true" className="inline-block align-text-bottom" /></> : "Copy & fill"}
           </button>
         </div>
       )}
@@ -146,4 +147,3 @@ export function ChatPanel({ messages, isStreaming, onSend }: ChatPanelProps) {
     </section>
   );
 }
-

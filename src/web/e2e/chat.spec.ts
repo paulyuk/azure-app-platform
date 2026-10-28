@@ -59,7 +59,43 @@ test.describe("deal-finder chat", () => {
     // mock scenario generator — the badge must say so plainly, never
     // silently look like a live-agent reply.
     await expect(page.getByTestId("reply-source-badge")).toContainText("Mock agent");
+    const icon = page.getByTestId("reply-source-badge").locator("svg.octicon-alert");
+    await expect(icon).toBeVisible();
+    await expect(icon).toHaveAttribute("aria-hidden", "true");
   });
+
+  test("uses an accessible Octicon for starter-prompt confirmation", async ({ page }) => {
+    await page.goto("/");
+    const copy = page.getByTestId("starter-prompt-copy");
+    await copy.click();
+    await expect(copy).toHaveText("Copied");
+    await expect(copy.locator("svg.octicon-check")).toBeVisible();
+    await expect(copy.locator("svg")).toHaveAttribute("aria-hidden", "true");
+    await expect(page.getByTestId("chat-input")).toHaveValue(/Find me an EV/);
+  });
+
+  for (const [source, icon, label] of [
+    ["agent", "dot-fill", "Live agent"],
+    ["agent_error", "x-circle", "Live agent reachable, turn failed"],
+  ] as const) {
+    test(`uses the official ${icon} icon for ${source} replies`, async ({ page }) => {
+      await page.route("**/api/chat", (route) => route.fulfill({
+        contentType: "application/x-ndjson",
+        body: [
+          { type: "source", value: source },
+          { type: "token", value: "A test response." },
+          { type: "done" },
+        ].map((event) => JSON.stringify(event)).join("\n") + "\n",
+      }));
+      await page.goto("/");
+      await page.getByTestId("chat-input").fill("Test status");
+      await page.getByTestId("chat-send").click();
+      const badge = page.getByTestId("reply-source-badge");
+      await expect(badge).toContainText(label);
+      await expect(badge.locator(`svg.octicon-${icon}`)).toBeVisible();
+      await expect(badge.locator("svg")).toHaveAttribute("aria-hidden", "true");
+    });
+  }
 
   test("keeps the conversation running across multiple turns", async ({ page }) => {
     await page.goto("/");

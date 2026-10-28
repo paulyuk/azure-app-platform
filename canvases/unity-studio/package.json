@@ -8,10 +8,12 @@
   "scripts": {
     "test": "node --test *.test.mjs",
     "vendor:syntax": "node scripts/build-syntax-vendor.mjs",
+    "vendor:icons": "node scripts/prepare-octicons.mjs",
     "vendor:toolkit": "node scripts/prepare-toolkit-assets.mjs",
     "check:toolkit": "node scripts/prepare-toolkit-assets.mjs --check"
   },
   "devDependencies": {
+    "@primer/octicons": "19.41.0",
     "prismjs": "1.30.0"
   },
   "keywords": [
