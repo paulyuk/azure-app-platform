@@ -186,7 +186,7 @@ test("installed payload opens and materializes templates without checkout depend
           }
         }
         const notices = await readFile(join(payload, "vendor/toolkit/ui/browser/THIRD_PARTY_NOTICES.txt"), "utf8");
-        for (const dependency of ["@base-ui/react@1.8.0", "@primer/octicons-react@19.38.0", "react@19.3.0", "react-dom@19.3.0", "scheduler@0.28.0"]) {
+        for (const dependency of ["@fluentui/react-button@9.11.3", "@primer/octicons-react@19.38.0", "react@19.3.0", "react-dom@19.3.0", "scheduler@0.28.0"]) {
           assert.ok(notices.includes(dependency), "Missing notice for " + dependency);
         }
         assert.match(await readFile(join(payload, "vendor/toolkit/LICENSE"), "utf8"), /MIT License/);

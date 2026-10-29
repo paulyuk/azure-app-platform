@@ -1295,9 +1295,9 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     ]) {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }
-    assert.equal((html.match(/class="journey(?: |")/g) ?? []).length, 3);
+    assert.match(html, /FeaturePanel, SpotIllustration, Button, ActionCard, SectionHeader/);
     assert.doesNotMatch(html, /advanced-journey/);
-    assert.match(html, /\.journeys \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+    assert.match(html, /Build an app with Unity/);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
@@ -1305,7 +1305,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.match(html, /captureDetails\(\);\s*draft\.templateRootId = input\.value/);
     assert.match(html, /"app-name"\)\.addEventListener\("input"/);
     assert.match(html, /"purpose"\)\.addEventListener\("input"/);
-    assert.doesNotMatch(html, /journey primary|\.journey\.primary/);
+    assert.match(html, /variant: "layers"/);
     assert.match(html, /\.capability, \.review-row \{ display: grid; gap: 4px; \}/);
     assert.match(html, /\.review-row small \{ display: block; color: var\(--studio-muted\);/);
     assert.equal(html.includes('id="top-back"'), true);

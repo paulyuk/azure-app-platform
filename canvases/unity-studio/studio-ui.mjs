@@ -7,6 +7,7 @@ import { createStudioNotices } from "./studio-notice.mjs";
 import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
+import { mountStudioHome } from "./studio-home.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -148,17 +149,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .workspace-intro p { margin-bottom: 8px; }
       .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
       .workspace-path { color: var(--studio-muted); }
-      .journeys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
-      .journey {
-        width: 100%;
-        min-height: 104px;
-        padding: 18px;
-        text-align: left;
-        display: block;
-        background: var(--studio-raised);
-      }
-      .journey strong { display: block; margin-bottom: 5px; font-size: 17px; }
-      .journey span { color: var(--text-color-muted, #59636e); }
       .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
       .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
       input[type="text"], textarea, select {
@@ -326,7 +316,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
       @media (max-width: 720px) {
         body { padding-inline: 14px; }
-        .journeys { grid-template-columns: 1fr; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
         .actions-right, .actions button { width: 100%; }
         .actions-right { flex-direction: column-reverse; }
@@ -394,12 +383,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
+      let homeHandle = null;
+      function disposeView() {
+        homeHandle?.dispose();
+        homeHandle = null;
+        notices.dispose();
+      }
       const notices = (${createStudioNotices.toString()})({
         loadToolkit: () => import("/canvas-ui/base.mjs"),
         onError: (message) => error(message),
       });
       window.addEventListener("pagehide", (event) => {
-        if (!event.persisted) notices.dispose();
+        if (!event.persisted) disposeView();
       });
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
@@ -558,53 +553,57 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderLanding() {
+        const restoreFocus = app.contains(document.activeElement);
         draft.journey = null;
         clearStatus();
-        notices.dispose();
+        disposeView();
         buttons.replace(app, ${JSON.stringify(renderStudioWelcomeBrand())} +
-          '<h1>What would you like to do?</h1>' +
-          '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
-          '<div class="journeys">' +
-          '<button type="button" class="journey" id="new-app"><strong>Create a new app</strong>' +
-          '<span>Describe what you want to build and start from a proven template.</span></button>' +
-          '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
-          '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
-          '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
-          '<span>Combine source projects and map existing Azure resources.</span></button></div>');
-        document.getElementById("new-app").addEventListener("click", async () => {
-          draft.journey = "new";
-          draft.starterKind = "template";
-          draft.step = 1;
-          renderDetails();
-          try {
-            await loadSources();
-            if (!draft.templateRootId) {
-              draft.templateRootId = sources.templates[0]?.id || "";
-            }
-            applyTemplateDefaults(sources.templates.find((item) => item.id === draft.templateRootId));
-            renderDetails();
-          } catch (cause) {
-            error(cause.message);
+          '<div id="studio-home"></div>');
+        const mount = document.getElementById("studio-home");
+        homeHandle = (${mountStudioHome.toString()})(mount, {
+          toolkit, onCreate: beginNewApp, onOpen: beginOpenApp, onAssemble: beginAssembly,
+        });
+        if (restoreFocus && !document.querySelector(".studio-intro")) {
+          document.getElementById("new-app")?.focus({ preventScroll: true });
+        }
+        window.dispatchEvent(new Event("unity-home-ready"));
+      }
+
+      async function beginNewApp() {
+        draft.journey = "new";
+        draft.starterKind = "template";
+        draft.step = 1;
+        renderDetails();
+        try {
+          await loadSources();
+          if (!draft.templateRootId) {
+            draft.templateRootId = sources.templates[0]?.id || "";
           }
-        });
-        document.getElementById("assemble-app").addEventListener("click", () => {
-          draft.journey = "assemble";
-          draft.starterKind = "assembly";
-          draft.step = 1;
+          applyTemplateDefaults(sources.templates.find((item) => item.id === draft.templateRootId));
           renderDetails();
-        });
-        document.getElementById("open-app").addEventListener("click", async () => {
-          try {
-            await loadSources(true);
-            renderExistingApps();
-          } catch (cause) {
-            error(cause.message);
-          }
-        });
+        } catch (cause) {
+          error(cause.message);
+        }
+      }
+
+      function beginAssembly() {
+        draft.journey = "assemble";
+        draft.starterKind = "assembly";
+        draft.step = 1;
+        renderDetails();
+      }
+
+      async function beginOpenApp() {
+        try {
+          await loadSources(true);
+          renderExistingApps();
+        } catch (cause) {
+          error(cause.message);
+        }
       }
 
       function renderExistingApps() {
-        notices.dispose();
+        disposeView();
         const apps = sources?.apps || [];
         buttons.replace(app, topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
@@ -668,7 +667,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderDetails() {
         clearStatus();
-        notices.dispose();
+        disposeView();
         const isNew = draft.journey === "new";
         buttons.replace(app, topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
           '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
@@ -738,7 +737,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderCapabilities() {
         clearStatus();
-        notices.dispose();
+        disposeView();
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const heading = isSandboxGateway ? "Customize the Sandbox &amp; Gateway template" : "Customize the empty template";
         const intro = isSandboxGateway

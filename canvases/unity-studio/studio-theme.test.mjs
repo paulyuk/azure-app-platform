@@ -69,13 +69,13 @@ test("home and map render explicit initial preference with shared settings and a
   assert.throws(() => renderThemeToggle('"><script>'), /Choose light or dark/);
 });
 
-test("landing journeys share neutral styling in both themes", () => {
+test("landing uses canonical home components in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const html = renderStudioHtml("studio", "token", { theme });
-    const cards = [...html.matchAll(/<button type="button" class="([^"]*)" id="(new-app|open-app|assemble-app)">/g)];
-    assert.deepEqual(cards.map((card) => card[2]), ["new-app", "open-app", "assemble-app"]);
-    assert.deepEqual(cards.map((card) => card[1]), ["journey", "journey", "journey"]);
-    assert.doesNotMatch(html, /\.journey\.primary/);
+    assert.match(html, /h\(FeaturePanel,/);
+    assert.match(html, /h\(SpotIllustration, \{ variant: "layers" \}\)/);
+    assert.match(html, /id: "new-app", type: "button", appearance: "primary"/);
+    assert.equal((html.match(/joined: true, compact: true/g) || []).length, 2);
   }
 });
 

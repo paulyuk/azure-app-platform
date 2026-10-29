@@ -155,7 +155,7 @@ it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or
 claim that a synthetic browser fixture proves native host token delivery.
 
-The standalone plugin ships the prepared React/Base UI browser runtime, shared
+The standalone plugin ships the prepared React/Fluent Headless browser runtime, shared
 React chunk, CSS, upstream MIT license and complete bundled dependency notices
 under `vendor/toolkit/`. Nothing is downloaded or restored when the plugin opens.
 Only ten explicitly allowed `/canvas-ui/` assets are served, relative to the
@@ -182,7 +182,7 @@ byte-identical to the approved primary-contrast artifact.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 
-Maintainers need Node.js (the recorded build uses 24.22.1), npm, `tar`, and an
+Maintainers need Node.js matching the pinned upstream engine policy, npm, `tar`, and an
 authenticated `gh` with read access to that repository. These commands work
 unchanged in PowerShell and macOS/Linux shells, from the repository root:
 
@@ -217,7 +217,21 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page keeps three equally styled, neutral journey cards visible:
+pattern. Its task-first home leads with **Build an app with Unity** and a
+non-clickable, subtly tinted **Create a new app** region. One **Create** button
+opens the existing template journey; the decorative layers illustration hides
+in narrow panes. **Open an app** and **Assemble existing pieces** remain joined
+secondary rows under **Other ways to work**. Product branding, navigation,
+Docs, Settings, and the opening animation are unchanged.
+The home composes the public toolkit `FeaturePanel`, `SpotIllustration`,
+`Button`, `SectionHeader`, `ActionCard`, and `SymbolIcon` components from the shipped browser
+bundle; it does not duplicate their markup or styles. The shared controls
+bootstrap completes before the home and intro become interactive. A failed
+bundle load is explicit and asks the user to reload to retry. Returning from a
+journey restores focus to Create, as does skipping the intro. No sample
+recents or automatic discovery are added.
+
+The three supported journeys are:
 
 1. **Create a new app** — choose the editable **Empty Unity app**, the headless
    **Sandbox & Gateway (Minimal)** template, or the complete **Dealer sample**,

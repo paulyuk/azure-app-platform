@@ -53,6 +53,7 @@ test("Unity branding and opening animation work in the browser", {
   const rememberVideo = (page) => page.evaluate(() => { window.introVideo = document.querySelector("video"); });
   const assertFinished = async (page, warning = "") => {
     await page.locator(".studio-intro").waitFor({ state: "detached" });
+    await page.locator("#new-app").waitFor();
     assert.equal(await page.locator("#new-app").evaluate((element) => element === document.activeElement), true);
     assert.match(await page.locator(".studio-intro-notice").textContent(), new RegExp(warning));
     assert.deepEqual(await page.evaluate(() => ({
@@ -129,7 +130,8 @@ test("Unity branding and opening animation work in the browser", {
       await page.goto(`${base}/?intro=1`);
       await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
-      assert.equal(await page.getByRole("button", { name: /Create a new app/ }).isVisible(), true);
+      await page.locator("#new-app").waitFor();
+      assert.equal(await page.getByRole("button", { name: "Create", exact: true }).isVisible(), true);
       assert.equal(mediaRequests, 0);
     });
     await scenario("switching to reduced motion ends active playback", async (page) => {
