@@ -67,7 +67,7 @@ test("real toolkit buttons preserve keyed roots, callbacks, keyboard, visibility
       if (calls.join() !== "latest") throw new Error("A callback was stale or delivered twice");
       buttons.update(first, { disabled: true });
       first.click();
-      if (calls.length !== 1 || !first.disabled || !first.hasAttribute("data-disabled")) throw new Error("Base UI disabled behavior was bypassed");
+      if (calls.length !== 1 || !first.disabled || !first.matches(":disabled")) throw new Error("Toolkit native disabled behavior was bypassed");
       buttons.update(first, { disabled: false, children: "Resume" });
       if (host.querySelector("button") !== first || first.textContent !== "Resume") throw new Error("Updates replaced the control");
       buttons.update(first, { onClick: undefined });

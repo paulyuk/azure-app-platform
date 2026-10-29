@@ -28,6 +28,7 @@ test("packaged task-first home preserves the three explicit journeys", {
   const output = process.env.UNITY_HOME_EVIDENCE_DIR;
   const baseline = process.env.UNITY_HOME_BASELINE === "1";
   const captures = [];
+  const contrasts = [];
   const browsers = [];
   try {
     await cp(fileURLToPath(new URL("./", import.meta.url)), payload, {
@@ -111,17 +112,25 @@ test("packaged task-first home preserves the three explicit journeys", {
             const illustration = page.locator("#studio-home .ct-spot-illustration");
             assert.equal(await illustration.getAttribute("aria-hidden"), "true");
             assert.equal(await illustration.isVisible(), width === 900);
-            assert.equal(await page.locator("#new-app").evaluate(element => getComputedStyle(element).fontWeight), "400");
-            for (const state of ["rest", "hover"]) {
+            const weight = await page.locator("#new-app").evaluate(element => ({
+              actual: getComputedStyle(element).fontWeight,
+              expected: getComputedStyle(element).getPropertyValue("--canvas-button-font-weight").trim() || "400",
+            }));
+            assert.equal(weight.actual, weight.expected, "Create follows the shared host-profile control weight");
+            for (const state of ["rest", "hover", "active"]) {
               if (state === "hover") await page.locator("#new-app").hover();
+              if (state === "active") await page.mouse.down();
               const colors = await page.locator("#new-app").evaluate(element => ({
                 foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor,
               }));
               const values = [luminance(colors.foreground), luminance(colors.background)];
-              assert.ok((Math.max(...values) + .05) / (Math.min(...values) + .05) >= 4.5,
+              const ratio = (Math.max(...values) + .05) / (Math.min(...values) + .05);
+              contrasts.push({ engine, tone, width, state, ...colors, ratio });
+              assert.ok(ratio >= 4.5,
                 `${tone} ${state} Create label must meet 4.5:1 contrast`);
             }
             await page.mouse.move(0, 0);
+            await page.mouse.up();
           }
           const label = `${baseline ? "before" : "after"}-${engine}-${tone}-${width}`;
           if (output) {
@@ -254,7 +263,7 @@ test("packaged task-first home preserves the three explicit journeys", {
       synthetic: true, payloadIsolation: "Copied plugin without node_modules, imported outside checkout",
       rendererSha256: hash(await readFile(join(payload, "studio-ui.mjs"))),
       homeSha256: hash(await readFile(join(payload, "studio-home.mjs"))),
-      toolkit: provenance, browsers, captures,
+      toolkit: provenance, browsers, contrasts, captures,
     }, null, 2) + "\n");
   } finally {
     server?.closeAllConnections();

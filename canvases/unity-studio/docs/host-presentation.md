@@ -39,7 +39,7 @@ there is no runtime fetch or separate package installation.
 | Copilot appearance | Host colors/fonts win; no legacy body aliases shadow delivered tokens |
 | Saved Appearance setting | Existing light/dark preference remains fallback-only in Copilot; Settings explains that ownership |
 | Standalone | Retains the existing saved light/dark palette and native layout; not a new external-host adapter |
-| Home/setup/review | Product cards/fields map to the shared structural profile without changing copy or ordering |
+| Home/setup/review | Task-first home composes public toolkit components; product cards/fields map to the shared structural profile without changing journeys |
 | Build and Run | Product file/agent cards and fields map to shared tokens; focus and drafts remain owned by existing workflows |
 | Settings/confirmation | Retain native dialogs and focus behavior; map geometry to the shared dialog role |
 | Navigation and App Map | No information-architecture, map arrangement, Guide placement or breakpoint redesign |

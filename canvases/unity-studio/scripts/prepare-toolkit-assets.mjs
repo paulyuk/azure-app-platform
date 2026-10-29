@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repository = "coreai-microsoft/canvases-cloud-foundation";
-const commit = "63280d0d3b3a515bde6c1e48e9a3192bf8768b41";
+const commit = "ea629824357bcf39e291b97e952dfec9a92d2012";
 const destination = fileURLToPath(new URL("../vendor/toolkit/", import.meta.url));
 const check = process.argv.includes("--check");
 assert.ok(process.argv.slice(2).every(arg => arg === "--check"), "Usage: node scripts/prepare-toolkit-assets.mjs [--check]");

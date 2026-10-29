@@ -89,7 +89,7 @@ work and disposes that root; the same element can safely be reused. `dispose()`
 clears all owned roots before legacy DOM replacement. The first review notice
 uses this helper; no other notices are migrated here.
 
-Ordinary actions use the same pinned toolkit's actual Base UI-backed **Button**,
+Ordinary actions use the same pinned toolkit's actual Fluent Headless-backed **Button**,
 through its public DOM mount API. Primary, secondary and subtle appearances use
 canonical toolkit geometry and host-delivered button tokens, not Unity's purple
 palette. Standalone medium buttons use the toolkit's 32px minimum height,
@@ -167,18 +167,17 @@ toolkit owns those specifications; Unity retains only product mappings.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`63280d0d3b3a515bde6c1e48e9a3192bf8768b41`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/63280d0d3b3a515bde6c1e48e9a3192bf8768b41).
-This is the explicitly approved, pushed **unmerged upstream profile artifact**, not a
-released package or a claim that the upstream branch has merged.
+[`ea629824357bcf39e291b97e952dfec9a92d2012`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/ea629824357bcf39e291b97e952dfec9a92d2012).
+This is the explicitly approved, pushed **combined Task-first and host-profile
+artifact**, not a released package or a claim that the upstream branch has merged.
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
-The source archive/preparation path retains LF CSS: `styles.css` hashes to
-`f4188ad417039a227b67e7787ed127cf90154f02ddc08d4784bb44d9c3afc534` and
-`base.css` to `8a61805b2af819308931e752c5e3d07b2ee15c73d8bb7ff9d40e5debbc91f92b`.
+The source archive/preparation path retains LF CSS; the exact stylesheet hashes
+are recorded in `vendor/toolkit/provenance.json`.
 Regeneration and an independent check compare the archive-produced bytes without
-newline rewriting. The new structural hooks change component CSS, while the
-JavaScript chunks, semantic stylesheet, license and dependency notices remain
-byte-identical to the approved primary-contrast artifact.
+newline rewriting. This combined artifact includes the Task-first components,
+Fluent Headless button runtime and dependency notices, and the public host-profile
+registry, stylesheet and guides.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 
