@@ -6,16 +6,18 @@ with only a small floating **Skip** button and no footer. Skip is available
 immediately; Escape also skips it. Finishing or skipping the intro reveals the
 start page in the user's selected light or dark theme without changing the saved
 preference, using the same transparent Unity symbol as the workspace header
-and the **Unity — The self-aware app platform** branding. Returning Home or
+and compact **Unity** navigation branding. Returning Home or
 reloading the page does not replay the intro; opening the canvas again does.
 Reduced-motion preferences bypass playback. If autoplay is blocked or the video
 fails or stalls, Studio opens the start page with an explanatory notice.
 The PNG and MP4 ship with the plugin and are served locally, with no CDN,
 Downloads-folder dependency, or additional install step.
 
-The start page shows the large Unity logo and tagline only; the compact header
-branding appears on inner screens instead. Docs and the Settings gear remain
-available at the top right on every screen.
+Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
+a 20px Unity mark and a compact, normal-weight Unity Home button. Its accessible
+name is **Unity Studio home**. Docs and the working Settings gear remain at the
+top right. The large Home masthead and tagline are not repeated in the content.
+The existing app workspace header, selectors and controls are unchanged.
 
 ## Icons
 
@@ -216,19 +218,31 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its task-first home leads with **Build an app with Unity** and a
-non-clickable, subtly tinted **Create a new app** region. One **Create** button
-opens the existing template journey; the decorative layers illustration hides
-in narrow panes. **Open an app** and **Assemble existing pieces** remain joined
-secondary rows under **Other ways to work**. Product branding, navigation,
-Docs, Settings, and the opening animation are unchanged.
-The home composes the public toolkit `FeaturePanel`, `SpotIllustration`,
-`Button`, `SectionHeader`, `ActionCard`, and `SymbolIcon` components from the shipped browser
+pattern. Its Simple home asks **What would you like to do?** and presents
+**Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
+compact task cards, in that order. The content container uses one, two, or three
+columns at 520px and 760px of available content width, with 12px gaps and an
+88px minimum card height. A compact canonical header replaces the large Home
+masthead; the opening animation and existing Docs/Settings actions are preserved.
+The header begins 8px below the viewport, followed by 24px before the Home
+introduction. The introduction is the page's h1 because the brand is a Home
+button, not a heading; its visual type remains 20px/28px/600.
+The home composes the public toolkit `ActionCard`, `SectionHeader`, `WorkItem`,
+`Button`, and `SymbolIcon` components from the shipped browser
 bundle; it does not duplicate their markup or styles. The shared controls
 bootstrap completes before the home and intro become interactive. A failed
 bundle load is explicit and asks the user to reload to retry. Returning from a
-journey restores focus to Create, as does skipping the intro. No sample
-recents or automatic discovery are added.
+journey restores focus to Create, as does skipping the intro.
+Recently viewed uses only genuine, already-loaded source inventory with recorded
+last-opened timestamps. Initially it explicitly says apps have not been loaded;
+Open an app remains the route to load them. Successful-empty and failed refresh
+states are distinct. No launch scan, new history store, or sample recents are added.
+
+The layout is adapted product source from the approved, uncommitted canonical
+Simple home example (frozen reference digest
+`6a0e96514f235682a972cd1b11a1550b3e99448ec503d09504790e93ac2a2e70`),
+not a public component, workbench import, or template claimed to exist at the
+toolkit's pinned commit. The toolkit runtime and provenance are unchanged.
 
 The three supported journeys are:
 

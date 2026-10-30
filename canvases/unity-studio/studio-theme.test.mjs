@@ -37,8 +37,13 @@ test("home and map render explicit initial preference with shared settings and a
       assert.match(html, /data-studio-theme-select/);
       assert.match(html, /aria-label="Preferred external editor"/);
       assert.match(html, /data-studio-editor-select/);
-      assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
-      assert.match(html, /class="studio-logo"[^>]+aria-hidden="true"/);
+      if (html.includes("mountStudioHeader")) {
+        assert.match(html, /CanvasHeader/);
+        assert.match(html, /"aria-label": "Unity Studio home"/);
+      } else {
+        assert.match(html, /class="studio-brand" href="\/" aria-label="Unity Studio home"/);
+        assert.match(html, /class="studio-logo"[^>]+aria-hidden="true"/);
+      }
       assert.match(html, /title="Settings"/);
       assert.doesNotMatch(html, />Light<\/button>|>Dark<\/button>/);
       assert.match(html, /\/api\/preferences/);
@@ -72,10 +77,10 @@ test("home and map render explicit initial preference with shared settings and a
 test("landing uses canonical home components in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const html = renderStudioHtml("studio", "token", { theme });
-    assert.match(html, /h\(FeaturePanel,/);
-    assert.match(html, /h\(SpotIllustration, \{ variant: "layers" \}\)/);
-    assert.match(html, /id: "new-app", type: "button", appearance: "primary"/);
-    assert.equal((html.match(/joined: true, compact: true/g) || []).length, 2);
+    assert.match(html, /h\(ActionCard,/);
+    assert.match(html, /simple-home-introduction/);
+    assert.match(html, /id: "new-app", title: "Create a new app"/);
+    assert.doesNotMatch(html, /h\(FeaturePanel,/);
   }
 });
 

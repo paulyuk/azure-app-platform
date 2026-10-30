@@ -14,11 +14,8 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let playwright;
 try { playwright = requireWeb("playwright"); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
-const luminance = rgb => rgb.match(/\d+/g).slice(0, 3).map(Number)
-  .map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
-  .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
 
-test("packaged task-first home preserves the three explicit journeys", {
+test("packaged simple home preserves the three explicit journeys", {
   skip: !playwright && "Install src/web dependencies to run browser coverage.",
   timeout: 90000,
 }, async () => {
@@ -28,7 +25,7 @@ test("packaged task-first home preserves the three explicit journeys", {
   const output = process.env.UNITY_HOME_EVIDENCE_DIR;
   const baseline = process.env.UNITY_HOME_BASELINE === "1";
   const captures = [];
-  const contrasts = [];
+  const geometry = [];
   const browsers = [];
   try {
     await cp(fileURLToPath(new URL("./", import.meta.url)), payload, {
@@ -75,7 +72,11 @@ test("packaged task-first home preserves the three explicit journeys", {
             await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Source catalog unavailable." }) });
             return;
           }
-          data = { roots: [], apps: [], templates: sourceMode === "empty" ? [] : [EMPTY_TEMPLATE] };
+          data = { roots: [], apps: sourceMode === "populated" ? [
+            { name: "Customer portal", path: "projects/customer-portal", lastOpenedAt: "2026-10-29T12:00:00Z", capabilityIds: [] },
+            { name: "Inventory dashboard", path: "projects/inventory-dashboard", lastOpenedAt: "2026-10-28T12:00:00Z", capabilityIds: [] },
+            { name: "Support assistant", path: "projects/support-assistant", lastOpenedAt: "2026-10-27T12:00:00Z", capabilityIds: [] },
+          ] : [], templates: sourceMode === "empty" ? [] : [EMPTY_TEMPLATE] };
         } else if (pathname === "/api/editor-settings") data = DEFAULT_EDITOR_SETTINGS;
         else if (pathname === "/api/preferences") {
           if (route.request().method() === "POST") theme = route.request().postDataJSON().theme;
@@ -85,52 +86,74 @@ test("packaged task-first home preserves the three explicit journeys", {
       });
       for (const tone of ["light", "dark"]) {
         theme = tone;
-        for (const width of [320, 390, 900]) {
-          await page.setViewportSize({ width, height: 900 });
+        for (const width of [390, 900, 1440]) {
+          await page.setViewportSize({ width, height: width === 1440 ? 1100 : 1000 });
           const beforeRequests = requests.length;
           await page.goto(origin);
           await page.locator("#new-app").waitFor();
           await page.waitForFunction(() => [...document.images].every(image => image.complete));
           assert.ok(!requests.slice(beforeRequests).some(url => /\/api\/(?:sources|discovery)/.test(url)),
             "Home must not scan sources or Azure");
-          assert.equal(await page.locator(".studio-welcome-brand").count(), 1);
-          assert.equal(await page.locator(".studio-site-nav .studio-brand").isVisible(), false);
-          assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
+          assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Unity Studio home", exact: true }).isVisible(), true,
+            await page.locator(".studio-site-nav").evaluate(element => element.outerHTML));
+          assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true,
+            await page.locator(".studio-site-nav").evaluate(element => element.outerHTML));
           assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           if (!baseline) {
-            assert.equal(await page.getByRole("heading", { name: "Build an app with Unity", exact: true }).count(), 1);
-            assert.equal(await page.locator("#studio-home .ct-feature-panel").count(), 1);
-            assert.equal(await page.locator("#studio-home .ct-action-card[data-joined=true]").count(), 2);
-            assert.equal(await page.locator("#new-app").textContent(), "Create");
+            assert.equal(await page.getByRole("heading", { name: "What would you like to do?", exact: true }).count(), 1);
+            assert.equal(await page.locator("#studio-home .ct-feature-panel").count(), 0);
+            assert.equal(await page.locator("#studio-home .ct-action-card").count(), 3);
             assert.equal(await page.locator("#studio-home").getByRole("button").count(), 3);
             assert.equal(await page.locator("#studio-home").getByText("claims-assistant").count(), 0);
-            const heading = await page.locator("#studio-home h1").evaluate(element => ({
+            const heading = await page.locator(".simple-home-introduction h1").evaluate(element => ({
               size: getComputedStyle(element).fontSize, lineHeight: getComputedStyle(element).lineHeight,
             }));
             assert.deepEqual(heading, { size: "20px", lineHeight: "28px" });
-            const illustration = page.locator("#studio-home .ct-spot-illustration");
-            assert.equal(await illustration.getAttribute("aria-hidden"), "true");
-            assert.equal(await illustration.isVisible(), width === 900);
-            const weight = await page.locator("#new-app").evaluate(element => ({
-              actual: getComputedStyle(element).fontWeight,
-              expected: getComputedStyle(element).getPropertyValue("--canvas-button-font-weight").trim() || "400",
-            }));
-            assert.equal(weight.actual, weight.expected, "Create follows the shared host-profile control weight");
-            for (const state of ["rest", "hover", "active"]) {
-              if (state === "hover") await page.locator("#new-app").hover();
-              if (state === "active") await page.mouse.down();
-              const colors = await page.locator("#new-app").evaluate(element => ({
-                foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor,
-              }));
-              const values = [luminance(colors.foreground), luminance(colors.background)];
-              const ratio = (Math.max(...values) + .05) / (Math.min(...values) + .05);
-              contrasts.push({ engine, tone, width, state, ...colors, ratio });
-              assert.ok(ratio >= 4.5,
-                `${tone} ${state} Create label must meet 4.5:1 contrast`);
-            }
-            await page.mouse.move(0, 0);
-            await page.mouse.up();
+            assert.equal(await page.locator("#new-app .ct-action-card-title").evaluate(element => getComputedStyle(element).fontWeight), "400");
+            const measured = await page.evaluate(() => {
+              const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
+              const style = selector => {
+                const css = getComputedStyle(document.querySelector(selector));
+                return { size: css.fontSize, lineHeight: css.lineHeight, weight: css.fontWeight, color: css.color };
+              };
+              const intro = rect(".simple-home-introduction"), grid = rect(".simple-home-tasks");
+              const cards = [...document.querySelectorAll(".simple-home-task")].map(element => element.getBoundingClientRect().toJSON());
+              return {
+                intro,
+                content: { width: grid.width, x: grid.x },
+                title: style(".simple-home-introduction h1"), description: style(".simple-home-introduction p"),
+                introductionToGridGap: grid.top - intro.bottom, cards,
+                cardCount: cards.length, gap: getComputedStyle(document.querySelector(".simple-home-tasks")).gap,
+                columns: new Set(cards.map(card => card.x)).size,
+                recentHeadingTop: rect("#recent-apps-title").top,
+                recentGap: rect(".simple-home-recent").top - grid.bottom,
+                header: rect(".studio-site-nav .ct-header"),
+                headerToIntroGap: intro.top - rect(".studio-site-nav .ct-header").bottom,
+                logo: rect(".studio-site-nav img"),
+                brand: style(".studio-site-nav [aria-label='Unity Studio home']"),
+                brandBounds: rect(".studio-site-nav [aria-label='Unity Studio home']"),
+                brandGap: getComputedStyle(document.querySelector(".studio-site-nav .ct-header-identity")).gap,
+              };
+            });
+            assert.equal(measured.columns, width === 390 ? 1 : 3);
+            assert.equal(measured.content.width, width === 390 ? 342 : 840);
+            assert.equal(measured.introductionToGridGap, 24);
+            assert.equal(measured.recentGap, 24);
+            assert.equal(measured.header.height, 32);
+            assert.equal(measured.header.top, 8);
+            assert.equal(measured.intro.top, 64);
+            assert.equal(measured.headerToIntroGap, 24);
+            assert.equal(measured.logo.width, 20);
+            assert.equal(measured.logo.height, 20);
+            assert.equal(measured.brand.size, "12px");
+            assert.equal(measured.brand.lineHeight, "20px");
+            assert.equal(measured.brand.weight, "400");
+            assert.equal(measured.brandBounds.height, 28);
+            assert.equal(measured.brandGap, "8px");
+            assert.ok(measured.cards.every(card => card.height >= 88));
+            geometry.push({ engine, tone, width, state: "not-loaded", ...measured });
           }
           const label = `${baseline ? "before" : "after"}-${engine}-${tone}-${width}`;
           if (output) {
@@ -142,6 +165,10 @@ test("packaged task-first home preserves the three explicit journeys", {
           if (!baseline) {
             await page.keyboard.press("Tab");
             await page.locator("#new-app").focus();
+            await page.locator("#studio-home").evaluate(element => { element.style.width = "648px"; });
+            assert.equal(await page.locator(".simple-home-tasks").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length), 2,
+              "A 600px content container uses two columns independently of the host viewport");
+            await page.locator("#studio-home").evaluate(element => { element.style.removeProperty("width"); });
             assert.equal(await page.locator("#new-app").evaluate(element => getComputedStyle(element).outlineStyle), "solid");
             await page.keyboard.press("Tab");
             assert.equal(await page.locator("#open-app").evaluate(element => element === document.activeElement), true);
@@ -150,6 +177,35 @@ test("packaged task-first home preserves the three explicit journeys", {
             await page.keyboard.press("Enter");
             await page.getByRole("heading", { name: "Assemble existing pieces", exact: true }).waitFor();
             await page.locator("#top-back").click();
+            await page.locator("#open-app").click();
+            await page.getByText("No existing runnable Unity apps were found", { exact: false }).waitFor();
+            await page.locator("#top-back").click();
+            await page.getByText("No recently viewed apps were found.", { exact: true }).waitFor();
+            if (output) {
+              const label = `empty-${engine}-${tone}-${width}`;
+              await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
+              captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
+            }
+            sourceMode = "populated";
+            await page.locator("#open-app").click();
+            await page.locator("[data-existing-app]").first().waitFor();
+            await page.locator("#top-back").click();
+            await page.locator(".simple-home-recent .ct-work-item").nth(2).waitFor();
+            assert.deepEqual(await page.locator("[data-recent-app]").evaluateAll(elements => elements.map(element => element.dataset.recentApp)),
+              ["projects/customer-portal", "projects/inventory-dashboard", "projects/support-assistant"]);
+            if (output) {
+              const label = `populated-${engine}-${tone}-${width}`;
+              await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
+              captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
+            }
+            await page.route("**/app-map?**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic existing app workspace</h1>" }));
+            await page.locator("[data-recent-app]").first().focus();
+            await page.keyboard.press("Enter");
+            await page.getByRole("heading", { name: "Synthetic existing app workspace" }).waitFor();
+            assert.equal(new URL(page.url()).searchParams.get("root"), "projects/customer-portal");
+            await page.unroute("**/app-map?**");
+            sourceMode = "ready";
+            await page.goto(origin);
             await page.locator("#new-app").click();
             await page.locator('input[name="template"]').waitFor();
             await page.locator("#app-name").fill("synthetic-home-app");
@@ -174,6 +230,7 @@ test("packaged task-first home preserves the three explicit journeys", {
         await page.locator("#new-app").focus();
         await page.evaluate(() => {
           window.originalHome = document.querySelector("#studio-home .ct-provider");
+          window.originalHeader = document.querySelector(".studio-site-nav .ct-header");
           window.originalCreate = document.getElementById("new-app");
           for (const [name, value] of Object.entries({
             "--background-color-default": "rgb(244, 249, 253)",
@@ -189,27 +246,37 @@ test("packaged task-first home preserves the three explicit journeys", {
             "--font-sans": "Arial, sans-serif",
           })) document.documentElement.style.setProperty(name, value);
         });
-        assert.deepEqual(await page.locator("#studio-home .ct-feature-panel").evaluate(element => ({
-          foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor,
-          border: getComputedStyle(element).borderTopColor,
-        })), { foreground: "rgb(17, 83, 121)", background: "rgb(229, 239, 247)", border: "rgb(41, 106, 77)" });
         assert.deepEqual(await page.locator("#new-app").evaluate(element => ({
           foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor,
-        })), { foreground: "rgb(255, 255, 255)", background: "rgb(117, 72, 164)" });
-        assert.equal(await page.locator("#studio-home .ct-spot-illustration").evaluate(element => getComputedStyle(element).color),
-          "rgb(124, 47, 150)");
+        })), { foreground: "rgb(17, 83, 121)", background: "rgb(244, 249, 253)" });
         const typography = await page.locator("#studio-home > .ct-provider").evaluate(element => ({
           family: getComputedStyle(element).fontFamily, size: getComputedStyle(element).fontSize,
         }));
         assert.match(typography.family, /Arial/);
         assert.equal(typography.size, "16px");
         assert.equal(await page.evaluate(() => window.originalHome === document.querySelector("#studio-home .ct-provider")
-          && window.originalCreate === document.activeElement), true, "Late host delivery must preserve root and focus");
+          && window.originalCreate === document.activeElement
+          && window.originalHeader === document.querySelector(".studio-site-nav .ct-header")), true, "Late host delivery must preserve roots and focus");
         if (output) {
           const label = `after-${engine}-synthetic-host-tokens`;
           await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
           captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
         }
+        await page.getByRole("button", { name: "Settings", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
+        await page.keyboard.press("Escape");
+        assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate(element => element === document.activeElement), true);
+        const docs = page.getByRole("link", { name: "Docs", exact: true });
+        assert.equal(await docs.getAttribute("href"), "https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme");
+        await page.context().route("https://github.com/**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic Docs destination</h1>" }));
+        const popupReady = page.waitForEvent("popup");
+        await docs.focus();
+        await page.keyboard.press("Enter");
+        const popup = await popupReady;
+        await popup.getByRole("heading", { name: "Synthetic Docs destination" }).waitFor();
+        await popup.close();
+        await page.context().unroute("https://github.com/**");
         sourceMode = "pending";
         await page.goto(origin);
         await page.locator("#open-app").click();
@@ -218,11 +285,20 @@ test("packaged task-first home preserves the three explicit journeys", {
         assert.equal(await page.locator("#new-app").isDisabled(), true);
         assert.equal(await page.locator("#assemble-app").isDisabled(), true);
         assert.match(await page.locator("#status").textContent(), /Finding source projects/);
+        await page.getByRole("button", { name: "Unity Studio home", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        assert.equal(await page.locator("#open-app").isDisabled(), true, "Home cannot abandon an in-flight workflow");
+        assert.match(await page.locator("#status").textContent(), /Finding source projects/);
+        if (output) await page.screenshot({ path: join(output, `busy-${engine}.png`), fullPage: true });
         await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("Finding"));
         sourceMode = "error";
         releaseSources();
         await page.locator("#status").filter({ hasText: "Source catalog unavailable." }).waitFor();
         assert.equal(await page.locator("#new-app").isEnabled(), true);
+        await page.locator("#assemble-app").click();
+        await page.locator("#top-back").click();
+        await page.getByText("Recent apps could not be refreshed. Use Open an app to retry.", { exact: true }).waitFor();
+        if (output) await page.screenshot({ path: join(output, `failed-${engine}.png`), fullPage: true });
         sourceMode = "empty";
         await page.reload();
         await page.locator("#new-app").click();
@@ -263,7 +339,11 @@ test("packaged task-first home preserves the three explicit journeys", {
       synthetic: true, payloadIsolation: "Copied plugin without node_modules, imported outside checkout",
       rendererSha256: hash(await readFile(join(payload, "studio-ui.mjs"))),
       homeSha256: hash(await readFile(join(payload, "studio-home.mjs"))),
-      toolkit: provenance, browsers, contrasts, captures,
+      headerSha256: hash(await readFile(join(payload, "studio-header.mjs"))),
+      emittedHtmlSha256: hash(renderStudioHtml("home-proof", "fixture", {
+        theme: "light", intro: false, presentationProfile: "github-app",
+      })),
+      toolkit: provenance, browsers, geometry, captures,
     }, null, 2) + "\n");
   } finally {
     server?.closeAllConnections();

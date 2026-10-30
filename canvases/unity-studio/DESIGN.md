@@ -17,10 +17,14 @@ for product-only mappings, covered surfaces and the native-host evidence boundar
 ## Product model
 
 Unity Studio is a guided builder for applications that use the Unity platform
-pattern. It deliberately avoids a dashboard or platform cockpit. The task-first
-home makes creation primary and keeps Open and Assemble as secondary joined
-rows. It performs no automatic discovery. The existing navigation header and
-home branding remain unchanged; shared home UI comes from the public toolkit.
+pattern. It deliberately avoids a dashboard or platform cockpit. The Simple
+home uses equal compact Create, Open and Assemble task cards in a responsive
+container grid. Recently viewed uses only already-loaded source inventory with
+recorded opening times, with explicit not-loaded, empty and failed states.
+It performs no automatic discovery. A public toolkit CanvasHeader holds the
+compact Unity mark/Home button and existing Docs/Settings actions. Home content
+does not repeat a large masthead or tagline. The introduction supplies the h1;
+app workspace navigation and selectors remain unchanged.
 
 ### Build a new app
 

@@ -1,5 +1,5 @@
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
-import { renderStudioBrand, renderStudioWelcomeBrand } from "./studio-brand.mjs";
+import { mountStudioHeader } from "./studio-header.mjs";
 import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScript } from "./studio-intro.mjs";
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -105,7 +105,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       @layer studio-legacy {
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
-        padding: 28px 24px 48px;
+        padding: 8px 24px 48px;
         background:
           radial-gradient(1200px 600px at 100% -12%, color-mix(in srgb, var(--studio-accent) 6%, transparent), transparent),
           var(--studio-bg);
@@ -325,23 +325,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       ${renderThemeStyles(presentation.id)}
       ${renderStudioIntroStyles()}
-      .studio-site-nav { max-width: 840px; margin: 0 auto 24px; }
-      body:has(.studio-welcome-brand) > .studio-site-nav { justify-content: flex-end; }
-      body:has(.studio-welcome-brand) > .studio-site-nav .studio-brand { display: none; }
-      .studio-welcome-brand { display: flex; align-items: center; gap: 20px; margin: 32px 0; }
-      .studio-welcome-brand img { flex: none; width: 96px; height: auto; }
-      .studio-wordmark { color: var(--studio-ink); font-size: clamp(36px, 7vw, 48px); font-weight: 600; line-height: 1.1; letter-spacing: -.03em; }
-      .studio-welcome-brand .studio-tagline { margin: 8px 0 0; font-size: 13px; color: var(--studio-muted); }
-      @media (max-width: 400px) {
-        .studio-welcome-brand { gap: 16px; margin: 24px 0; }
-        .studio-welcome-brand img { width: 72px; }
-      }
+      .studio-site-nav { display: block; margin: 0 -24px; padding: 0 16px; }
+      @media (max-width: 720px) { .studio-site-nav { margin-inline: -14px; } }
       }
     </style>
   </head>
   <body>
     <nav class="studio-site-nav" aria-label="Unity Studio navigation">
-      ${renderStudioBrand()}
       ${renderThemeToggle(theme, presentation.id)}
     </nav>
     <main>
@@ -352,15 +342,20 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     ${intro ? renderStudioIntro() : ""}
     <script>
       (async () => {
-      let buttons, controlsDisposed = false;
+      let buttons, headerHandle, controlsDisposed = false;
       window.addEventListener("pagehide", event => {
-        if (!event.persisted) { controlsDisposed = true; buttons?.dispose(); }
+        if (!event.persisted) { controlsDisposed = true; buttons?.dispose(); headerHandle?.dispose(); }
       });
       const toolkit = await import("/canvas-ui/base.mjs");
       if (controlsDisposed) return;
       buttons = (${createStudioButtons.toString()})(toolkit);
       window.unityStudioButtons = buttons;
       buttons.mountAll(document);
+      const utilities = document.querySelector(".studio-theme-control");
+      utilities.remove();
+      headerHandle = (${mountStudioHeader.toString()})(document.querySelector(".studio-site-nav"), {
+        toolkit, utilities, onHome: () => { if (!appBusy) renderLanding(); },
+      });
       const apiToken = ${JSON.stringify(apiToken)};
       const capabilities = ${JSON.stringify(capabilities)};
       let editorSettings = ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")};
@@ -398,6 +393,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       });
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
+      let sourcesError = null;
       let azureInventory = null;
       let outputTimer = null;
       const draft = {
@@ -557,11 +553,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         draft.journey = null;
         clearStatus();
         disposeView();
-        buttons.replace(app, ${JSON.stringify(renderStudioWelcomeBrand())} +
-          '<div id="studio-home"></div>');
+        buttons.replace(app, '<div id="studio-home"></div>');
         const mount = document.getElementById("studio-home");
         homeHandle = (${mountStudioHome.toString()})(mount, {
           toolkit, onCreate: beginNewApp, onOpen: beginOpenApp, onAssemble: beginAssembly,
+          onOpenRecent: openAppMap,
+          recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
+          recentError: sourcesError,
         });
         if (restoreFocus && !document.querySelector(".studio-intro")) {
           document.getElementById("new-app")?.focus({ preventScroll: true });
@@ -659,7 +657,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         setBusy(true, "Finding source projects in Git worktrees…");
         try {
           sources = await request("/api/sources");
+          sourcesError = null;
           clearStatus();
+        } catch (cause) {
+          sourcesError = cause.message;
+          throw cause;
         } finally {
           setBusy(false, status.textContent);
         }

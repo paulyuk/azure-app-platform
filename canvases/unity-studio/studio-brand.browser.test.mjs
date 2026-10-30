@@ -83,19 +83,20 @@ test("Unity branding and opening animation work in the browser", {
       await page.reload();
       await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
-      assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).count(), 1);
       await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
-      assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).isVisible(), true);
+      assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).isVisible(), true);
       assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
       await page.locator("#back").click();
       assert.equal(await page.locator(".studio-intro").count(), 0);
-      assert.equal(await page.locator(".studio-welcome-brand").count(), 1);
-      assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
+      assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).count(), 1);
       await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
-      await page.getByRole("link", { name: "Unity Studio home" }).click();
+      await page.getByRole("button", { name: "Unity Studio home" }).focus();
+      await page.keyboard.press("Enter");
       await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
-      assert.equal(await page.getByRole("link", { name: "Unity Studio home" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).count(), 1);
     });
     await scenario("real video completion opens the landing page automatically", async (page) => {
       await installToolkitRoutes(page);
@@ -131,7 +132,7 @@ test("Unity branding and opening animation work in the browser", {
       await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
       await page.locator("#new-app").waitFor();
-      assert.equal(await page.getByRole("button", { name: "Create", exact: true }).isVisible(), true);
+      assert.equal(await page.locator("#new-app").isVisible(), true);
       assert.equal(mediaRequests, 0);
     });
     await scenario("switching to reduced motion ends active playback", async (page) => {
@@ -185,7 +186,7 @@ test("Unity branding and opening animation work in the browser", {
       await page.clock.fastForward(5001);
       await assertFinished(page, "too long");
     });
-    await scenario("the supplied symbol and tagline fit compact light and dark start pages", async (page) => {
+    await scenario("the compact canonical product header fits light and dark start pages", async (page) => {
       for (const theme of ["light", "dark"]) {
         for (const width of [320, 400, 620, 840, 1440]) {
           await page.setViewportSize({ width, height: 740 });
@@ -194,9 +195,9 @@ test("Unity branding and opening animation work in the browser", {
           await page.goto(`${base}/?theme=${theme}`);
           await page.waitForFunction(() => window.unityStudioReady);
           await page.waitForFunction(() => [...document.images].every((image) => image.complete && image.naturalWidth === 394));
-          assert.equal(await page.locator(".studio-brand img").getAttribute("src"), "/assets/unity-symbol.png");
-          assert.equal(await page.locator(".studio-welcome-brand img").getAttribute("src"), "/assets/unity-symbol.png");
-          assert.equal(await page.locator(".studio-brand").isVisible(), false);
+          assert.equal(await page.locator(".studio-site-nav img").getAttribute("src"), "/assets/unity-symbol.png");
+          assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).isVisible(), true);
           assert.equal(await page.locator("img:visible").count(), 1);
           assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
           assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
@@ -212,8 +213,8 @@ test("Unity branding and opening animation work in the browser", {
           }
           const utilities = await page.locator(".studio-theme-control").boundingBox();
           const nav = await page.locator(".studio-site-nav").boundingBox();
-          assert.ok(Math.abs(utilities.x + utilities.width - nav.x - nav.width) < 1, "Utilities remain right-aligned");
-          assert.equal(await page.locator(".studio-tagline").textContent(), "The self-aware app platform");
+          assert.ok(Math.abs(utilities.x + utilities.width - nav.x - nav.width + 16) < 1, "Utilities remain right-aligned within header padding");
+          assert.equal(await page.locator(".studio-tagline").count(), 0);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
           const images = await page.locator("img").evaluateAll((images) => images.map((image) => ({
             fit: getComputedStyle(image).objectFit,
