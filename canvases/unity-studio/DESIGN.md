@@ -20,7 +20,9 @@ Unity Studio is a guided builder for applications that use the Unity platform
 pattern. It deliberately avoids a dashboard or platform cockpit. The Simple
 home uses equal compact Create, Open and Assemble task cards in a responsive
 container grid. Recently viewed uses only already-loaded source inventory with
-recorded opening times, with explicit not-loaded, empty and failed states.
+recorded opening times, showing at most the newest five in existing recency order,
+with explicit not-loaded, empty and failed states. The full source inventory
+and persisted recency are not truncated.
 It performs no automatic discovery. A public toolkit CanvasHeader holds the
 compact Unity mark/Home button and existing Docs/Settings actions. Home content
 does not repeat a large masthead or tagline. The introduction supplies the h1;

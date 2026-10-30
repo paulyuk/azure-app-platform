@@ -38,7 +38,7 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
             ? h("p", null, "Recent apps have not been loaded. Use Open an app to find your existing apps.")
             : recentApps.length === 0
               ? h("p", null, "No recently viewed apps were found.")
-              : recentApps.map(app => h(WorkItem, {
+              : recentApps.slice(0, 5).map(app => h(WorkItem, {
                 key: app.path, title: app.name, description: app.path,
                 icon: h(SymbolIcon, { name: "file-code" }),
                 metadata: h("time", { dateTime: app.lastOpenedAt }, "Last opened " + new Date(app.lastOpenedAt).toLocaleString()),

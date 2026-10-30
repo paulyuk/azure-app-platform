@@ -61,3 +61,27 @@ test("recent apps distinguish not-loaded, empty, failed and recorded rows withou
     }
   }
 });
+
+test("Home shows at most the newest five rows without changing the source inventory", () => {
+  for (const count of [0, 1, 5, 7]) {
+    const recentApps = Array.from({ length: count }, (_, index) => ({
+      name: `Synthetic app ${index}`, path: `projects/app-${index}`,
+      lastOpenedAt: new Date(Date.UTC(2026, 9, 29 - index, 12)).toISOString(),
+    }));
+    const original = structuredClone(recentApps);
+    const rows = [];
+    const opened = [];
+    const toolkit = Object.fromEntries(["ActionCard", "SectionHeader", "WorkItem", "Button", "SymbolIcon"].map(name => [name, name]));
+    toolkit.createElement = (type, props, ...children) => {
+      const node = { type, props: props || {}, children };
+      if (type === "WorkItem") rows.push(node);
+      return node;
+    };
+    toolkit.mountCanvasComponent = (_, component) => component();
+    mountStudioHome({}, { toolkit, recentApps, onOpenRecent: path => opened.push(path) });
+    assert.deepEqual(rows.map(row => row.props.title), original.slice(0, 5).map(app => app.name));
+    for (const row of rows) row.props.actions.props.onClick();
+    assert.deepEqual(opened, original.slice(0, 5).map(app => app.path));
+    assert.deepEqual(recentApps, original);
+  }
+});

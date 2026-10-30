@@ -234,7 +234,9 @@ bootstrap completes before the home and intro become interactive. A failed
 bundle load is explicit and asks the user to reload to retry. Returning from a
 journey restores focus to Create, as does skipping the intro.
 Recently viewed uses only genuine, already-loaded source inventory with recorded
-last-opened timestamps. Initially it explicitly says apps have not been loaded;
+last-opened timestamps, showing at most the newest five in the source catalog's
+existing recency order. This Home-only limit does not truncate stored history or
+the full inventory available through Open an app. Initially it explicitly says apps have not been loaded;
 Open an app remains the route to load them. Successful-empty and failed refresh
 states are distinct. No launch scan, new history store, or sample recents are added.
 

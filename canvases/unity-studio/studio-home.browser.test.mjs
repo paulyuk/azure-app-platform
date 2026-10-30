@@ -26,6 +26,7 @@ test("packaged simple home preserves the three explicit journeys", {
   const baseline = process.env.UNITY_HOME_BASELINE === "1";
   const captures = [];
   const geometry = [];
+  const recentBoundaries = [];
   const browsers = [];
   try {
     await cp(fileURLToPath(new URL("./", import.meta.url)), payload, {
@@ -58,7 +59,18 @@ test("packaged simple home preserves the three explicit journeys", {
       const errors = [], requests = [];
       page.on("pageerror", error => errors.push(error.message));
       page.on("request", request => requests.push(request.url()));
-      let sourceMode = "ready", releaseSources, notifySourcePending;
+      let sourceMode = "ready", recentCount = 7, releaseSources, notifySourcePending;
+      const recentInventory = [
+        { name: "Customer portal", path: "projects/customer-portal" },
+        { name: "Inventory dashboard", path: "projects/inventory-dashboard" },
+        { name: "Support assistant", path: "projects/support-assistant" },
+        { name: "Order tracker", path: "projects/order-tracker" },
+        { name: "Document helper", path: "projects/document-helper" },
+        { name: "Schedule assistant", path: "projects/schedule-assistant" },
+        { name: "Knowledge search", path: "projects/knowledge-search" },
+      ].map((app, index) => ({
+        ...app, lastOpenedAt: new Date(Date.UTC(2026, 9, 29 - index, 12)).toISOString(), capabilityIds: [],
+      }));
       const sourcePending = new Promise(resolve => { notifySourcePending = resolve; });
       await page.route("**/api/**", async route => {
         const pathname = new URL(route.request().url()).pathname;
@@ -72,11 +84,8 @@ test("packaged simple home preserves the three explicit journeys", {
             await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Source catalog unavailable." }) });
             return;
           }
-          data = { roots: [], apps: sourceMode === "populated" ? [
-            { name: "Customer portal", path: "projects/customer-portal", lastOpenedAt: "2026-10-29T12:00:00Z", capabilityIds: [] },
-            { name: "Inventory dashboard", path: "projects/inventory-dashboard", lastOpenedAt: "2026-10-28T12:00:00Z", capabilityIds: [] },
-            { name: "Support assistant", path: "projects/support-assistant", lastOpenedAt: "2026-10-27T12:00:00Z", capabilityIds: [] },
-          ] : [], templates: sourceMode === "empty" ? [] : [EMPTY_TEMPLATE] };
+          data = { roots: [], apps: sourceMode === "populated" ? recentInventory.slice(0, recentCount) : [],
+            templates: sourceMode === "empty" ? [] : [EMPTY_TEMPLATE] };
         } else if (pathname === "/api/editor-settings") data = DEFAULT_EDITOR_SETTINGS;
         else if (pathname === "/api/preferences") {
           if (route.request().method() === "POST") theme = route.request().postDataJSON().theme;
@@ -181,28 +190,38 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.getByText("No existing runnable Unity apps were found", { exact: false }).waitFor();
             await page.locator("#top-back").click();
             await page.getByText("No recently viewed apps were found.", { exact: true }).waitFor();
+            assert.equal(await page.locator("[data-recent-app]").count(), 0);
+            recentBoundaries.push({ engine, tone, width, inventoryCount: 0, visiblePaths: [] });
             if (output) {
               const label = `empty-${engine}-${tone}-${width}`;
               await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
               captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
             }
             sourceMode = "populated";
-            await page.locator("#open-app").click();
-            await page.locator("[data-existing-app]").first().waitFor();
-            await page.locator("#top-back").click();
-            await page.locator(".simple-home-recent .ct-work-item").nth(2).waitFor();
-            assert.deepEqual(await page.locator("[data-recent-app]").evaluateAll(elements => elements.map(element => element.dataset.recentApp)),
-              ["projects/customer-portal", "projects/inventory-dashboard", "projects/support-assistant"]);
+            for (const count of width === 390 && tone === "light" ? [1, 5, 7] : [7]) {
+              recentCount = count;
+              await page.locator("#open-app").click();
+              await page.locator("[data-existing-app]").first().waitFor();
+              assert.equal(await page.locator("[data-existing-app]").count(), count, "Open retains the full source inventory");
+              await page.locator("#top-back").click();
+              await page.locator(".simple-home-recent .ct-work-item").nth(Math.min(count, 5) - 1).waitFor();
+              assert.deepEqual(await page.locator("[data-recent-app]").evaluateAll(elements => elements.map(element => element.dataset.recentApp)),
+                recentInventory.slice(0, Math.min(count, 5)).map(app => app.path), "Home preserves newest-first order and caps only its own rows");
+              recentBoundaries.push({ engine, tone, width, inventoryCount: count,
+                visiblePaths: await page.locator("[data-recent-app]").evaluateAll(elements => elements.map(element => element.dataset.recentApp)) });
+              assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            }
             if (output) {
               const label = `populated-${engine}-${tone}-${width}`;
+              await page.evaluate(() => { document.activeElement?.blur(); document.scrollingElement.scrollTop = 0; });
               await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
               captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
             }
             await page.route("**/app-map?**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic existing app workspace</h1>" }));
-            await page.locator("[data-recent-app]").first().focus();
+            await page.locator("[data-recent-app]").last().focus();
             await page.keyboard.press("Enter");
             await page.getByRole("heading", { name: "Synthetic existing app workspace" }).waitFor();
-            assert.equal(new URL(page.url()).searchParams.get("root"), "projects/customer-portal");
+            assert.equal(new URL(page.url()).searchParams.get("root"), "projects/document-helper");
             await page.unroute("**/app-map?**");
             sourceMode = "ready";
             await page.goto(origin);
@@ -343,7 +362,7 @@ test("packaged simple home preserves the three explicit journeys", {
       emittedHtmlSha256: hash(renderStudioHtml("home-proof", "fixture", {
         theme: "light", intro: false, presentationProfile: "github-app",
       })),
-      toolkit: provenance, browsers, geometry, captures,
+      toolkit: provenance, browsers, geometry, recentBoundaries, captures,
     }, null, 2) + "\n");
   } finally {
     server?.closeAllConnections();
