@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -84,8 +85,9 @@ test("Run shares optional document input with invocation and enforcement across 
       } else throw new Error("Unexpected route " + path);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
     });
+    await installStudioAssetRoutes(page);
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     await page.getByLabel("Document attachment", { exact: true }).click();
     const card = page.locator(".agent-tester");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -144,7 +146,7 @@ test("Run shares optional document input with invocation and enforcement across 
       "Build opens shared model settings without detouring through Run");
     await settings.getByRole("button", { name: "Close settings", exact: true }).click();
     assert.equal(await preview.getAttribute("data-preview-probe"), "preserved");
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     assert.equal(await document.inputValue(), expected.content);
     assert.equal(await message.inputValue(), "Summarize these terms.");
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);

@@ -133,7 +133,7 @@ test("installed payload opens and materializes templates without checkout depend
           }
         }
         const toolkit = JSON.parse(await readFile(join(payload, "vendor/toolkit/provenance.json"), "utf8"));
-        assert.equal(toolkit.source.commit, "e29e5511b6bde9cd99a5026e300c7712deb2add8");
+        assert.equal(toolkit.source.commit, "dff2eacb3354d0ec207109a0d7e074246d784b92");
         assert.equal(toolkit.source.published, false);
         assert.deepEqual(toolkit.files.map(file => file.route).sort(), [
           "/canvas-ui/LICENSE", "/canvas-ui/THIRD_PARTY_NOTICES.txt",
@@ -163,7 +163,7 @@ test("installed payload opens and materializes templates without checkout depend
           }
         }
         const notices = await readFile(join(payload, "vendor/toolkit/ui/browser/THIRD_PARTY_NOTICES.txt"), "utf8");
-        for (const dependency of ["@base-ui/react@1.8.0", "@primer/octicons-react@19.38.0", "react@19.3.0", "react-dom@19.3.0", "scheduler@0.28.0"]) {
+        for (const dependency of ["@fluentui/react-headless-components-preview@0.3.2", "@microsoft/focusgroup-polyfill@1.6.0", "@primer/octicons-react@19.38.0", "react@19.3.0", "react-dom@19.3.0", "scheduler@0.28.0"]) {
           assert.ok(notices.includes(dependency), "Missing notice for " + dependency);
         }
         assert.match(await readFile(join(payload, "vendor/toolkit/LICENSE"), "utf8"), /MIT License/);

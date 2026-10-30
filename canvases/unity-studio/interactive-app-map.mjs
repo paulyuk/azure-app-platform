@@ -14,6 +14,8 @@ import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { createStudioNotices } from "./studio-notice.mjs";
+import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -463,6 +465,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" href="data:,">
   <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="/canvas-ui/styles.css">
+  <link rel="stylesheet" href="/canvas-ui/base.css">
   <title>Unity App Map</title>
   <style>
     :root {
@@ -505,21 +509,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
-    header, main, footer { min-width: 0; }
-    body > header { grid-row: 1; }
-    body > main { grid-row: 2; }
-    body > footer { grid-row: 3; }
-    header {
-      display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-      grid-template-areas: "brand identity workspaces utilities";
+    #workspace-loading-header, #app-workspace-main, #workspace-status-footer { min-width: 0; }
+    #workspace-navigation-mount { grid-row: 1 / -1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; height: 100%; }
+    #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+    .studio-workspace-content { height: 100%; min-height: 0; color: var(--text); font: 16px/normal "Segoe UI", system-ui, sans-serif; }
+    #workspace-loading-header {
+      display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: "brand identity utilities" "loading loading loading";
       align-items: center; gap: 10px 16px; padding: 10px 16px;
       border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    header > .studio-site-nav { grid-area: brand; gap: 8px; }
-    header > .studio-theme-control { grid-area: utilities; justify-self: end; }
+    #workspace-loading-header > .studio-site-nav { grid-area: brand; gap: 8px; }
+    #workspace-loading-header > .studio-theme-control { grid-area: utilities; justify-self: end; }
+    #workspace-navigation-loading { grid-area: loading; }
     .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
-    .app-title-row { min-width: 0; display: flex; align-items: center; gap: 8px; }
-    .app-title-row h1 { flex: 1 1 100px; }
+    #workspace-runtime-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .workspace-location { flex: 1; min-width: 60px; font-size: 12px; }
+    #app-title { min-width: 0; max-width: 100%; font-weight: 600; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
     .runtime-badge {
       flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
@@ -536,11 +542,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
     }
     .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
-    .header-actions { grid-area: workspaces; justify-self: end; position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--studio-line); border-radius: 8px; background: var(--studio-panel); }
-    .header-actions > button { ${ACTION_BUTTON_STYLE} border: 1px solid transparent; background: transparent; color: var(--studio-muted); cursor: pointer; }
-    .header-actions > button:hover { background: var(--studio-raised); color: var(--studio-ink); }
-    .header-actions > button[aria-pressed="true"] { background: var(--studio-raised); color: var(--studio-ink); border-color: var(--studio-accent); }
-    .header-actions > button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: -2px; }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -568,13 +569,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .toolbar input:not([type="checkbox"]), .toolbar select { min-width: 0; width: 100%; }
     .toolbar > label:has(#entry-filter[hidden]) { display: none; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    input, select, button {
+    input, select, :where(button:not(.ct-button)), .studio-workspace-content :where(button:not(.ct-button)) {
       min-height: 32px; border: 1px solid var(--border); border-radius: 4px;
       background: var(--surface); color: var(--text); font: inherit;
     }
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
-    button { padding: 4px 10px; cursor: pointer; }
+    :where(button:not(.ct-button)), .studio-workspace-content :where(button:not(.ct-button)) { padding: 4px 10px; cursor: pointer; }
     #header-runtime-action, #app-status-badge {
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
       height: 32px; min-height: 32px; padding: 0 10px;
@@ -592,8 +593,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #structure-guidance p { flex: 1; min-width: 0; margin: 0; }
     #structure-guidance:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
     #close-structure-guidance { flex: none; width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
-    button:hover { border-color: var(--accent); }
-    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+    button:not(.ct-button):hover { border-color: var(--accent); }
+    button:not(.ct-button):focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 2px solid var(--focus); outline-offset: 2px;
     }
     .icon-group { display: inline-flex; }
@@ -612,7 +613,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .edge.internal-edge text { display: none; }
     .edge.internal-edge:hover text, .edge.internal-edge:focus-visible text, .edge.internal-edge.selected text { display: block; }
     #entry-filter[hidden] { display: none; }
-    main { position: relative; min-height: 0; display: flex; }
+    #app-workspace-main { position: relative; flex: 1; min-height: 0; display: flex; }
     #workspace-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
     #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
@@ -814,38 +815,31 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .actions button.setup-action { width: 100%; font-weight: 650; }
     button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
-    footer {
+    #workspace-status-footer {
       display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px;
       border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
     }
-    footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #workspace-status-footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 960px) {
-      header {
+      #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr) auto;
-        grid-template-areas: "brand identity utilities" "workspaces workspaces workspaces";
+        grid-template-areas: "brand identity utilities" "loading loading loading";
       }
-      .header-actions { justify-self: start; }
     }
     @media (max-width: 900px) {
       #workspace-shell { margin-right: 46px; }
       #guide-rail { position: absolute; z-index: 5; right: 0; inset-block: 0; width: min(280px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
     }
     @media (max-width: 680px) {
-      header {
+      #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas: "brand utilities" "identity identity" "workspaces workspaces";
+        grid-template-areas: "brand utilities" "identity identity" "loading loading";
         gap: 8px 10px; padding: 8px 12px;
       }
       .heading { padding-left: 0; border-left: 0; }
-      .header-actions { width: 100%; }
-      .header-actions > button { flex: 1; min-width: max-content; }
     }
     @media (max-width: 620px) {
-      aside {
-        position: static; width: 100%; height: auto; border-top: 1px solid var(--border);
-        border-left: 0; box-shadow: none;
-      }
-      footer > :last-child { display: none; }
+      #workspace-status-footer > :last-child { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
@@ -859,26 +853,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </style>
 </head>
 <body>
-  <header>
+  <div id="workspace-navigation-mount" hidden></div>
+  <header id="workspace-loading-header">
     <div class="studio-site-nav" role="navigation" aria-label="Unity Studio navigation">
       ${renderStudioBrand()}
     </div>
     <div class="heading">
-      <div class="app-title-row">
-        <h1 title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
-        <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
-        <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
-      </div>
-    </div>
-    <div class="header-actions" role="group" aria-label="App workspaces">
-      <button id="build-app" type="button" aria-pressed="true" aria-controls="workspace-shell">Build</button>
-      <button id="manage-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Run &amp; Debug</button>
-      <button id="map-app" type="button" aria-pressed="false" aria-controls="workspace-shell">Observe</button>
+      <h1 id="app-title" title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
     </div>
     ${renderThemeToggle(theme)}
+    <div id="workspace-navigation-loading" role="status"><span id="workspace-navigation-message">Loading workspace navigation…</span> <button id="retry-workspace-navigation" type="button" hidden>Retry navigation</button></div>
   </header>
-  <main>
-    <section id="workspace-shell" role="region" aria-labelledby="build-app">
+  <div id="workspace-content">
+    <div id="workspace-runtime-bar">
+      <span class="workspace-location">Page: <strong id="workspace-location">Build</strong></span>
+      <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
+      <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
+    </div>
+  <main id="app-workspace-main">
+    <section id="workspace-shell" role="region" aria-labelledby="workspace-location">
     <div id="observe-views" class="workspace-tabs studio-tabs" role="tablist" aria-label="Observe views" hidden>
       <button id="map-view" class="studio-tab" role="tab" type="button" aria-label="App Map" aria-selected="true" aria-controls="workspace"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--map" aria-hidden="true"></span><span class="studio-tab-label">App Map</span></span></button>
       <button id="logs-app" class="studio-tab" role="tab" type="button" aria-label="Logs" aria-selected="false" aria-controls="workspace" tabindex="-1"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--logs" aria-hidden="true"></span><span class="studio-tab-label">Logs</span></span></button>
@@ -936,10 +929,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <div id="guide-content"></div>
     </aside>
   </main>
-  <footer>
+  <footer id="workspace-status-footer">
     <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
     <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
   </footer>
+  </div>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
     "use strict";
@@ -1040,6 +1034,87 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let gatewayApplying = false;
     let panelMode = "build";
     let observeView = "map";
+    const navigationMount = document.querySelector("#workspace-navigation-mount");
+    const loadingHeader = document.querySelector("#workspace-loading-header");
+    const navigationRetry = document.querySelector("#retry-workspace-navigation");
+    const navigationMessage = document.querySelector("#workspace-navigation-message");
+    const navigationItems = [
+      { value: "build", label: "Build", button: { id: "build-app", "aria-controls": "workspace-shell" } },
+      { value: "manage", label: "Run & Debug", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
+      { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
+    ];
+    const navigationPreferenceKey = "unity-workspace:" + MODEL.root + ":navigation-collapsed";
+    let navigationCollapsed = false;
+    try {
+      const saved = localStorage.getItem(navigationPreferenceKey);
+      if (saved !== null && saved !== "true" && saved !== "false") throw new Error("Invalid navigation preference.");
+      navigationCollapsed = saved === "true";
+    } catch (error) { setStatus("Could not restore workspace navigation: " + error.message, true); }
+    let navigationToolkit, navigationAttempt = 0, navigationFailed = false, navigationDisposed = false;
+    const components = (${createStudioNotices.toString()})({
+      loadToolkit: async () => {
+        if (!navigationToolkit) {
+          const toolkit = await import("/canvas-ui/base.mjs" + (navigationAttempt ? "?retry=" + navigationAttempt : ""));
+          navigationToolkit = { ...toolkit, WorkspaceNavigation: (${createWorkspaceNavigationComponent.toString()})(toolkit) };
+        }
+        return navigationToolkit;
+      },
+      onError: message => {
+        navigationFailed = true;
+        navigationMount.hidden = true;
+        loadingHeader.hidden = false;
+        navigationRetry.hidden = false;
+        navigationMessage.textContent = "Workspace navigation is unavailable.";
+        setStatus(message, true);
+      },
+    });
+    const navigationProps = {
+      items: navigationItems, appTitle: document.querySelector("#app-title"),
+      utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
+      defaultCollapsed: navigationCollapsed,
+      onNavigate: (_event, value) => {
+        if (value === "build") renderBuildPanel();
+        else if (value === "manage") renderManagePanel();
+        else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
+          if (observeView === "logs") renderLogsPanel();
+          else renderMapPanel();
+        }
+      },
+      onCollapsedChange: value => {
+        navigationProps.defaultCollapsed = value;
+        try { localStorage.setItem(navigationPreferenceKey, String(value)); }
+        catch (error) { setStatus("Could not remember workspace navigation: " + error.message, true); }
+      },
+      onReady: () => {
+        loadingHeader.hidden = true;
+        navigationMount.hidden = false;
+      },
+      onHome: () => location.assign("/"),
+    };
+    function renderWorkspaceNavigation(current) {
+      if (!navigationFailed && !navigationDisposed) components.renderComponent(navigationMount, "WorkspaceNavigation",
+        { ...navigationProps, current }, "workspace navigation");
+    }
+    function focusWorkspaceNavigation(id = "map-app") {
+      const target = document.querySelector("#" + id);
+      (target?.getClientRects().length ? target : document.querySelector("#browse-workspaces"))?.focus({ preventScroll: true });
+    }
+    navigationRetry.addEventListener("click", () => {
+      navigationAttempt++;
+      navigationFailed = false;
+      navigationRetry.hidden = true;
+      navigationMessage.textContent = "Loading workspace navigation…";
+      updateModeHighlight();
+    });
+    window.addEventListener("pagehide", event => {
+      if (event.persisted) return;
+      navigationDisposed = true;
+      clearInterval(operationalTimer);
+      clearInterval(outputTimer);
+      appLogs?.dispose();
+      buildPanel.hide();
+      components.dispose();
+    });
     ${BUILD_SYNTAX_SCRIPT}
     let deleteConfirming = false;
     let deletingApp = false;
@@ -1885,9 +1960,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function closeMapDetails() {
       const target = panelMode === "connections" && !guideCollapsed
         ? guideContent.querySelector('[data-action-key="review-connections"]')
-        : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId) || document.querySelector("#map-app");
+        : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
       renderMapPanel();
-      target.focus({ preventScroll: true });
+      if (target) target.focus({ preventScroll: true });
+      else focusWorkspaceNavigation();
     }
 
     function appendField(container, title, control) {
@@ -1907,11 +1983,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       document.body.dataset.workspace = mode;
       document.body.dataset.inspecting = String(!["build", "manage", "logs", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
-      const activeControl = observing ? "map-app" : mode === "build" ? "build-app" : "manage-app";
-      document.querySelector("#workspace-shell").setAttribute("aria-labelledby", activeControl);
-      for (const button of document.querySelectorAll(".header-actions > button")) {
-        button.setAttribute("aria-pressed", String(button.id === activeControl));
-      }
+      const current = observing ? "observe" : mode;
+      document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
+      renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
       for (const tab of document.querySelectorAll("#observe-views > [role='tab']")) {
         const selected = (tab.id === "logs-app") === (observeView === "logs");
@@ -2265,7 +2339,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } else if (!action) {
         card.append(keyedActionButton("observe-map", "Open App Map", () => {
           renderMapPanel();
-          document.querySelector("#map-app").focus({ preventScroll: true });
+          focusWorkspaceNavigation();
         }, true));
       }
     }
@@ -4082,11 +4156,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#action-center").addEventListener("click", () => setGuideCollapsed(!guideCollapsed, true));
-    document.querySelector("#map-app").addEventListener("click", () => {
-      if (["map", "logs"].includes(document.body.dataset.workspace)) return;
-      if (observeView === "logs") renderLogsPanel();
-      else renderMapPanel();
-    });
     document.querySelector("#map-view").addEventListener("click", renderMapPanel);
     const dismissStructureGuidance = () => {
       setStructureGuidance(false);
@@ -4100,11 +4169,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       dismissStructureGuidance();
     });
     document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
-    document.querySelector("#build-app").addEventListener("click", renderBuildPanel);
-    document.querySelector("#manage-app").addEventListener("click", () => {
-      document.querySelector(".map-tools").open = false;
-      renderManagePanel();
-    });
     for (const tabs of document.querySelectorAll(".workspace-tabs")) {
       tabs.addEventListener("keydown", (event) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -4165,7 +4229,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (first) first.focus();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented ||
+        (document.querySelector("#app-workspace-navigation")?.dataset.mode !== "sidebar" &&
+          document.querySelector("#browse-workspaces")?.getAttribute("aria-expanded") === "true")) return;
       if (document.querySelector(".map-tools").open) {
         document.querySelector(".map-tools").open = false;
         document.querySelector(".map-tools > summary").focus();
@@ -4191,8 +4257,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     renderActionCenter();
     renderBuildPanel();
     void refreshOperationalState();
-    setInterval(() => { void refreshOperationalState(); }, 2000);
-    setInterval(() => { void refreshRunOutput(); }, 1000);
+    const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
+    const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);
     ${renderThemeClientScript(apiToken, editorSettings)}
   </script>
 </body>

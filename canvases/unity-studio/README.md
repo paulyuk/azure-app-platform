@@ -33,24 +33,28 @@ The toolkit's unmodified `styles.css` maps the current host's delivered semantic
 The existing Studio Appearance preference sets the fallback light/dark tone;
 it does not replace supplied host colors with Studio's palette. Legacy Studio
 aliases stay on `body` so they do not overwrite host tokens on `:root`.
-There is no second appearance selector. React owns only the notice's mount
-container, with updates on the same root and disposal before navigation replaces
-the page. Unchanged updates do not re-announce the notice.
+There is no second appearance selector. React owns the notice and workspace chrome
+mounts, with updates on the same roots and disposal before permanent navigation
+replaces the page. Unchanged updates do not mutate the notice's announcement DOM.
 
 `createStudioNotices` is the one shared notice helper. Its `renderNotice(element,
 props)` keeps a canonical MessageBar root keyed by the mount element, merges the
 latest props, and forwards callbacks through stable handlers so callback-only
 refreshes do not re-render or lose focus. `clearNotice(element)` cancels pending
 work and disposes that root; the same element can safely be reused. `dispose()`
-clears all owned roots before legacy DOM replacement. The first review notice
-uses this helper; no other notices are migrated here.
+clears all owned roots before legacy DOM replacement. Its shared `renderComponent`
+and `clearComponent` operations also retain the workspace's canonical navigation
+root; no parallel screen-specific root manager is introduced. The first review
+notice uses this helper; no other notices are migrated here. Removed or superseded
+asynchronous mounts cannot revive; load/render failures are explicit, and workspace
+navigation offers **Retry navigation** without discarding content.
 
 The pinned toolkit recognizes the current Copilot-style semantic names above;
 it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or
 claim that a synthetic browser fixture proves native host token delivery.
 
-The standalone plugin ships the prepared React/Base UI browser runtime, shared
+The standalone plugin ships the prepared React/Fluent Headless browser runtime, shared
 React chunk, CSS, upstream MIT license and complete bundled dependency notices
 under `vendor/toolkit/`. Nothing is downloaded or restored when the plugin opens.
 Only six explicitly allowed `/canvas-ui/` assets are served, relative to the
@@ -58,13 +62,14 @@ installed plugin, never the user's workspace or a sibling checkout.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`e29e5511b6bde9cd99a5026e300c7712deb2add8`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/e29e5511b6bde9cd99a5026e300c7712deb2add8).
+[`dff2eacb3354d0ec207109a0d7e074246d784b92`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/dff2eacb3354d0ec207109a0d7e074246d784b92).
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 
-Maintainers need Node.js (the recorded build uses 24.22.1), npm, `tar`, and an
+Maintainers need Node.js (upstream recommends 24.22.1; the recorded Windows build
+uses 26.13.0 with npm's engine warning), npm, `tar`, and an
 authenticated `gh` with read access to that repository. These commands work
 unchanged in PowerShell and macOS/Linux shells, from the repository root:
 
@@ -85,12 +90,12 @@ dependency is introduced.
 
 ## Studio journeys
 
-The workspace uses one compact top bar for the Unity logo/home navigation,
-app name, runtime status and start/stop, workspace buttons, **Docs**, and the
-Settings gear. Docs and Settings remain at the top right at every width.
-At narrower widths, all three workspace buttons move together to a second row;
-on the smallest canvases, app identity and runtime controls occupy a third row.
-Long app names truncate rather than displacing controls. Studio defaults to light; the saved appearance applies
+The workspace uses the toolkit's canonical **CanvasHeader** and **CanvasShell**
+through the public DOM mount API. The header retains Unity home, the app name,
+**Docs**, and Settings. A separate persistent row identifies the current page and
+retains runtime status and start/stop, without treating those actions as page
+navigation. Long app names truncate rather than displacing controls.
+Studio defaults to light; the saved appearance applies
 to the landing page and all workspaces, including after a provider restart.
 This user-level preference lives under
 `$COPILOT_HOME/extensions/unity-studio/artifacts/preferences.json`
@@ -115,14 +120,27 @@ the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in the user's selected code editor.
 
 After creation or selection, the app workspace becomes the primary interface.
-The Unity logo and **Unity Studio** text link home; there is no separate Home button.
+The Unity logo and **Unity Studio** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The main page navigation is **Build → Run & Debug → Observe**: one rounded,
-segmented strip with a filled, outlined selection marking the current page. This navigation
-is separated from the outlined **Set up** or runtime action; compact canvases put it
-on its own row below app identity. Build opens first. Observe contains **App Map** and
+The only main destinations are **Build**, **Run & Debug**, and **Observe**, using
+the genuine toolkit **ProductNavigation**. At 1180px of available shell width or
+more, they occupy a canonical 256px collapsible sidebar; smaller canvases use
+**Browse app workspaces** to preview or hold a menu below the header. Collapse is
+remembered per app in the current browser origin. Focus or hover previews the menu;
+click holds it on narrow canvases. Arrow Down or Tab enters it, and Enter/Space
+activates the focused destination. Selection, Escape, Close and outside interaction
+dismiss the compact menu, with toolkit-owned focus restoration. The active
+destination has `aria-current="page"` and a canonical highlight; the persistent
+**Page:** label stays visible with the menu closed. These are free destinations,
+not Guide progress steps, and there is no duplicate header strip or command palette.
+Build opens first. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
+The existing content, utilities and app title are retained DOM slots within the
+shell rather than React copies of business logic. Navigation refreshes and responsive
+layout changes preserve those exact nodes, focus and message selection. Permanent
+navigation disposes the shell binding and restores retained slots; persisted
+`pagehide` keeps them for the back/forward cache.
 Build starts directly with customization areas and one focused preview, without a duplicate
 Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
 navigation. The Guide's Build action opens the general map with a dismissible

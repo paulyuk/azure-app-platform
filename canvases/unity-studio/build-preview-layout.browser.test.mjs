@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -44,6 +45,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         throw new Error("Unexpected preview-layout request: " + path);
       });
       await page.addInitScript(() => localStorage.setItem("unity-workspace:/fixture:guide-collapsed", "true"));
+      await installStudioAssetRoutes(page);
       await page.goto("http://build-layout.test/");
       await page.locator(".build-source-preview").first().waitFor();
       await page.addStyleTag({ content: `

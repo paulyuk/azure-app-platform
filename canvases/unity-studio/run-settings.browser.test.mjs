@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -20,7 +21,7 @@ test("First-time setup clearly offers connection, preserves preview, and never c
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(fixture.origin + "/app-map");
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     const connect = page.locator(".run-heading").getByRole("button", { name: "Connect AI Gateway", exact: true });
     await connect.waitFor();
     assert.match(await connect.textContent(), /No AI Gateway connected/);
@@ -74,7 +75,7 @@ test("Preview setup shortcuts show native agent evidence and missing-gateway gui
     await page.getByRole("heading", { name: "Add to Agent", exact: true }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Existing evidence", exact: true }).isVisible(), true);
     assert.match(await page.locator("#details").textContent(), /Deal finder.*src\/agent/);
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     fixture.state.app = "stopped";
     fixture.state.configured = false;
     fixture.state.gatewayAvailable = false;
@@ -107,7 +108,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(fixture.origin + "/app-map");
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     await message.fill("Find an SUV under $35,000.");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -193,7 +194,7 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(fixture.origin + "/app-map");
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     await message.fill("Find an SUV.");
     await message.evaluate((el) => { el.focus(); el.setSelectionRange(3, 7); });
@@ -265,8 +266,8 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
       "Completing an operation must preserve its summary focus");
     await output.click();
     await page.getByRole("button", { name: "Open all logs" }).waitFor();
-    await page.locator("#build-app").click();
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "manage-app");
     assert.equal(await output.getAttribute("aria-selected"), "true");
     assert.equal(await message.inputValue(), "Find an SUV.");
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
@@ -309,7 +310,7 @@ test("Run tabs are single-panel, responsive, themed, and support roving keyboard
   try {
     const page = await browser.newPage();
     await page.goto(fixture.origin + "/app-map");
-    await page.locator("#manage-app").click();
+    await selectWorkspace(page, "manage-app");
     await page.getByRole("tab", { name: "Services", exact: true }).waitFor();
     const runTabs = page.locator(".run-tabs");
     assert.equal(await runTabs.locator('.studio-tab-icon[aria-hidden="true"]').count(), 4);

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -75,8 +76,9 @@ test("one App Map reveals other resources without changing request paths or Guid
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path]) });
     });
     const url = `http://127.0.0.1:${server.address().port}/app-map`;
+    await installStudioAssetRoutes(page);
     await page.goto(url);
-    await page.locator("#map-app").click();
+    await selectWorkspace(page, "map-app");
     const observeTabs = page.getByRole("tablist", { name: "Observe views", exact: true });
     assert.equal(await observeTabs.locator('.studio-tab-icon[aria-hidden="true"]').count(), 2);
     for (const theme of ["light", "dark"]) {
@@ -180,7 +182,7 @@ test("one App Map reveals other resources without changing request paths or Guid
     await page.locator("#tier-filter").selectOption("");
     await page.keyboard.press("Escape");
     await page.reload();
-    await page.locator("#map-app").click();
+    await selectWorkspace(page, "map-app");
     await openTools();
     assert.equal(await toggle.isChecked(), true);
     assert.equal((await visibleIds()).length, graph.nodes.length);

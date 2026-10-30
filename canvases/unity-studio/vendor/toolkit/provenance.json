@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "source": {
     "repository": "coreai-microsoft/canvases-cloud-foundation",
-    "commit": "e29e5511b6bde9cd99a5026e300c7712deb2add8",
+    "commit": "dff2eacb3354d0ec207109a0d7e074246d784b92",
     "package": "@microsoft/canvas-toolkit",
     "version": "0.1.0",
     "published": false
   },
   "build": {
-    "node": "v24.22.1",
-    "npm": "11.19.1",
+    "node": "v26.13.0",
+    "npm": "11.20.0",
     "esbuild": "0.25.12",
-    "lockSha256": "58506251f648905700430510e8bb76f1151e345d4ab5bfeb2d49a429039b2469",
-    "builderSha256": "69e3fa15a4716996bbbe1991cec09b79f54fe638eb1bf0b5a5208a5dd349df5e",
+    "lockSha256": "b954715f51daad33ac14faa0b9b4722718290727909e97d33e1817ae8def0050",
+    "builderSha256": "c91beb7e23ffb0d0c040e4a6cdd7e33e601404d0fd71294f32ec981c3ae710cb",
     "command": "npm ci --ignore-scripts --workspace=@microsoft/canvas-toolkit --include-workspace-root --no-audit --no-fund; buildToolkitUi(); prepareCanvasUiAssets(output)",
     "repeatBuildVerified": true
   },
@@ -21,13 +21,13 @@
       "route": "/canvas-ui/base.mjs",
       "file": "ui/browser/base.mjs",
       "contentType": "text/javascript; charset=utf-8",
-      "sha256": "512a6b91b48c96974ed5c4bfc0359c25604eef8dedf0702d6f1dac6b4e87953a"
+      "sha256": "8fa2042bb6d541d4a8a1eb81eb838289404c11b7b98ba88ba302f69c9c5aef9f"
     },
     {
       "route": "/canvas-ui/react-runtime.mjs",
       "file": "ui/browser/react-runtime.mjs",
       "contentType": "text/javascript; charset=utf-8",
-      "sha256": "b154cd9903f545a2b94275c2f4795758bb269283ccbd64c4614e4cf02f82d2e1"
+      "sha256": "838f484a9f589bf40486f9c79a0552784df0bba7ab9d8316764da030e661afca"
     },
     {
       "route": "/canvas-ui/styles.css",
@@ -39,13 +39,13 @@
       "route": "/canvas-ui/base.css",
       "file": "ui/base.css",
       "contentType": "text/css; charset=utf-8",
-      "sha256": "71fb0cda7805f32a500da0fd1ea0ab0334b6ce432ed956f02d2f55f84b74549c"
+      "sha256": "9385f0cb6392df9fa5360532e3948676e77f01016d7d5ae9f9e800817a009ed2"
     },
     {
       "route": "/canvas-ui/THIRD_PARTY_NOTICES.txt",
       "file": "ui/browser/THIRD_PARTY_NOTICES.txt",
       "contentType": "text/plain; charset=utf-8",
-      "sha256": "bda96397871b2efd49b404eae9692746dd02cda7ff05a73e42db1d699a5ffddc"
+      "sha256": "826d02d87439afbf3a28bb865be0b73a1b5190615b51a8d0b4917abaa2a5ff06"
     },
     {
       "route": "/canvas-ui/LICENSE",

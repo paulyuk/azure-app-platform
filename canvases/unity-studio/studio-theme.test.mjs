@@ -53,9 +53,11 @@ test("home and map render explicit initial preference with shared settings and a
   assert.match(renderStudioHtml("studio"), /data-studio-theme="light"/);
   assert.match(renderStudioHtml("studio"), /class="studio-site-nav" aria-label="Unity Studio navigation"/);
   const workspace = renderInteractiveAppMapHtml(graph);
-  assert.match(workspace, /id="build-app"[^>]*>Build<\/button>/);
-  assert.match(workspace, /id="manage-app"[^>]*>Run &amp; Debug<\/button>/);
-  assert.match(workspace, /id="map-app"[^>]*>Observe<\/button>/);
+  assert.match(workspace, /value: "build", label: "Build", button: \{ id: "build-app"/);
+  assert.match(workspace, /value: "manage", label: "Run & Debug", button: \{ id: "manage-app"/);
+  assert.match(workspace, /value: "observe", label: "Observe", button: \{ id: "map-app"/);
+  assert.match(workspace, /CanvasShell/);
+  assert.match(workspace, /aria-current/);
   const mapTab = workspace.match(/<button id="map-view"[^>]*>([\s\S]*?)<\/button>/)?.[1] ?? "";
   assert.match(mapTab, /<span class="studio-tab-label">App Map<\/span>/);
   assert.match(workspace, /id="show-other-resources"/);

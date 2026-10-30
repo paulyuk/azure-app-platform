@@ -50,7 +50,6 @@ export async function writeStudioPreferences(input, directory = studioPreference
 export function renderThemeStyles() {
   return `
     :root[data-studio-theme="light"] {
-      color-scheme: light;
       --studio-bg: #f6f8fa; --studio-panel: #f0f3f8; --studio-raised: #ffffff;
       --studio-line: #d1d9e0; --studio-ink: #1f2328; --studio-muted: #59636e;
       --studio-accent: #6b3fd6; --studio-accent-2: #5c2eb8; --studio-accent-soft: #f1eaff;
@@ -60,7 +59,6 @@ export function renderThemeStyles() {
       --studio-on-accent: #ffffff;
     }
     :root[data-studio-theme="dark"] {
-      color-scheme: dark;
       --studio-bg: #15171c; --studio-panel: #20232b; --studio-raised: #1b1e25;
       --studio-line: #454b57; --studio-ink: #edf0f5; --studio-muted: #b6becb;
       --studio-accent: #c5a6ff; --studio-accent-2: #d6c0ff; --studio-accent-soft: #36264e;
@@ -69,6 +67,8 @@ export function renderThemeStyles() {
       --studio-blue-soft: #182d46;
       --studio-on-accent: #20132f;
     }
+    :root[data-studio-theme="light"]:not([data-theme-tone]):not([data-color-mode]) { color-scheme: light; }
+    :root[data-studio-theme="dark"]:not([data-theme-tone]):not([data-color-mode]) { color-scheme: dark; }
     :root[data-studio-theme] {
       --bg: var(--studio-bg); --surface: var(--studio-raised); --surface-muted: var(--studio-panel);
       --border: var(--studio-line); --text: var(--studio-ink); --muted: var(--studio-muted);
@@ -99,8 +99,8 @@ export function renderThemeStyles() {
     #details[data-mode="manage"] button.primary, #details[data-mode="manage"] button.primary:hover:not(:disabled) { color: var(--studio-on-accent); }
     button.primary:hover, button.run-button-primary:hover { background: var(--studio-accent-2); border-color: var(--studio-accent-2); }
     button.run-button-danger { color: var(--studio-danger); border-color: var(--studio-danger); }
-    button:disabled { cursor: not-allowed; opacity: .65; }
-    button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; }
+    button:not(.ct-button):disabled { cursor: not-allowed; opacity: .65; }
+    button:not(.ct-button):focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; }
     .runtime-badge[data-tone="success"], .tool-status.ready { color: var(--studio-ok); border-color: var(--studio-ok); }
     .runtime-badge[data-tone="warning"] { color: var(--studio-warn); border-color: var(--studio-warn); }
     .node-visual { color: var(--studio-accent); }
