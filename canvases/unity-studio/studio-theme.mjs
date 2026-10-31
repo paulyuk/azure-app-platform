@@ -53,6 +53,13 @@ export function renderThemeStyles(presentationProfile = "standalone") {
   const presentation = getStudioPresentation(presentationProfile);
   return `
     ${OCTICON_CSS}
+    :root[data-studio-theme] {
+      --bg: var(--studio-bg); --surface: var(--studio-raised); --surface-muted: var(--studio-panel);
+      --border: var(--studio-line); --text: var(--studio-ink); --muted: var(--studio-muted);
+      --accent: var(--studio-accent); --accent-soft: var(--studio-accent-soft); --focus: var(--studio-focus);
+      --edge-high: var(--studio-accent); --edge-medium: var(--studio-edge-medium);
+      --edge-low: var(--studio-edge-low); --danger: var(--studio-danger);
+    }
     ${presentation.legacyStyles}
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }

@@ -26,6 +26,12 @@ legacy `--studio-*` variables and product-owned layout. It must not duplicate
 the shared host profile or restyle private toolkit classes. Real Button and
 MessageBar roots retain their existing shared owners and lifecycle behavior.
 
+Retained App Map HTML and SVG read compatibility aliases such as `--surface`,
+`--text` and `--accent` from the Studio document root. These map only to
+`--studio-*` tokens: delivered host colors flow through the canonical toolkit
+mapping, while standalone uses its existing palette. They do not define host
+tokens or override canonical `--canvas-*` values.
+
 The renderer gets the selected descriptor from the shipped public toolkit
 registry. It loads `styles.css`, `base.css`, then the descriptor's stylesheet and
 applies its class alongside Unity's host-neutral adapter class. Shared guides,
@@ -73,6 +79,9 @@ identity, focus and Run drafts. `build-preview-layout.browser.test.mjs` covers
 both selections in the full renderer with Chromium/WebKit classic scrollbars.
 `plugin-portability.test.mjs` checks actual provider opening and selection
 without checkout dependencies.
+`app-map-theme.browser.test.mjs` checks the real Observe SVG's fills, text,
+strokes, arrowheads and late palette changes in both presentations with
+Chromium/WebKit at compact and wide sizes.
 
 These are source/payload checks, not native Copilot delivery or
 assistive-technology announcement evidence. No providers or user panels are
