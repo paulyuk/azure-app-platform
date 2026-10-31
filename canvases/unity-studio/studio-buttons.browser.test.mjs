@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createStudioButtons } from "./studio-buttons.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -151,7 +152,7 @@ test("departing before the toolkit import resolves cannot attach late button roo
   }
 });
 
-test("runtime actions use canonical geometry and live host tokens in compact light/dark panes without changing navigation", {
+test("runtime actions use canonical geometry and live host tokens in compact light/dark panes with responsive navigation", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const fixture = await createRunSettingsFixture();
@@ -172,7 +173,7 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
         await page.goto(fixture.origin + "/app-map");
         await page.waitForFunction(() => window.unityStudioReady);
         await page.waitForFunction(expected => document.documentElement.dataset.studioTheme === expected, tone);
-        await page.locator("#manage-app").click();
+        await selectWorkspace(page, "manage-app");
         const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
         await invoke.waitFor();
         assert.match(await invoke.getAttribute("class"), /\bct-button\b/);

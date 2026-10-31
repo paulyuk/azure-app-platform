@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -26,7 +27,7 @@ function pageHtml() {
   return `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
       onRun() {}, onModel() {},
@@ -122,7 +123,8 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
     await page.waitForFunction(() =>
       document.querySelector('.build-handoff-feedback[data-artifact-id="agent"]')
         ?.textContent.includes("Opened in Files"));
-    assert.match(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(), /Opened in Files/);
+    assert.equal(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(),
+      "Opened in Files. Save there, then return to Customize.");
 
     fail.add("agent");
     await page.getByRole("tab", { name: "Behavior", exact: true }).click();

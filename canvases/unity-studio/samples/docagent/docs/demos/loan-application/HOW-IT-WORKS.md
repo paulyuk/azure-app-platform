@@ -57,7 +57,7 @@ from links in the generated Markdown.
 | **Runtime selection** | [`config/runtime.json`](../../../config/runtime.json) | Selects local processing or separately configured ACA custom-container sandboxes; selection does not provision or deploy them |
 | **AI Gateway / model** | **Settings → Model connection**; generated `src/agent/.env` | Remote model-access endpoint and model selection, not the Python or SDK runtime |
 
-**Build** groups read-only previews of the instructions, document validation tool,
+**Customize** groups read-only previews of the instructions, document validation tool,
 contract, policy, and runtime settings into purpose-led categories. **Edit in Files**
 opens the actual source in the native Files canvas. **Open in &lt;editor&gt;** uses
 the external editor selected in **Settings**; use its file tree for the harness
@@ -141,7 +141,7 @@ sanitized output and structured evidence from that check. Studio derives them
 through `document-assessment.mjs`, not model prose. Inspect the sanitized text,
 truncation flag, and redaction counts. The labels are not signed credentials,
 universal trust, verified identity or income, creditworthiness, loan approval,
-or proof of isolation. Changing input, starting another check, or opening Build
+or proof of isolation. Changing input, starting another check, or opening Customize
 clears them; pending and rejected results never receive them.
 
 Under **Run & manage → Local ports**, **Pick available ports** writes the

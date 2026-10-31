@@ -134,10 +134,12 @@ credit decision, proof of isolation, or statement that the raw document is
 safe. Pending and rejected results do not receive the labels, and changing the
 input clears them.
 
-**Build** provides compact editors for the allowlisted agent instructions,
-document validation tool, contract, policy, and runtime settings. **Edit in Code** opens the whole generated worktree and the selected file. Inline changes
-require review and a stopped app. Developer editing does not give the running
-model permission to modify code or policy.
+**Customize** groups read-only source previews of the allowlisted agent instructions,
+document validation tool, contract, policy, and runtime settings. **Edit in Files**
+opens the actual source in the native Files canvas. **Open in &lt;editor&gt;** uses
+the external editor selected in **Settings**. Files and external editors own
+saving; restart or rebuild the app when needed to apply runtime changes.
+Developer editing does not give the running model permission to modify code or policy.
 
 New apps created in Studio automatically receive available ports before their
 workspace opens. Allocation avoids live listeners and other apps' saved

@@ -1333,7 +1333,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "POST" && url.pathname === "/api/open-build-file") {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
-      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Customize root is not an authorized app workspace.");
       const file = await resolveBuildArtifactPath(root, input.id);
       sendJson(response, 200, await openWorkspaceInEditor({ root, file }));
       return;
@@ -1341,7 +1341,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "POST" && ["/api/open-build-file-canvas", "/api/open-source-canvas"].includes(url.pathname)) {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
-      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Customize root is not an authorized app workspace.");
       const projectSource = url.pathname === "/api/open-source-canvas";
       sendJson(response, 200, await openBuildFileCanvas({
         session,
@@ -1354,7 +1354,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
-      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Customize root is not an authorized app workspace.");
       sendJson(response, 200, { ...await readBuildWorkspace(root), editorSettings: await readEditorSettings() });
       return;
     }

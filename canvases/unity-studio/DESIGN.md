@@ -225,15 +225,15 @@ the repository or subscription.
 
 ### Workspace and Guide
 
-The app interface has three primary pages: Build, Run & Debug, and Observe.
-Build presents compact category tabs and one focused customization area, with
+The app interface has three primary pages: Customize, Run & Debug, and Observe.
+Customize presents compact category tabs and one focused customization area, with
 optional source previews instead of a file explorer or vertical catalog. Run and general App Map
 navigation remain in the top bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
 highlights on the stage add/connect controls; it does not create a second
 editor, select a component from the current file, or perform a mutation.
 Connect preserves source-backed review, with an entry point to edit on the map.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
-highlight. Build's area/project selections and preview expansion are retained across these transitions.
+highlight. Customize's area/project selections and preview expansion are retained across these transitions.
 They share one compact top bar whose Unity logo and name link home, with no
 separate Home button. The same bar contains app identity,
 runtime status and start/stop, Docs, and Settings. There is no separate
@@ -247,7 +247,7 @@ the current visit. Primary page navigation is a single rounded segmented strip,
 with a raised-surface fill and accent outline marking the current page.
 Its grouped track, rather than a divider or underline, distinguishes page navigation from
 Set up and runtime actions. Selection does not claim readiness or successful execution. Every
-workspace remains accessible before the app runs. Build, Run, and Observe share
+workspace remains accessible before the app runs. Customize, Run, and Observe share
 one Studio-owned subordinate tab treatment: compact equal-width tabs, purpose-specific
 line icons, and the original flat Run tab treatment. A shared baseline and accent
 underline ground the row; only the selected tab has a subtle persistent fill.
@@ -255,13 +255,13 @@ Tabs have no individual outlines. Clear hover/focus styling reinforces clickabil
 Observe retains its map/log icons, selected state, roving focus, and labelled
 tabpanel relationships. Arrow keys, Home, and End move focus without activation,
 respecting text direction; Enter or Space opens the focused Observe view.
-Build is the initial view. Build, Run, and Logs use the main content region; the graph and its
+Customize is the initial view. Customize, Run, and Logs use the main content region; the graph and its
 view/search controls are visible only in Map. Map details are a contextual
 inspector, not the container for every app workflow.
 The inspector opens below the map, never as another right-hand rail. Its
 horizontal divider supports pointer and keyboard resizing, with a separately
 persisted height bounded by the available workspace. Closing restores focus to
-the selected map item. Build, Run, and Logs remain full-height workspaces.
+the selected map item. Customize, Run, and Logs remain full-height workspaces.
 Map search, filters, other-resource visibility, and reset share a top-right
 floating palette, following the Logic Apps designer reference. Zoom and fit
 are directly accessible; search/layout options open downward.
@@ -270,7 +270,7 @@ does not zoom the graph.
 
 Guide is a separate 280px right rail with evidence-derived progress and next
 actions. It updates on readiness changes without switching the main view,
-clearing map selection, or replacing Build/Run inputs. Its single toggle lives
+clearing map selection, or replacing Customize/Run inputs. Its single toggle lives
 inside the rail, not in the workspace navigation, and retains focus when closing.
 Its top and right insets are identical in both states, so it does not move when
 the rail expands or collapses, including in the narrow overlay.
@@ -284,7 +284,7 @@ workspace, collapsed by default unless the user has chosen otherwise.
 Guide visibility is a per-app browser-origin preference, separate from map
 layout and source files. An extension restart that changes the loopback origin
 can reset browser preferences. Document-test drafts stay in memory across mode
-switches but are not persisted by this layout. Build holds no source drafts.
+switches but are not persisted by this layout. Customize holds no source drafts.
 Live runtime evidence takes precedence over unresolved static source evidence
 in workflow progress. A running app reaches Observe & manage immediately;
 Run is complete, while uncertain Build/Connect evidence remains marked Review.
@@ -292,9 +292,9 @@ Telemetry completeness is an improvement, not the admission rule for viewing
 logs, health, or request paths. Start/stop transitions and failures return the
 current step to Run, and preview-only operation is labeled explicitly.
 
-### Build and enforcement ownership
+### Customize and enforcement ownership
 
-Build exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.
+Customize exposes allowlisted app artifacts, not arbitrary filesystem reads/writes.
 The catalog is app-aware: document-processing apps keep their recognized
 instruction/tool/policy/runtime layout, while Dealer, Empty Unity, and custom apps
 use source-discovered component files within their declared app scope. Inline
@@ -332,12 +332,12 @@ right-hand rail.
 **Edit in Files** is the primary row action; a quiet **Open in &lt;editor&gt;**
 action remains secondary. The shared editor picker lives in **Settings** beside
 Appearance, with VS Code as the default and explicit saved choices respected.
-Build's former footer explanation becomes a small **About Build** info tooltip
+The former footer explanation becomes a small **About Customize** info tooltip
 beside its heading: hover/focus/click reveals it, Escape dismisses it, and the
-pointer can enter the tooltip without it disappearing. Build explains what
+pointer can enter the tooltip without it disappearing. Customize explains what
 can be changed and where; the host Files canvas or external editor owns editing and
 saving. Do not recreate editor inputs, in-memory source drafts, runtime forms,
-review/save controls, or a second draft-durability contract in Build.
+review/save controls, or a second draft-durability contract in Customize.
 Each file is a distinct bordered container with a Studio-panel background,
 grouping its heading, path, actions, and preview. Separate containers have a
 20px gap; inner padding reduces from 16px to 12px in compact canvases.
@@ -365,7 +365,7 @@ never restores development dependencies, reads a checkout's `node_modules`, or
 downloads browser assets. The preview uses Studio-owned light/dark tokens and
 keeps horizontal overflow inside its compact scroller.
 Top-level workspace navigation and Guide actions remain available during
-discovery failures and empty states; Build does not repeat them. Discovery caveats live
+discovery failures and empty states; Customize does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
 Only document-capable profiles show a single document-test action and runtime information.
 Unsupported areas are omitted, not presented as incomplete
@@ -376,7 +376,7 @@ editable artifact or semantic role. Unsupported filenames/frameworks and
 dynamic or external configuration may not be recognized. A future explicit
 artifact contract in the app inventory is a design discussion, not current
 support; see README's discovery limitation and discussion with Paul.
-Build source reads and handoffs reject symlink targets and preserve the catalog's
+Customize source reads and handoffs reject symlink targets and preserve the catalog's
 96 KiB bound and app-root authorization. The old Build diff/write endpoints are
 removed. Edits made in Files or an external editor do not pass through a Build
 stopped-app gate; developers restart or rebuild as needed.
@@ -397,8 +397,8 @@ Late responses cannot replace another workspace or newer results.
 Every available artifact, including operator policy and tool contracts,
 is editable by the developer in the selected editor. **Open in &lt;editor&gt;** resolves
 an allowlisted, non-symlink artifact, then opens the whole worktree and the file.
-A per-user supported-editor preference is shared by Build, app creation, and
-source actions. Build uses a quiet external-editor action beside each native Files
+A per-user supported-editor preference is shared by Customize, app creation, and
+source actions. Customize uses a quiet external-editor action beside each native Files
 handoff and one native supported-editor picker in shared Settings.
 Preference changes update all launch labels, retain keyboard behavior and visible
 focus, and disable external launches while saving; failures restore the saved
@@ -407,7 +407,7 @@ The fixed list is VS Code, VS Code Insiders, Cursor, Windsurf,
 Zed, and Sublime Text; there are no custom commands. Preference persistence is
 independent of theme settings and does not launch an editor. Settings and the
 app-creation review picker share one client-side preference controller. Reads and
-saves synchronize launch labels and disabled state; stale Build reads cannot
+saves synchronize launch labels and disabled state; stale Customize reads cannot
 overwrite a newer preference, and failed saves roll back with an explicit error.
 Launchers use separate executable/argument values, macOS application fallbacks,
 and direct Electron CLI invocation on Windows rather than `.cmd` shell execution.
@@ -527,7 +527,7 @@ command history. Missing capture, partial read failures, and truncation remain
 visible rather than implying a healthy service or an empty cloud log.
 
 `control-styles.mjs` owns the shared action-button and single-line field
-metrics used by Build, Run, Logs, and inspector actions: 32px controls,
+metrics used by Customize, Run, Logs, and inspector actions: 32px controls,
 12px text, 6px corners, and consistent padding. Navigation, icon-only controls,
 and text links retain their distinct roles. Inspector actions sit in a wrapping
 row below the source path, not inline with source metadata. Logs scopes its
@@ -579,13 +579,13 @@ accordions or nested Diagnostics tabs. Output is first/default, putting command
 stdout/stderr below the tester. Only one supporting panel is visible. Tabs use
 ARIA tab/tabpanel semantics and keyboard navigation, retaining explicit selection
 across polling, workspace switches, and lifecycle transitions without stealing
-focus. Their line icons and active treatment match Build and Observe while Run's
+focus. Their line icons and active treatment match Customize and Observe while Run's
 useful status summaries remain specific to runtime state. Failure counts, output-read errors, readiness, and deployment activity remain
 discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. There is no resizable diagnostics dock.
 An optional document disclosure appears beside the message when readiness advertises
 document support. File reading, pasted-text limits, removal, and in-flight state
-are shared by Invoke agent and Test enforcement; Build links to this single Run
+are shared by Invoke agent and Test enforcement; Customize links to this single Run
 surface rather than maintaining a separate test form. Document and message drafts
 remain in panel memory across polling and mode switches, never in command history.
 Actual command/HTTP
@@ -625,8 +625,8 @@ action. Source projects without managed endpoints appear in Components & endpoin
 as Source only, with Review source, and do not affect readiness. Both source-only
 and endpoint source actions open a recognized project file in the host Files canvas,
 preferring code to configuration. Selection uses the same scoped catalog and path
-authorization as Build; no recognized file or unavailable host support produces an
-explicit error, never an implicit local-IDE fallback. Build's external-editor action
+authorization as Customize; no recognized file or unavailable host support produces an
+explicit error, never an implicit local-IDE fallback. Customize's external-editor action
 remains available separately. Azure deployment
 remains a secondary disclosure; deletion lives only in app Settings, not Run.
 Home returns to the landing screen, and Guide, Run/Debug, and

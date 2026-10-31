@@ -79,17 +79,27 @@ The existing Studio Appearance preference sets the fallback light/dark tone;
 it does not replace supplied host colors with Studio's palette. Legacy body
 aliases exist only in standalone; the Copilot profile does not shadow delivered
 host tokens on body or root.
-There is no second appearance selector. React owns only the notice's mount
-container, with updates on the same root and disposal before navigation replaces
-the page. Unchanged updates do not re-announce the notice.
+There is no second appearance selector. React owns the notice and workspace chrome
+mounts, with updates on the same roots and disposal before permanent navigation
+replaces the page. Unchanged updates do not mutate the notice's announcement DOM.
 
 `createStudioNotices` is the one shared notice helper. Its `renderNotice(element,
 props)` keeps a canonical MessageBar root keyed by the mount element, merges the
 latest props, and forwards callbacks through stable handlers so callback-only
 refreshes do not re-render or lose focus. `clearNotice(element)` cancels pending
 work and disposes that root; the same element can safely be reused. `dispose()`
-clears all owned roots before legacy DOM replacement. The first review notice
-uses this helper; no other notices are migrated here.
+clears all owned roots before legacy DOM replacement. Its shared `renderComponent`
+and `clearComponent` operations also retain the workspace's canonical navigation
+root; no parallel screen-specific root manager is introduced. The first review
+notice uses this helper; no other notices are migrated here. Removed or superseded
+asynchronous mounts cannot revive; load/render failures are explicit, and workspace
+navigation offers **Retry navigation** without discarding content.
+Because actions and navigation share the shipped toolkit, an initial module-load
+failure waits for that same explicit retry before initializing either surface.
+The workspace-ready event fires only after navigation mounts. Permanent disposal
+also removes workspace resize listeners and observers. Retained tabs and log
+content keep their styling above the provider's generic element reset without
+overriding canonical toolkit buttons.
 
 Ordinary actions use the same pinned toolkit's actual Fluent Headless-backed **Button**,
 through its public DOM mount API. Primary, secondary and subtle appearances use
@@ -110,14 +120,14 @@ placement.
 | Create/assemble setup, review, back/continue and local-path actions | Migrated |
 | Existing app screen | Back and confirmation-cancel actions migrated; compound app rows and destructive actions retained |
 | Post-creation actions | Gateway, deployment, runtime, endpoints, source, agent invocation and map actions migrated |
-| Build | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
+| Customize | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
 | Run/Debug and Guide | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
 | Observe | Map reset/zoom/fit, inspector close and Guide collapse/dismiss actions migrated |
 | Logs | All-services action, pause/resume and refresh migrated, including the component-log panel |
 | Shared Settings | Open/close and ordinary app-section actions migrated |
 
 This is not a migration of every element with a button tag. Semantic tabs,
-workspace navigation, Build implementation selection, journey/app cards, the
+workspace navigation, Customize implementation selection, journey/app cards, the
 two-line model-connection control, Guide progress/status shortcuts, inline log
 service filters, SVG graph controls, links and the cinematic intro's Skip action
 remain their existing controls. They need their appropriate component slices,
@@ -145,7 +155,7 @@ unchanged notice owner. `renderButton`/`update` retain roots and latest callback
 `clear`/`dispose` unmount before DOM replacement. Imperative actions append the
 owned mount through `append`/`host`, not by moving a React-owned button out of
 its root. Disabled and label updates go through the component. Settings,
-Build, Run and log teardown release their owned subtrees before replacing them.
+Customize, Run and log teardown release their owned subtrees before replacing them.
 Back/forward-cache suspension retains roots; final page departure disposes them.
 Startup waits for the shipped module before wiring actions, ignores a late load
 after departure, and reports a load failure with a reload-to-retry message rather
@@ -169,9 +179,10 @@ toolkit owns those specifications; Unity retains only product mappings.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`ea629824357bcf39e291b97e952dfec9a92d2012`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/ea629824357bcf39e291b97e952dfec9a92d2012).
-This is the explicitly approved, pushed **combined Task-first and host-profile
-artifact**, not a released package or a claim that the upstream branch has merged.
+[`0b5ca6c5f98f1b695492699e596fdd4c3af48176`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/0b5ca6c5f98f1b695492699e596fdd4c3af48176).
+This is the explicitly approved, pushed **combined Task-first, host-profile and
+responsive-navigation artifact**, not a released package or a claim that the
+upstream integration branch has merged.
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
 The source archive/preparation path retains LF CSS; the exact stylesheet hashes
@@ -204,15 +215,14 @@ dependency is introduced.
 
 ## Studio journeys
 
-The workspace uses one compact top bar for the Unity logo/home navigation,
-app name, runtime status and start/stop, workspace buttons, **Docs**, and the
-Settings gear. Docs and Settings remain at the top right at every width.
-At narrower widths, all three workspace buttons move together to a second row;
-on the smallest canvases, app identity and runtime controls occupy a third row.
-Long app names truncate rather than displacing controls. Standalone defaults to
-light; the saved fallback appearance applies to the landing page and all
-workspaces, including after a provider restart. Embedded Copilot follows host
-appearance instead when delivered.
+The workspace uses the toolkit's canonical **CanvasHeader** and **CanvasShell**
+through the public DOM mount API. The header retains Unity home, the app name,
+**Docs**, and Settings. A separate persistent row identifies the current page and
+retains runtime status and start/stop, without treating those actions as page
+navigation. Long app names truncate rather than displacing controls.
+Standalone defaults to light; the saved fallback appearance applies to the
+landing page and all workspaces, including after a provider restart. Embedded
+Copilot follows host appearance instead when delivered.
 This user-level preference lives under
 `$COPILOT_HOME/extensions/unity-studio/artifacts/preferences.json`
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
@@ -264,15 +274,29 @@ the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in the user's selected code editor.
 
 After creation or selection, the app workspace becomes the primary interface.
-The Unity logo and **Unity Studio** text link home; there is no separate Home button.
+The Unity logo and **Unity Studio** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The main page navigation is **Build → Run & Debug → Observe**: one rounded,
-segmented strip with a filled, outlined selection marking the current page. This navigation
-is separated from the outlined **Set up** or runtime action; compact canvases put it
-on its own row below app identity. Build opens first. Observe contains **App Map** and
+The only main destinations are **Customize**, **Run & Debug**, and **Observe**, using
+the genuine toolkit **ProductNavigation**. At 1180px of available shell width or
+more, they occupy a canonical 256px collapsible sidebar; smaller canvases use
+**Browse app workspaces** to preview or hold a menu below the header. Collapse is
+remembered per app in the current browser origin. Focus or hover previews the menu;
+click holds it on narrow canvases. Arrow Down or Tab enters it, and Enter/Space
+activates the focused destination. Selection, Escape, Close and outside interaction
+dismiss the compact menu, with toolkit-owned focus restoration. The active
+destination has `aria-current="page"` and a canonical highlight; the persistent
+**Page:** label stays visible with the menu closed. These are free destinations,
+not Guide progress steps, and there is no duplicate header strip or command palette.
+Customize opens first. It is the source-customization workspace, distinct from
+the Guide's **Build** readiness stage. Observe contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
-Build starts directly with customization areas and one focused preview, without a duplicate
+The existing content, utilities and app title are retained DOM slots within the
+shell rather than React copies of business logic. Navigation refreshes and responsive
+layout changes preserve those exact nodes, focus and message selection. Permanent
+navigation disposes the shell binding and restores retained slots; persisted
+`pagehide` keeps them for the back/forward cache.
+Customize starts directly with customization areas and one focused preview, without a duplicate
 Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
 navigation. The Guide's Build action opens the general map with a dismissible
 hint highlighting the existing add-component and connection controls; it does
@@ -281,7 +305,7 @@ review and offers **Edit connections on App Map**. These entry points do not
 change files or start the app.
 Every workspace remains accessible regardless of readiness: this is not a
 locked wizard. The two Observe views use a compact tab row with
-map/log line icons and the same flat Run-style tabs used by Build: a shared baseline,
+map/log line icons and the same flat Run-style tabs used by Customize: a shared baseline,
 subtle selected fill, and accent underline rather than individually outlined buttons.
 Keyboard tab navigation remains available across all three pages.
 Each view fills the workspace rather than sharing it
@@ -294,7 +318,7 @@ The rail retains Build, Connect, Run, and Observe icons with checkmarks,
 attention indicators, and descriptive tooltips. Selecting an icon expands
 Guide at that stage's explanation without changing workspaces.
 There is no separate Guide button in the top navigation;
-switching views never reopens Guide or discards message drafts or the selected Build preview.
+switching views never reopens Guide or discards message drafts or the selected Customize preview.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.
 A persistent badge beside the app name distinguishes
@@ -358,8 +382,8 @@ retained. **Model connection**,
 **Local ports**, and **Danger zone** apply to the named app. The model summary,
 setup blockers, and service port action open the relevant settings directly.
 Closing Settings or pressing Escape returns focus without discarding app input.
-Build's **Model connection** action opens the same settings in place, preserving
-the read-only preview; Run's **Review key files** action returns to Build rather
+Customize's **Model connection** action opens the same settings in place, preserving
+the read-only preview; Run's **Review key files** action returns to Customize rather
 than introducing another editor or navigation bar.
 Delete local app remains a reviewed, stopped-app operation: it removes the local
 worktree/files and Unity-created branch, not Azure resources or source repositories.
@@ -396,7 +420,7 @@ command history remains in Run/Debug; Logs does not substitute command output
 for missing service logs or fetch cloud logs.
 Reads are bounded to 24 services, 1,200 lines, and 256 KiB across the response,
 with at most 80 catalog entries; clipping is disclosed in the view.
-Build, Run, Logs, and inspector actions share compact 32px controls with the same
+Customize, Run, Logs, and inspector actions share compact 32px controls with the same
 typography, padding, and corner radius. Inspector actions form a wrapping row
 below the source path; Logs uses the same field sizing, heading hierarchy,
 muted metadata, and theme tokens as the other workspaces, without per-service output panels.
@@ -444,13 +468,13 @@ runtime settings. Apps without recorded history appear last, labeled Not recorde
 inventory and readiness polling do not change the timestamp.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
-**Build** selects artifacts from the app's own source and `unity.app.yaml` scope,
+**Customize** selects artifacts from the app's own source and `unity.app.yaml` scope,
 not one universal template checklist. It is a focused workspace for changing your
 app, not a file explorer, embedded IDE, or vertical catalog. Compact **Behavior**,
 **Tools**, **Runtime**, and **Policies** tabs appear only when backed by available
 source. Only the selected area is visible, with a short explanation of what you
 can change. The first available area is selected initially. Arrow keys, Home, and
-End move between tabs; Tab continues into the selected panel. Build, Run, and
+End move between tabs; Tab continues into the selected panel. Customize, Run, and
 Observe use the same compact Studio tab treatment: purpose-specific line icons,
 rounded outlines on every tab, an accent border and fill for the selected tab,
 and clear hover/focus styling. There is no shared underline or trailing baseline.
@@ -484,7 +508,7 @@ languages. Unknown extensions stay plain text. Highlighting follows the Studio
 theme and keeps native text selection and copying. A noninteractive 1-based
 line-number gutter includes the final blank line when the source ends with a
 newline. Long lines scroll horizontally inside the preview without moving the
-gutter or widening the Build pane; high-contrast mode uses readable plain text.
+gutter or widening the Customize pane; high-contrast mode uses readable plain text.
 A tokenizer failure reports the problem and keeps plain-text preview available.
 The same reading order works in compact and wide panes. Container-aware spacing
 and wrapping keep actions and paths within the available canvas width.
@@ -501,23 +525,23 @@ fallback to an unrelated file or editor.
 
 The secondary **Open in &lt;editor&gt;** action opens the app worktree and
 chosen file in VS Code or the saved preferred editor. The **Preferred external
-editor** picker lives in shared **Settings**, rather than taking space on Build.
+editor** picker lives in shared **Settings**, rather than taking space on Customize.
 It retains native keyboard
 navigation and a visible focus outline. A **Code editor** field is also available
 when reviewing a new app. Supported choices are **VS Code**,
 **VS Code Insiders**, **Cursor**, **Windsurf**, **Zed**, or **Sublime Text**.
 The preference is saved per user in `editor-preferences.json`, independently of
-appearance settings, and is shared by Build, App Map source actions, and app
+appearance settings, and is shared by Customize, App Map source actions, and app
 creation. Custom executable paths and commands are not supported.
 The chosen editor must already be installed, with its CLI available where
 required; Studio reports launch failures rather than opening another editor.
-Changes in Settings update Build and app-creation actions together. External
+Changes in Settings update Customize and app-creation actions together. External
 launches are disabled while the preference is loading/saving; failed saves retain
-the confirmed editor and surface an error. A small **About Build** info button
+the confirmed editor and surface an error. A small **About Customize** info button
 beside the page heading replaces the former footer explanation. Its tooltip is
 available on hover, keyboard focus, or click, and dismisses with Escape.
-Save changes in Files or the external editor, then return to Build. Focus and
-visibility changes refresh saved source, as does re-entering Build.
+Save changes in Files or the external editor, then return to Customize. Focus and
+visibility changes refresh saved source, as does re-entering Customize.
 **Refresh source** provides an explicit retry or refresh without leaving the
 page. Area/project selection, preview expansion, keyboard focus, and page/preview scroll positions
 are retained in the panel. Unchanged refreshes preserve the preview DOM and text
@@ -526,7 +550,7 @@ newer results. Handoff feedback belongs to its own customization row, even when
 different files open out of order. Refresh failures retain the previous guide
 and show an error.
 
-Build does not edit files, hold unsaved source drafts, or implement review/save
+Customize does not edit files, hold unsaved source drafts, or implement review/save
 controls. Its former diff and source-write endpoints are removed. Native Files
 and external editors own editing and saving; their changes do not pass through
 the former Build stopped-app save gate. Restart the app or rebuild deployed
@@ -548,7 +572,7 @@ npm run vendor:syntax --prefix canvases/unity-studio
 
 **Known discovery limitation (for design discussion):** this is best-effort
 recognition, not a universal file catalog or language-aware parser. Component
-directories can be arbitrary when mapped in `unity.app.yaml`, but Build selects
+directories can be arbitrary when mapped in `unity.app.yaml`, but Customize selects
 known per-tier filenames and source files matched by existing framework/code
 patterns. A manifest path alone does not enumerate every file or identify its
 role. Unfamiliar frameworks, filenames, external prompt/configuration storage,
@@ -558,7 +582,7 @@ files, and test files.
 The document-processing profile still recognizes its specific canonical and
 legacy layouts. "Not discovered" must not be interpreted as "not implemented."
 
-**Discussion with Paul:** should an app explicitly declare Build artifacts
+**Discussion with Paul:** should an app explicitly declare Customize artifacts
 (path, role, component), with discovery used only as a
 fallback? That would make custom-app coverage deterministic while preserving
 app-root read/open authorization. This explicit-artifact
@@ -606,8 +630,8 @@ document together in **Run/Debug**. Choose a `.txt`/`.md` file up to 64 KiB,
 paste text, or remove the document to send only a message. Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.
 Document input appears only for document-capable agents. Drafts survive readiness
-polling and switching between Build and Run in the same panel, but are not saved
-to disk. Build's **Test with a document** links directly to this shared Run input.
+polling and switching between Customize and Run in the same panel, but are not saved
+to disk. Customize's **Test with a document** links directly to this shared Run input.
 These HTTP operations appear in Commands without document payloads.
 Local processing is explicitly a subprocess simulation, not an isolation
 boundary. The optional Copilot SDK runtime selects a separate ACA agent sandbox
@@ -620,7 +644,7 @@ declared endpoint as **Source only**, with **Review source**. They are not count
 as required services or presented as running. Run's source actions open a recognized
 file from that project in the native **Files** canvas, preferring implementation
 code over configuration. They retain app/worktree boundaries and report unavailable
-source or host support without launching a local IDE. Build still offers its explicit
+source or host support without launching a local IDE. Customize still offers its explicit
 external-editor option. A root `unity.app.yaml` scopes the
 App Map, tools, and component inventory to its declared capability paths. Older
 apps may still contain inherited Dealer files, but those files are neither shown
@@ -711,7 +735,7 @@ agent, so an unsupported pinned version is never partially upgraded.
 Generation checks the Sandbox & Gateway catalog's full required-file list.
 Scenario docs live inside the template as the single source of truth, and their
 source links are rewritten to rendered files during materialization.
-Existing apps are not regenerated or renamed: Build, **Open in &lt;editor&gt;**, and
+Existing apps are not regenerated or renamed: Customize, **Open in &lt;editor&gt;**, and
 document testing also support the earlier `src/sandbox/tool/` layout. New apps
 use only `src/tools/document-validation/`; a partial new layout never silently
 borrows a contract from the old folder.

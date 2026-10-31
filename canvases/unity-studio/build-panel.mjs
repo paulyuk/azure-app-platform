@@ -1,6 +1,5 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
 #details[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
@@ -84,7 +83,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
   const areas = [
     { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior", description: "Shape what your agent does and how it responds." },
     { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts", description: "Choose a tool to change its implementation or the inputs it accepts." },
@@ -199,7 +198,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         method: "POST", body: JSON.stringify({ root, id: artifact.id }),
       });
       handoffFeedback.set(artifact.id, { message: native
-        ? "Opened in Files. Save there, then return to Build."
+        ? "Opened in Files. Save there, then return to Customize."
         : "Opened the worktree and file in " + (result.editorLabel || selectedEditorLabel()) + "." });
     } catch (cause) {
       handoffFeedback.set(artifact.id, { error: true, message: (native ? "Could not open Files: " : "Could not open editor: ") + cause.message });
@@ -222,11 +221,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       tooltip.hidden = !pinned;
     });
     buttons.update(control, { className: "build-help-button", appearance: "subtle" });
-    control.setAttribute("aria-label", "About Build");
+    control.setAttribute("aria-label", "About Customize");
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
-    buttons.update(control, { icon: buttons.icon('${renderOcticon("info")}') });
-    const tooltip = element("span", "Build shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
+    buttons.update(control, { icon: buttons.icon(helpIcon) });
+    const tooltip = element("span", "Customize shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";
     tooltip.setAttribute("role", "tooltip");
@@ -451,7 +450,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     if (!artifacts.length) {
       const empty = element("section", undefined, workspace, "build-empty");
       element("h3", "No recognized customization points", empty);
-      element("p", "No supported customization points were found. Browse the project in Files or your code editor; Build only shows recognized decision points.", empty);
+      element("p", "No supported customization points were found. Browse the project in Files or your code editor; Customize only shows recognized decision points.", empty);
       const open = button(empty, "Open in " + selectedEditorLabel(), async () => {
         if (workspaceOpening) return;
         workspaceOpening = true;

@@ -93,6 +93,7 @@ test("sync and async toolkit failures report explicitly and allow safe retry", a
       },
       onError: message => errors.push(message),
     });
+
     const host = element();
     notices.renderNotice(host, { children: "Notice" });
     await settle();
@@ -103,4 +104,47 @@ test("sync and async toolkit failures report explicitly and allow safe retry", a
     assert.equal(mounts, 1);
     notices.dispose();
   }
+});
+
+test("the shared component owner handles removed mounts, component changes and render retry", async () => {
+  const calls = [], errors = [];
+  let resolve, broken = false;
+  const toolkit = {
+    Navigation() {}, MessageBar() {},
+    mountCanvasComponent(host, component, props) {
+      calls.push(["mount", component, props]);
+      if (broken) throw new Error("Render failed");
+      return {
+        update() { if (broken) throw new Error("Update failed"); },
+        dispose() { calls.push(["dispose", component]); },
+      };
+    },
+  };
+  let pending = new Promise(done => { resolve = done; });
+  const owner = createStudioNotices({ loadToolkit: () => pending, onError: message => errors.push(message) });
+  const removed = { nodeType: 1, isConnected: true };
+  owner.renderComponent(removed, "Navigation", { current: "build" }, "workspace navigation");
+  removed.isConnected = false;
+  resolve(toolkit);
+  await settle();
+  assert.deepEqual(calls, [], "An asynchronously removed mount must not be revived");
+  pending = Promise.resolve(toolkit);
+  const host = element();
+  owner.renderComponent(host, "Navigation", { current: "build" }, "workspace navigation");
+  await settle();
+  owner.renderNotice(host, { children: "Different component" });
+  await settle();
+  assert.equal(calls[1][0], "dispose");
+  assert.equal(calls[2][1], toolkit.MessageBar);
+  broken = true;
+  owner.renderNotice(host, { children: "Updated" });
+  assert.deepEqual(errors, ["Could not load the review notice: Update failed"]);
+  owner.renderComponent(host, "Navigation", { current: "observe" }, "workspace navigation");
+  await settle();
+  assert.equal(errors.at(-1), "Could not load the workspace navigation: Render failed");
+  broken = false;
+  owner.renderComponent(host, "Navigation", { current: "manage" }, "workspace navigation");
+  await settle();
+  assert.equal(calls.at(-1)[2].current, "manage");
+  owner.dispose();
 });

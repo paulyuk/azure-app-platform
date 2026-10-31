@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { OCTICONS } from "./studio-icons.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let engines = {};
@@ -22,7 +23,8 @@ for (const name of ["chromium", "webkit"]) {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture.origin + "/app-map");
-      await page.locator("#map-app").click();
+      await page.locator('.build-help-button svg[data-octicon="info"]').waitFor();
+      await selectWorkspace(page, "map-app");
       await page.locator(".node-visual > svg").first().waitFor();
       await page.addStyleTag({ content: "::-webkit-scrollbar { width:16px; height:16px; }" });
       for (const theme of ["light", "dark"]) {

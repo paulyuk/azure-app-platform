@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
 
@@ -32,7 +33,7 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
       #details { height:100vh; }
     </style><div id="details" data-mode="build"></div><script>
       ${BUILD_SYNTAX_SCRIPT}
-      const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+      const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {},
         request: async () => ({ artifacts: [

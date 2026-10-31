@@ -28,7 +28,7 @@
     },
     {
       "kind": "studio-workflow-documentation",
-      "description": "Align Build previews, native Files editing, external-editor preferences, and Model connection guidance with shared Studio Settings.",
+      "description": "Align Customize previews, native Files editing, external-editor preferences, and Model connection guidance with shared Studio Settings.",
       "paths": [
         "README.md",
         "docs/demos/loan-application/HOW-IT-WORKS.md",
@@ -51,7 +51,7 @@
     {
       "path": "README.md",
       "sourceSha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5",
-      "sha256": "f2d6d9f28bcbfa1767094d2b80f966cf00dc0ab52e20cee497ae811a3b1d85b6",
+      "sha256": "3794992fe72a138c27319842246fe892dfcfc4980015125cddb4cac0a39a1289",
       "note": "README rewritten after capture, retaining lifecycle-safety guidance. Script fixes are recorded separately in followupChanges."
     },
     {
@@ -72,11 +72,11 @@
     },
     {
       "path": "docs/demos/loan-application/HOW-IT-WORKS.md",
-      "sha256": "d1707e5f248da7044462ce04784527546f754ef6612570a5ecf95587fd08730b"
+      "sha256": "463f30e8c6b5e842049de5b114ece035a161346576215d4a8bb769bf13a35683"
     },
     {
       "path": "docs/demos/loan-application/README.md",
-      "sha256": "b245e6f1a4ad4edac11bf75de1191b6d9a37e426acb55bd0971221c635bd857a"
+      "sha256": "11dbd361c26c70e03f78f97cf64ea036dca3e56103ad1bd5f78dc893a012c58f"
     },
     {
       "path": "examples/loan-application.txt",

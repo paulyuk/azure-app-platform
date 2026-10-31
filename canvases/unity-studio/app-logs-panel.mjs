@@ -10,8 +10,8 @@ export const APP_LOGS_CSS = `
   .app-logs-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1.2fr) auto; gap: 10px; align-items: end; }
   .app-logs-field { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
   .app-logs-field select, .app-logs-field input { ${FORM_CONTROL_STYLE} width: 100%; min-width: 0; }
-  .app-logs-controls button { ${ACTION_BUTTON_STYLE} border: 1px solid var(--border); background: var(--surface); color: var(--text); }
-  .app-logs-controls button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .app-logs-controls button:not(.ct-button) { ${ACTION_BUTTON_STYLE} border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  .app-logs-controls button:not(.ct-button):hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .app-logs-actions { display: flex; gap: 8px; }
   .app-logs-services { position: relative; min-width: 0; }
   .app-logs-services > summary { ${FORM_CONTROL_STYLE} display: block; padding-right: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; list-style: none; cursor: pointer; color: var(--text); background: var(--surface); border: 1px solid var(--border); }

@@ -10,6 +10,7 @@ import test from "node:test";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -296,7 +297,7 @@ test("packaged presentation follows late host delivery without remounting contro
         await page.locator(".build-file").waitFor();
         assert.equal(await page.locator(".build-file").evaluate(element => getComputedStyle(element).borderRadius), "6px");
         await capture(`github-app-${tone}-${width}-build`);
-        await page.locator("#manage-app").click();
+        await selectWorkspace(page, "manage-app");
         const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
         await prompt.waitFor();
         await prompt.fill("Preserve this claims draft.");
@@ -307,7 +308,7 @@ test("packaged presentation follows late host delivery without remounting contro
         assert.equal(await page.locator("#details").evaluate(element => getComputedStyle(element).color),
           tone === "light" ? "rgb(90, 54, 18)" : "rgb(224, 205, 245)");
         await capture(`github-app-${tone}-${width}-run`);
-        await page.locator("#map-app").click();
+        await selectWorkspace(page, "map-app");
         await capture(`github-app-${tone}-${width}-observe`);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       }

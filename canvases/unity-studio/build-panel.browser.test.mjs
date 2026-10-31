@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -41,7 +42,7 @@ test("Build is a focused read-only customization workspace with document and Run
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       onRun: () => { document.body.dataset.runRequested = "true"; },
       onModel: () => { document.body.dataset.modelRequested = "true"; },
@@ -115,13 +116,13 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await page.locator(".build-diff,.build-review-summary").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
 
-    const help = page.getByRole("button", { name: "About Build", exact: true });
+    const help = page.getByRole("button", { name: "About Customize", exact: true });
     const tooltip = page.getByRole("tooltip");
     assert.equal(await help.getAttribute("aria-describedby"), "build-help-tooltip");
     assert.equal(await tooltip.isHidden(), true);
     await help.hover();
     await tooltip.waitFor();
-    assert.match(await tooltip.innerText(), /recognized customization points.*saved source.*external editor/si);
+    assert.match(await tooltip.innerText(), /Customize shows recognized customization points.*saved source.*external editor/si);
     await tooltip.hover();
     assert.equal(await tooltip.isVisible(), true, "Pointer can move into the tooltip");
     await page.mouse.move(900, 700);
@@ -192,7 +193,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
       onRun() {}, onModel() {},
@@ -243,6 +244,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByText(/No supported customization points were found/).waitFor();
+    assert.match(await page.locator(".build-empty").innerText(), /Customize only shows recognized decision points/);
     assert.match(await page.locator("#details").innerText(), /Files|general implementation/i);
     assert.equal(await page.locator(".build-source-preview,textarea,[contenteditable=true]").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);

@@ -18,7 +18,7 @@ export function repoCanvasPath(workspaceRoot, file, pathApi = path) {
   }
   const normalized = local.split(pathApi.sep).join("/");
   if (normalized.split("/").some((part) => !part || part === "." || part === "..")) {
-    throw requestError("The selected Build source does not have a safe repository-relative path.", 400);
+    throw requestError("The selected Customize source does not have a safe repository-relative path.", 400);
   }
   return normalized;
 }

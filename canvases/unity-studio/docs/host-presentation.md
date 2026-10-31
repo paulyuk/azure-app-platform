@@ -26,6 +26,12 @@ legacy `--studio-*` variables and product-owned layout. It must not duplicate
 the shared host profile or restyle private toolkit classes. Real Button and
 MessageBar roots retain their existing shared owners and lifecycle behavior.
 
+Retained App Map HTML and SVG read compatibility aliases such as `--surface`,
+`--text` and `--accent` from the Studio document root. These map only to
+`--studio-*` tokens: delivered host colors flow through the canonical toolkit
+mapping, while standalone uses its existing palette. They do not define host
+tokens or override canonical `--canvas-*` values.
+
 The renderer gets the selected descriptor from the shipped public toolkit
 registry. It loads `styles.css`, `base.css`, then the descriptor's stylesheet and
 applies its class alongside Unity's host-neutral adapter class. Shared guides,
@@ -40,7 +46,7 @@ there is no runtime fetch or separate package installation.
 | Saved Appearance setting | Existing light/dark preference remains fallback-only in Copilot; Settings explains that ownership |
 | Standalone | Retains the existing saved light/dark palette and native layout; not a new external-host adapter |
 | Home/setup/review | Public CanvasHeader owns compact branding and existing utility actions; Simple home composes public toolkit components, and product cards/fields map to the shared structural profile without changing journeys, copy or ordering |
-| Build and Run | Product file/agent cards and fields map to shared tokens; focus and drafts remain owned by existing workflows |
+| Customize and Run | Product file/agent cards and fields map to shared tokens; focus and drafts remain owned by existing workflows |
 | Settings/confirmation | Retain native dialogs and focus behavior; map geometry to the shared dialog role |
 | Navigation and App Map | No information-architecture, map arrangement, Guide placement or breakpoint redesign |
 | Status badges, graph glyphs and code | Retain role-appropriate shapes and source typography |
@@ -73,6 +79,9 @@ identity, focus and Run drafts. `build-preview-layout.browser.test.mjs` covers
 both selections in the full renderer with Chromium/WebKit classic scrollbars.
 `plugin-portability.test.mjs` checks actual provider opening and selection
 without checkout dependencies.
+`app-map-theme.browser.test.mjs` checks the real Observe SVG's fills, text,
+strokes, arrowheads and late palette changes in both presentations with
+Chromium/WebKit at compact and wide sizes.
 
 These are source/payload checks, not native Copilot delivery or
 assistive-technology announcement evidence. No providers or user panels are
