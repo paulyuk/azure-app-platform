@@ -1,4 +1,5 @@
 import { ACTION_BUTTON_STYLE, FORM_CONTROL_STYLE } from "./control-styles.mjs";
+import { octiconMask } from "./studio-icons.mjs";
 
 export const APP_LOGS_CSS = `
   #details[data-mode="logs"] { padding: 20px 16px; overflow: hidden; }
@@ -15,7 +16,7 @@ export const APP_LOGS_CSS = `
   .app-logs-services { position: relative; min-width: 0; }
   .app-logs-services > summary { ${FORM_CONTROL_STYLE} display: block; padding-right: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; list-style: none; cursor: pointer; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
   .app-logs-services > summary::-webkit-details-marker { display: none; }
-  .app-logs-services > summary::after { position: absolute; right: 9px; content: "▾"; }
+  .app-logs-services > summary::after { position:absolute; right:9px; top:50%; transform:translateY(-50%); content:""; width:16px; height:16px; background:currentColor; mask:${octiconMask("chevron-down")} center/contain no-repeat; }
   .app-logs-services > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .app-logs-service-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; box-sizing: border-box; width: 280px; max-width: calc(100vw - 96px); max-height: min(280px, 50vh); overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 0 6px 18px rgb(0 0 0 / .12); }
   .app-logs-service-options label { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 12px; font-weight: 400; color: var(--text); cursor: pointer; overflow-wrap: anywhere; }

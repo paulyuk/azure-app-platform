@@ -66,9 +66,14 @@ Find me an EV under $40,000 with at least 250 miles of range
 
 Watch the badge in the top-right of the page header: it reflects the
 actual per-response `source` reported by `/api/chat`, not a guess from env
-vars — **"● Live agent"** (green) means the reply came from the real
-agent, while **"⚠ Mock agent (no live agent reachable)"** (amber) means it
+vars — **"Live agent"** with an Octicon dot (green) means the reply came from the real
+agent, while **"Mock agent (no live agent reachable)"** with an Octicon alert (amber) means it
 silently fell back.
+
+Authored status and copy-feedback icons use the official
+`@primer/octicons-react` package. Message content is not rewritten. The car
+illustration on vehicle cards is resource imagery, not a control icon;
+Octicons has no car/vehicle equivalent.
 
 Tool-grounded updates from hosted skills (`inventory-search`, `rate-sheet`,
 etc.) and approval-status events from the Durable Task Scheduler workflow are

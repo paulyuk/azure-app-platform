@@ -1,12 +1,12 @@
 export const SETTINGS_CSS = `
   .studio-settings-toggle { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; min-height:32px; padding:6px; border:0; border-radius:6px; background:transparent; color:var(--studio-muted); }
   .studio-settings-toggle:hover { background:var(--studio-panel); color:var(--studio-ink); }
-  .studio-settings-toggle svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .studio-settings-toggle svg { width:18px; height:18px; fill:currentColor; stroke:none; }
   .studio-settings { width:min(520px, calc(100vw - 24px)); max-width:none; max-height:calc(100dvh - 24px); padding:0; border:1px solid var(--studio-line); border-radius:12px; color:var(--studio-ink); background:var(--studio-raised); box-shadow:0 16px 48px rgb(0 0 0 / .24); font:13px/1.5 var(--font-sans, system-ui, sans-serif); overflow:auto; }
   .studio-settings::backdrop { background:rgb(0 0 0 / .4); }
   .studio-settings-heading { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 20px; border-bottom:1px solid var(--studio-line); background:var(--studio-raised); }
   .studio-settings h2 { margin:0; font-size:18px; color:var(--studio-ink); }
-  .studio-settings-close { width:32px; height:32px; min-height:32px; padding:4px; border:0; background:transparent; color:var(--studio-muted); font:22px/1 system-ui; border-radius:6px; }
+  .studio-settings-close { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; min-height:32px; padding:4px; border:0; background:transparent; color:var(--studio-muted); border-radius:6px; }
   .studio-settings-close:hover { background:var(--studio-panel); }
   .studio-settings-content { padding:16px 20px 20px; }
   .studio-settings label, .studio-settings .studio-field { display:grid; gap:6px; min-width:0; color:var(--studio-ink); font-size:12px; font-weight:600; }

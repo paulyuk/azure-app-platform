@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { SETTINGS_CSS, createEditorPreference, createStudioSettings } from "./studio-settings.mjs";
+import { OCTICON_CSS, renderOcticon } from "./studio-icons.mjs";
 import { getStudioPresentation } from "./studio-presentation.mjs";
 
 export function studioPreferencesDirectory() {
@@ -51,6 +52,7 @@ export async function writeStudioPreferences(input, directory = studioPreference
 export function renderThemeStyles(presentationProfile = "standalone") {
   const presentation = getStudioPresentation(presentationProfile);
   return `
+    ${OCTICON_CSS}
     :root[data-studio-theme] {
       --bg: var(--studio-bg); --surface: var(--studio-raised); --surface-muted: var(--studio-panel);
       --border: var(--studio-line); --text: var(--studio-ink); --muted: var(--studio-muted);
@@ -93,12 +95,12 @@ export function renderThemeToggle(theme = "light", presentationProfile = "standa
   return `<div class="studio-theme-control" role="group" aria-label="Unity Studio utilities">
     <a class="studio-docs" href="https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme" target="_blank" rel="noopener noreferrer">Docs</a>
     <button data-studio-button="subtle" class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.7 2.4-2 .9L4 5.7 2 9l1.7 1.8v2.4L2 15l2 3.3 2.3-.6 2 .9L9 21h4l.7-2.4 2-.9 2.3.6 2-3.3-1.7-1.8v-2.4L20 9l-2-3.3-2.3.6-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
+      ${renderOcticon("gear", { size: 18 })}
     </button>
     <span class="studio-theme-error" role="status"></span>
     <span class="studio-theme-error" data-studio-editor-status role="status"></span>
     <dialog class="studio-settings" aria-labelledby="studio-settings-title">
-      <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button data-studio-button="subtle" type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>×</button></div>
+      <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button data-studio-button="subtle" type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>${renderOcticon("x")}</button></div>
       <div class="studio-settings-content">
         <label>Appearance<select aria-label="Appearance" data-studio-theme-select><option value="light"${theme === "light" ? " selected" : ""}>Light</option><option value="dark"${theme === "dark" ? " selected" : ""}>Dark</option></select></label>
         <p>${presentation.appearanceDescription}</p>

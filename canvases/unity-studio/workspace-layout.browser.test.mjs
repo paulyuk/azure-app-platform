@@ -163,7 +163,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator(".header-actions #action-center").count(), 0);
     assert.equal(await page.locator("#guide-rail button[title='Collapse Guide']").count(), 1);
     assert.equal(await page.locator("#collapse-guide").count(), 0);
-    assert.equal(await page.locator("#action-center .guide-chevron").evaluate((el) => getComputedStyle(el).transform), "none");
+    assert.equal(await page.locator("#action-center svg").getAttribute("data-octicon"), "sidebar-collapse");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     assert.equal(await page.locator("#graph-shell").isVisible(), false);
     assert.equal(await page.locator(".map-palette").isVisible(), false);
@@ -324,7 +324,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Collapsing Guide must not move its toggle");
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator("#action-center").getAttribute("title"), "Expand Guide");
-    assert.equal(await page.locator("#action-center .guide-chevron").evaluate((el) => getComputedStyle(el).transform), "matrix(-1, 0, 0, 1, 0, 0)");
+    assert.equal(await page.locator("#action-center svg").getAttribute("data-octicon"), "sidebar-expand");
     assert.equal(await page.locator("#action-center").evaluate((el) => el === document.activeElement), true);
     assert.ok((await page.locator("#details").boundingBox()).width >= 1393);
     assert.equal((await page.locator("#guide-rail").boundingBox()).width, 46);
@@ -349,9 +349,9 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#action-center").click();
     const reviewShortcut = page.locator('[data-guide-stage="connect"]');
     assert.equal(await reviewShortcut.getAttribute("data-state"), "attention");
-    assert.equal(await reviewShortcut.locator(".guide-state-icon").textContent(), "!");
+    assert.equal(await reviewShortcut.locator(".guide-state-icon svg").getAttribute("data-octicon"), "alert");
     assert.match(await reviewShortcut.getAttribute("aria-label"), /Connect: Review/);
-    assert.equal(await page.locator('[data-guide-stage="run"] .guide-state-icon').textContent(), "✓");
+    assert.equal(await page.locator('[data-guide-stage="run"] .guide-state-icon svg').getAttribute("data-octicon"), "check");
     assert.equal(await page.locator('[data-guide-stage="observe"]').getAttribute("data-current"), "true");
     await reviewShortcut.press("Enter");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");

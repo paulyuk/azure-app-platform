@@ -1,5 +1,6 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
 #details[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
@@ -11,7 +12,6 @@ export const BUILD_PANEL_CONTENT_CSS = `
 #details[data-mode="build"] .build-heading-title { position:relative; display:flex; align-items:center; gap:8px; }
 #details[data-mode="build"] .build-help-button { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; min-height:28px; padding:4px; border:0; background:transparent; color:var(--studio-muted); }
 #details[data-mode="build"] .build-help-button:hover { background:var(--studio-panel); color:var(--studio-ink); }
-#details[data-mode="build"] .build-help-button svg { width:16px; height:16px; }
 #details[data-mode="build"] .build-help-tooltip { position:absolute; z-index:3; inset-inline-start:0; top:calc(100% + 6px); box-sizing:border-box; width:320px; max-width:100%; padding:12px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); box-shadow:0 8px 24px rgb(0 0 0 / .18); font:12px/1.5 var(--font-sans,system-ui); }
 #details[data-mode="build"] button { ${ACTION_BUTTON_STYLE} }
 #details[data-mode="build"] :is(button,select,summary,.build-source-preview):focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
@@ -225,7 +225,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     control.setAttribute("aria-label", "About Build");
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
-    buttons.update(control, { icon: buttons.icon('<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 4.5v1"/></svg>') });
+    buttons.update(control, { icon: buttons.icon('${renderOcticon("info")}') });
     const tooltip = element("span", "Build shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";

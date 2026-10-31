@@ -5,6 +5,7 @@ import { DealStatusPanel } from "@/components/deal-status-panel";
 import { ResultsGrid } from "@/components/results-grid";
 import type { ChatMessage, ChatStreamEvent, DealStage, ReplySource, Vehicle } from "@/lib/types";
 import { useState } from "react";
+import { AlertIcon, DotFillIcon, XCircleIcon } from "@primer/octicons-react";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -151,7 +152,7 @@ export default function HomePage() {
           </div>
           <span
             data-testid="reply-source-badge"
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
               lastSource === "mock"
                 ? "bg-amber-500 text-white"
                 : lastSource === "agent"
@@ -162,11 +163,18 @@ export default function HomePage() {
             }`}
           >
             {lastSource === "mock"
-              ? "⚠ Mock agent (no live agent reachable)"
+              ? <AlertIcon size={16} aria-hidden="true" />
               : lastSource === "agent"
-                ? "● Live agent"
+                ? <DotFillIcon size={16} aria-hidden="true" />
                 : lastSource === "agent_error"
-                  ? "✖ Live agent reachable, turn failed (see error)"
+                  ? <XCircleIcon size={16} aria-hidden="true" />
+                  : null}
+            {lastSource === "mock"
+              ? "Mock agent (no live agent reachable)"
+              : lastSource === "agent"
+                ? "Live agent"
+                : lastSource === "agent_error"
+                  ? "Live agent reachable, turn failed (see error)"
                   : "Waiting for first reply…"}
           </span>
         </div>
@@ -189,4 +197,3 @@ export default function HomePage() {
     </main>
   );
 }
-

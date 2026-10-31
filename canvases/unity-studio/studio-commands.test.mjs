@@ -1940,11 +1940,13 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /event\.deltaMode === WheelEvent\.DOM_DELTA_LINE/);
   assert.match(html, /Math\.exp\(-boundedDelta \* WHEEL_ZOOM_SENSITIVITY\)/);
   assert.match(html, /svg\.addEventListener\("wheel", handleMapWheel, \{ passive: false \}\)/);
-  assert.match(html, /text\.textContent = "Connect →"/);
+  assert.match(html, /text\.textContent = "Connect"/);
+  assert.match(html, /appendSvgOcticon\(connection, "arrow-right"/);
   assert.match(html, /function renderConnectionPanel/);
   assert.match(html, /"\/api\/connection-request"/);
   assert.match(html, /Confirm source change/);
-  assert.match(html, /addText\.textContent = "\+ Add component"/);
+  assert.match(html, /addText\.textContent = "Add component"/);
+  assert.match(html, /appendSvgOcticon\(add, "plus"/);
   assert.match(html, /const FLOW_ACTION_FOOTER = 48/);
   assert.match(html, /operationsY - FLOW_REGION_GAP - 38/);
   assert.match(html, /operationsBottom - 38/);
@@ -2023,7 +2025,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /"\/api\/open-source"/);
   assert.match(html, /"\/api\/tier-action"/);
   assert.match(html, /buttons\.setText\(setupButton, "Opening setup…"\)/);
-  assert.match(html, /Choose an AI Gateway →/);
+  assert.match(html, /Choose an AI Gateway/);
+  assert.match(html, /chooseGateway\.insertAdjacentHTML\("beforeend", " " \+ ICONS\["arrow-right"\]\)/);
   assert.match(html, /candidate\.source === "azure"/);
   assert.match(html, /"\/api\/open-entrypoint"/);
   assert.match(html, /"\/api\/capability-request"/);
