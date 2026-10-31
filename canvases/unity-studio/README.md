@@ -6,16 +6,18 @@ with only a small floating **Skip** button and no footer. Skip is available
 immediately; Escape also skips it. Finishing or skipping the intro reveals the
 start page in the user's selected light or dark theme without changing the saved
 preference, using the same transparent Unity symbol as the workspace header
-and the **Unity — The self-aware app platform** branding. Returning Home or
+and compact **Unity** navigation branding. Returning Home or
 reloading the page does not replay the intro; opening the canvas again does.
 Reduced-motion preferences bypass playback. If autoplay is blocked or the video
 fails or stalls, Studio opens the start page with an explanatory notice.
 The PNG and MP4 ship with the plugin and are served locally, with no CDN,
 Downloads-folder dependency, or additional install step.
 
-The start page shows the large Unity logo and tagline only; the compact header
-branding appears on inner screens instead. Docs and the Settings gear remain
-available at the top right on every screen.
+Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
+a 20px Unity mark and a compact, normal-weight Unity Home button. Its accessible
+name is **Unity Studio home**. Docs and the working Settings gear remain at the
+top right. The large Home masthead and tagline are not repeated in the content.
+The existing app workspace header, selectors and controls are unchanged.
 
 ## Icons
 
@@ -89,7 +91,7 @@ work and disposes that root; the same element can safely be reused. `dispose()`
 clears all owned roots before legacy DOM replacement. The first review notice
 uses this helper; no other notices are migrated here.
 
-Ordinary actions use the same pinned toolkit's actual Base UI-backed **Button**,
+Ordinary actions use the same pinned toolkit's actual Fluent Headless-backed **Button**,
 through its public DOM mount API. Primary, secondary and subtle appearances use
 canonical toolkit geometry and host-delivered button tokens, not Unity's purple
 palette. Standalone medium buttons use the toolkit's 32px minimum height,
@@ -155,7 +157,7 @@ it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or
 claim that a synthetic browser fixture proves native host token delivery.
 
-The standalone plugin ships the prepared React/Base UI browser runtime, shared
+The standalone plugin ships the prepared React/Fluent Headless browser runtime, shared
 React chunk, CSS, upstream MIT license and complete bundled dependency notices
 under `vendor/toolkit/`. Nothing is downloaded or restored when the plugin opens.
 Only ten explicitly allowed `/canvas-ui/` assets are served, relative to the
@@ -167,22 +169,21 @@ toolkit owns those specifications; Unity retains only product mappings.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`63280d0d3b3a515bde6c1e48e9a3192bf8768b41`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/63280d0d3b3a515bde6c1e48e9a3192bf8768b41).
-This is the explicitly approved, pushed **unmerged upstream profile artifact**, not a
-released package or a claim that the upstream branch has merged.
+[`ea629824357bcf39e291b97e952dfec9a92d2012`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/ea629824357bcf39e291b97e952dfec9a92d2012).
+This is the explicitly approved, pushed **combined Task-first and host-profile
+artifact**, not a released package or a claim that the upstream branch has merged.
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
-The source archive/preparation path retains LF CSS: `styles.css` hashes to
-`f4188ad417039a227b67e7787ed127cf90154f02ddc08d4784bb44d9c3afc534` and
-`base.css` to `8a61805b2af819308931e752c5e3d07b2ee15c73d8bb7ff9d40e5debbc91f92b`.
+The source archive/preparation path retains LF CSS; the exact stylesheet hashes
+are recorded in `vendor/toolkit/provenance.json`.
 Regeneration and an independent check compare the archive-produced bytes without
-newline rewriting. The new structural hooks change component CSS, while the
-JavaScript chunks, semantic stylesheet, license and dependency notices remain
-byte-identical to the approved primary-contrast artifact.
+newline rewriting. This combined artifact includes the Task-first components,
+Fluent Headless button runtime and dependency notices, and the public host-profile
+registry, stylesheet and guides.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 
-Maintainers need Node.js (the recorded build uses 24.22.1), npm, `tar`, and an
+Maintainers need Node.js matching the pinned upstream engine policy, npm, `tar`, and an
 authenticated `gh` with read access to that repository. These commands work
 unchanged in PowerShell and macOS/Linux shells, from the repository root:
 
@@ -217,7 +218,35 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Unity Studio is the guided app builder for the generic nine-tier Unity platform
-pattern. Its landing page keeps three equally styled, neutral journey cards visible:
+pattern. Its Simple home asks **What would you like to do?** and presents
+**Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
+compact task cards, in that order. The content container uses one, two, or three
+columns at 520px and 760px of available content width, with 12px gaps and an
+88px minimum card height. A compact canonical header replaces the large Home
+masthead; the opening animation and existing Docs/Settings actions are preserved.
+The header begins 8px below the viewport, followed by 24px before the Home
+introduction. The introduction is the page's h1 because the brand is a Home
+button, not a heading; its visual type remains 20px/28px/600.
+The home composes the public toolkit `ActionCard`, `SectionHeader`, `WorkItem`,
+`Button`, and `SymbolIcon` components from the shipped browser
+bundle; it does not duplicate their markup or styles. The shared controls
+bootstrap completes before the home and intro become interactive. A failed
+bundle load is explicit and asks the user to reload to retry. Returning from a
+journey restores focus to Create, as does skipping the intro.
+Recently viewed uses only genuine, already-loaded source inventory with recorded
+last-opened timestamps, showing at most the newest five in the source catalog's
+existing recency order. This Home-only limit does not truncate stored history or
+the full inventory available through Open an app. Initially it explicitly says apps have not been loaded;
+Open an app remains the route to load them. Successful-empty and failed refresh
+states are distinct. No launch scan, new history store, or sample recents are added.
+
+The layout is adapted product source from the approved, uncommitted canonical
+Simple home example (frozen reference digest
+`6a0e96514f235682a972cd1b11a1550b3e99448ec503d09504790e93ac2a2e70`),
+not a public component, workbench import, or template claimed to exist at the
+toolkit's pinned commit. The toolkit runtime and provenance are unchanged.
+
+The three supported journeys are:
 
 1. **Create a new app** — choose the editable **Empty Unity app**, the headless
    **Sandbox & Gateway (Minimal)** template, or the complete **Dealer sample**,

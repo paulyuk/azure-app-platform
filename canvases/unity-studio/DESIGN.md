@@ -17,8 +17,16 @@ for product-only mappings, covered surfaces and the native-host evidence boundar
 ## Product model
 
 Unity Studio is a guided builder for applications that use the Unity platform
-pattern. It deliberately avoids a dashboard or platform cockpit. The first view
-offers exactly two actions and performs no automatic discovery.
+pattern. It deliberately avoids a dashboard or platform cockpit. The Simple
+home uses equal compact Create, Open and Assemble task cards in a responsive
+container grid. Recently viewed uses only already-loaded source inventory with
+recorded opening times, showing at most the newest five in existing recency order,
+with explicit not-loaded, empty and failed states. The full source inventory
+and persisted recency are not truncated.
+It performs no automatic discovery. A public toolkit CanvasHeader holds the
+compact Unity mark/Home button and existing Docs/Settings actions. Home content
+does not repeat a large masthead or tagline. The introduction supplies the h1;
+app workspace navigation and selectors remain unchanged.
 
 ### Build a new app
 
@@ -58,7 +66,13 @@ instance. Each choice shows its repository/worktree, branch, project path, and
 clean or modified state. Compatible Azure resources are an optional mapping
 step after source selection, not the primary source of truth.
 
-Both journeys end with a review. Template creation follows a deterministic
+### Open an app
+
+The user explicitly requests existing apps persisted as repository/worktree
+pairs, then selects one to build, run, or inspect. Empty results and discovery
+failures stay explicit. Home does not fabricate recent apps or scan on launch.
+
+Creation and assembly end with a review. Template creation follows a deterministic
 worktree/materialization/session path; assembly creation remains a structured
 model handoff because source integration requires semantic decisions.
 
