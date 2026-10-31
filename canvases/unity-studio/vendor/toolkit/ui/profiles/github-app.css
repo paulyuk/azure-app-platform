@@ -1,0 +1,32 @@
+.canvas-profile-github-app {
+  --canvas-radius-small: .1875rem;
+  --canvas-radius-control: .375rem;
+  --canvas-radius-surface: .375rem;
+  --canvas-radius-large: .75rem;
+  --canvas-radius-dialog: var(--canvas-radius-large);
+  --canvas-spacing-condensed: .5rem;
+  --canvas-spacing-normal: 1rem;
+  --canvas-spacing-spacious: 1.5rem;
+  --canvas-border-width: .0625rem;
+  --canvas-control-height: 2rem;
+  --canvas-control-padding-block: .3125rem;
+  --canvas-control-padding-inline: .75rem;
+  --canvas-radius: var(--canvas-radius-control);
+  --canvas-button-min-height: var(--canvas-control-height);
+  --canvas-button-padding-block: var(--canvas-control-padding-block);
+  --canvas-button-padding-inline: var(--canvas-control-padding-inline);
+  --canvas-button-radius: var(--canvas-radius-control);
+  --canvas-button-gap: var(--canvas-spacing-condensed);
+  --canvas-button-font-weight: var(--font-weight-medium, 500);
+  --canvas-button-line-height: var(--leading-body-medium, 1.25rem);
+  --canvas-button-small-min-height: 1.75rem;
+  --canvas-button-small-padding-block: .1875rem;
+  --canvas-button-small-padding-inline: .5rem;
+  --canvas-button-large-min-height: 2.5rem;
+  --canvas-button-large-padding-block: .5625rem;
+  --canvas-button-large-padding-inline: 1rem;
+  --canvas-message-padding: var(--canvas-spacing-normal);
+  --canvas-message-radius: var(--canvas-radius-surface);
+  --canvas-message-gap: var(--canvas-spacing-condensed);
+  --canvas-message-line-height: var(--leading-body-medium, 1.25rem);
+}

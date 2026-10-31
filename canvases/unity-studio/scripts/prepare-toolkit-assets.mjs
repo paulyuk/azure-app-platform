@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repository = "coreai-microsoft/canvases-cloud-foundation";
-const commit = "e29e5511b6bde9cd99a5026e300c7712deb2add8";
+const commit = "63280d0d3b3a515bde6c1e48e9a3192bf8768b41";
 const destination = fileURLToPath(new URL("../vendor/toolkit/", import.meta.url));
 const check = process.argv.includes("--check");
 assert.ok(process.argv.slice(2).every(arg => arg === "--check"), "Usage: node scripts/prepare-toolkit-assets.mjs [--check]");
@@ -24,6 +25,10 @@ const inventory = [
   ["canvas-ui/react-runtime.mjs", "ui/browser/react-runtime.mjs", "text/javascript; charset=utf-8"],
   ["canvas-ui/styles.css", "ui/styles.css", "text/css; charset=utf-8"],
   ["canvas-ui/base.css", "ui/base.css", "text/css; charset=utf-8"],
+  ["canvas-ui/visual-profiles.mjs", "ui/visual-profiles.mjs", "text/javascript; charset=utf-8"],
+  ["canvas-ui/profiles/github-app.css", "ui/profiles/github-app.css", "text/css; charset=utf-8"],
+  ["canvas-ui/hosts/github-app/design.md", "ui/hosts/github-app/design.md", "text/markdown; charset=utf-8"],
+  ["canvas-ui/hosts/github-app/theming.md", "ui/hosts/github-app/theming.md", "text/markdown; charset=utf-8"],
   ["canvas-ui/THIRD_PARTY_NOTICES.txt", "ui/browser/THIRD_PARTY_NOTICES.txt", "text/plain; charset=utf-8"],
 ];
 const temporary = await mkdtemp(path.join(tmpdir(), "unity-toolkit-build-"));
@@ -36,8 +41,18 @@ try {
   assert.ok(roots[0].name.endsWith(commit), "Archive must identify the pinned source commit");
   const source = path.join(temporary, roots[0].name);
   const toolkit = path.join(source, "packages", "canvas-toolkit");
+  const { getCanvasVisualProfile } = await import(pathToFileURL(path.join(toolkit, "src", "ui", "visual-profiles.mjs")));
+  assert.deepEqual(getCanvasVisualProfile("github-app"), {
+    id: "github-app", className: "canvas-profile-github-app", stylesheet: "canvas-ui/profiles/github-app.css",
+    designGuide: "canvas-ui/hosts/github-app/design.md", themingGuide: "canvas-ui/hosts/github-app/theming.md",
+  });
   const lock = await readFile(path.join(source, "package-lock.json"));
-  runNpm(["ci", "--ignore-scripts", "--workspace=@microsoft/canvas-toolkit", "--include-workspace-root", "--no-audit", "--no-fund"], source);
+  try {
+    createRequire(path.join(toolkit, "package.json")).resolve("esbuild");
+  } catch (error) {
+    if (error.code !== "MODULE_NOT_FOUND") throw error;
+    runNpm(["ci", "--ignore-scripts", "--workspace=@microsoft/canvas-toolkit", "--include-workspace-root", "--no-audit", "--no-fund"], source);
+  }
   const builderPath = path.join(toolkit, "scripts", "build-ui.mjs");
   // The upstream builder resolves metafile inputs against cwd when collecting licenses.
   const previous = process.cwd();

@@ -65,6 +65,7 @@ test("home and map render explicit initial preference with shared settings and a
   assert.doesNotMatch(renderThemeClientScript("token"), /localStorage/);
   assert.doesNotMatch(renderThemeStyles(), /--canvas-[\w-]+\s*:/, "Toolkit aliases must not be replaced with Studio palette colors");
   assert.match(renderThemeStyles(), /:root\[data-studio-theme\] body\s*\{\s*--background-color-default:/);
+  assert.doesNotMatch(renderThemeStyles("github-app"), /--(?:background-color|text-color|font-sans)[\w-]*\s*:/);
   assert.throws(() => renderThemeToggle('"><script>'), /Choose light or dark/);
 });
 

@@ -1,5 +1,19 @@
 # Unity Studio redesign
 
+## Host presentation boundary
+
+Unity workflows and semantic component owners remain host-neutral.
+The integration explicitly selects a presentation profile, independently of
+live appearance. Copilot uses host-delivered semantic colors/fonts with
+Primer Product structural choices; standalone retains saved light/dark fallback
+semantics. Profile selection reaches the canvas open contract, instance server
+and both document renderers. There is no inferred host identity, Aptos/CoreAI
+Azure import or claim of unimplemented host support.
+
+Shared host profiles and design/theming documentation come from canvas-toolkit,
+not a Unity-owned specification. See the [Unity integration](docs/host-presentation.md)
+for product-only mappings, covered surfaces and the native-host evidence boundary.
+
 ## Product model
 
 Unity Studio is a guided builder for applications that use the Unity platform

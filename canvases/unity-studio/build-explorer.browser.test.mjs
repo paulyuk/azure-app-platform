@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -39,7 +40,7 @@ test("Build focuses one category and selected tool while preserving preview and 
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
     window.panelActive = true;
-    window.buildPanel = (${createBuildPanel.toString()})({
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/fixture", isActive: () => window.panelActive, syntax: buildSyntax,
       onRun() {}, onModel() {},
       request: async (path, options) => {
@@ -53,7 +54,7 @@ test("Build focuses one category and selected tool while preserving preview and 
     </script>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -69,8 +70,11 @@ test("Build focuses one category and selected tool while preserving preview and 
         throw new Error(`Unexpected route ${new URL(route.request().url()).pathname}`);
       }
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const tablist = page.getByRole("tablist", { name: "App customization areas", exact: true });
+    await tablist.waitFor();
     const tabs = tablist.getByRole("tab");
     const area = (id) => page.locator(`.build-area[data-area-id="${id}"]`);
     const row = (id) => page.locator(`.build-file[data-artifact="${id}"]`);

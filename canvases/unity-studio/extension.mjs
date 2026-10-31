@@ -42,6 +42,7 @@ import {
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
 import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
+import { COPILOT_PRESENTATION, getStudioPresentation, STUDIO_PRESENTATION_IDS } from "./studio-presentation.mjs";
 import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./editor-settings.mjs";
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 import { openBuildFileCanvas } from "./build-file-canvas.mjs";
@@ -975,7 +976,7 @@ function authorizeApiRequest(request, url, apiToken, trustedHost) {
   }
 }
 
-async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots) {
+async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots, presentationProfile) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   let releaseAppMutation;
   try {
@@ -1612,6 +1613,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         appName: appIdentity?.name,
         ...await readStudioPreferences(),
         editorSettings: await readEditorSettings(),
+        presentationProfile,
       });
       await recordAppOpened(root);
       response.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -1626,6 +1628,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     response.end(renderStudioHtml(instanceId, apiToken, {
       ...await readStudioPreferences(), intro: url.searchParams.get("intro") === "1",
       editorSettings: await readEditorSettings(),
+      presentationProfile,
     }));
   } catch (error) {
     sendJson(response, error?.statusCode ?? 500, {
@@ -1636,7 +1639,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
   }
 }
 
-async function startServer(instanceId, workspaceRoot) {
+async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const apiToken = randomUUID();
   const authorizedRoots = new Set();
   let trustedHost;
@@ -1649,13 +1652,14 @@ async function startServer(instanceId, workspaceRoot) {
       apiToken,
       trustedHost,
       authorizedRoots,
+      presentationProfile,
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
   trustedHost = `127.0.0.1:${port}`;
-  return { server, url: `http://${trustedHost}/?intro=1`, workspaceRoot };
+  return { server, url: `http://${trustedHost}/?intro=1`, workspaceRoot, presentationProfile };
 }
 
 function canvasError(error) {
@@ -1747,6 +1751,10 @@ const canvas = createCanvas({
     type: "object",
     properties: {
       view: { type: "string", enum: ["overview", "app-map"] },
+      presentationProfile: {
+        type: "string", enum: STUDIO_PRESENTATION_IDS, default: COPILOT_PRESENTATION,
+        description: "Explicit integration presentation. GitHub Copilot uses github-app; standalone retains the saved fallback appearance. Not inferred from theme attributes.",
+      },
     },
     additionalProperties: false,
   },
@@ -1935,13 +1943,15 @@ const canvas = createCanvas({
     },
   ],
   open: async (ctx) => {
+    const presentationProfile = getStudioPresentation(ctx.input?.presentationProfile === undefined
+      ? COPILOT_PRESENTATION : ctx.input.presentationProfile).id;
     const workspaceRoot = await realpath(ctx.session?.workingDirectory ?? process.cwd());
     let entry = servers.get(ctx.instanceId);
-    if (!entry || entry.workspaceRoot !== workspaceRoot) {
+    if (!entry || entry.workspaceRoot !== workspaceRoot || entry.presentationProfile !== presentationProfile) {
       if (entry) {
         await new Promise((resolve) => entry.server.close(resolve));
       }
-      entry = await startServer(ctx.instanceId, workspaceRoot);
+      entry = await startServer(ctx.instanceId, workspaceRoot, presentationProfile);
       servers.set(ctx.instanceId, entry);
     }
     return {

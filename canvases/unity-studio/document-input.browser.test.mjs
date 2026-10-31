@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -84,6 +85,8 @@ test("Run shares optional document input with invocation and enforcement across 
       } else throw new Error("Unexpected route " + path);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
     await page.locator("#manage-app").click();
     await page.getByLabel("Document attachment", { exact: true }).click();

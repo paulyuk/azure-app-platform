@@ -41,8 +41,10 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
       if (path === "/app-map" || path === "/preview") {
         let html = renderInteractiveAppMapHtml(graph, { apiToken: "fixture", appName: "Dealer · UI preview", theme: state.theme });
         if (preview) html = html.replace("</body>", `<script>
-          document.querySelector("#manage-app").click();
-          document.querySelector("footer > :last-child").textContent = "UI preview · simulated actions only";
+          window.addEventListener("unity-studio-ready", () => {
+            document.querySelector("#manage-app").click();
+            document.querySelector("footer > :last-child").textContent = "UI preview · simulated actions only";
+          }, { once: true });
         </script></body>`);
         response.setHeader("Content-Type", "text/html");
         response.end(html);

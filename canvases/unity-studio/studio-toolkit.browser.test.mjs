@@ -97,9 +97,8 @@ test("shipped toolkit notice preserves the review journey in light, dark and com
         for (const before of process.env.UNITY_TOOLKIT_BASELINE_DIR ? [true, false] : [false]) {
           theme = initialTheme;
           await openReview(before);
-          const notice = before
-            ? page.locator(".notice").filter({ hasText: "No Azure resources will be created or changed." })
-            : page.locator("#review-notice .ct-message");
+          const notice = page.locator(".notice, #review-notice .ct-message")
+            .filter({ hasText: "No Azure resources will be created or changed." });
           await notice.waitFor();
           assert.equal(await notice.textContent(), "No Azure resources will be created or changed.");
           if (!before) {
@@ -245,17 +244,22 @@ test("shipped toolkit notice preserves the review journey in light, dark and com
     await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
     assert.equal(await page.locator("#review-notice .ct-message").count(), 1, "Back/forward cache must retain the mounted notice");
     await page.route("**/canvas-ui/base.mjs", route => route.abort());
-    await openReview();
-    await page.locator("#status").filter({ hasText: "Could not load the review notice:" }).waitFor();
-    assert.equal(await page.locator("#review-notice").textContent(), "No Azure resources will be created or changed.");
-    assert.equal(await page.locator("#next").isEnabled(), true);
+    await page.goto(origin);
+    await page.locator("#status").filter({ hasText: "Could not load Studio controls:" }).waitFor();
+    assert.equal(await page.locator("#next").count(), 0, "A failed controls dependency must not expose a partially working wizard");
     await page.unroute("**/canvas-ui/base.mjs");
+    await openReview();
+    await page.locator("#review-notice .ct-message").waitFor();
     assert.deepEqual(errors, []);
     assert.ok(requests.some(url => url.endsWith("/canvas-ui/react-runtime.mjs")));
     assert.ok(requests.every(url => new URL(url).origin === origin), "Browser must not use a CDN or external package source");
     if (output) {
       await writeFile(join(output, "browser-evidence.json"), JSON.stringify({
         browser: await browser.version(), synthetic: true, toolkit: provenance,
+        baselineCommit: process.env.UNITY_TOOLKIT_BASELINE_COMMIT ?? null,
+        baselineHtml: process.env.UNITY_TOOLKIT_BASELINE_DIR ? Object.fromEntries(await Promise.all(
+          ["light", "dark"].map(async theme => [theme,
+            hash(await readFile(join(process.env.UNITY_TOOLKIT_BASELINE_DIR, `before-${theme}.html`)))]))) : null,
         rendererSha256: hash(await readFile(join(payload, "studio-ui.mjs"))),
         lifecycleSha256: hash(await readFile(join(payload, "studio-notice.mjs"))),
         themeSha256: hash(await readFile(join(payload, "studio-theme.mjs"))),

@@ -8,6 +8,10 @@ const assets = new Map([
   ["/canvas-ui/react-runtime.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/react-runtime.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],
   ["/canvas-ui/styles.css", { path: fileURLToPath(new URL("./vendor/toolkit/ui/styles.css", import.meta.url)), type: "text/css; charset=utf-8" }],
   ["/canvas-ui/base.css", { path: fileURLToPath(new URL("./vendor/toolkit/ui/base.css", import.meta.url)), type: "text/css; charset=utf-8" }],
+  ["/canvas-ui/visual-profiles.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/visual-profiles.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],
+  ["/canvas-ui/profiles/github-app.css", { path: fileURLToPath(new URL("./vendor/toolkit/ui/profiles/github-app.css", import.meta.url)), type: "text/css; charset=utf-8" }],
+  ["/canvas-ui/hosts/github-app/design.md", { path: fileURLToPath(new URL("./vendor/toolkit/ui/hosts/github-app/design.md", import.meta.url)), type: "text/markdown; charset=utf-8" }],
+  ["/canvas-ui/hosts/github-app/theming.md", { path: fileURLToPath(new URL("./vendor/toolkit/ui/hosts/github-app/theming.md", import.meta.url)), type: "text/markdown; charset=utf-8" }],
   ["/canvas-ui/THIRD_PARTY_NOTICES.txt", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/THIRD_PARTY_NOTICES.txt", import.meta.url)), type: "text/plain; charset=utf-8" }],
   ["/canvas-ui/LICENSE", { path: fileURLToPath(new URL("./vendor/toolkit/LICENSE", import.meta.url)), type: "text/plain; charset=utf-8" }],
 ]);
