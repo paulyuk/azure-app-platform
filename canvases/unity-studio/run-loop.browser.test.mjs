@@ -1,9 +1,9 @@
-import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -124,15 +124,14 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
       else throw new Error(`Unexpected route ${path}`);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
     });
-    await installToolkitRoutes(page);
-
+    await installStudioAssetRoutes(page);
     await page.goto(`${origin}/app-map`);
     const mapStyle = await page.locator("#graph-shell").evaluate((element) => ({
       background: getComputedStyle(element).backgroundColor,
       nodeFont: getComputedStyle(document.querySelector(".node-title")).fontSize,
     }));
-    await page.locator("#manage-app").click();
-    await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-pressed") === "true");
+    await selectWorkspace(page, "manage-app");
+    await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-current") === "page");
     assert.deepEqual(await page.locator(".run-tabs [role=tab]").evaluateAll((tabs) =>
       tabs.map((tab) => tab.getAttribute("aria-label"))), ["Output", "Services", "Operations", "Deploy"]);
     assert.equal(await page.getByRole("tab", { name: "Output", exact: true }).getAttribute("aria-selected"), "true");
@@ -245,7 +244,7 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     for (const width of [380, 620, 780, 1000, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(await page.locator("#details").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
-      assert.ok(await page.locator("header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `Header overflows at ${width}px`);
+      assert.ok(await page.locator("#studio-workspace-navigation > header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `Header overflows at ${width}px`);
       const controls = page.locator('#header-runtime-action, #app-status-badge');
       for (const control of await controls.all()) {
         const appearance = await control.evaluate((el) => ({
@@ -253,9 +252,6 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
           fits: el.scrollWidth <= el.clientWidth + 1,
         }));
         assert.deepEqual(appearance, { height: 32, nowrap: "nowrap", fits: true }, `Inconsistent header control at ${width}px`);
-      }
-      for (const button of await page.locator(".header-actions > button").all()) {
-        assert.ok(await button.evaluate((el) => el.getBoundingClientRect().height === 32 && el.scrollWidth <= el.clientWidth + 1));
       }
     }
     appState = "failed";
@@ -268,19 +264,19 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     assert.equal(await page.locator("#app-status-badge").textContent(), "Needs attention");
     assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "Hello dealer");
     assert.equal(selections, 1);
-    await page.locator("#map-app").click();
-    await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-pressed") === "false");
-    assert.equal(await page.locator("#manage-app").getAttribute("aria-pressed"), "false");
+    await selectWorkspace(page, "map-app");
+    await page.waitForFunction(() => !document.querySelector("#manage-app").hasAttribute("aria-current"));
+    assert.equal(await page.locator("#manage-app").getAttribute("aria-current"), null);
     await page.locator(".map-tools > summary").click();
-    assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
+    assert.equal(await page.locator("#map-app").getAttribute("aria-current"), "page");
     await page.locator("#action-center").click();
     assert.equal(await page.locator("#details").getAttribute("data-mode"), null);
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
-    assert.equal(await page.locator("#map-app").getAttribute("aria-pressed"), "true");
-    await page.locator("#manage-app").click();
+    assert.equal(await page.locator("#map-app").getAttribute("aria-current"), "page");
+    await selectWorkspace(page, "manage-app");
     assert.equal(await page.locator(".map-tools").evaluate((element) => element.open), false);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
-    await page.getByRole("link", { name: "Unity Studio home", exact: true }).click();
+    await page.getByRole("button", { name: "Unity Studio home", exact: true }).click();
     await page.waitForURL(origin + "/");
     assert.deepEqual(errors, []);
   } finally {

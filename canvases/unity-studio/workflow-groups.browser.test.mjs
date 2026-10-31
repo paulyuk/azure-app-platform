@@ -1,9 +1,9 @@
-import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -58,10 +58,9 @@ test("workflow internals expand separately, preserve evidence, and collapse back
       assert.ok(path in responses, "Unexpected route " + path);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path]) });
     });
-    await installToolkitRoutes(page);
-
+    await installStudioAssetRoutes(page);
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
-    await page.locator("#map-app").click();
+    await selectWorkspace(page, "map-app");
     await page.locator(".map-tools > summary").click();
     await page.getByRole("checkbox", { name: "Show other resources (2)", exact: true }).check();
     await page.keyboard.press("Escape");
@@ -117,7 +116,7 @@ test("workflow internals expand separately, preserve evidence, and collapse back
     await page.keyboard.press("Escape");
     graph.edges.push(edge("agent", names[0], "tool-call"), edge("agent", names[5], "tool-call"));
     await page.reload();
-    await page.locator("#map-app").click();
+    await selectWorkspace(page, "map-app");
     await page.locator("#entry-filter").evaluate((el) => { el.value = "agent"; el.dispatchEvent(new Event("change")); });
     assert.ok((await visibleIds()).includes("approval"), "Filtering by request entry preserves an operation's workflow owner");
     assert.equal(await page.locator(".edge:not(.hidden)").count(), 1, "Collapsed boundary calls share one visible connection");

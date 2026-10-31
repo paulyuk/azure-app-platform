@@ -43,7 +43,7 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
         if (preview) html = html.replace("</body>", `<script>
           window.addEventListener("unity-studio-ready", () => {
             document.querySelector("#manage-app").click();
-            document.querySelector("footer > :last-child").textContent = "UI preview · simulated actions only";
+            document.querySelector("#workspace-status-footer > :last-child").textContent = "UI preview · simulated actions only";
           }, { once: true });
         </script></body>`);
         response.setHeader("Content-Type", "text/html");

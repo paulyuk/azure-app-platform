@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "source": {
     "repository": "coreai-microsoft/canvases-cloud-foundation",
-    "commit": "ea629824357bcf39e291b97e952dfec9a92d2012",
+    "commit": "0b5ca6c5f98f1b695492699e596fdd4c3af48176",
     "package": "@microsoft/canvas-toolkit",
     "version": "0.1.0",
     "published": false
   },
   "build": {
-    "node": "v26.13.0",
-    "npm": "11.20.0",
+    "node": "v24.22.1",
+    "npm": "11.19.1",
     "esbuild": "0.25.12",
-    "lockSha256": "aa4a6c340b4ebd145514d2d5761a1f6de71721c4b399408ec53e6bd1166e6853",
-    "builderSha256": "28d4908a2276bc27080e5eb6125f9e34640b84a59f86e004aa1afc53a9b7ce06",
+    "lockSha256": "f059dd7f4058e725c6d3492b3e6d6dc1f4a1e5bc6bfeacbfbbc7cb19bd06203d",
+    "builderSha256": "c91beb7e23ffb0d0c040e4a6cdd7e33e601404d0fd71294f32ec981c3ae710cb",
     "command": "npm ci --ignore-scripts --workspace=@microsoft/canvas-toolkit --include-workspace-root --no-audit --no-fund; buildToolkitUi(); prepareCanvasUiAssets(output)",
     "repeatBuildVerified": true
   },
@@ -21,7 +21,7 @@
       "route": "/canvas-ui/base.mjs",
       "file": "ui/browser/base.mjs",
       "contentType": "text/javascript; charset=utf-8",
-      "sha256": "bf61d4048ee7e3ccb1db6f962e74c3c6dc4489d80d7fd63c798ad11c669b3f4f"
+      "sha256": "de3ae25cb9eae2ecfbe67f7cf5fdb06e283f9d5c8385a4aaeb1e39ec1dffc1a8"
     },
     {
       "route": "/canvas-ui/react-runtime.mjs",
@@ -39,7 +39,7 @@
       "route": "/canvas-ui/base.css",
       "file": "ui/base.css",
       "contentType": "text/css; charset=utf-8",
-      "sha256": "89bb62e6abda693e071adfdfcc744e46e85fffcc57d8d1f9f6201dd24830ddae"
+      "sha256": "bc5c434a1dc8f297b75b8e26163edd24cba56f3d273fa0e3f6aace2495c22346"
     },
     {
       "route": "/canvas-ui/visual-profiles.mjs",

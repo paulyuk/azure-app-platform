@@ -53,13 +53,6 @@ export function renderThemeStyles(presentationProfile = "standalone") {
   const presentation = getStudioPresentation(presentationProfile);
   return `
     ${OCTICON_CSS}
-    :root[data-studio-theme] {
-      --bg: var(--studio-bg); --surface: var(--studio-raised); --surface-muted: var(--studio-panel);
-      --border: var(--studio-line); --text: var(--studio-ink); --muted: var(--studio-muted);
-      --accent: var(--studio-accent); --accent-soft: var(--studio-accent-soft); --focus: var(--studio-focus);
-      --edge-high: var(--studio-accent); --edge-medium: var(--studio-edge-medium);
-      --edge-low: var(--studio-edge-low); --danger: var(--studio-danger);
-    }
     ${presentation.legacyStyles}
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -75,8 +68,8 @@ export function renderThemeStyles(presentationProfile = "standalone") {
     #details[data-mode="manage"] button.primary, #details[data-mode="manage"] button.primary:hover:not(:disabled) { color: var(--studio-on-accent); }
     button.primary:hover, button.run-button-primary:hover { background: var(--studio-accent-2); border-color: var(--studio-accent-2); }
     button.run-button-danger { color: var(--studio-danger); border-color: var(--studio-danger); }
-    button:disabled { cursor: not-allowed; opacity: .65; }
-    button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; }
+    button:not(.ct-button):disabled { cursor: not-allowed; opacity: .65; }
+    button:not(.ct-button):focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; }
     .runtime-badge[data-tone="success"], .tool-status.ready { color: var(--studio-ok); border-color: var(--studio-ok); }
     .runtime-badge[data-tone="warning"] { color: var(--studio-warn); border-color: var(--studio-warn); }
     .node-visual { color: var(--studio-accent); }

@@ -154,7 +154,7 @@ test("installed payload opens and materializes templates without checkout depend
           }
         }
         const toolkit = JSON.parse(await readFile(join(payload, "vendor/toolkit/provenance.json"), "utf8"));
-        assert.equal(toolkit.source.commit, "ea629824357bcf39e291b97e952dfec9a92d2012");
+        assert.equal(toolkit.source.commit, "0b5ca6c5f98f1b695492699e596fdd4c3af48176");
         assert.equal(toolkit.source.published, false);
         assert.deepEqual(toolkit.files.map(file => file.route).sort(), [
           "/canvas-ui/LICENSE", "/canvas-ui/THIRD_PARTY_NOTICES.txt",

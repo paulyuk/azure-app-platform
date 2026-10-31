@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -40,7 +41,7 @@ test("Build focuses one category and selected tool while preserving preview and 
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
     window.panelActive = true;
-    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/fixture", isActive: () => window.panelActive, syntax: buildSyntax,
       onRun() {}, onModel() {},
       request: async (path, options) => {

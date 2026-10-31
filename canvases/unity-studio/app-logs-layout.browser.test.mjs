@@ -1,9 +1,9 @@
-import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
+import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -49,10 +49,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         if (path.startsWith("/assets/")) return route.fulfill({ status: 204 });
         throw new Error(`Unexpected log layout request: ${path}`);
       });
-      await installToolkitRoutes(page);
-
+      await installStudioAssetRoutes(page);
       await page.goto("http://logs-layout.test/");
-      await page.locator("#map-app").click();
+      await selectWorkspace(page, "map-app");
       await page.locator("#logs-app").click();
       await page.locator(".app-logs-output").first().waitFor();
       await page.getByRole("button", { name: "Pause", exact: true }).click();

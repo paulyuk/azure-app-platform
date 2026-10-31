@@ -5,13 +5,13 @@ export function createStudioNotices({ loadToolkit, onError }) {
     views.delete(element);
     previous?.handle?.dispose();
   }
-  function renderNotice(element, props) {
-    if (!element || element.nodeType !== 1) throw new TypeError("A notice mount element is required.");
-    if (!props?.children) { clearNotice(element); return; }
+  function renderComponent(element, component, props, label = "shared component") {
+    if (!element || element.nodeType !== 1) throw new TypeError("A component mount element is required.");
     let view = views.get(element);
+    if (view && view.component !== component) { clearNotice(element); view = null; }
     const existing = Boolean(view);
     if (!view) {
-      view = { props: {}, callbacks: new Map(), handle: null };
+      view = { component, props: {}, callbacks: new Map(), handle: null };
       views.set(element, view);
     }
     const changed = {};
@@ -24,24 +24,33 @@ export function createStudioNotices({ loadToolkit, onError }) {
       if (!Object.is(previous, next)) changed[key] = next;
     }
     view.props = { ...view.props, ...props };
+    const fail = cause => {
+      if (views.get(element) !== view) return;
+      clearNotice(element);
+      onError(`Could not load the ${label}: ${cause.message}`);
+    };
     if (existing) {
-      if (Object.keys(changed).length) view.handle?.update(changed);
+      try {
+        if (Object.keys(changed).length) view.handle?.update(changed);
+      } catch (cause) { fail(cause); }
       return;
     }
     const state = view;
-    void Promise.resolve().then(loadToolkit).then(({ mountCanvasComponent, MessageBar }) => {
+    void Promise.resolve().then(loadToolkit).then(toolkit => {
       if (views.get(element) !== state) return;
+      if (element.isConnected === false) { clearNotice(element); return; }
       const latest = Object.fromEntries(Object.entries(state.props).map(([key, value]) =>
         [key, typeof value === "function" ? state.callbacks.get(key) : value]));
-      state.handle = mountCanvasComponent(element, MessageBar, latest);
-    }).catch(cause => {
-      if (views.get(element) !== state) return;
-      clearNotice(element);
-      onError(`Could not load the review notice: ${cause.message}`);
-    });
+      state.handle = toolkit.mountCanvasComponent(element, toolkit[component], latest);
+    }).catch(fail);
+  }
+  function renderNotice(element, props) {
+    if (!element || element.nodeType !== 1) throw new TypeError("A notice mount element is required.");
+    if (!props?.children) { clearNotice(element); return; }
+    renderComponent(element, "MessageBar", props, "review notice");
   }
   function dispose() {
     for (const element of views.keys()) clearNotice(element);
   }
-  return { renderNotice, clearNotice, dispose };
+  return { renderComponent, clearComponent: clearNotice, renderNotice, clearNotice, dispose };
 }

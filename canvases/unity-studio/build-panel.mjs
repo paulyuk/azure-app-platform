@@ -1,6 +1,5 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
 #details[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
@@ -84,7 +83,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
   const areas = [
     { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior", description: "Shape what your agent does and how it responds." },
     { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts", description: "Choose a tool to change its implementation or the inputs it accepts." },
@@ -225,7 +224,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     control.setAttribute("aria-label", "About Build");
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
-    buttons.update(control, { icon: buttons.icon('${renderOcticon("info")}') });
+    buttons.update(control, { icon: buttons.icon(helpIcon) });
     const tooltip = element("span", "Build shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -26,7 +27,7 @@ function pageHtml() {
   return `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
       onRun() {}, onModel() {},
