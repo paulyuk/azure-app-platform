@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -40,7 +41,7 @@ test("Build is a focused read-only customization workspace with document and Run
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({
+    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       onRun: () => { document.body.dataset.runRequested = "true"; },
       onModel: () => { document.body.dataset.modelRequested = "true"; },
@@ -55,7 +56,7 @@ test("Build is a focused read-only customization workspace with document and Run
     </script>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({ headless: true });
@@ -72,6 +73,8 @@ test("Build is a focused read-only customization workspace with document and Run
         throw new Error(`Unexpected route ${path}`);
       }
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole("heading", { name: "Change your app", exact: true }).waitFor();
 
@@ -189,7 +192,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({
+    const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
       onRun() {}, onModel() {},
@@ -204,7 +207,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
     </script>`;
   const server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(html);
+    response.end(withToolkitButtons(html));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch();
@@ -236,6 +239,8 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
         throw new Error(`Unexpected route ${path}`);
       }
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByText(/No supported customization points were found/).waitFor();
     assert.match(await page.locator("#details").innerText(), /Files|general implementation/i);

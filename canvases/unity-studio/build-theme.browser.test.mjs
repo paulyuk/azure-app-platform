@@ -1,3 +1,4 @@
+import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -24,13 +25,14 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
-    await page.setContent(`<!doctype html><html data-studio-theme="light"><style>
+    await installToolkitRoutes(page);
+    await page.setContent(withToolkitButtons(`<!doctype html><html data-studio-theme="light"><style>
       ${renderThemeStyles()} ${BUILD_PANEL_CSS}
       body { margin:0; background:var(--studio-bg); color:var(--studio-ink); }
       #details { height:100vh; }
     </style><div id="details" data-mode="build"></div><script>
       ${BUILD_SYNTAX_SCRIPT}
-      const panel = (${createBuildPanel.toString()})({
+      const panel = (${createBuildPanel.toString()})({ buttons: window.unityStudioButtons,
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {},
         request: async () => ({ artifacts: [
@@ -46,7 +48,7 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
         ], editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] } })
       });
       panel.show();
-    </script></html>`);
+    </script></html>`));
     const row = page.locator('.build-file[data-artifact="agent"]');
     await row.waitFor();
     const preview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });

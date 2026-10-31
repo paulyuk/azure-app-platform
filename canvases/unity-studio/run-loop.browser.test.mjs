@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -123,6 +124,8 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
       else throw new Error(`Unexpected route ${path}`);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`${origin}/app-map`);
     const mapStyle = await page.locator("#graph-shell").evaluate((element) => ({
       background: getComputedStyle(element).backgroundColor,

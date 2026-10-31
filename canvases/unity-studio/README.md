@@ -17,6 +17,23 @@ The start page shows the large Unity logo and tagline only; the compact header
 branding appears on inner screens instead. Docs and the Settings gear remain
 available at the top right on every screen.
 
+## Host presentation
+
+Copilot opening explicitly selects the `github-app` presentation profile.
+Host semantic colors/fonts win in that profile; the existing Appearance setting
+is a persisted fallback, not an override of the embedded host. Primer-derived
+spacing, role-specific radii and control geometry come from the shared toolkit profile,
+separate from Unity workflows and light/dark changes. No Aptos, CoreAI Azure
+profile or full Primer color theme is imported.
+
+The public canvas input can explicitly select `presentationProfile:
+"standalone"` for the retained independent light/dark appearance. Direct renderer
+callers default to standalone. Unknown profiles fail; theme attributes never
+select an integration. The toolkit owns authoritative per-host design/theming
+documentation; see [Unity's integration](docs/host-presentation.md) for its
+product-specific mappings and native-delivery limits. Other host
+adapters are not implemented by adding this selection mechanism.
+
 ## Shared toolkit browser assets
 
 The review page's **No Azure resources will be created or changed.** notice uses
@@ -31,8 +48,9 @@ The toolkit's unmodified `styles.css` maps the current host's delivered semantic
 `--text-color-default` supplies `--canvas-fg`, `--border-color-default` supplies
 `--canvas-border`, and `--background-color-muted` supplies `--canvas-tint`.
 The existing Studio Appearance preference sets the fallback light/dark tone;
-it does not replace supplied host colors with Studio's palette. Legacy Studio
-aliases stay on `body` so they do not overwrite host tokens on `:root`.
+it does not replace supplied host colors with Studio's palette. Legacy body
+aliases exist only in standalone; the Copilot profile does not shadow delivered
+host tokens on body or root.
 There is no second appearance selector. React owns only the notice's mount
 container, with updates on the same root and disposal before navigation replaces
 the page. Unchanged updates do not re-announce the notice.
@@ -45,6 +63,67 @@ work and disposes that root; the same element can safely be reused. `dispose()`
 clears all owned roots before legacy DOM replacement. The first review notice
 uses this helper; no other notices are migrated here.
 
+Ordinary actions use the same pinned toolkit's actual Base UI-backed **Button**,
+through its public DOM mount API. Primary, secondary and subtle appearances use
+canonical toolkit geometry and host-delivered button tokens, not Unity's purple
+palette. Standalone medium buttons use the toolkit's 32px minimum height,
+14px/20px normal type and 5px/12px padding by default. Copilot consumes the
+shared profile's structural roles and host type ramp, including its medium
+weight token; this intentionally replaces the legacy
+12px semibold action styling. Existing action copy, order, enabled state and
+workflow ownership remain unchanged. Existing SVG glyphs are composed through
+the public `icon` prop; Button supplies no default icon. Legacy CSS is in a
+lower-priority cascade layer so it cannot override canonical component styles.
+Mount/provider wrappers use `display: contents` only to retain existing layout
+placement.
+
+| Surface | Button adoption |
+| --- | --- |
+| Create/assemble setup, review, back/continue and local-path actions | Migrated |
+| Existing app screen | Back and confirmation-cancel actions migrated; compound app rows and destructive actions retained |
+| Post-creation actions | Gateway, deployment, runtime, endpoints, source, agent invocation and map actions migrated |
+| Build | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
+| Run/Debug and Guide | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
+| Observe | Map reset/zoom/fit, inspector close and Guide collapse/dismiss actions migrated |
+| Logs | All-services action, pause/resume and refresh migrated, including the component-log panel |
+| Shared Settings | Open/close and ordinary app-section actions migrated |
+
+This is not a migration of every element with a button tag. Semantic tabs,
+workspace navigation, Build implementation selection, journey/app cards, the
+two-line model-connection control, Guide progress/status shortcuts, inline log
+service filters, SVG graph controls, links and the cinematic intro's Skip action
+remain their existing controls. They need their appropriate component slices,
+not conversion to generic Button. The separate `src/web` demo and generated
+application templates are outside this migration.
+
+The approved pin has no destructive/danger Button appearance. Delete controls
+and the header's stateful runtime action (which uses danger styling when
+stopping) therefore retain their original implementation and warning hierarchy.
+They require a toolkit-owned public appearance or an explicit design decision;
+this consumer does not approximate danger with private classes or token overrides.
+
+The approved upstream fix resolves primary Button fallback contrast through public
+`--canvas-button-primary-bg` / `--canvas-button-primary-fg` tokens. Without host
+button tokens, light uses `#0969da` with white text (5.19:1), and dark uses
+`#79b8ff` with `#0d1117` text (9.11:1), including hover/pressed states. Delivered
+host primary tokens retain priority, and missing hover backgrounds retain the
+resolved rest background. Text-accent does not control primary backgrounds.
+The primary migration is no longer blocked on fallback contrast; no Unity-only
+fallback bridge or private CSS override is used. Synthetic host-token checks do
+not prove native delivery.
+
+`createStudioButtons` is one shared button owner per page, independent of the
+unchanged notice owner. `renderButton`/`update` retain roots and latest callbacks;
+`clear`/`dispose` unmount before DOM replacement. Imperative actions append the
+owned mount through `append`/`host`, not by moving a React-owned button out of
+its root. Disabled and label updates go through the component. Settings,
+Build, Run and log teardown release their owned subtrees before replacing them.
+Back/forward-cache suspension retains roots; final page departure disposes them.
+Startup waits for the shipped module before wiring actions, ignores a late load
+after departure, and reports a load failure with a reload-to-retry message rather
+than silently falling back to bespoke controls. Embedded synthetic previews can
+wait for `window.unityStudioReady` or the `unity-studio-ready` event.
+
 The pinned toolkit recognizes the current Copilot-style semantic names above;
 it does not include a `--vscode-*` adapter. Other hosts need a toolkit-owned
 mapping into that contract. This change does not add another host adapter or
@@ -53,14 +132,27 @@ claim that a synthetic browser fixture proves native host token delivery.
 The standalone plugin ships the prepared React/Base UI browser runtime, shared
 React chunk, CSS, upstream MIT license and complete bundled dependency notices
 under `vendor/toolkit/`. Nothing is downloaded or restored when the plugin opens.
-Only six explicitly allowed `/canvas-ui/` assets are served, relative to the
+Only ten explicitly allowed `/canvas-ui/` assets are served, relative to the
 installed plugin, never the user's workspace or a sibling checkout.
+These include the public profile registry, selected Copilot stylesheet and
+shipped [design](vendor/toolkit/ui/hosts/github-app/design.md) and
+[theming](vendor/toolkit/ui/hosts/github-app/theming.md) guides. The shared
+toolkit owns those specifications; Unity retains only product mappings.
 
 This is **source-pinned build-time consumption**, not an npm publication:
 `@microsoft/canvas-toolkit` identifies itself as private version `0.1.0` at
-[`e29e5511b6bde9cd99a5026e300c7712deb2add8`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/e29e5511b6bde9cd99a5026e300c7712deb2add8).
+[`63280d0d3b3a515bde6c1e48e9a3192bf8768b41`](https://github.com/coreai-microsoft/canvases-cloud-foundation/commit/63280d0d3b3a515bde6c1e48e9a3192bf8768b41).
+This is the explicitly approved, pushed **unmerged upstream profile artifact**, not a
+released package or a claim that the upstream branch has merged.
 `vendor/toolkit/provenance.json` records that source, the upstream lockfile and
 builder hashes, toolchain, and every shipped asset's SHA-256.
+The source archive/preparation path retains LF CSS: `styles.css` hashes to
+`f4188ad417039a227b67e7787ed127cf90154f02ddc08d4784bb44d9c3afc534` and
+`base.css` to `8a61805b2af819308931e752c5e3d07b2ee15c73d8bb7ff9d40e5debbc91f92b`.
+Regeneration and an independent check compare the archive-produced bytes without
+newline rewriting. The new structural hooks change component CSS, while the
+JavaScript chunks, semantic stylesheet, license and dependency notices remain
+byte-identical to the approved primary-contrast artifact.
 The vendor directory disables Git text conversion so these exact bytes and
 hashes survive Windows checkouts with `core.autocrlf` enabled.
 
@@ -90,8 +182,10 @@ app name, runtime status and start/stop, workspace buttons, **Docs**, and the
 Settings gear. Docs and Settings remain at the top right at every width.
 At narrower widths, all three workspace buttons move together to a second row;
 on the smallest canvases, app identity and runtime controls occupy a third row.
-Long app names truncate rather than displacing controls. Studio defaults to light; the saved appearance applies
-to the landing page and all workspaces, including after a provider restart.
+Long app names truncate rather than displacing controls. Standalone defaults to
+light; the saved fallback appearance applies to the landing page and all
+workspaces, including after a provider restart. Embedded Copilot follows host
+appearance instead when delivered.
 This user-level preference lives under
 `$COPILOT_HOME/extensions/unity-studio/artifacts/preferences.json`
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.

@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -48,6 +49,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         if (path.startsWith("/assets/")) return route.fulfill({ status: 204 });
         throw new Error(`Unexpected log layout request: ${path}`);
       });
+      await installToolkitRoutes(page);
+
       await page.goto("http://logs-layout.test/");
       await page.locator("#map-app").click();
       await page.locator("#logs-app").click();

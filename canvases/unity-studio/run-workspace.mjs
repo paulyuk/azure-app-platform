@@ -6,6 +6,7 @@ export function createRunWorkspace({
   renderOperations,
   renderDeployment,
   onConnection,
+  onClear = () => {},
 }) {
   const expanded = new Map();
   let selectedTab = "output";
@@ -132,6 +133,7 @@ export function createRunWorkspace({
       ]);
       lastState = state;
 
+      onClear(container);
       container.replaceChildren();
       const shell = text(container, "div", "", "run-workspace");
       const heading = text(shell, "div", "", "run-heading");

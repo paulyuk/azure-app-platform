@@ -13,6 +13,7 @@ When this skill is selected:
 1. Immediately call `open_canvas` with:
    - `canvasId`: `unity-studio`
    - `instanceId`: `unity-studio`
+   - `input`: `{ "presentationProfile": "github-app" }` for this Copilot integration
 2. Reuse that stable instance ID so later matching prompts focus the existing
    Studio instead of opening duplicate panels.
 3. Open Unity Studio before offering a generic architecture summary.
@@ -33,6 +34,10 @@ The plugin manifest registers the extension directly. Do not run `npm install`,
 build the canvas, or link/copy its payload into a user extension directory.
 The host supplies the Copilot SDK; the plugin ships its other runtime assets.
 Generated apps have a separate setup/start flow for their own dependencies.
+Presentation selection is separate from live light/dark appearance. Copilot
+owns delivered colors/fonts; the saved Appearance preference is fallback only.
+Use `standalone` only for an explicitly requested independent fallback preview,
+not as a way to diagnose native host delivery. Other hosts are not implemented.
 
 If the retry still fails, tell the user to reinstall the plugin, reload
 extensions, start a fresh chat or child session, and retry the same prompt. Do

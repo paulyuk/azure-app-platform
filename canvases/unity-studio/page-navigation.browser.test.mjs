@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -37,6 +38,8 @@ test("Primary pages use grouped navigation distinct from runtime actions across 
       if (path.startsWith("/assets/")) return route.fulfill({ status: 204 });
       throw new Error("Unexpected page-navigation request: " + path);
     });
+    await installToolkitRoutes(page);
+
     await page.goto("http://page-navigation.test/");
     const navigation = page.getByRole("group", { name: "App workspaces", exact: true });
     await navigation.waitFor();

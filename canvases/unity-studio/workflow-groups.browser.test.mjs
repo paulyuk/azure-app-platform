@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -57,6 +58,8 @@ test("workflow internals expand separately, preserve evidence, and collapse back
       assert.ok(path in responses, "Unexpected route " + path);
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(responses[path]) });
     });
+    await installToolkitRoutes(page);
+
     await page.goto(`http://127.0.0.1:${server.address().port}/app-map`);
     await page.locator("#map-app").click();
     await page.locator(".map-tools > summary").click();

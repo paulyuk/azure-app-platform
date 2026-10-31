@@ -4,6 +4,8 @@ import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScri
 import { renderThemeStyles, renderThemeToggle, renderThemeClientScript } from "./studio-theme.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
+import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
+import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 function escapeHtml(value) {
@@ -78,14 +80,15 @@ export function renderAppMapMarkup(appMap, { expanded = false } = {}) {
     ' unresolved</span></div>';
 }
 
-export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false, editorSettings = DEFAULT_EDITOR_SETTINGS } = {}) {
+export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", intro = false, editorSettings = DEFAULT_EDITOR_SETTINGS, presentationProfile = "standalone" } = {}) {
+  const presentation = getStudioPresentation(presentationProfile);
   const capabilities = PLATFORM_TIERS.map((tier) => ({
     id: tier.id,
     name: tier.name,
     role: tier.role,
   }));
   return `<!doctype html>
-<html lang="en" data-studio-theme="${escapeHtml(theme)}">
+<html lang="en" class="${presentation.className}" data-studio-theme="${escapeHtml(theme)}" data-studio-presentation="${presentation.id}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -93,21 +96,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <title>Unity Studio</title>
     <link rel="stylesheet" href="/canvas-ui/styles.css">
     <link rel="stylesheet" href="/canvas-ui/base.css">
+    ${presentation.stylesheet ? `<link rel="stylesheet" href="${presentation.stylesheet}">` : ""}
     <style>
-      :root {
-        color-scheme: light dark;
-        --studio-bg: var(--background-color-default, #fff);
-        --studio-panel: color-mix(in srgb, var(--background-color-default, #fff) 94%, var(--true-color-blue-muted, #ddf4ff));
-        --studio-raised: var(--background-color-default, #fff);
-        --studio-line: var(--border-color-default, #d1d9e0);
-        --studio-ink: var(--text-color-default, #1f2328);
-        --studio-muted: var(--text-color-muted, #59636e);
-        --studio-accent: #6b3fd6;
-        --studio-accent-2: #7b52e0;
-        --studio-ok: #0f9d6e;
-        --studio-warn: #b45309;
-        --studio-danger: #cf222e;
-      }
+      ${STUDIO_BUTTON_MOUNT_CSS}
+      ${renderPresentationStyles(presentation.id)}
+      @layer studio-legacy {
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         padding: 28px 24px 48px;
@@ -340,7 +333,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         .component-status { grid-template-columns: 1fr; }
         .surface-head { align-items: flex-start; flex-direction: column; }
       }
-      ${renderThemeStyles()}
+      ${renderThemeStyles(presentation.id)}
       ${renderStudioIntroStyles()}
       .studio-site-nav { max-width: 840px; margin: 0 auto 24px; }
       body:has(.studio-welcome-brand) > .studio-site-nav { justify-content: flex-end; }
@@ -353,12 +346,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         .studio-welcome-brand { gap: 16px; margin: 24px 0; }
         .studio-welcome-brand img { width: 72px; }
       }
+      }
     </style>
   </head>
   <body>
     <nav class="studio-site-nav" aria-label="Unity Studio navigation">
       ${renderStudioBrand()}
-      ${renderThemeToggle(theme)}
+      ${renderThemeToggle(theme, presentation.id)}
     </nav>
     <main>
       <div class="studio-intro-notice" role="status"></div>
@@ -367,6 +361,16 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     </main>
     ${intro ? renderStudioIntro() : ""}
     <script>
+      (async () => {
+      let buttons, controlsDisposed = false;
+      window.addEventListener("pagehide", event => {
+        if (!event.persisted) { controlsDisposed = true; buttons?.dispose(); }
+      });
+      const toolkit = await import("/canvas-ui/base.mjs");
+      if (controlsDisposed) return;
+      buttons = (${createStudioButtons.toString()})(toolkit);
+      window.unityStudioButtons = buttons;
+      buttons.mountAll(document);
       const apiToken = ${JSON.stringify(apiToken)};
       const capabilities = ${JSON.stringify(capabilities)};
       let editorSettings = ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")};
@@ -381,7 +385,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (picker) {
           picker.value = editorSettings.editorId;
           picker.disabled = editorPreferenceBusy || appBusy;
-          document.getElementById("next").disabled = editorPreferenceBusy || appBusy;
+          buttons.setDisabled(document.getElementById("next"), editorPreferenceBusy || appBusy);
         }
         const label = document.getElementById("open-editor-label");
         if (label) label.textContent = " Open the new worktree in " +
@@ -448,7 +452,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function setBusy(busy, message = "") {
         appBusy = busy;
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
-          control.disabled = busy;
+          buttons.setDisabled(control, busy);
         });
         syncEditorControls();
         status.textContent = message;
@@ -476,13 +480,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function actions({ back, nextLabel, next, nextDisabled = false }) {
         return '<div class="actions">' +
-          (back ? '<button type="button" class="link" id="back">Back</button>' : '<span></span>') +
-          '<div class="actions-right"><button type="button" class="primary" id="next"' +
+          (back ? '<button data-studio-button="subtle" type="button" class="link" id="back">Back</button>' : '<span></span>') +
+          '<div class="actions-right"><button data-studio-button="primary" type="button" class="primary" id="next"' +
           (nextDisabled ? " disabled" : "") + '>' + escape(nextLabel) + '</button></div></div>';
       }
 
       function topBack(label = "Back") {
-        return '<div class="topbar"><button type="button" class="link" id="top-back" aria-label="' +
+        return '<div class="topbar"><button data-studio-button="subtle" type="button" class="link" id="top-back" aria-label="' +
           escape(label) + '">&#8592; ' + escape(label) + '</button></div>';
       }
 
@@ -511,14 +515,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         return new Promise((resolve) => {
           const dialog = document.createElement("div");
           dialog.className = "confirm-backdrop";
-          dialog.innerHTML = '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
+          buttons.replace(dialog, '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
             '<h2 id="confirm-delete-title">Delete ' + escape(appName) + '?</h2>' +
             '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree, its local files, and its Unity-created branch. This cannot be undone.</p>' +
             '<p>No Azure resources, repositories, or cloud deployments will be deleted.</p>' +
-            '<div class="actions"><button type="button" id="cancel-delete">No, keep app</button>' +
-            '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>';
+            '<div class="actions"><button data-studio-button="secondary" type="button" id="cancel-delete">No, keep app</button>' +
+            '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>');
           document.body.append(dialog);
           const close = (confirmed) => {
+            buttons.clear(dialog);
             dialog.remove();
             resolve(confirmed);
           };
@@ -555,7 +560,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         draft.journey = null;
         clearStatus();
         notices.dispose();
-        app.innerHTML = ${JSON.stringify(renderStudioWelcomeBrand())} +
+        buttons.replace(app, ${JSON.stringify(renderStudioWelcomeBrand())} +
           '<h1>What would you like to do?</h1>' +
           '<p>Start a new app, assemble existing pieces, or continue working on an app you already have.</p>' +
           '<div class="journeys">' +
@@ -564,7 +569,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<button type="button" class="journey" id="open-app"><strong>Open an app</strong>' +
           '<span>Continue building, run it locally, or manage its Azure deployment.</span></button>' +
           '<button type="button" class="journey" id="assemble-app"><strong>Assemble existing pieces</strong>' +
-          '<span>Combine source projects and map existing Azure resources.</span></button></div>';
+          '<span>Combine source projects and map existing Azure resources.</span></button></div>');
         document.getElementById("new-app").addEventListener("click", async () => {
           draft.journey = "new";
           draft.starterKind = "template";
@@ -600,7 +605,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderExistingApps() {
         notices.dispose();
         const apps = sources?.apps || [];
-        app.innerHTML = topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
+        buttons.replace(app, topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
@@ -614,7 +619,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             escape(item.path) + '" aria-label="Delete ' + escape(item.name) + '" title="Delete app">' +
             '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1.5h6l.6 1.5H14v1H2V3h2.4L5 1.5Zm-2 4h10l-.6 9H3.6l-.6-9Zm3 1v6h1V6.5H6Zm3 0v6h1V6.5H9Z"/></svg></button></div>').join("") +
             '</div>' : '<div class="notice">No existing runnable Unity apps were found in the current Git worktrees.</div>') +
-          '';
+          '');
         wireTopBack(renderLanding);
         document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", () => {
           openAppMap(button.dataset.existingApp);
@@ -664,7 +669,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         notices.dispose();
         const isNew = draft.journey === "new";
-        app.innerHTML = topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
+        buttons.replace(app, topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
           '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
           (isNew ? '<h2>Choose a template</h2><p>Start with the editable Empty Unity app or the complete Dealer sample.</p><div id="templates">' + templateHtml() + '</div>' : '') +
           '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
@@ -672,7 +677,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
           escape(draft.purpose) + '</textarea></label>' +
           (!isNew ? '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>' : '') +
-          actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" });
+          actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" }));
         document.getElementById("back").addEventListener("click", renderLanding);
         wireTopBack(renderLanding);
         document.querySelectorAll('input[name="template"]').forEach((input) => {
@@ -743,7 +748,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             escape(draft.templateInputs.egressAllowDomain) + '" placeholder="api.lender.example.com"></label>'
           : '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>';
-        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 3</div><h1>' + heading + '</h1>' +
+        buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 3</div><h1>' + heading + '</h1>' +
           '<p>' + intro + '</p>' +
           '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
           escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
@@ -754,7 +759,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             return '<div class="capability"><strong>' + escape(tier.name) +
               '</strong><small>' + escape(tier.role) + '</small></div>';
           }).join("") + '</div>' +
-          actions({ back: true, nextLabel: "Review app" });
+          actions({ back: true, nextLabel: "Review app" }));
         wireActions({
           back: renderDetails,
           next: () => {
@@ -794,14 +799,14 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         notices.dispose();
         clearStatus();
         const unused = capabilities.filter((tier) => !draft.tierIds.includes(tier.id));
-        app.innerHTML = topBack("Back") + '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
+        buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 4</div><h1>Choose pieces</h1>' +
           '<p>Add a capability, then choose the source project that should implement it.</p>' +
           '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
             const tier = capabilities.find((item) => item.id === tierId);
             const options = availableForTier(tierId);
             const selected = draft.sourceBindings[tierId] || "";
             return '<div class="mapping"><div class="mapping-heading"><div><h3>' + escape(tier.name) +
-              '</h3><small>' + escape(tier.role) + '</small></div><button type="button" class="link" data-remove="' +
+              '</h3><small>' + escape(tier.role) + '</small></div><button data-studio-button="subtle" type="button" class="link" data-remove="' +
               tierId + '">Remove</button></div><select data-source-tier="' + tierId + '">' +
               '<option value="">Choose source project…</option>' + options.map(({ root, implementation }) =>
                 '<option value="' + implementation.id + '"' + (selected === implementation.id ? " selected" : "") + '>' +
@@ -816,8 +821,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               '</select></label>'
             : "") +
           '<div class="local-path"><input id="local-path" type="text" placeholder="/path/to/repository-or-folder">' +
-          '<button type="button" id="add-path">Add local path</button></div>' +
-          actions({ back: true, nextLabel: "Continue to Azure resources" });
+          '<button data-studio-button="secondary" type="button" id="add-path">Add local path</button></div>' +
+          actions({ back: true, nextLabel: "Continue to Azure resources" }));
         document.getElementById("add-tier")?.addEventListener("change", (event) => {
           if (event.target.value) {
             draft.tierIds.push(event.target.value);
@@ -885,7 +890,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderAzure(warning = "") {
         clearStatus();
         notices.dispose();
-        app.innerHTML = topBack("Back") + '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
+        buttons.replace(app, topBack("Back") + '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
           '<p>These mappings are references only. Unity Studio will not read keys, deploy, or change resources.</p>' +
           (warning ? '<div class="notice">' + escape(warning) + ' You can continue without Azure mappings.</div>' : "") +
           '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
@@ -897,7 +902,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
                 (draft.azureBindings[tierId] === resource.resourceId ? " selected" : "") + '>' +
                 escape(resource.title + " · " + resource.subtitle) + '</option>').join("") + '</select></div>';
           }).join("") + '</div>' +
-          actions({ back: true, nextLabel: "Review app" });
+          actions({ back: true, nextLabel: "Review app" }));
         document.querySelectorAll("[data-azure-tier]").forEach((select) => select.addEventListener("change", () => {
           draft.azureBindings[select.dataset.azureTier] = select.value;
         }));
@@ -934,7 +939,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
           : selectedTemplate?.name;
-        app.innerHTML = topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
+        buttons.replace(app, topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong><br>' +
           escape(draft.purpose) + '</p></section><section><h3>Starter</h3><p>' + escape(starter) +
           '</p></section><section><h3>Capabilities</h3><div class="review-list">' +
@@ -949,7 +954,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           escape(editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label) + '</span></label></section></div>' +
           '<div class="studio-toolkit" id="review-notice">No Azure resources will be created or changed.</div>' +
           actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
-            (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") });
+            (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") }));
         notices.renderNotice(document.getElementById("review-notice"), {
           children: "No Azure resources will be created or changed.",
           intent: "info",
@@ -1004,7 +1009,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const graphSummary = appMap
           ? appMap.nodes.length + " nodes · " + appMap.edges.length + " edges"
           : "Not traced yet";
-        app.innerHTML = topBack("Existing apps") +
+        buttons.replace(app, topBack("Existing apps") +
           '<header class="workspace-intro"><div class="eyebrow">App workspace</div><h1>' + escape(draft.appName) +
           '</h1><p>' + escape(draft.purpose) + '</p><div class="workspace-meta"><span class="badge">' +
           implemented + ' of ' + tiers.length + ' tiers discovered</span><code class="workspace-path">' +
@@ -1015,15 +1020,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<small id="gateway-summary">Discovering gateways…</small></div>' +
           '<p>Selecting a gateway configures this app automatically with its endpoint, key, and model settings.</p>' +
           '<div id="gateway-binding"></div><div class="configuration-actions">' +
-          '<button type="button" id="configure-gateway">Create / Manage</button></div></div>' +
+          '<button data-studio-button="secondary" type="button" id="configure-gateway">Create / Manage</button></div></div>' +
           '<div class="lifecycle-actions">' +
-          '<button type="button" data-app-command="provision-cloud">Provision with azd</button>' +
-          '<button type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div></div></details>' +
+          '<button data-studio-button="secondary" type="button" data-app-command="provision-cloud">Provision with azd</button>' +
+          '<button data-studio-button="secondary" type="button" data-app-command="deploy-cloud">Deploy with azd up</button></div></div></details>' +
           '<div class="section-label">Run</div>' +
           '<details class="surface runtime-region" open><summary class="surface-head"><h2 id="runtime-title">Local runtime</h2>' +
           '<div class="badges" id="local-status"><span class="badge">Checking</span></div></summary>' +
           '<div class="surface-body"><div id="local-guidance"></div>' +
-          '<div class="lifecycle-actions"><button type="button" class="primary" id="local-action" data-app-command="run-local">Run locally</button></div>' +
+          '<div class="lifecycle-actions"><button data-studio-button="primary" type="button" class="primary" id="local-action" data-app-command="run-local">Run locally</button></div>' +
           '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
           '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
           '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
@@ -1031,11 +1036,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<div class="section-label">Observe/Map</div>' +
           '<details class="surface app-map-region" open><summary class="surface-head">' +
           '<h2 id="app-map-title">App Map</h2><small>' + escape(graphSummary) + '</small></summary>' +
-          '<div class="surface-body"><div class="map-toolbar"><button type="button" class="icon-button map-expand" id="open-app-map"' +
+          '<div class="surface-body"><div class="map-toolbar"><button data-studio-button="secondary" type="button" class="icon-button map-expand" id="open-app-map"' +
           (appMap ? "" : " disabled") + ' aria-label="Open expanded App Map" title="Open expanded App Map">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4a1 1 0 1 0 0 2h2.59l-5.3 5.29a1 1 0 0 0 1.42 1.42L18 7.41V10a1 1 0 1 0 2 0V4h-6ZM5 6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3a1 1 0 1 0-2 0v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h3a1 1 0 0 0 0-2H5Z"/></svg></button></div>' +
           appMapVisual(appMap) +
-          '<div class="configuration-actions"><button type="button" id="trace-app">' +
+          '<div class="configuration-actions"><button data-studio-button="secondary" type="button" id="trace-app">' +
           (appMap ? "Refresh map" : "Tracing…") + '</button></div></div></details>' +
           '<div class="section-label">Inspect</div>' +
           '<details class="surface specialist-region"><summary class="surface-head">' +
@@ -1046,7 +1051,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<h2 id="inventory-title">Components by tier</h2><small>Evidence-derived inventory</small></summary>' +
           '<div class="surface-body"><div class="tier-list">' +
           tiers.map((tier) => '<div class="tier-card"><div class="mapping-heading"><h3>' + escape(tier.name) +
-            '</h3><button type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
+            '</h3><button data-studio-button="subtle" type="button" class="link" data-tier-action="' + escape(tier.id) + '">Deep dive</button></div>' +
             '<small>' + escape(tier.role || "") + '</small><p><strong>' +
             escape(tier.implementationState === "referenced-not-provisioned"
               ? "Referenced by source; not provisioned"
@@ -1064,11 +1069,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
                       evidence.path + ":" + evidence.line).join(" · ")) + '</small>'
                     : '') +
                   (item.kind === "source-project"
-                    ? '<br><button type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
+                    ? '<br><button data-studio-button="secondary" type="button" data-open-source="' + escape(item.projectPath) + '">Open source</button>'
                     : '')).join("")
               : 'No implementation discovered yet · scaffold available') +
             '</p></div>').join("") + '</div></div></details>' +
-          '<div class="danger-zone"><button type="button" id="delete-app">Delete app</button></div>';
+          '<div class="danger-zone"><button type="button" id="delete-app">Delete app</button></div>');
          wireTopBack(async () => {
           if (!sources) await loadSources();
           renderExistingApps();
@@ -1099,11 +1104,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             if ((running || stopping) && document.getElementById("local-command-panel")) {
               document.getElementById("local-command-panel").open = true;
             }
-             document.getElementById("entrypoints").innerHTML = (state.entrypoints || []).map((entrypoint) =>
+             buttons.replace(document.getElementById("entrypoints"), (state.entrypoints || []).map((entrypoint) =>
               '<div class="component-status"><span class="badge ' + (entrypoint.ready ? "http" : "") + '">' +
               escape(entrypoint.name) + ': ' + (entrypoint.ready ? "ready" : "offline") + '</span>' +
-              '<button type="button" data-entrypoint-port="' + entrypoint.port + '"' +
-              (entrypoint.ready ? "" : " disabled") + '>' + escape(entrypoint.url) + '</button></div>').join("");
+              '<button data-studio-button="secondary" type="button" data-entrypoint-port="' + entrypoint.port + '"' +
+              (entrypoint.ready ? "" : " disabled") + '>' + escape(entrypoint.url) + '</button></div>').join(""));
              document.querySelectorAll("[data-entrypoint-port]").forEach((button) => button.addEventListener("click", async () => {
                try {
                  await request("/api/open-entrypoint", {
@@ -1117,11 +1122,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
              const agentReady = (state.entrypoints || []).some((entrypoint) => entrypoint.port === 8088 && entrypoint.ready);
              const componentActions = document.getElementById("component-actions");
              if (agentReady && !componentActions.querySelector(".agent-tester")) {
-               componentActions.innerHTML = '<div class="agent-tester"><strong>Invoke agent</strong>' +
+               buttons.replace(componentActions, '<div class="agent-tester"><strong>Invoke agent</strong>' +
                  '<textarea id="agent-prompt" maxlength="2000" placeholder="Send a message to the running agent"></textarea>' +
-                 '<div><button type="button" id="send-agent-prompt">Invoke agent</button> ' +
-                 '<button type="button" id="open-agent-studio">Open agent studio</button></div>' +
-                 '<pre class="agent-response" id="agent-response"></pre></div>';
+                 '<div><button data-studio-button="secondary" type="button" id="send-agent-prompt">Invoke agent</button> ' +
+                 '<button data-studio-button="secondary" type="button" id="open-agent-studio">Open agent studio</button></div>' +
+                 '<pre class="agent-response" id="agent-response"></pre></div>');
                document.getElementById("send-agent-prompt").addEventListener("click", async () => {
                  const prompt = document.getElementById("agent-prompt").value.trim();
                  if (!prompt) return error("Enter a message for the local agent.");
@@ -1151,7 +1156,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
                  }
                });
              } else if (!agentReady) {
-               componentActions.innerHTML = "";
+               buttons.replace(componentActions, "");
              }
              const readiness = await request("/api/local-readiness?root=" + encodeURIComponent(result.worktreePath));
              document.getElementById("local-guidance").innerHTML = readiness.ready ? "" :
@@ -1173,8 +1178,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
              };
             const localAction = document.getElementById("local-action");
             localAction.dataset.appCommand = running ? "stop-local" : "run-local";
-            localAction.textContent = stopping ? "Stopping local app…" : (running ? "Stop local app" : "Run locally");
-            localAction.disabled = stopping;
+            buttons.update(localAction, {
+              children: stopping ? "Stopping local app…" : (running ? "Stop local app" : "Run locally"),
+              disabled: stopping,
+            });
           } catch (cause) {
             error(cause.message);
           }
@@ -1215,17 +1222,17 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
                   setBusy(false);
                 }
               }
-              document.getElementById("gateway-binding").innerHTML =
+              buttons.replace(document.getElementById("gateway-binding"),
                 '<label class="field">Active AI Gateway<select id="active-gateway">' +
                 '<option value="">Choose a gateway</option>' +
                 gatewayOptions.gateways.map((gateway) =>
                   '<option value="' + escape(gateway.name) + '"' +
                   (gatewayOptions.active?.name === gateway.name ? " selected" : "") + '>' +
                   escape(gateway.name + (gateway.resourceGroup ? " · " + gateway.resourceGroup : "")) +
-                  '</option>').join("") + '</select></label>';
+                  '</option>').join("") + '</select></label>');
              if (gatewayOptions.active) {
-                  document.getElementById("gateway-binding").innerHTML +=
-                    '<button type="button" data-app-command="configure-active-gateway">Configure app from active gateway</button>';
+                  const configure = buttons.create({ children: "Configure app from active gateway", "data-app-command": "configure-active-gateway" });
+                  document.getElementById("gateway-binding").append(buttons.host(configure));
                  document.querySelector('[data-app-command="configure-active-gateway"]').addEventListener("click", async () => {
                    await configureActiveGateway();
                  });
@@ -1249,8 +1256,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             } catch (cause) {
               const gatewaySummary = document.getElementById("gateway-summary");
               if (gatewaySummary) gatewaySummary.textContent = "Discovery unavailable";
-              document.getElementById("gateway-binding").innerHTML =
-                '<p>AI Gateway discovery unavailable: ' + escape(cause.message) + '</p>';
+              buttons.replace(document.getElementById("gateway-binding"),
+                '<p>AI Gateway discovery unavailable: ' + escape(cause.message) + '</p>');
             }
           }
         document.querySelectorAll("[data-app-command]").forEach((button) => button.addEventListener("click", async () => {
@@ -1321,7 +1328,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         async function traceAndRender(showProgress = true) {
           if (showProgress) setBusy(true, "Tracing source call graph…");
           const traceButton = document.getElementById("trace-app");
-          if (traceButton) traceButton.disabled = true;
+          if (traceButton) buttons.setDisabled(traceButton, true);
           try {
             const traced = await request("/api/app-map", {
               method: "POST",
@@ -1331,8 +1338,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           } catch (cause) {
             error(cause.message);
             if (traceButton) {
-              traceButton.disabled = false;
-              traceButton.textContent = "Retry map";
+              buttons.update(traceButton, { disabled: false, children: "Retry map" });
             }
           } finally {
             if (showProgress) setBusy(false, status.textContent);
@@ -1405,6 +1411,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       renderLanding();
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}
+      window.unityStudioReady = true;
+      window.dispatchEvent(new Event("unity-studio-ready"));
+      })().catch(cause => {
+        const status = document.getElementById("status");
+        status.className = "error";
+        status.textContent = "Could not load Studio controls: " + cause.message + ". Reload to retry.";
+      });
     </script>
   </body>
 </html>`;

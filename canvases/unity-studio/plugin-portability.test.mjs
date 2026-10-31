@@ -101,6 +101,17 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(response.status, 200);
         const html = await response.text();
         assert.match(html, /Create a new app/);
+        assert.match(html, /data-studio-presentation="github-app"/);
+        assert.deepEqual(canvas.inputSchema.properties.presentationProfile.enum, ["standalone", "github-app"]);
+        await assert.rejects(canvas.open({ ...context, input: { presentationProfile: "vscode" } }), /Unsupported/);
+        await assert.rejects(canvas.open({ ...context, input: { presentationProfile: null } }), /Unsupported/);
+        const standaloneContext = { ...context, instanceId: "standalone-smoke", input: { presentationProfile: "standalone" } };
+        try {
+          const standalone = await canvas.open(standaloneContext);
+          assert.match(await (await fetch(standalone.url)).text(), /data-studio-presentation="standalone"/);
+          const switched = await canvas.open({ ...standaloneContext, input: { presentationProfile: "github-app" } });
+          assert.match(await (await fetch(switched.url)).text(), /data-studio-presentation="github-app"/);
+        } finally { await canvas.onClose({ instanceId: standaloneContext.instanceId }); }
         assert.equal(new URL(opened.url).searchParams.get("intro"), "1");
         assert.match(html, /id="skip-studio-intro"/);
         for (const name of ["unity-symbol.png", "unity-intro.mp4"]) {
@@ -133,11 +144,13 @@ test("installed payload opens and materializes templates without checkout depend
           }
         }
         const toolkit = JSON.parse(await readFile(join(payload, "vendor/toolkit/provenance.json"), "utf8"));
-        assert.equal(toolkit.source.commit, "e29e5511b6bde9cd99a5026e300c7712deb2add8");
+        assert.equal(toolkit.source.commit, "63280d0d3b3a515bde6c1e48e9a3192bf8768b41");
         assert.equal(toolkit.source.published, false);
         assert.deepEqual(toolkit.files.map(file => file.route).sort(), [
           "/canvas-ui/LICENSE", "/canvas-ui/THIRD_PARTY_NOTICES.txt",
           "/canvas-ui/base.css", "/canvas-ui/base.mjs", "/canvas-ui/react-runtime.mjs", "/canvas-ui/styles.css",
+          "/canvas-ui/visual-profiles.mjs", "/canvas-ui/profiles/github-app.css",
+          "/canvas-ui/hosts/github-app/design.md", "/canvas-ui/hosts/github-app/theming.md",
         ].sort());
         for (const file of toolkit.files) {
           const assetUrl = new URL(file.route, opened.url);
@@ -171,6 +184,7 @@ test("installed payload opens and materializes templates without checkout depend
           "/assets/extension.mjs", "/assets/%2e%2e%2fextension.mjs",
           "/canvas-ui/extension.mjs", "/canvas-ui/%2e%2e%2fextension.mjs",
           "/canvas-ui/provenance.json", "/canvas-ui/fluent.mjs",
+          "/canvas-ui/profiles/coreai-azure.css", "/canvas-ui/hosts/github-app/private.md",
         ]) {
           const missing = await fetch(new URL(path, opened.url));
           assert.equal(missing.status, 404);
@@ -328,6 +342,7 @@ test("installed payload opens and materializes templates without checkout depend
         const map = await fetch(mapUrl);
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
+        assert.match(mapHtml, /data-studio-presentation="github-app"/);
         assert.match(mapHtml, /Change your app/);
         assert.match(mapHtml, /aria-label="Preferred external editor"/);
         assert.match(mapHtml, /build-help-tooltip/);

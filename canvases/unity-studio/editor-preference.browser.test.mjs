@@ -1,3 +1,4 @@
+import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -72,6 +73,8 @@ test("Settings and app review share one race-safe external editor preference", {
       route.fulfill({ contentType: "text/html", body: "<h1>Created workspace</h1>" }));
     const base = `http://127.0.0.1:${server.address().port}`;
     const reviewApp = async () => {
+      await installToolkitRoutes(page);
+
       await page.goto(base);
       await page.locator("#new-app").click();
       await page.locator('input[name="template"]').waitFor();
@@ -82,6 +85,9 @@ test("Settings and app review share one race-safe external editor preference", {
       await page.locator("#next").click();
       await page.locator("#preferred-editor").waitFor();
     };
+
+    await installToolkitRoutes(page);
+
 
     await page.goto(base);
     const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
