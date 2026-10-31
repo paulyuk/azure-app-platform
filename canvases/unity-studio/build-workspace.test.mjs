@@ -45,7 +45,7 @@ test("Build resolves allowlisted developer files and rejects arbitrary paths and
       assert.ok((await resolveBuildArtifactPath(root, id)).endsWith(artifact.path));
     }
     for (const id of ["../.env", "src/agent/main.py"]) {
-      await assert.rejects(resolveBuildArtifactPath(root, id), /known Build artifact/);
+      await assert.rejects(resolveBuildArtifactPath(root, id), /known Customize artifact/);
     }
     const path = join(root, "src/agent/prompts/system.md");
     await rm(path);

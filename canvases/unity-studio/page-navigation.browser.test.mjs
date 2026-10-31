@@ -75,7 +75,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator(".build-source-preview").first().waitFor();
       await page.locator("#app-status-badge").filter({ hasText: "Not running" }).waitFor();
       const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
-      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Run & Debug", "Observe"]);
+      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Customize", "Run & Debug", "Observe"]);
+      assert.equal(await page.locator("#workspace-location").textContent(), "Customize");
+      assert.equal(await page.locator("#details").getAttribute("aria-label"), "Customize workspace");
+      assert.equal(await nav.getByRole("button", { name: "Build", exact: true, includeHidden: true }).count(), 0);
       assert.equal(await page.locator(".header-actions").count(), 0);
       assert.equal(await page.locator("#workspace-navigation-mount > .ct-provider > .ct-shell").count(), 1);
       const select = async label => {
@@ -92,7 +95,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const fallbackColors = {};
         for (const tone of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, tone);
-          for (const label of ["Build", "Run & Debug", "Observe"]) {
+          for (const label of ["Customize", "Run & Debug", "Observe"]) {
             await select(label);
             assert.equal(await surface.getAttribute("data-mode"), width >= 1180 ? "sidebar" : "preview");
             await page.mouse.move(width - 1, 479);
@@ -125,7 +128,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.setViewportSize({ width: 620, height: 800 });
       await browse.focus();
       await page.keyboard.press("ArrowDown");
-      assert.equal(await nav.getByRole("button", { name: "Build", exact: true }).evaluate(node => node === document.activeElement), true);
+      assert.equal(await nav.getByRole("button", { name: "Customize", exact: true }).evaluate(node => node === document.activeElement), true);
       await page.keyboard.press("Tab");
       await page.keyboard.press("Enter");
       assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
@@ -156,7 +159,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await browse.click();
       assert.equal(await surface.getAttribute("data-mode"), "sidebar");
       // Stable canonical roots, exact draft nodes and Build selections survive updates and resizing.
-      await select("Build");
+      await select("Customize");
       await page.getByRole("tab", { name: "Runtime", exact: true }).click();
       const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
       if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
@@ -182,7 +185,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.evaluate(() => window.navigationMutations), 0);
       assert.equal(await draft.evaluate(node => node === document.activeElement), true);
       await page.evaluate(() => window.navigationObserver.disconnect());
-      await select("Build");
+      await select("Customize");
       await buildDisclosure.waitFor({ state: "attached" });
       assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await buildDisclosure.evaluate(node => node.open), false);

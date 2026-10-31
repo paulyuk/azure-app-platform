@@ -67,7 +67,7 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     assert.equal("editable" in agent, false);
     assert.equal(await readBuildRuntime(root), null);
     assert.equal(await documentDeploymentBlocker(root), null);
-    await assert.rejects(resolveBuildArtifactPath(root, "contract"), /known Build artifact/);
+    await assert.rejects(resolveBuildArtifactPath(root, "contract"), /known Customize artifact/);
   });
 });
 
@@ -125,7 +125,7 @@ test("custom declared paths scope read and open away from unrelated apps and lef
     await writeFile(join(root, "unity.app.yaml"), "name: not-an-inventory\n");
     await assert.rejects(readBuildWorkspace(root), /declare capabilities or components/);
     await writeFile(join(root, "unity.app.yaml"), "capabilities:\n  agent:\n    path: unrelated\n");
-    await assert.rejects(resolveBuildArtifactPath(root, worker.id), /known Build artifact/);
+    await assert.rejects(resolveBuildArtifactPath(root, worker.id), /known Customize artifact/);
   });
 });
 
@@ -171,7 +171,7 @@ test("generic source IDs remain bound to paths and cannot follow swapped symlink
     assert.equal(after.id, before.id);
     await rm(join(root, before.path));
     await symlink(join(root, "private.txt"), join(root, before.path));
-    await assert.rejects(resolveBuildArtifactPath(root, before.id), /known Build artifact|not symlinks/);
+    await assert.rejects(resolveBuildArtifactPath(root, before.id), /known Customize artifact|not symlinks/);
     assert.equal(await readFile(join(root, "private.txt"), "utf8"), "not source");
   });
 });

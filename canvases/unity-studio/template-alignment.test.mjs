@@ -60,7 +60,7 @@ test("fresh template synchronizes catalog, runtime, Build paths, instructions an
     assert.match(prompt, /Do not approve or deny loans/);
     assert.match(prompt, /document validation tool and agent harness checks/);
     const readme = await readFile(join(root, "README.md"), "utf8");
-    for (const expected of ["Edit in Code", "Policy checks passed", "ports.env", "src/tools/document-validation", "copilot-sdk-sandbox"]) {
+    for (const expected of ["Customize", "Edit in Files", "Policy checks passed", "ports.env", "src/tools/document-validation", "copilot-sdk-sandbox"]) {
       assert.ok(readme.includes(expected), `README must explain ${expected}`);
     }
     assert.doesNotMatch(readme, /https?:\/\/(?:127\.0\.0\.1|localhost):8088\/(?:invoke|test-document)/);
@@ -68,6 +68,7 @@ test("fresh template synchronizes catalog, runtime, Build paths, instructions an
     for (const path of (await allFiles(root)).filter((file) => file.endsWith(".md"))) {
       const content = await readFile(path, "utf8");
       assert.doesNotMatch(content, /__APP_NAME__|__PURPOSE__|__AGENT_INSTRUCTIONS__/);
+      assert.doesNotMatch(content, /\*\*Build(?: → Behavior)?\*\*/);
       for (const match of content.matchAll(/\]\(([^)\s]+)\)/g)) {
         const target = match[1].split("#")[0];
         if (!target || /^[a-z]+:/i.test(target)) continue;

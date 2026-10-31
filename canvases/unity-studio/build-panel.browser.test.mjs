@@ -116,13 +116,13 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await page.locator(".build-diff,.build-review-summary").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
 
-    const help = page.getByRole("button", { name: "About Build", exact: true });
+    const help = page.getByRole("button", { name: "About Customize", exact: true });
     const tooltip = page.getByRole("tooltip");
     assert.equal(await help.getAttribute("aria-describedby"), "build-help-tooltip");
     assert.equal(await tooltip.isHidden(), true);
     await help.hover();
     await tooltip.waitFor();
-    assert.match(await tooltip.innerText(), /recognized customization points.*saved source.*external editor/si);
+    assert.match(await tooltip.innerText(), /Customize shows recognized customization points.*saved source.*external editor/si);
     await tooltip.hover();
     assert.equal(await tooltip.isVisible(), true, "Pointer can move into the tooltip");
     await page.mouse.move(900, 700);
@@ -244,6 +244,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByText(/No supported customization points were found/).waitFor();
+    assert.match(await page.locator(".build-empty").innerText(), /Customize only shows recognized decision points/);
     assert.match(await page.locator("#details").innerText(), /Files|general implementation/i);
     assert.equal(await page.locator(".build-source-preview,textarea,[contenteditable=true]").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);

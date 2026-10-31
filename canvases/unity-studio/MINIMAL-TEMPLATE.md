@@ -118,7 +118,7 @@ Saved ports (`.unity-studio/ports.env`), runtime logs (`.dev-run/`), credentials
 (`src/agent/.env`), and dependency environments are local app state, not template
 payload. The selected port overrides the default `8088`. Changing the template
 does not migrate existing apps or overwrite their instructions and credentials.
-Studio's Build and document-test paths also support the older
+Studio's Customize and document-test paths also support the older
 `src/sandbox/tool/` layout.
 
 Studio allocates unused ports during template-workspace creation, before
@@ -130,7 +130,7 @@ Dealer templates. A direct materializer invocation does not allocate ports.
 ## Changing the template
 
 Update file references together: runtime code, Dockerfiles, manifests,
-`requiredPaths`, Studio Build mappings, docs, and tests. For startup changes,
+`requiredPaths`, Studio Customize mappings, docs, and tests. For startup changes,
 keep POSIX and PowerShell 7 scripts aligned. Python components use `uv` and the
 documented corporate package index.
 
@@ -141,7 +141,7 @@ node --test canvases/unity-studio/template-alignment.test.mjs canvases/unity-stu
 ```
 
 These cover fresh generation, required files, portable documentation links,
-component discovery, runtime contracts, and legacy/current Build paths.
+component discovery, runtime contracts, and legacy/current Customize paths.
 For runtime behavior changes, create a fresh app through Unity Studio and run
 the Python tests described in its generated README. Do not run unrendered
 `.template` projects as if they were generated apps.

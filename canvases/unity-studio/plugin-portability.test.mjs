@@ -287,7 +287,7 @@ test("installed payload opens and materializes templates without checkout depend
         assert.match((await outsideOpen.json()).error, /must stay within the current workspace/);
         const arbitrary = await api("/api/open-build-file-canvas", { root: ".", id: "../outside" });
         assert.equal(arbitrary.status, 400);
-        assert.match((await arbitrary.json()).error, /known Build artifact/);
+        assert.match((await arbitrary.json()).error, /known Customize artifact/);
         globalThis.portabilityEditorCanvases = [];
         const missingCanvas = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
         assert.equal(missingCanvas.status, 503);

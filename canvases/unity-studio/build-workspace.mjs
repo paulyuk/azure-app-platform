@@ -29,18 +29,18 @@ async function existingPath(root, path, directory = false) {
   catch (error) { if (error.code === "ENOENT") return false; throw error; }
   if (info.isSymbolicLink() || await realpath(candidate) !== join(await realpath(root), path)) {
     throw new Error(directory
-      ? "Build artifact must be a directory inside the selected app, not a symlink."
-      : "Build artifacts must stay inside the selected app, not symlinks.");
+      ? "Customize artifact must be a directory inside the selected app, not a symlink."
+      : "Customize artifacts must stay inside the selected app, not symlinks.");
   }
   if (directory ? !info.isDirectory() : !info.isFile()) {
-    throw new Error(`Expected a ${directory ? "directory" : "file"} for Build artifact ${path}.`);
+    throw new Error(`Expected a ${directory ? "directory" : "file"} for Customize artifact ${path}.`);
   }
   return true;
 }
 
 function parseAppScope(content) {
   if (!/^(?:capabilities|components)\s*:/m.test(content)) {
-    throw new Error("Unity app inventory must declare capabilities or components before Build can select source.");
+    throw new Error("Unity app inventory must declare capabilities or components before Customize can select source.");
   }
   const components = parseUnityManifest({ path: "unity.app.yaml", content });
   for (const item of components) {
@@ -194,15 +194,15 @@ async function artifactPath(root, artifact) {
   const canonicalRoot = await realpath(root);
   const path = resolve(canonicalRoot, artifact.path);
   if ((await lstat(path)).isSymbolicLink()) {
-    throw new Error("Build artifacts must be regular files inside the selected app, not symlinks.");
+    throw new Error("Customize artifacts must be regular files inside the selected app, not symlinks.");
   }
   const actual = await realpath(path);
   const local = relative(canonicalRoot, actual);
   if (actual !== path || local.startsWith("..") || (await lstat(path)).isSymbolicLink()) {
-    throw new Error("Build artifacts must be regular files inside the selected app, not symlinks.");
+    throw new Error("Customize artifacts must be regular files inside the selected app, not symlinks.");
   }
   const info = await lstat(path);
-  if (!info.isFile() || info.size > MAX_BYTES) throw new Error("Build artifact exceeds the 96 KiB preview limit or is not a file.");
+  if (!info.isFile() || info.size > MAX_BYTES) throw new Error("Customize artifact exceeds the 96 KiB preview limit or is not a file.");
   return path;
 }
 
@@ -236,7 +236,7 @@ export async function readBuildWorkspace(root) {
 export async function resolveBuildArtifactPath(root, id) {
   const artifact = await buildArtifact(root, id);
   if (!artifact) {
-    const error = new Error("Choose a known Build artifact.");
+    const error = new Error("Choose a known Customize artifact.");
     error.statusCode = 400;
     throw error;
   }
@@ -267,7 +267,7 @@ export async function resolveProjectSourcePath(root, projectPath) {
     const artifact = artifacts.find((item) => item.path === path);
     if (artifact && await existingPath(root, path)) return artifactPath(root, artifact);
   }
-  const error = new Error("No recognized source file is available for this project in the app's source catalog. Review Key files or open the project with Build's external-editor option.");
+  const error = new Error("No recognized source file is available for this project in the app's source catalog. Review Key files or open the project with Customize's external-editor option.");
   error.statusCode = 404;
   throw error;
 }

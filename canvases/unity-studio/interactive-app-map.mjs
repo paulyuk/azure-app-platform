@@ -847,7 +847,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </header>
   <div id="workspace-content">
     <div id="workspace-runtime-bar">
-      <span class="workspace-location">Page: <strong id="workspace-location">Build</strong></span>
+      <span class="workspace-location">Page: <strong id="workspace-location">Customize</strong></span>
       <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
       <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
     </div>
@@ -1047,7 +1047,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const navigationRetry = document.querySelector("#retry-workspace-navigation");
     const navigationMessage = document.querySelector("#workspace-navigation-message");
     const navigationItems = [
-      { value: "build", label: "Build", button: { id: "build-app", "aria-controls": "workspace-shell" } },
+      { value: "build", label: "Customize", button: { id: "build-app", "aria-controls": "workspace-shell" } },
       { value: "manage", label: "Run & Debug", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
       { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
     ];
@@ -1983,7 +1983,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
       details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
-        mode === "build" ? "Build workspace" : mode === "logs" ? "Logs workspace" : "Run/Debug workspace");
+        mode === "build" ? "Customize workspace" : mode === "logs" ? "Logs workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
       updateObserveAction();
