@@ -200,13 +200,17 @@ try {
     $acaRegion = $env:ACA_REGION
     $acaSubscription = $env:ACA_SUBSCRIPTION
     $acaConfigPath = Join-Path $HOME '.config\aca\config.json'
-    if ([string]::IsNullOrWhiteSpace($acaSandboxGroup) -and (Test-Path $acaConfigPath)) {
+    if ($env:ACA_SANDBOX_DISABLE -ne '1' -and [string]::IsNullOrWhiteSpace($acaSandboxGroup) -and (Test-Path $acaConfigPath)) {
         try {
             $acaConfig = Get-Content -Raw $acaConfigPath | ConvertFrom-Json
             if ($acaConfig.sandbox_group) { $acaSandboxGroup = [string]$acaConfig.sandbox_group }
+            elseif ($acaConfig.sandbox -and $acaConfig.sandbox.group) { $acaSandboxGroup = [string]$acaConfig.sandbox.group }
             if ($acaConfig.resource_group) { $acaResourceGroup = [string]$acaConfig.resource_group }
+            elseif ($acaConfig.sandbox -and $acaConfig.sandbox.resource_group) { $acaResourceGroup = [string]$acaConfig.sandbox.resource_group }
             if ($acaConfig.region) { $acaRegion = [string]$acaConfig.region }
+            elseif ($acaConfig.sandbox -and $acaConfig.sandbox.region) { $acaRegion = [string]$acaConfig.sandbox.region }
             if ($acaConfig.subscription) { $acaSubscription = [string]$acaConfig.subscription }
+            elseif ($acaConfig.sandbox -and $acaConfig.sandbox.subscription) { $acaSubscription = [string]$acaConfig.sandbox.subscription }
         } catch { }
     }
 

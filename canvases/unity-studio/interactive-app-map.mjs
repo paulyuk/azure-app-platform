@@ -238,6 +238,12 @@ export function buildActionCenterModel(appMap) {
           ? "Operational signals cover the app"
           : hasObservability ? "Extend signals across the request path" : "Add telemetry and health",
       },
+      {
+        id: "deploy",
+        label: "Deploy",
+        state: "blocked",
+        detail: "Provision and deploy to Azure",
+      },
     ],
     opportunities,
   };
@@ -250,6 +256,18 @@ export function buildJourneyStages(stages, operationalState, activeLifecycleStat
   const runtimeKnown = running || transitioning || appState === "failed" || operationalState.readiness?.ready;
   let prerequisite = null;
   return stages.map((stage) => {
+    if (stage.id === "deploy") {
+      if (appState === "provisioning" || appState === "deploying") {
+        return { ...stage, state: "active", detail: appState === "provisioning" ? "Provisioning Azure resources…" : "Deploying to Azure…" };
+      }
+      if (operationalState.readiness?.deploymentBlocker) {
+        return { ...stage, state: "blocked", detail: "Resolve deployment blocker before deploying" };
+      }
+      if (operationalState.readiness?.gatewayConfigured) {
+        return { ...stage, state: running ? "ready" : "next", detail: "Ready to provision or deploy to Azure" };
+      }
+      return { ...stage, state: "blocked", detail: "Connect AI Gateway before deploying" };
+    }
     if (stage.id === "observe") {
       return { ...stage, state: running ? "active" : "blocked", detail: running
         ? operationalState.readiness?.mode === "preview"
@@ -461,6 +479,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     connect: "link",
     run: "play",
     observe: "eye",
+    deploy: "cloud",
   };
   const guideShortcutsHtml = model.actionCenter.stages.map((stage) =>
     `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status">${renderOcticon(guideStageIcons[stage.id], { size: 20 })}<span class="guide-state-icon" aria-hidden="true">${renderOcticon("stopwatch", { size: 12 })}</span></button>`,
@@ -1027,7 +1046,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let gatewayState = null;
     let operationalFingerprint = "";
     let lifecycleOperation = null;
-    let agentPromptDraft = "";
+    const hasSandboxNode = MODEL.nodes.some((node) => node.tierId === "sandbox");
+    const hasDealershipSkill = MODEL.nodes.some((node) => /inventory|trade-in|rate-sheet|deal-doc/i.test(node.name));
+    let agentPromptDraft = hasDealershipSkill
+      ? "Find a family SUV under $38,000 and estimate my monthly payment"
+      : hasSandboxNode
+        ? "Process document"
+        : "Summarize how you can help and run a sample check";
+    let agentPromptTouched = false;
     let agentResponseText = "The agent response will appear here.";
     let invokingAgent = false;
     let agentDocument = null;
@@ -1060,6 +1086,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       { value: "build", label: "Customize", button: { id: "build-app", "aria-controls": "workspace-shell" } },
       { value: "manage", label: "Run & Debug", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
       { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
+      { value: "deploy", label: "Deploy", button: { id: "deploy-app", "aria-controls": "workspace-shell" } },
     ];
     const navigationPreferenceKey = "unity-workspace:" + MODEL.root + ":navigation-collapsed";
     let navigationCollapsed = false;
@@ -1095,6 +1122,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       onNavigate: (_event, value) => {
         if (value === "build") renderBuildPanel();
         else if (value === "manage") renderManagePanel();
+        else if (value === "deploy") renderDeployPanel();
         else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
           if (observeView === "logs") renderLogsPanel();
           else renderMapPanel();
@@ -1158,7 +1186,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       onClear: buttons.clear,
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
-      renderDeployment,
+      renderEnvironment: renderEnvironmentPanel,
       renderOutput: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "h3", "Command output");
@@ -1973,12 +2001,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function updateModeHighlight() {
       if (panelMode !== "build") buildPanel.hide();
-      const mode = ["build", "manage", "logs"].includes(panelMode) ? panelMode : "map";
+      const mode = ["build", "manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
       if (panelMode !== "map") setStructureGuidance(false);
       const observing = mode === "map" || mode === "logs";
       if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
-      document.body.dataset.inspecting = String(!["build", "manage", "logs", "map"].includes(panelMode));
+      document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
       const current = observing ? "observe" : mode;
       document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
@@ -1993,7 +2021,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
       details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
-        mode === "build" ? "Customize workspace" : mode === "logs" ? "Logs workspace" : "Run/Debug workspace");
+        mode === "build" ? "Customize workspace" : mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
       updateObserveAction();
@@ -2055,6 +2083,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       void buildPanel.show();
     }
 
+    function renderDeployPanel() {
+      clearDocumentAssessment();
+      panelMode = "deploy";
+      selectedId = null;
+      selectedEdgeId = null;
+      applySelection();
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "deploy";
+      updateModeHighlight();
+
+      const header = appendText(details, "div", "", "manage-header");
+      const titleGroup = appendText(header, "div", "", "manage-title-group");
+      appendText(titleGroup, "h2", "Deploy to Azure");
+      appendText(titleGroup, "p", "Provision cloud infrastructure and deploy application code once local validation and observation are complete.");
+
+      const body = appendText(details, "div", "", "run-tab-body");
+      renderDeploymentPanel(body);
+    }
+
     function renderLogsPanel(nodeId = null) {
       panelMode = "logs";
       selectedId = null;
@@ -2099,7 +2147,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return (${buildJourneyStages.toString()})(MODEL.actionCenter.stages, operationalState, ACTIVE_LIFECYCLE_STATES);
     }
 
-    async function runAppOperation(operation) {
+    async function runAppOperation(operation, extraBody = {}) {
       if (lifecycleOperation) return;
       lifecycleOperation = operation;
       const labels = {
@@ -2108,6 +2156,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "configure-gateway": "Configuring model access…",
         "provision-cloud": "Provisioning Azure resources…",
         "deploy-cloud": "Deploying app to Azure…",
+        "install-prereq-uv": "Installing uv…",
+        "install-prereq-aca": "Installing ACA Sandbox CLI…",
+        "install-prereq-aigateway": "Installing Azure AI Gateway CLI…",
+        "az-login": "Signing in to Azure…",
+        "create-sandbox-group": "Creating ACA Sandbox Group…",
+        "bootstrap-starter-gateway": "Provisioning starter AI Gateway & models…",
+        "onboard-gateway-models": "Onboarding Foundry models to AI Gateway…",
       };
       const states = {
         "run-local": "starting",
@@ -2115,6 +2170,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "configure-gateway": "configuring",
         "provision-cloud": "provisioning",
         "deploy-cloud": "deploying",
+        "install-prereq-uv": "configuring",
+        "install-prereq-aca": "configuring",
+        "install-prereq-aigateway": "configuring",
+        "az-login": "configuring",
+        "create-sandbox-group": "configuring",
+        "bootstrap-starter-gateway": "provisioning",
+        "onboard-gateway-models": "configuring",
       };
       setStatus(labels[operation] || "Updating app…");
       operationalState = {
@@ -2130,7 +2192,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       try {
         await apiRequest("/api/app-command", {
           method: "POST",
-          body: JSON.stringify({ root: MODEL.root, operation }),
+          body: JSON.stringify({ root: MODEL.root, operation, ...extraBody }),
         });
         await refreshOperationalState();
       } catch (error) {
@@ -2403,13 +2465,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           item.setAttribute("aria-current", "step");
         }
         let content = item;
-        if (stage.id === "build" || stage.id === "connect") {
+        if (stage.id === "build" || stage.id === "connect" || stage.id === "deploy") {
           content = document.createElement("button");
           content.type = "button";
-          content.dataset.actionKey = stage.id === "build" ? "edit-app-structure" : "review-connections";
+          content.dataset.actionKey = stage.id === "build"
+            ? "edit-app-structure"
+            : stage.id === "connect"
+              ? "review-connections"
+              : "open-deploy";
           content.className = "journey-stage-action";
-          content.setAttribute("aria-label", stage.id === "build" ? "Build: edit app structure" : "Connect: review connections");
-          content.addEventListener("click", stage.id === "build" ? renderStructureMap : renderConnectionsPanel);
+          content.setAttribute("aria-label", stage.id === "build"
+            ? "Build: edit app structure"
+            : stage.id === "connect"
+              ? "Connect: review connections"
+              : "Deploy: provision and deploy to Azure");
+          content.addEventListener("click", stage.id === "build"
+            ? renderStructureMap
+            : stage.id === "connect"
+              ? renderConnectionsPanel
+              : renderDeployPanel);
           item.append(content);
         }
         appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
@@ -2431,6 +2505,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(card, "strong", "Observe the running app");
         appendText(card, "p", "Select a component to inspect its source, or open Logs for service output. Runtime controls remain in Run/Debug.");
         updateObserveAction();
+      } else if (currentStage?.id === "deploy") {
+        const card = appendText(details, "div", "", "action-card recommended");
+        appendText(card, "strong", "Deploy to Azure");
+        appendText(card, "p", "Provision Azure infrastructure and deploy your app once local observation is complete.");
+        const actions = appendText(card, "div", "", "field-actions");
+        buttons.append(actions, actionButton("Open Deploy", () => renderDeployPanel(), true));
       } else if (currentStage?.id === "run" || !currentOpportunity) {
         renderRuntimeAction(details);
       } else {
@@ -2495,18 +2575,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         params.set("gatewayName", selectedGateway.name);
         params.set("resourceGroup", selectedGateway.resourceGroup);
       }
+      const existingFields = container.querySelectorAll("select, button");
+      for (const el of existingFields) el.disabled = true;
       const discovery = gatewayDiscovery.begin(params.toString(),
         () => apiRequest("/api/gateway-options?" + params), refresh);
       try {
         const options = await discovery.promise;
-        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
+        const detailsScroll = details.scrollTop;
+        const containerScroll = container.scrollTop;
         gatewayState = options;
         selectedSubscriptionId = options.subscription?.id || "";
         selectedGateway = options.suggested;
         clearElement(container);
         for (const warning of options.warnings || []) appendText(container, "p", warning, "error");
         const activeName = gatewayState.active?.name || "";
+
+        const subGroup = appendText(container, "div", "", "field-group");
         const subscriptionSelect = document.createElement("select");
         subscriptionSelect.setAttribute("aria-label", "Azure subscription");
         for (const subscription of gatewayState.subscriptions || []) {
@@ -2516,8 +2602,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           option.selected = subscription.id === gatewayState.subscription?.id;
           subscriptionSelect.append(option);
         }
-        appendField(container, "Azure subscription", subscriptionSelect);
-        buttons.append(container, actionButton("Refresh subscriptions & gateways", () => {
+        appendField(subGroup, "Azure subscription", subscriptionSelect);
+        const subActions = appendText(subGroup, "div", "", "field-actions");
+        buttons.append(subActions, actionButton("Refresh", () => {
           void loadGatewayControls(container, true);
         }));
         subscriptionSelect.addEventListener("change", () => {
@@ -2526,16 +2613,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           selectedModel = "";
           void loadGatewayControls(container);
         });
-        appendText(
-          container,
-          "p",
-          activeName
-            ? "Active gateway: " + activeName
-            : "No AI Gateway is connected to this app yet.",
-        );
+
+        const gwGroup = appendText(container, "div", "", "field-group");
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", "AI Gateway");
         if (gatewayState.gateways.length) {
-          const select = document.createElement("select");
-          select.setAttribute("aria-label", "AI Gateway");
           const empty = document.createElement("option");
           empty.value = "";
           empty.textContent = "Choose an AI Gateway";
@@ -2550,21 +2632,92 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               gateway.resourceGroup === gatewayState.suggested?.resourceGroup;
             select.append(option);
           }
-          appendField(container, "AI Gateway", select);
-          select.addEventListener("change", () => {
+          select.addEventListener("change", async () => {
             selectedGateway = options.gateways[Number(select.value)];
             selectedModel = "";
-            void loadGatewayControls(container);
+            modelSelect.disabled = true;
+            modelSelect.innerHTML = "<option>Loading models…</option>";
+            const modelParams = new URLSearchParams({
+              root: MODEL.root,
+              subscriptionId: selectedGateway.subscriptionId || selectedSubscriptionId,
+              gatewayName: selectedGateway.name,
+              resourceGroup: selectedGateway.resourceGroup,
+            });
+            try {
+              const nextOptions = await apiRequest("/api/gateway-options?" + modelParams);
+              if (!container.isConnected) return;
+              gatewayState = nextOptions;
+              options.models = nextOptions.models || [];
+              modelSelect.innerHTML = "";
+              const nextModels = options.models;
+              const nextDefault = nextModels.find((model) => /^gpt-latest$/i.test(model.id))?.id
+                || nextModels.find((model) => !/mini|nano/i.test(model.id))?.id
+                || nextModels[0]?.id
+                || "";
+              selectedModel = nextModels.find((model) => model.id === nextOptions.active?.model)?.id || nextDefault;
+              if (nextModels.length) {
+                for (const model of nextModels) {
+                  const option = document.createElement("option");
+                  option.value = model.id;
+                  option.textContent = model.label;
+                  option.selected = model.id === selectedModel;
+                  modelSelect.append(option);
+                }
+                modelSelect.disabled = false;
+                modelGroup.querySelector(".field-actions")?.remove();
+              } else {
+                const emptyOpt = document.createElement("option");
+                emptyOpt.value = "";
+                emptyOpt.textContent = "No models configured";
+                modelSelect.append(emptyOpt);
+                modelSelect.disabled = true;
+                if (!modelGroup.querySelector(".field-actions")) {
+                  const modelActions = appendText(modelGroup, "div", "", "field-actions");
+                  buttons.append(modelActions, actionButton("Configure Model", async () => {
+                    if (window.unityStudioSettings?.isOpen()) window.unityStudioSettings.close();
+                    await runAppOperation("onboard-gateway-models", {
+                      subscriptionId: selectedGateway.subscriptionId,
+                      resourceGroup: selectedGateway.resourceGroup,
+                      gatewayName: selectedGateway.name,
+                    });
+                  }));
+                }
+              }
+              const applyBtn = container.querySelector('[data-gateway-apply="true"]');
+              if (applyBtn) {
+                buttons.setDisabled(applyBtn, !nextModels.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
+              }
+            } catch (err) {
+              setStatus(err.message, true);
+            }
           });
-          const modelSelect = document.createElement("select");
-          modelSelect.setAttribute("aria-label", "AI model");
-          const models = options.models || [];
-          const preferredDefaultModel = models.find((model) => /^gpt-latest$/i.test(model.id))?.id
-            || models.find((model) => !/mini|nano/i.test(model.id))?.id
-            || models[0]?.id
-            || "";
-          selectedModel = models.find((model) => model.id === selectedModel)?.id
-            || models.find((model) => model.id === options.active?.model)?.id || preferredDefaultModel;
+        } else {
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "No AI Gateways in subscription";
+          select.append(empty);
+          select.disabled = true;
+        }
+        appendField(gwGroup, "AI Gateway", select);
+        const gwActions = appendText(gwGroup, "div", "", "field-actions");
+        buttons.append(gwActions, actionButton("Create Gateway", async () => {
+          if (window.unityStudioSettings?.isOpen()) window.unityStudioSettings.close();
+          await runAppOperation("bootstrap-starter-gateway", {
+            subscriptionId: options.subscription?.id || "",
+          });
+        }));
+
+        const modelGroup = appendText(container, "div", "", "field-group");
+        const modelSelect = document.createElement("select");
+        modelSelect.setAttribute("aria-label", "AI model");
+        const models = options.models || [];
+        const preferredDefaultModel = models.find((model) => /^gpt-latest$/i.test(model.id))?.id
+          || models.find((model) => !/mini|nano/i.test(model.id))?.id
+          || models[0]?.id
+          || "";
+        selectedModel = models.find((model) => model.id === selectedModel)?.id
+          || models.find((model) => model.id === options.active?.model)?.id || preferredDefaultModel;
+        if (models.length) {
           for (const model of models) {
             const option = document.createElement("option");
             option.value = model.id;
@@ -2572,31 +2725,91 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             option.selected = model.id === selectedModel;
             modelSelect.append(option);
           }
-          modelSelect.disabled = !models.length;
-          modelSelect.addEventListener("change", () => {
-            selectedModel = modelSelect.value;
-            gatewayDiscovery.invalidate();
+        } else {
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "No models configured";
+          modelSelect.append(empty);
+        }
+        modelSelect.disabled = !models.length;
+        modelSelect.addEventListener("change", () => {
+          selectedModel = modelSelect.value;
+          gatewayDiscovery.invalidate();
+        });
+        appendField(modelGroup, "Model", modelSelect);
+        if (gatewayState.gateways.length && !models.length) {
+          const activeCandidate = options.gateways[Number(select.value)] || gatewayState.suggested;
+          if (activeCandidate) {
+            const modelActions = appendText(modelGroup, "div", "", "field-actions");
+            buttons.append(modelActions, actionButton("Configure Model", async () => {
+              if (window.unityStudioSettings?.isOpen()) window.unityStudioSettings.close();
+              await runAppOperation("onboard-gateway-models", {
+                subscriptionId: activeCandidate.subscriptionId,
+                resourceGroup: activeCandidate.resourceGroup,
+                gatewayName: activeCandidate.name,
+              });
+            }));
+          }
+        }
+
+        const sbGroup = appendText(container, "div", "", "field-group");
+        const sandboxGroups = options.sandboxGroups || [];
+        const sandboxSelect = document.createElement("select");
+        sandboxSelect.setAttribute("aria-label", "ACA Sandbox Group");
+        const activeSandboxName = options.active?.sandboxGroup?.name || options.suggestedSandboxGroup?.name || "";
+        for (const [index, sg] of sandboxGroups.entries()) {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = sg.name + (sg.resourceGroup ? " · " + sg.resourceGroup : "");
+          option.selected = sg.name === activeSandboxName;
+          sandboxSelect.append(option);
+        }
+        const simOption = document.createElement("option");
+        simOption.value = "local-simulation";
+        simOption.textContent = "Local simulation mode (no microVM)";
+        simOption.selected = !sandboxGroups.length || !activeSandboxName;
+        sandboxSelect.append(simOption);
+        appendField(sbGroup, "ACA Sandbox Group", sandboxSelect);
+        const sbActions = appendText(sbGroup, "div", "", "field-actions");
+        buttons.append(sbActions, actionButton("Create Sandbox Group", async () => {
+          const activeCandidate = options.gateways[Number(select.value)] || gatewayState.suggested;
+          if (window.unityStudioSettings?.isOpen()) window.unityStudioSettings.close();
+          await runAppOperation("create-sandbox-group", {
+            subscriptionId: options.subscription?.id || activeCandidate?.subscriptionId || "",
+            resourceGroup: activeCandidate?.resourceGroup || "rg-unity-poc-aigateway",
+            location: activeCandidate?.location || "eastus2",
+            sandboxGroupName: "aca-sandboxes-samples",
           });
-          appendField(container, "Model", modelSelect);
-          if (!models.length) appendText(container, "p", options.warnings?.length
-            ? "Model inventory could not be verified. Review discovery errors or choose another gateway."
-            : "This gateway has no models. Select another gateway or add a model in AI Gateway Studio.", "error");
+        }));
+
+        if (gatewayState.gateways.length) {
+          const applyRow = appendText(container, "div", "", "field-actions");
           const apply = actionButton(
-            activeName ? "Apply or reconfigure" : "Connect gateway",
+            "Apply",
             async () => {
               if (!select.value || !modelSelect.value || lifecycleOperation || gatewayApplying) return;
               gatewayApplying = true;
               gatewayDiscovery.invalidate();
               buttons.setDisabled(apply, true);
-              subscriptionSelect.disabled = select.disabled = modelSelect.disabled = true;
+              buttons.setText(apply, "Applying…");
+              const envTabSummary = details.querySelector('[data-run-tab="environment"] .run-tab-summary');
+              if (envTabSummary) {
+                envTabSummary.textContent = "Applying…";
+                envTabSummary.dataset.attention = "false";
+              }
+              subscriptionSelect.disabled = select.disabled = modelSelect.disabled = sandboxSelect.disabled = true;
               try {
                 const gateway = options.gateways[Number(select.value)];
+                const chosenSandboxGroup = sandboxGroups.length && sandboxSelect.value !== "local-simulation"
+                  ? sandboxGroups[Number(sandboxSelect.value)]
+                  : null;
                 const result = await apiRequest("/api/active-gateway", {
                   method: "POST",
                   body: JSON.stringify({
                     root: MODEL.root, name: gateway.name, resourceGroup: gateway.resourceGroup,
                     subscriptionId: gateway.subscriptionId,
                     model: modelSelect.value,
+                    sandboxGroup: chosenSandboxGroup,
                   }),
                 });
                 gatewayState.active = result.active;
@@ -2614,24 +2827,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 setStatus(error.message, true);
               } finally {
                 gatewayApplying = false;
-                window.unityStudioSettings.refreshApp();
+                window.unityStudioSettings?.refreshApp();
                 if (panelMode === "manage") renderManagePanel();
               }
             },
             true,
           );
+          apply.dataset.gatewayApply = "true";
           buttons.setDisabled(apply, !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
-          buttons.append(container, apply);
-        } else {
-          appendText(container, "p", "No AI Gateway found in this subscription. Create one to connect a model.");
+          buttons.append(applyRow, apply);
         }
-        const gatewayTier = tierById.get("gateway");
-        buttons.append(container, actionButton("Create or manage gateways", () => {
-          window.unityStudioSettings.close();
-          openTierStudio(gatewayTier);
-        }));
+        details.scrollTop = detailsScroll;
+        container.scrollTop = containerScroll;
       } catch (error) {
-        if (!container.isConnected || !window.unityStudioSettings?.isOpen("connection") || requestedSubscription !== selectedSubscriptionId ||
+        if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
         appendText(container, "p", error.message, "error");
@@ -2941,6 +3150,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         prompt.placeholder = "Write a message while the agent starts";
         prompt.setAttribute("aria-label", "Agent message");
         prompt.addEventListener("input", () => {
+          agentPromptTouched = true;
           agentPromptDraft = prompt.value;
         });
         const actions = document.createElement("div");
@@ -2982,6 +3192,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       prompt.placeholder = "Send a message to the running agent";
       prompt.setAttribute("aria-label", "Agent message");
       prompt.addEventListener("input", () => {
+        agentPromptTouched = true;
         agentPromptDraft = prompt.value;
       });
       const response = document.createElement("div");
@@ -3205,7 +3416,87 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (operationalState.app?.foreignEntrypoints?.length) {
         buttons.append(container, actionButton("Resolve port conflict", () => openAppSettings("ports")));
       }
+      renderPrerequisiteBanner(container);
       renderAgentTester(container);
+    }
+
+    function renderPrerequisiteBanner(parent) {
+      const missingTools = operationalState.readiness?.prerequisites?.missingTools || [];
+      if (!missingTools.length) return;
+      const card = document.createElement("div");
+      card.className = "action-card run-card attention";
+      appendText(card, "span", "Prerequisites", "action-priority");
+      appendText(card, "strong", "Missing local prerequisites (" + missingTools.length + ")");
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      for (const item of missingTools) {
+        appendText(card, "p", item.label + ": " + item.command);
+        if (item.actionOperation && item.actionLabel) {
+          buttons.append(actions, actionButton(item.actionLabel, () => runAppOperation(item.actionOperation)));
+        }
+      }
+      if (actions.childElementCount) card.append(actions);
+      parent.append(card);
+    }
+
+    function renderPrerequisitesSettings(container) {
+      const prereqs = operationalState.readiness?.prerequisites;
+      const items = prereqs?.items || [];
+      appendText(
+        container,
+        "p",
+        prereqs?.ready
+          ? "All local CLI prerequisites are installed and authenticated."
+          : "Install or sign in to missing local CLI tools below.",
+      );
+      for (const item of items) {
+        const row = document.createElement("div");
+        row.className = "endpoint-row";
+        row.dataset.ready = String(Boolean(item.ready));
+        const heading = document.createElement("div");
+        heading.className = "endpoint-heading";
+        appendText(heading, "strong", item.label);
+        appendText(heading, "span", item.ready ? "Ready" : "Missing", "endpoint-status");
+        row.append(heading);
+        if (item.detail) appendText(row, "small", item.detail);
+        if (!item.ready && item.command) appendText(row, "code", item.command);
+        if (!item.ready && item.actionOperation && item.actionLabel) {
+          buttons.append(row, actionButton(item.actionLabel, async () => {
+            if (window.unityStudioSettings?.isOpen()) window.unityStudioSettings.close();
+            await runAppOperation(item.actionOperation);
+          }, true));
+        }
+        container.append(row);
+      }
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      buttons.append(actions, actionButton("Re-check prerequisites", async () => {
+        try {
+          const refreshed = await apiRequest("/api/local-readiness?root=" + encodeURIComponent(MODEL.root) + "&refresh=true");
+          operationalState = { ...operationalState, readiness: refreshed };
+          window.unityStudioSettings?.refreshApp();
+          if (panelMode === "manage") renderManagePanel();
+          setStatus("Refreshed local prerequisite status.");
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }));
+      container.append(actions);
+    }
+
+    function renderEnvironmentPanel(envSection) {
+      const prereqBlock = document.createElement("div");
+      prereqBlock.className = "gateway-fields";
+      appendText(prereqBlock, "h3", "Prerequisites & CLI tools");
+      renderPrerequisitesSettings(prereqBlock);
+      envSection.append(prereqBlock);
+
+      const gatewayBlock = document.createElement("div");
+      gatewayBlock.className = "gateway-fields";
+      gatewayBlock.style.marginTop = "16px";
+      appendText(gatewayBlock, "h3", "AI Gateway & ACA Sandbox Group");
+      renderAppSettingsSection("connection", gatewayBlock);
+      envSection.append(gatewayBlock);
     }
 
     function openAppSettings(section) {
@@ -3213,16 +3504,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderAppSettingsSection(section, container) {
+      if (section === "prereqs") { renderPrerequisitesSettings(container); return; }
       if (section === "ports") { renderPortControls(container); return; }
       if (section === "danger") { renderDeleteSettings(container); return; }
       const appState = operationalState.app?.state;
       const readiness = operationalState.readiness;
-      appendText(container, "p", readiness?.gatewayConfigured
-        ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name +
-          (readiness.sandboxGroup?.name ? " · Sandbox: " + readiness.sandboxGroup.name : "")
-        : "Connect an AI Gateway and model to enable the agent workflow.");
-      if (appState === "running" || ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(container, "p", appState === "running" ? "Stop the local app before changing its AI Gateway."
+      const configuring = appState === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
+      appendText(container, "p", configuring
+        ? "Applying connection for " + (readiness?.activeGateway?.name || "AI Gateway") + "…"
+        : readiness?.gatewayConfigured
+          ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name +
+            (readiness.sandboxGroup?.name ? " · Sandbox: " + readiness.sandboxGroup.name : " · Local simulation")
+          : "Connect an AI Gateway and model to enable the agent workflow.");
+      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
+        appendText(container, "p", appState === "configuring"
+          ? "Validating gateway endpoint, API key, and model in the background…"
           : humanize(appState) + " is in progress. Model access can be changed when it finishes.");
         return;
       }
@@ -3231,7 +3527,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       const controls = appendText(container, "div", "", "gateway-fields");
-      appendText(controls, "p", "Loading available AI Gateways...");
+      appendText(controls, "p", "Loading available AI Gateways & Sandbox Groups...");
       void loadGatewayControls(controls);
     }
 
@@ -3392,11 +3688,37 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const changed = nextFingerprint !== operationalFingerprint;
         operationalFingerprint = nextFingerprint;
         operationalState = { app, readiness };
+        if (!agentPromptTouched && typeof readiness?.starterPrompt === "string" && readiness.starterPrompt.trim()) {
+          agentPromptDraft = readiness.starterPrompt.trim();
+          const activePrompt = details.querySelector('[aria-label="Agent message"]');
+          if (activePrompt && document.activeElement !== activePrompt) {
+            activePrompt.value = agentPromptDraft;
+          }
+        }
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();
-        if (changed) window.unityStudioSettings?.refreshApp();
-        if (changed && panelMode === "manage") renderManagePanel();
+        if (changed && !gatewayApplying) window.unityStudioSettings?.refreshApp();
+        if (changed && panelMode === "manage") {
+          const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
+          const interactionActive = gatewayApplying || details.querySelector("#run-panel-environment select:focus");
+          if (onEnvironmentTab && interactionActive) {
+            const envTab = details.querySelector('[data-run-tab="environment"]');
+            if (envTab) {
+              const prereqReady = readiness?.prerequisites ? readiness.prerequisites.ready : true;
+              const configuring = app.state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
+              const connected = Boolean(readiness?.gatewayConfigured);
+              const envSummary = !prereqReady ? "Missing CLI" : configuring ? "Applying…" : connected ? (readiness?.sandboxGroup?.name ? "Gateway + Sandbox" : "Gateway ready") : "Setup needed";
+              const summaryNode = envTab.querySelector(".run-tab-summary");
+              if (summaryNode) {
+                summaryNode.textContent = envSummary;
+                summaryNode.dataset.attention = String(!configuring && (!prereqReady || !connected));
+              }
+            }
+          } else {
+            renderManagePanel();
+          }
+        }
       } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
         operationalFingerprint = "unavailable";

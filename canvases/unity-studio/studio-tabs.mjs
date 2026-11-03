@@ -7,6 +7,7 @@ export const STUDIO_TAB_ICONS = {
   output: "terminal",
   policies: "shield-check",
   services: "apps",
+  environment: "shield-lock",
   operations: "workflow",
   deployment: "cloud",
   map: "project",

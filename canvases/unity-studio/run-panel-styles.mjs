@@ -2,20 +2,28 @@ import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
 
 export const RUN_PANEL_CONTENT_CSS = `
-#details[data-mode="manage"] {
+#details[data-mode="manage"], #details[data-mode="deploy"] {
   color:var(--studio-ink); background:var(--studio-raised);
   font:13px/1.5 var(--font-sans, system-ui, sans-serif); padding:24px;
 }
-#details[data-mode="manage"] .run-workspace { width:100%; max-width:960px; margin:0 auto; min-width:0; }
-#details[data-mode="manage"] h2 { font-size:20px; letter-spacing:-.3px; margin:0; }
-#details[data-mode="manage"] h3 { font-size:13px; font-weight:600; margin:16px 0 8px; color:var(--studio-ink); }
-#details[data-mode="manage"] p { font-size:12px; line-height:1.5; color:var(--studio-muted); margin:0 0 10px; overflow-wrap:anywhere; }
-#details[data-mode="manage"] button:not(.ct-button):not([role="tab"]):not(.run-connection) { ${ACTION_BUTTON_STYLE} border:1px solid var(--studio-line); color:var(--studio-ink); background:var(--studio-raised); max-width:100%; }
-#details[data-mode="manage"] button:not(.ct-button):not([role="tab"]):not(.run-connection):hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
-#details[data-mode="manage"] button.primary:not(.ct-button) { background:var(--studio-accent); border-color:var(--studio-accent); color:var(--studio-on-accent); }
-#details[data-mode="manage"] button.primary:not(.ct-button):hover:not(:disabled) { background:var(--studio-accent-2); }
-#details[data-mode="manage"] button:not(.ct-button):disabled { opacity:.6; cursor:not-allowed; }
-#details[data-mode="manage"] button.danger, #details[data-mode="manage"] .error { color:var(--studio-danger); }
+#details[data-mode="manage"] .run-workspace, #details[data-mode="deploy"] .deploy-workspace { width:100%; max-width:960px; margin:0 auto; min-width:0; }
+#details[data-mode="manage"] h2, #details[data-mode="deploy"] h2 { font-size:20px; letter-spacing:-.3px; margin:0; }
+#details[data-mode="manage"] h3, #details[data-mode="deploy"] h3 { font-size:13px; font-weight:600; margin:16px 0 8px; color:var(--studio-ink); }
+#details[data-mode="manage"] p, #details[data-mode="deploy"] p { font-size:12px; line-height:1.5; color:var(--studio-muted); margin:0 0 10px; overflow-wrap:anywhere; }
+#details[data-mode="manage"] button:not(.ct-button):not([role="tab"]):not(.run-connection), #details[data-mode="deploy"] button:not(.ct-button) { ${ACTION_BUTTON_STYLE} border:1px solid var(--studio-line); color:var(--studio-ink); background:var(--studio-raised); max-width:100%; }
+#details[data-mode="manage"] button:not(.ct-button):not([role="tab"]):not(.run-connection):hover:not(:disabled), #details[data-mode="deploy"] button:not(.ct-button):hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
+#details[data-mode="manage"] button.primary:not(.ct-button), #details[data-mode="deploy"] button.primary:not(.ct-button) { background:var(--studio-accent); border-color:var(--studio-accent); color:var(--studio-on-accent); }
+#details[data-mode="manage"] button.primary:not(.ct-button):hover:not(:disabled), #details[data-mode="deploy"] button.primary:not(.ct-button):hover:not(:disabled) { background:var(--studio-accent-2); }
+#details[data-mode="manage"] button:not(.ct-button):disabled, #details[data-mode="deploy"] button:not(.ct-button):disabled { opacity:.6; cursor:not-allowed; }
+#details[data-mode="manage"] button.danger, #details[data-mode="manage"] .error, #details[data-mode="deploy"] .error { color:var(--studio-danger); }
+#details[data-mode="manage"] .gateway-fields, #details[data-mode="deploy"] .gateway-fields { display:grid; gap:14px; min-width:0; max-width:560px; }
+#details[data-mode="manage"] .studio-field, #details[data-mode="deploy"] .studio-field { display:grid; gap:6px; min-width:0; color:var(--studio-ink); font:600 12px/1.4 var(--font-sans, system-ui, sans-serif); }
+#details[data-mode="manage"] .studio-field > span, #details[data-mode="deploy"] .studio-field > span { display:block; font-size:12px; font-weight:600; color:var(--studio-ink); }
+#details[data-mode="manage"] select, #details[data-mode="deploy"] select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; height:34px; min-height:34px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.4 var(--font-sans, system-ui, sans-serif); }
+#details[data-mode="manage"] .field-group, .studio-settings .field-group { display:grid; gap:8px; min-width:0; }
+#details[data-mode="manage"] .field-actions, .studio-settings .field-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+#details[data-mode="manage"] .env-section-card { padding:16px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); margin-bottom:16px; }
+#details[data-mode="manage"] .env-section-card > h3 { margin-top:0; }
 #details[data-mode="manage"] .run-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 20px; margin-bottom:20px; }
 #details[data-mode="manage"] .run-connection { min-width:0; max-width:min(100%, 380px); display:grid; justify-items:start; gap:2px; border:1px solid var(--studio-line); border-radius:6px; padding:6px 10px; color:var(--studio-ink); background:var(--studio-raised); font-size:12px; text-align:left; }
 #details[data-mode="manage"] .run-connection-action { font-weight:600; color:var(--studio-accent); }

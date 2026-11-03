@@ -640,6 +640,167 @@ function azureBootstrapRunner(command, args) {
   return runCommand(command, args, { timeout: 25_000 });
 }
 
+let cachedPrerequisitePromise = null;
+let cachedPrerequisiteTimestamp = 0;
+
+async function detectLocalPrerequisites({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 30_000) {
+    return cachedPrerequisitePromise;
+  }
+  cachedPrerequisiteTimestamp = now;
+  cachedPrerequisitePromise = (async () => {
+    const [uvRes, azRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
+      runCommand("uv", ["--version"], { timeout: 5_000 }),
+      runCommand("az", ["--version"], { timeout: 8_000 }),
+      runCommand("aca", ["--version"], { timeout: 5_000 }),
+      runCommand("az", ["account", "show", "--query", "{id:id,name:name}", "-o", "json"], { timeout: 8_000 }),
+      runCommand("az", ["aigateway", "version", "-o", "json"], { timeout: 8_000 }),
+    ]);
+    let azSignedIn = false;
+    let subscriptionName = "";
+    let subscriptionId = "";
+    if (azAccountRes?.ok && azAccountRes.stdout) {
+      try {
+        const account = JSON.parse(azAccountRes.stdout);
+        if (account?.id) {
+          azSignedIn = true;
+          subscriptionId = String(account.id);
+          subscriptionName = String(account.name || account.id);
+        }
+      } catch {
+        // Ignore parse error
+      }
+    }
+    const uvInstalled = Boolean(uvRes?.ok);
+    const azInstalled = Boolean(azRes?.ok);
+    const acaInstalled = Boolean(acaRes?.ok);
+    const aigatewayInstalled = Boolean(azAigatewayRes?.ok);
+    const missingTools = [];
+    if (!uvInstalled) {
+      missingTools.push({
+        id: "uv",
+        label: "uv (Python runner)",
+        actionLabel: "Install uv",
+        actionOperation: "install-prereq-uv",
+        command: process.platform === "win32"
+          ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+          : "curl -LsSf https://astral.sh/uv/install.sh | sh",
+      });
+    }
+    if (!azInstalled) {
+      missingTools.push({
+        id: "az",
+        label: "Azure CLI (az)",
+        command: process.platform === "win32"
+          ? "winget install -e --id Microsoft.AzureCLI"
+          : "brew install azure-cli",
+      });
+    } else if (!azSignedIn) {
+      missingTools.push({
+        id: "az-login",
+        label: "Azure CLI sign-in",
+        actionLabel: "Sign in to Azure",
+        actionOperation: "az-login",
+        command: "az login",
+      });
+    }
+    if (azInstalled && !aigatewayInstalled) {
+      missingTools.push({
+        id: "aigateway",
+        label: "Azure CLI aigateway extension",
+        actionLabel: "Install aigateway CLI",
+        actionOperation: "install-prereq-aigateway",
+        command: "az extension add --name aigateway --upgrade",
+      });
+    }
+    if (!acaInstalled) {
+      missingTools.push({
+        id: "aca",
+        label: "ACA Sandbox CLI (aca)",
+        actionLabel: "Install aca CLI",
+        actionOperation: "install-prereq-aca",
+        command: process.platform === "win32"
+          ? "irm https://sandboxes.azure.com/install.ps1 | iex"
+          : "curl -fsSL https://sandboxes.azure.com/install.sh | sh",
+      });
+    }
+    const uvVersion = uvRes?.ok ? String(uvRes.stdout || "").trim().split("\n")[0] : "";
+    const azVersion = azRes?.ok ? String(azRes.stdout || "").trim().split("\n")[0] : "";
+    const acaVersion = acaRes?.ok ? String(acaRes.stdout || "").trim().split("\n")[0] : "";
+    let aigatewayVersion = "";
+    if (azAigatewayRes?.ok && azAigatewayRes.stdout) {
+      try {
+        const parsed = JSON.parse(azAigatewayRes.stdout);
+        aigatewayVersion = parsed?.version || parsed?.cliVersion || "installed";
+      } catch {
+        aigatewayVersion = String(azAigatewayRes.stdout).trim().split("\n")[0] || "installed";
+      }
+    }
+    const items = [
+      {
+        id: "uv",
+        label: "uv (Python runner)",
+        ready: uvInstalled,
+        detail: uvInstalled ? (uvVersion || "Installed") : "Required to run Python agent and sandbox tools",
+        actionLabel: uvInstalled ? "" : "Install uv",
+        actionOperation: uvInstalled ? "" : "install-prereq-uv",
+        command: process.platform === "win32"
+          ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+          : "curl -LsSf https://astral.sh/uv/install.sh | sh",
+      },
+      {
+        id: "az",
+        label: "Azure CLI (az)",
+        ready: azInstalled && azSignedIn,
+        detail: !azInstalled
+          ? "Required for Azure discovery and authentication"
+          : azSignedIn
+            ? `Signed in · ${subscriptionName}`
+            : "Installed (sign-in required)",
+        actionLabel: !azInstalled ? "" : azSignedIn ? "" : "Sign in to Azure",
+        actionOperation: !azInstalled ? "" : azSignedIn ? "" : "az-login",
+        command: !azInstalled
+          ? (process.platform === "win32" ? "winget install -e --id Microsoft.AzureCLI" : "brew install azure-cli")
+          : "az login",
+      },
+      {
+        id: "aigateway",
+        label: "AI Gateway CLI (az aigateway)",
+        ready: azInstalled && aigatewayInstalled,
+        detail: aigatewayInstalled ? `Extension ${aigatewayVersion}` : "Required for AI Gateway & model discovery",
+        actionLabel: azInstalled && !aigatewayInstalled ? "Install aigateway CLI" : "",
+        actionOperation: azInstalled && !aigatewayInstalled ? "install-prereq-aigateway" : "",
+        command: "az extension add --name aigateway --upgrade",
+      },
+      {
+        id: "aca",
+        label: "ACA Sandbox CLI (aca)",
+        ready: acaInstalled,
+        detail: acaInstalled ? (acaVersion || "Installed") : "Required for isolated hypervisor microVM sandboxes",
+        actionLabel: acaInstalled ? "" : "Install aca CLI",
+        actionOperation: acaInstalled ? "" : "install-prereq-aca",
+        command: process.platform === "win32"
+          ? "irm https://sandboxes.azure.com/install.ps1 | iex"
+          : "curl -fsSL https://sandboxes.azure.com/install.sh | sh",
+      },
+    ];
+    return {
+      ready: missingTools.length === 0,
+      uvInstalled,
+      azInstalled,
+      azSignedIn,
+      subscriptionId,
+      subscriptionName,
+      aigatewayInstalled,
+      acaInstalled,
+      items,
+      missingTools,
+    };
+  })();
+  return cachedPrerequisitePromise;
+}
+
 async function fetchGatewayApiKey(gateway) {
   const cliSecrets = await azureBootstrapRunner("az", [
     "aigateway",
@@ -826,6 +987,60 @@ async function ensureDefaultInfraConnected(root) {
   return envContent;
 }
 
+async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
+  let purpose = "";
+  let instructions = "";
+  try {
+    const appJson = JSON.parse(await readFile(`${root}/.unity-studio/app.json`, "utf8"));
+    if (typeof appJson.purpose === "string") purpose = appJson.purpose.trim();
+  } catch {}
+  if (!purpose) {
+    try {
+      const domainJson = JSON.parse(await readFile(`${root}/config/domain.json`, "utf8"));
+      if (typeof domainJson.purpose === "string") purpose = domainJson.purpose.trim();
+    } catch {}
+  }
+  try {
+    const rawSystem = await readFile(`${root}/src/agent/prompts/system.md`, "utf8");
+    const beforeSection = rawSystem.split(/^##\s+/m)[0] || "";
+    instructions = beforeSection
+      .replace(/^#[^\n]*\n+/m, "")
+      .trim();
+  } catch {}
+
+  const combined = `${instructions} ${purpose}`.trim();
+  const normalizedText = combined
+    .replace(/^help users accomplish(?: this application purpose)?:\s*/i, "")
+    .trim();
+
+  if (/\b(dealership|car[- ]buying|trade[- ]in|vehicle inventory|family suv)\b/i.test(normalizedText)) {
+    return "Find a family SUV under $38,000 and estimate my monthly payment";
+  }
+  if (hasDocumentTool || /\b(validate documents|process.*document|untrusted document|document validation|redact.*pii)\b/i.test(normalizedText)) {
+    const isDefaultDocPrompt = !normalizedText ||
+      /^help users validate documents and answer questions using governed tools and models\.?$/i.test(normalizedText) ||
+      /^process untrusted documents/i.test(normalizedText);
+    if (isDefaultDocPrompt) return "Process document";
+    if (/\b(loan|prequal|apr|payment)\b/i.test(normalizedText)) {
+      return "Process document and summarize the loan application";
+    }
+    return "Process document";
+  }
+  if (/\b(claim|claims|policyholder)\b/i.test(normalizedText)) {
+    return "Review the latest claim and summarize required next steps";
+  }
+  if (normalizedText && !/^assist users with governed tools and models\.?$/i.test(normalizedText)) {
+    const firstSentence = normalizedText.split(/(?<=[.!?])\s+/)[0].replace(/[.!?]+$/, "").trim();
+    const stripped = firstSentence
+      .replace(/^(?:help|assist)\s+(?:users|customers|the user|people)\s+(?:to\s+|with\s+)?/i, "")
+      .trim();
+    if (stripped.length >= 6 && stripped.length <= 140) {
+      return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+    }
+  }
+  return "Summarize how you can help and run a sample check";
+}
+
 async function localReadiness(root) {
   let agentConfiguration = "";
   try {
@@ -850,7 +1065,7 @@ async function localReadiness(root) {
       }
       gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
     }
-  } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup) {
+  } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
     const infra = await discoverDefaultCanvasInfra();
     if (infra?.sandboxGroup?.name && activeGateway) {
       const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
@@ -867,9 +1082,13 @@ async function localReadiness(root) {
   const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
   const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
   const buildRuntime = await readBuildRuntime(root);
+  const prerequisites = await detectLocalPrerequisites();
+  const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(buildRuntime) });
   return {
     ...gatewayReadiness,
     ready,
+    prerequisites,
+    starterPrompt,
     agentRuntime: buildRuntime?.agentRuntime ?? null,
     documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
     deploymentBlocker: await documentDeploymentBlocker(root),
@@ -1194,10 +1413,11 @@ async function startAppCommand(root, command, args, state, options = {}) {
   return { outcome: "command-started", command: [command, ...args].join(" "), root, pid: child.pid, state };
 }
 
-async function startGatewayConfiguration(root, gateway, workspaceRoot, configurationId = randomUUID()) {
+async function startGatewayConfiguration(root, gateway, workspaceRoot, configurationId = randomUUID(), completedState = "stopped") {
   await syncGatewayConfigScript(root, workspaceRoot);
   const active = {
     ...validateGatewayCandidate(gateway),
+    ...("sandboxGroup" in gateway ? { sandboxGroup: gateway.sandboxGroup } : {}),
     selectedAt: new Date().toISOString(),
     configurationStatus: "configuring",
     configurationId,
@@ -1205,7 +1425,7 @@ async function startGatewayConfiguration(root, gateway, workspaceRoot, configura
   await persistActiveGateway(root, active);
   const gatewayConfig = await resolveGatewayConfigCommand(root);
   return startAppCommand(root, gatewayConfig.command, gatewayConfig.args, "configuring", {
-    completedState: "stopped",
+    completedState,
     cwd: gatewayConfig.cwd,
     env: {
       ...gatewayCommandEnvironment(active),
@@ -1376,6 +1596,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("Local readiness root is not an authorized app workspace.");
       }
+      if (url.searchParams.get("refresh") === "true") {
+        cachedPrerequisitePromise = null;
+        cachedDefaultInfraPromise = null;
+      }
       sendJson(response, 200, await localReadiness(root));
       return;
     }
@@ -1383,12 +1607,21 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       const active = await loadActiveGateway(root, { refresh: true });
+      const runner = trackedAzureRunner(root);
       const options = await discoverGatewayOptions(
-        trackedAzureRunner(root), active, url.searchParams.get("subscriptionId"),
+        runner, active, url.searchParams.get("subscriptionId"),
       );
-      sendJson(response, 200, await loadGatewayModelOptions(trackedAzureRunner(root), options, {
-        name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
-      }));
+      const [modelOptions, sandboxDiscovery] = await Promise.all([
+        loadGatewayModelOptions(runner, options, {
+          name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
+        }),
+        discoverSandboxGroups(runner, options.subscription?.id, active?.sandboxGroup || await readAcaCliDefaultConfig(), { includeAll: true }),
+      ]);
+      sendJson(response, 200, {
+        ...modelOptions,
+        sandboxGroups: sandboxDiscovery.sandboxGroups,
+        suggestedSandboxGroup: sandboxDiscovery.suggested,
+      });
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/active-gateway") {
@@ -1398,23 +1631,53 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       if (typeof input.name !== "string" || !input.name.trim()) throw new Error("Choose an AI Gateway.");
       const current = await currentAppState(root);
-      if (current.state === "running") {
-        const error = new Error("Stop the local app before changing its AI Gateway.");
+      if (transientAppStates.has(current.state)) {
+        const error = new Error(`Wait for the current ${current.state} operation to finish before changing its AI Gateway.`);
         error.statusCode = 409;
         throw error;
       }
-      const { gateways } = await discoverGatewayOptions(
-        trackedAzureRunner(root), await loadActiveGateway(root, { refresh: true }), input.subscriptionId,
+      const postConfigState = current.state === "running" ? "running" : "stopped";
+      const existingActive = await loadActiveGateway(root, { refresh: true });
+      const runner = trackedAzureRunner(root);
+      const { gateways, subscription } = await discoverGatewayOptions(
+        runner, existingActive, input.subscriptionId,
       );
       const gateway = gateways.find((candidate) => candidate.name === input.name
         && (!input.resourceGroup || candidate.resourceGroup === input.resourceGroup));
       if (!gateway) throw new Error("The selected AI Gateway is no longer available.");
-      const models = await discoverGatewayModels(trackedAzureRunner(root), gateway);
+      const models = await discoverGatewayModels(runner, gateway);
       const model = input.model ? models.find((item) => item.id === input.model) : models[0];
       if (!model) throw new Error(models.length
         ? "The selected model is no longer available. Refresh the model connection."
         : "This gateway has no models. Select another gateway or add a model in AI Gateway Studio.");
-      const configuration = await startGatewayConfiguration(root, { ...gateway, model: model.id }, workspaceRoot);
+      let selectedSandboxGroup = existingActive?.sandboxGroup ?? null;
+      if ("sandboxGroup" in input) {
+        if (input.sandboxGroup && typeof input.sandboxGroup === "object" && input.sandboxGroup.name) {
+          selectedSandboxGroup = {
+            name: String(input.sandboxGroup.name).trim(),
+            resourceGroup: String(input.sandboxGroup.resourceGroup || gateway.resourceGroup).trim(),
+            location: String(input.sandboxGroup.location || gateway.location || "eastus2").trim(),
+            subscriptionId: String(input.sandboxGroup.subscriptionId || subscription?.id || gateway.subscriptionId).trim(),
+          };
+        } else {
+          selectedSandboxGroup = null;
+        }
+      }
+      const configuration = await startGatewayConfiguration(
+        root,
+        {
+          ...gateway,
+          model: model.id,
+          ...("sandboxGroup" in input
+            ? { sandboxGroup: selectedSandboxGroup }
+            : selectedSandboxGroup
+              ? { sandboxGroup: selectedSandboxGroup }
+              : {}),
+        },
+        workspaceRoot,
+        undefined,
+        postConfigState,
+      );
       sendJson(response, 202, {
         outcome: "gateway-selected",
         active: await loadActiveGateway(root),
@@ -1815,19 +2078,190 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         }));
         return;
       }
+      const postCommandState = current.state === "running" ? "running" : "stopped";
       if (input.operation === "configure-gateway") {
-        if (current.state === "running") {
-          const error = new Error("Stop the local app before changing its AI Gateway.");
-          error.statusCode = 409;
-          throw error;
-        }
         const active = await loadActiveGateway(root, { refresh: true });
         if (!active) {
           const error = new Error("Select an AI Gateway before configuring the app.");
           error.statusCode = 400;
           throw error;
         }
-        sendJson(response, 202, await startGatewayConfiguration(root, active, workspaceRoot));
+        sendJson(response, 202, await startGatewayConfiguration(root, active, workspaceRoot, undefined, postCommandState));
+        return;
+      }
+      if (["install-prereq-uv", "install-prereq-aca", "install-prereq-aigateway", "az-login"].includes(input.operation)) {
+        const isWin = process.platform === "win32";
+        const shellCmd = isWin ? "powershell" : "bash";
+        const shellArgs = (script) => isWin
+          ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]
+          : ["-c", script];
+        const scripts = {
+          "install-prereq-uv": isWin
+            ? "irm https://astral.sh/uv/install.ps1 | iex"
+            : "curl -LsSf https://astral.sh/uv/install.sh | sh",
+          "install-prereq-aca": isWin
+            ? "irm https://sandboxes.azure.com/install.ps1 | iex"
+            : "curl -fsSL https://sandboxes.azure.com/install.sh | sh",
+          "install-prereq-aigateway": "az extension add --name aigateway --upgrade",
+          "az-login": "az login",
+        };
+        sendJson(response, 202, await startAppCommand(
+          root,
+          shellCmd,
+          shellArgs(scripts[input.operation]),
+          "configuring",
+          {
+            completedState: postCommandState,
+            onComplete: async () => {
+              cachedPrerequisitePromise = null;
+              cachedDefaultInfraPromise = null;
+            },
+          },
+        ));
+        return;
+      }
+      if (input.operation === "create-sandbox-group") {
+        const active = await loadActiveGateway(root, { refresh: true });
+        const subscriptionId = String(input.subscriptionId || active?.subscriptionId || "").trim();
+        const resourceGroup = String(input.resourceGroup || active?.resourceGroup || "rg-unity-poc-aigateway").trim();
+        const location = String(input.location || active?.location || "eastus2").trim();
+        const groupName = String(input.sandboxGroupName || "aca-sandboxes-samples").trim();
+        const args = [
+          "sandboxgroup",
+          "create",
+          "--name",
+          groupName,
+          "--resource-group",
+          resourceGroup,
+          "--location",
+          location,
+          "--set-config",
+        ];
+        if (subscriptionId) args.push("--subscription", subscriptionId);
+        sendJson(response, 202, await startAppCommand(
+          root,
+          "aca",
+          args,
+          "configuring",
+          {
+            completedState: postCommandState,
+            onComplete: async ({ exitCode }) => {
+              if (exitCode !== 0) return;
+              cachedDefaultInfraPromise = null;
+              const newGroup = {
+                name: groupName,
+                resourceGroup,
+                location,
+                subscriptionId,
+              };
+              const latestActive = await loadActiveGateway(root, { refresh: true });
+              if (latestActive) {
+                await persistActiveGateway(root, { ...latestActive, sandboxGroup: newGroup });
+              }
+              try {
+                let envText = await readFile(`${root}/src/agent/.env`, "utf8");
+                envText = envText
+                  .replace(/^ACA_SANDBOX_GROUP=.*$/gm, "")
+                  .replace(/^ACA_RESOURCE_GROUP=.*$/gm, "")
+                  .replace(/^ACA_REGION=.*$/gm, "")
+                  .replace(/^ACA_SUBSCRIPTION=.*$/gm, "")
+                  .trimEnd();
+                envText += `\nACA_SANDBOX_GROUP=${groupName}\nACA_RESOURCE_GROUP=${resourceGroup}\nACA_REGION=${location}\nACA_SUBSCRIPTION=${subscriptionId}\n`;
+                await writeFile(`${root}/src/agent/.env`, envText, { encoding: "utf8", mode: 0o600 });
+              } catch {
+                // Ignore if .env does not exist yet
+              }
+            },
+          },
+        ));
+        return;
+      }
+      if (input.operation === "bootstrap-starter-gateway") {
+        const infraDir = `${workspaceRoot}/infra-ai-gateway`;
+        const active = await loadActiveGateway(root, { refresh: true });
+        const subscriptionId = String(input.subscriptionId || active?.subscriptionId || "").trim();
+        const location = String(input.location || active?.location || "eastus2").trim();
+        sendJson(response, 202, await startAppCommand(
+          root,
+          "azd",
+          ["provision", "--no-prompt"],
+          "provisioning",
+          {
+            completedState: postCommandState,
+            cwd: infraDir,
+            env: {
+              AZURE_ENV_NAME: "unity-poc-aigateway",
+              AZURE_LOCATION: location,
+              ...(subscriptionId ? { AZURE_SUBSCRIPTION_ID: subscriptionId } : {}),
+            },
+            onComplete: async ({ exitCode }) => {
+              if (exitCode !== 0) return;
+              cachedDefaultInfraPromise = null;
+              await ensureDefaultInfraConnected(root);
+            },
+          },
+        ));
+        return;
+      }
+      if (input.operation === "onboard-gateway-models") {
+        const active = await loadActiveGateway(root, { refresh: true });
+        const subscriptionId = String(input.subscriptionId || active?.subscriptionId || "").trim();
+        const resourceGroup = String(input.resourceGroup || active?.resourceGroup || "").trim();
+        const gatewayName = String(input.gatewayName || active?.name || "").trim();
+        if (!gatewayName || !resourceGroup || !subscriptionId) {
+          throw new Error("Select an AI Gateway before onboarding models.");
+        }
+        const isWin = process.platform === "win32";
+        const shellCmd = isWin ? "powershell" : "bash";
+        const posixScript = `
+set -euo pipefail
+echo "[gateway-setup] Discovering Foundry / Azure OpenAI accounts in subscription ${subscriptionId}..."
+foundry_id="$(az cognitiveservices account list --subscription "${subscriptionId}" --query "[?kind=='AIServices' || kind=='OpenAI'].id | [0]" -o tsv)"
+if [ -z "$foundry_id" ]; then
+  echo "[gateway-setup] No existing Foundry account found in subscription. Provisioning starter AI Gateway + Foundry models..."
+  cd "${workspaceRoot}/infra-ai-gateway"
+  AZURE_ENV_NAME=unity-poc-aigateway AZURE_SUBSCRIPTION_ID="${subscriptionId}" AZURE_LOCATION=eastus2 azd provision --no-prompt
+  exit 0
+fi
+echo "[gateway-setup] Onboarding models from $foundry_id into ${gatewayName}..."
+az aigateway model-provider create --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" --foundry-resource-id "$foundry_id"
+first_model_id="$(az aigateway model list --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" --query "[0].id" -o tsv)"
+if [ -n "$first_model_id" ]; then
+  az aigateway model-alias create --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" -n gpt-latest --routing-name gpt-latest --backend-model resource-id="$first_model_id" priority=0 weight=100 || true
+fi
+echo "[gateway-setup] Model onboarding complete."
+`;
+        const winScript = `
+$ErrorActionPreference = 'Stop'
+$foundryId = az cognitiveservices account list --subscription "${subscriptionId}" --query "[?kind=='AIServices' || kind=='OpenAI'].id | [0]" -o tsv
+if (-not $foundryId) {
+  Set-Location "${workspaceRoot}/infra-ai-gateway"
+  $env:AZURE_ENV_NAME = 'unity-poc-aigateway'
+  $env:AZURE_SUBSCRIPTION_ID = "${subscriptionId}"
+  $env:AZURE_LOCATION = 'eastus2'
+  azd provision --no-prompt
+  exit 0
+}
+az aigateway model-provider create --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" --foundry-resource-id $foundryId
+$firstModelId = az aigateway model list --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" --query "[0].id" -o tsv
+if ($firstModelId) {
+  az aigateway model-alias create --subscription "${subscriptionId}" -g "${resourceGroup}" --gateway-name "${gatewayName}" -n gpt-latest --routing-name gpt-latest --backend-model "resource-id=$firstModelId" priority=0 weight=100
+}
+`;
+        sendJson(response, 202, await startAppCommand(
+          root,
+          shellCmd,
+          isWin ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", winScript] : ["-c", posixScript],
+          "configuring",
+          {
+            completedState: postCommandState,
+            onComplete: async ({ exitCode }) => {
+              if (exitCode !== 0) return;
+              cachedDefaultInfraPromise = null;
+              await ensureDefaultInfraConnected(root);
+            },
+          },
+        ));
         return;
       }
       if (input.operation === "provision-cloud" || input.operation === "deploy-cloud") {

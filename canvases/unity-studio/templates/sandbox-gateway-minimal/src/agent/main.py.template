@@ -1207,7 +1207,10 @@ class AgentHarness:
                         document_dispatched=self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
                     ),
                 }
-        elif isinstance(self.document_tool, AcaSandboxGroupDocumentTool):
+        elif isinstance(self.document_tool, AcaSandboxGroupDocumentTool) or any(
+            token in message.lower()
+            for token in ("document", "loan", "application", "summarize", "validate")
+        ):
             try:
                 fixture_path = ROOT / "examples" / "loan-application.txt"
                 fixture_content = (

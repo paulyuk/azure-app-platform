@@ -2,9 +2,9 @@ export function createRunWorkspace({
   container,
   renderTry,
   renderServices,
+  renderEnvironment,
   renderOutput,
   renderOperations,
-  renderDeployment,
   onConnection,
   onClear = () => {},
 }) {
@@ -37,12 +37,6 @@ export function createRunWorkspace({
     return operationCount ? operationCount + " recorded" : "No activity";
   }
 
-  function deploymentSummary(state) {
-    if (state === "provisioning") return "Provisioning…";
-    if (state === "deploying") return "Deploying…";
-    return "Azure";
-  }
-
   function setTabSummary(tab, summary, attention = false) {
     const summaryNode = tab.querySelector(".run-tab-summary");
     summaryNode.textContent = summary;
@@ -54,7 +48,7 @@ export function createRunWorkspace({
   }
 
   function activateTab(shell, id, { focus = false } = {}) {
-    if (!["services", "output", "operations", "deployment"].includes(id)) return;
+    if (!["services", "environment", "output", "operations"].includes(id)) return;
     selectedTab = id;
     for (const tab of shell.querySelectorAll('[role="tab"]')) {
       const selected = tab.dataset.runTab === id;
@@ -138,19 +132,22 @@ export function createRunWorkspace({
       const heading = text(shell, "div", "", "run-heading");
       text(heading, "h2", "Run & debug");
       const connected = Boolean(readiness?.gatewayConfigured);
-      const action = readiness && !connected ? "Connect AI Gateway" : "Connection settings";
+      const configuring = state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring";
+      const action = readiness && !connected && !configuring ? "Connect AI Gateway" : "Connection settings";
       const connection = text(heading, "button", "", "run-connection");
       text(connection, "span", action, "run-connection-action");
       const sandboxLabel = readiness?.sandboxGroup?.name ? " · " + readiness.sandboxGroup.name : "";
-      const value = text(connection, "span", connected
-        ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway") + sandboxLabel
-        : readiness ? "No AI Gateway connected" : "Checking model connection...", "run-connection-value");
+      const value = text(connection, "span", configuring
+        ? "Applying " + (readiness?.activeGateway?.name || "AI Gateway") + "…"
+        : connected
+          ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway") + sandboxLabel
+          : readiness ? "No AI Gateway connected" : "Checking model connection...", "run-connection-value");
       value.id = "run-connection-value";
       connection.type = "button";
       connection.setAttribute("aria-label", action);
       connection.setAttribute("aria-describedby", value.id);
       connection.title = action + ": " + value.textContent;
-      connection.dataset.connected = String(connected);
+      connection.dataset.connected = String(connected || configuring);
       connection.addEventListener("click", onConnection);
       renderTry(text(shell, "div", "", "run-primary"));
 
@@ -161,21 +158,32 @@ export function createRunWorkspace({
       const tabs = {
         output: createTab(tablist, "output", "Output"),
         services: createTab(tablist, "services", "Services"),
+        ...(renderEnvironment ? { environment: createTab(tablist, "environment", "Environment") } : {}),
         operations: createTab(tablist, "operations", "Operations"),
-        deployment: createTab(tablist, "deployment", "Deploy"),
       };
       const expected = services.filter((service) => service.expected !== false);
       const ready = expected.filter((service) => service.ready).length;
       setTabSummary(tabs.services, expected.length ? ready + "/" + expected.length + " ready" : "Components");
+      if (tabs.environment) {
+        const prereqReady = readiness?.prerequisites ? readiness.prerequisites.ready : true;
+        const configuring = state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring";
+        const envSummary = !prereqReady
+          ? "Missing CLI"
+          : configuring
+            ? "Applying…"
+            : connected
+              ? (readiness?.sandboxGroup?.name ? "Gateway + Sandbox" : "Gateway ready")
+              : "Setup needed";
+        setTabSummary(tabs.environment, envSummary, !configuring && (!prereqReady || !connected));
+      }
       setTabSummary(tabs.output, outputSummary(state), Boolean(outputError));
       setTabSummary(tabs.operations, operationsSummary(), false);
-      setTabSummary(tabs.deployment, deploymentSummary(state), false);
 
       const panels = text(support, "div", "", "run-tab-panels");
       createPanel(panels, "output", renderOutput);
       createPanel(panels, "services", renderServices);
+      if (renderEnvironment) createPanel(panels, "environment", renderEnvironment);
       createPanel(panels, "operations", renderOperations);
-      createPanel(panels, "deployment", renderDeployment);
       activateTab(shell, selectedTab);
 
       for (const [id, open] of nested) {

@@ -224,20 +224,21 @@ aca_sandbox_group="${ACA_SANDBOX_GROUP:-}"
 aca_resource_group="${ACA_RESOURCE_GROUP:-}"
 aca_region="${ACA_REGION:-}"
 aca_subscription="${ACA_SUBSCRIPTION:-$subscription_id}"
-if [ -z "$aca_sandbox_group" ] && [ -f "${HOME}/.config/aca/config.json" ]; then
+if [ "${ACA_SANDBOX_DISABLE:-0}" != "1" ] && [ -z "$aca_sandbox_group" ] && [ -f "${HOME}/.config/aca/config.json" ]; then
   eval "$(python3 - "${HOME}/.config/aca/config.json" <<'PY'
 import json, shlex, sys
 try:
     cfg = json.load(open(sys.argv[1], encoding="utf-8"))
 except Exception:
     cfg = {}
-for env_name, key in (
-    ("aca_sandbox_group", "sandbox_group"),
-    ("aca_resource_group", "resource_group"),
-    ("aca_region", "region"),
-    ("aca_subscription", "subscription"),
+nested = cfg.get("sandbox") if isinstance(cfg.get("sandbox"), dict) else {}
+for env_name, key, nested_key in (
+    ("aca_sandbox_group", "sandbox_group", "group"),
+    ("aca_resource_group", "resource_group", "resource_group"),
+    ("aca_region", "region", "region"),
+    ("aca_subscription", "subscription", "subscription"),
 ):
-    val = str(cfg.get(key, "") or "").strip()
+    val = str(cfg.get(key) or nested.get(nested_key) or "").strip()
     if val:
         print(f"{env_name}={shlex.quote(val)}")
 PY

@@ -16,9 +16,11 @@ export const SETTINGS_CSS = `
   .studio-settings .studio-editor-preference { margin-top:16px; }
   .studio-settings-section { border-bottom:1px solid var(--studio-line); }
   .studio-settings-section > summary { display:list-item; padding:12px 0; cursor:pointer; font-size:13px; font-weight:600; }
-  .studio-settings-section > div { display:grid; gap:10px; padding:0 0 16px; min-width:0; }
+  .studio-settings-section > div { display:grid; gap:14px; padding:0 0 16px; min-width:0; }
   .studio-settings-section h3 { font-size:14px; margin:0; color:var(--studio-ink); }
-  .studio-settings .gateway-fields { display:grid; gap:10px; min-width:0; }
+  .studio-settings .gateway-fields { display:grid; gap:14px; min-width:0; }
+  .studio-settings .field-group { display:grid; gap:8px; min-width:0; }
+  .studio-settings .field-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .studio-settings .actions { display:flex; flex-wrap:wrap; gap:8px; margin:0; }
   .studio-settings button:not(.studio-settings-close) { width:fit-content; max-width:100%; min-height:32px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:600 12px/1.4 system-ui; white-space:normal; cursor:pointer; }
   .studio-settings button:hover:not(:disabled) { border-color:var(--studio-accent); }
@@ -151,7 +153,12 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
       name.className = "studio-settings-app-name";
       name.textContent = "This app · " + app.name;
       content.append(name);
-      for (const [id, title] of [["connection", "Model connection"], ["ports", "Local ports"], ["danger", "Danger zone"]]) {
+      for (const [id, title] of [
+        ["connection", "AI Gateway & Sandbox"],
+        ["prereqs", "Prerequisites & CLI tools"],
+        ["ports", "Local ports"],
+        ["danger", "Danger zone"],
+      ]) {
         const element = document.createElement("details");
         element.className = "studio-settings-section";
         element.dataset.settingsSection = id;
@@ -168,18 +175,24 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
       }
     },
     open(section = "preferences") {
+      const target = section === "preferences" && sections.has("connection")
+        ? "connection"
+        : section;
       if (!dialog.open) {
         returnFocus = document.activeElement;
         dialog.showModal();
         onOpen?.();
+        if (section === "preferences" && sections.has("prereqs")) {
+          sections.get("prereqs").element.open = true;
+        }
         for (const id of sections.keys()) {
-          if (id !== section) render(id);
+          if (id !== target) render(id);
         }
       }
-      const entry = sections.get(section);
+      const entry = sections.get(target);
       if (entry) {
         entry.element.open = true;
-        render(section);
+        render(target);
         entry.summary.focus();
         entry.summary.scrollIntoView({ block: "nearest" });
       }

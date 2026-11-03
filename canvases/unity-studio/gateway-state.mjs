@@ -69,9 +69,9 @@ export function normalizeSandboxGroupCandidate(group) {
   };
 }
 
-export async function discoverSandboxGroups(commandRunner, subscriptionId = "", configuredGroup = null) {
+export async function discoverSandboxGroups(commandRunner, subscriptionId = "", configuredGroup = null, { includeAll = false } = {}) {
   const configured = configuredGroup ? normalizeSandboxGroupCandidate(configuredGroup) : null;
-  if (configured?.name && configured?.resourceGroup && (!subscriptionId || !configured.subscriptionId || configured.subscriptionId === subscriptionId)) {
+  if (!includeAll && configured?.name && configured?.resourceGroup && (!subscriptionId || !configured.subscriptionId || configured.subscriptionId === subscriptionId)) {
     return { sandboxGroups: [configured], suggested: configured };
   }
   const args = ["resource", "list", "--resource-type", "Microsoft.App/sandboxGroups", "-o", "json"];
@@ -138,7 +138,7 @@ export function validateGatewayCandidate(gateway) {
 
 export function gatewayCommandEnvironment(active) {
   const validated = validateGatewayCandidate(active);
-  return {
+  const env = {
     UNITY_GATEWAY_SELECTION: "1",
     AZURE_SUBSCRIPTION_ID: validated.subscriptionId,
     AI_GATEWAY_RESOURCE_GROUP: validated.resourceGroup,
@@ -147,6 +147,15 @@ export function gatewayCommandEnvironment(active) {
     AZURE_AI_GATEWAY_MODEL: validated.model,
     AZURE_AI_GATEWAY_MINI_MODEL: validated.model,
   };
+  if (active?.sandboxGroup?.name) {
+    env.ACA_SANDBOX_GROUP = text(active.sandboxGroup.name);
+    env.ACA_RESOURCE_GROUP = text(active.sandboxGroup.resourceGroup || validated.resourceGroup);
+    env.ACA_REGION = text(active.sandboxGroup.location || validated.location || "eastus2");
+    env.ACA_SUBSCRIPTION = text(active.sandboxGroup.subscriptionId || validated.subscriptionId);
+  } else if (active && "sandboxGroup" in active && !active.sandboxGroup) {
+    env.ACA_SANDBOX_DISABLE = "1";
+  }
+  return env;
 }
 
 export async function discoverGatewayModels(commandRunner, gateway) {
