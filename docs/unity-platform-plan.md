@@ -1,9 +1,9 @@
 
-# Unity: The Self-Aware App Platform
+# Azure App Platform: The Self-Aware App Platform
 
 ![Agentic Cloud Application: reference architecture for an agent application over hosted skills, connectors, and human approval](images/agentic-architecture.svg)
 
-Unity brings together Azure's modern serverless and AI-native building blocks into one coherent, end-to-end application platform: a fast web front end, a reasoning agent, governed model access, callable skills, isolated compute for sensitive work, durable workflows, and integration into Microsoft 365. It's opinionated about how these pieces fit together so a team can ship a real, production-shaped app quickly, instead of re-deriving the architecture each time.
+Azure App Platform brings together Azure's modern serverless and AI-native building blocks—with **ACA Sandboxes** as the focal primitive—into one coherent, end-to-end application platform: a fast web front end, a reasoning agent, governed model access, callable skills, isolated compute for sensitive work, durable workflows, and integration into Microsoft 365. It's opinionated about how these pieces fit together so a team can ship a real, production-shaped app quickly, instead of re-deriving the architecture each time.
 
 The defining trait of a Unity app is that **it watches itself**. Observability, diagnosis, and safe self-healing are wired into the platform from day one via **SRE Agent**, attached across every tier: front end, agent, skills, sandboxes, connectors, workflows, and data. A Unity app can explain what's wrong with itself in plain language, correlate a symptom against its own deployment history and incident memory, and propose (or, under policy, take) a corrective action. It's a plane that spans the whole architecture, the same way the whiteboard sketch drew "SRE" as a band underneath everything else.
 

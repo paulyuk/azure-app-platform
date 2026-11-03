@@ -2,6 +2,11 @@
 set -euo pipefail
 umask 077
 
+unset UV_FROZEN UV_LOCKED UV_OFFLINE UV_NO_SYNC UV_EXTRA_INDEX_URL
+export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
+export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
+
 AI_GATEWAY_API_VERSION="2025-09-01-preview"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SLICE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -39,12 +44,19 @@ else
 fi
 if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
   echo "Discovering models on AI Gateway ${gateway_name}..." >&2
-  model_names="$(az rest --method get \
-    --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/models?api-version=${AI_GATEWAY_API_VERSION}" \
-    --query 'value[].name' -o tsv | tr '\t' '\n')" || {
-      echo "Unable to discover models on the selected gateway. Check Azure access and retry." >&2
-      exit 1
-    }
+  model_names="$(az aigateway model list \
+    --subscription "$subscription_id" \
+    -g "$resource_group" \
+    --gateway-name "$gateway_name" \
+    --query '[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
+  if [ -z "$model_names" ]; then
+    model_names="$(az rest --method get \
+      --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/models?api-version=${AI_GATEWAY_API_VERSION}" \
+      --query 'value[].name' -o tsv | tr '\t' '\n')" || {
+        echo "Unable to discover models on the selected gateway. Check Azure access and retry." >&2
+        exit 1
+      }
+  fi
   if [ -z "$model_names" ]; then
     echo "No models are configured on ${gateway_name}. Add a model in AI Gateway Studio or select another gateway." >&2
     exit 1
@@ -63,6 +75,20 @@ if [ -z "$gateway_url" ] && [ "${UNITY_GATEWAY_SELECTION:-0}" != "1" ]; then
   gateway_url="$(azd_value AZURE_AI_GATEWAY_ENDPOINT)"
 fi
 if [ -z "$gateway_url" ]; then
+  cli_hostname="$(az aigateway show \
+    --subscription "$subscription_id" \
+    -g "$resource_group" \
+    -n "$gateway_name" \
+    --query 'properties.gatewayUrl || properties.frontend.defaultHostname || properties.runtimeHostname' \
+    -o tsv 2>/dev/null || true)"
+  if [ -n "$cli_hostname" ]; then
+    case "$cli_hostname" in
+      http://*|https://*) gateway_url="$cli_hostname" ;;
+      *) gateway_url="https://${cli_hostname}/" ;;
+    esac
+  fi
+fi
+if [ -z "$gateway_url" ]; then
   gateway_url="$(az rest --method get --uri "$gateway_uri" --query properties.gatewayUrl -o tsv 2>/dev/null || true)"
 fi
 if [ -z "$gateway_url" ]; then
@@ -70,12 +96,37 @@ if [ -z "$gateway_url" ]; then
   [ -n "$runtime_hostname" ] && gateway_url="https://${runtime_hostname}/"
 fi
 gateway_url="$(require_value AZURE_AI_GATEWAY_ENDPOINT "$gateway_url")"
-gateway_api_key="$(az rest \
-  --method post \
-  --uri "https://management.azure.com${gateway_resource_id}/apiKeys/default/listSecrets?api-version=${AI_GATEWAY_API_VERSION}" \
-  --body '{}' \
+gateway_api_key="$(az aigateway api-key list-secrets \
+  --subscription "$subscription_id" \
+  -g "$resource_group" \
+  --gateway-name "$gateway_name" \
+  -n master \
   --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' \
   -o tsv 2>/dev/null || true)"
+if [ -z "$gateway_api_key" ]; then
+  first_key_name="$(az aigateway api-key list \
+    --subscription "$subscription_id" \
+    -g "$resource_group" \
+    --gateway-name "$gateway_name" \
+    --query '[0].name' -o tsv 2>/dev/null || true)"
+  if [ -n "$first_key_name" ]; then
+    gateway_api_key="$(az aigateway api-key list-secrets \
+      --subscription "$subscription_id" \
+      -g "$resource_group" \
+      --gateway-name "$gateway_name" \
+      -n "$first_key_name" \
+      --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' \
+      -o tsv 2>/dev/null || true)"
+  fi
+fi
+if [ -z "$gateway_api_key" ]; then
+  gateway_api_key="$(az rest \
+    --method post \
+    --uri "https://management.azure.com${gateway_resource_id}/apiKeys/default/listSecrets?api-version=${AI_GATEWAY_API_VERSION}" \
+    --body '{}' \
+    --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' \
+    -o tsv 2>/dev/null || true)"
+fi
 if [ -z "$gateway_api_key" ]; then
   gateway_api_key="$(az rest \
     --method post \
@@ -86,20 +137,28 @@ if [ -z "$gateway_api_key" ]; then
 fi
 gateway_api_key="$(require_value AZURE_AI_GATEWAY_API_KEY "$gateway_api_key")"
 
-request_body="$(uv run --project "${REPO_ROOT}/src/agent" python -c \
+request_body="$(python3 -c \
   'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
   "$gateway_model")"
 ready=false
 echo "Validating model ${gateway_model} on gateway ${gateway_name}..."
-for attempt in $(seq 1 20); do
-  response="$(curl --connect-timeout 10 --max-time 30 -sS -w $'\n%{http_code}' \
+max_attempts=20
+connect_timeout=10
+max_time=30
+if [ "${UNITY_GATEWAY_SELECTION:-}" = "1" ]; then
+  max_attempts=2
+  connect_timeout=5
+  max_time=15
+fi
+for attempt in $(seq 1 "$max_attempts"); do
+  response="$(curl --connect-timeout "$connect_timeout" --max-time "$max_time" -sS -w $'\n%{http_code}' \
     -X POST "${gateway_url%/}/default/models/openai/v1/responses" \
     -H "Api-Key: ${gateway_api_key}" \
     -H "Content-Type: application/json" \
     --data-binary "$request_body" || true)"
   status="${response##*$'\n'}"
   response_body="${response%$'\n'*}"
-  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | uv run --project "${REPO_ROOT}/src/agent" python -c '
+  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | python3 -c '
 import json, sys
 payload = json.load(sys.stdin)
 readable = any(
@@ -114,7 +173,7 @@ raise SystemExit(0 if readable else 1)
     break
   fi
   echo "Waiting for AI Gateway model route, attempt=${attempt}, status=${status:-unavailable}"
-  sleep 6
+  [ "$attempt" -lt "$max_attempts" ] && sleep 3
 done
 if [ "$ready" != true ]; then
   echo "AI Gateway Responses route did not return a readable message (HTTP ${status:-unavailable})." >&2
@@ -145,7 +204,7 @@ if [ "$gateway_lock_acquired" != true ]; then
 fi
 trap release_gateway_lock EXIT
 if [ -n "${UNITY_GATEWAY_CONFIGURATION_ID:-}" ]; then
-  current_configuration_id="$(uv run --project "${REPO_ROOT}/src/agent" python -c \
+  current_configuration_id="$(python3 -c \
     'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("configurationId", ""))' \
     "$active_gateway_file")"
   if [ "$current_configuration_id" != "$UNITY_GATEWAY_CONFIGURATION_ID" ]; then
@@ -161,6 +220,30 @@ if [ -n "$(azd_value AZURE_ENV_NAME)" ]; then
   azd env set AZURE_AI_GATEWAY_API_KEY "$gateway_api_key" >/dev/null
 fi
 
+aca_sandbox_group="${ACA_SANDBOX_GROUP:-}"
+aca_resource_group="${ACA_RESOURCE_GROUP:-}"
+aca_region="${ACA_REGION:-}"
+aca_subscription="${ACA_SUBSCRIPTION:-$subscription_id}"
+if [ -z "$aca_sandbox_group" ] && [ -f "${HOME}/.config/aca/config.json" ]; then
+  eval "$(python3 - "${HOME}/.config/aca/config.json" <<'PY'
+import json, shlex, sys
+try:
+    cfg = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    cfg = {}
+for env_name, key in (
+    ("aca_sandbox_group", "sandbox_group"),
+    ("aca_resource_group", "resource_group"),
+    ("aca_region", "region"),
+    ("aca_subscription", "subscription"),
+):
+    val = str(cfg.get(key, "") or "").strip()
+    if val:
+        print(f"{env_name}={shlex.quote(val)}")
+PY
+)"
+fi
+
 agent_env="${REPO_ROOT}/src/agent/.env"
 cat > "$agent_env" <<EOF
 AI_GATEWAY_NAME="${gateway_name}"
@@ -170,12 +253,23 @@ AZURE_AI_GATEWAY_ENDPOINT="${gateway_url%/}/"
 AZURE_AI_GATEWAY_API_KEY="${gateway_api_key}"
 AZURE_AI_GATEWAY_MODEL="${gateway_model}"
 AZURE_AI_GATEWAY_MINI_MODEL="${gateway_mini_model}"
+AI_GATEWAY_BASE_URL="${gateway_url%/}/default/models/openai/v1"
+AI_GATEWAY_API_KEY="${gateway_api_key}"
+AI_GATEWAY_MODEL="${gateway_model}"
 MOCK="0"
 EOF
+if [ -n "$aca_sandbox_group" ]; then
+  cat >> "$agent_env" <<EOF
+ACA_SANDBOX_GROUP="${aca_sandbox_group}"
+ACA_RESOURCE_GROUP="${aca_resource_group:-$resource_group}"
+ACA_REGION="${aca_region:-eastus2}"
+ACA_SUBSCRIPTION="${aca_subscription:-$subscription_id}"
+EOF
+fi
 chmod 600 "$agent_env"
 
 active_gateway_tmp="${active_gateway_file}.$$"
-uv run --project "${REPO_ROOT}/src/agent" python -c '
+python3 -c '
 import datetime, json, os, sys
 source, destination, expected, name, resource_group, subscription_id, endpoint = sys.argv[1:]
 if expected:

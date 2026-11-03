@@ -88,11 +88,11 @@
     },
     {
       "path": "scripts/dev-start.ps1",
-      "sha256": "34bab78b2e44784ff694a25b37a8b7aa25cf73483070eb1af2ca450115290fc4"
+      "sha256": "41b63dfb7ba42801ad16b3291fd1426189d2d0635209d5a33698ac5f6e5adb47"
     },
     {
       "path": "scripts/dev-start.sh",
-      "sha256": "a1ee573f2a6f94657d427a1768b67bf079ae3e226c00edc7e9d3aa5c89de1b0b"
+      "sha256": "867266a09d0b70a8fb32173a6570e30a7820df8b2e88d4191d670f614470a97c"
     },
     {
       "path": "scripts/dev-stop.ps1",
@@ -120,7 +120,7 @@
     },
     {
       "path": "src/agent/main.py",
-      "sha256": "6f6134a1655bb4006ef4ec7bcdb8817c7249f5ab4886a1bb772752beedbe551b"
+      "sha256": "1e3f91351184678f848f0400bab3bebdf93cf4b71d27ddefd1df5a56fe5761e0"
     },
     {
       "path": "src/agent/prompts/system.md",

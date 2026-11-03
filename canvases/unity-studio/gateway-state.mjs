@@ -19,6 +19,91 @@ function normalizedEndpoint(value) {
   return text(value).replace(/\/+$/, "").toLowerCase();
 }
 
+function normalizeGatewayEndpoint(gateway) {
+  const explicit = text(gateway?.properties?.gatewayUrl || gateway?.endpoint);
+  if (explicit) return /^https?:\/\//i.test(explicit) ? explicit : `https://${explicit}`;
+  const hostname = text(
+    gateway?.properties?.frontend?.defaultHostname
+    || gateway?.properties?.runtimeHostname,
+  );
+  if (!hostname) return "";
+  return /^https?:\/\//i.test(hostname) ? hostname : `https://${hostname}`;
+}
+
+export function selectPreferredModelId(models, activeModel = "") {
+  if (!Array.isArray(models) || !models.length) return "";
+  if (activeModel) {
+    const matched = models.find((item) => item.id === activeModel);
+    if (matched) return matched.id;
+  }
+  const latest = models.find((item) => /^gpt-latest$/i.test(item.id));
+  if (latest) return latest.id;
+  const nonMini = models.find((item) => !/mini|nano/i.test(item.id));
+  if (nonMini) return nonMini.id;
+  return models[0].id;
+}
+
+export function normalizeSandboxGroupCandidate(group) {
+  const resourceId = text(group?.id);
+  const resourceIdParts = resourceId.split("/");
+  const resourceGroupIndex = resourceIdParts.findIndex((part) =>
+    part.toLowerCase() === "resourcegroups");
+  const nestedSandbox = group?.sandbox && typeof group.sandbox === "object" ? group.sandbox : null;
+  return {
+    name: text(group?.name || group?.sandbox_group || group?.group || nestedSandbox?.group || nestedSandbox?.name),
+    resourceGroup: text(
+      group?.resourceGroup
+      || group?.resource_group
+      || nestedSandbox?.resource_group
+      || nestedSandbox?.resourceGroup
+      || (resourceGroupIndex >= 0 ? resourceIdParts[resourceGroupIndex + 1] : ""),
+    ),
+    location: text(group?.location || group?.region || nestedSandbox?.region || nestedSandbox?.location),
+    subscriptionId: text(
+      resourceId.split("/")[2]
+      || group?.subscriptionId
+      || group?.subscription
+      || nestedSandbox?.subscription
+      || nestedSandbox?.subscriptionId,
+    ),
+  };
+}
+
+export async function discoverSandboxGroups(commandRunner, subscriptionId = "", configuredGroup = null) {
+  const configured = configuredGroup ? normalizeSandboxGroupCandidate(configuredGroup) : null;
+  if (configured?.name && configured?.resourceGroup && (!subscriptionId || !configured.subscriptionId || configured.subscriptionId === subscriptionId)) {
+    return { sandboxGroups: [configured], suggested: configured };
+  }
+  const args = ["resource", "list", "--resource-type", "Microsoft.App/sandboxGroups", "-o", "json"];
+  if (subscriptionId) args.splice(4, 0, "--subscription", subscriptionId);
+  const result = await commandRunner("az", args);
+  const groups = [];
+  if (result?.ok && result.stdout) {
+    try {
+      const parsed = JSON.parse(result.stdout);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const candidate = normalizeSandboxGroupCandidate(item);
+          if (candidate.name && candidate.resourceGroup) groups.push(candidate);
+        }
+      }
+    } catch {
+      // Ignore parse failures and fall back to configured group if present
+    }
+  }
+  if (configured?.name && configured?.resourceGroup && !groups.some((item) =>
+    item.name === configured.name && item.resourceGroup === configured.resourceGroup
+  )) {
+    groups.unshift(configured);
+  }
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+  const suggested = (configured?.name
+    && groups.find((item) => item.name === configured.name && item.resourceGroup === configured.resourceGroup))
+    ?? groups[0]
+    ?? null;
+  return { sandboxGroups: groups, suggested };
+}
+
 export function normalizeGatewayCandidate(gateway) {
   const resourceId = text(gateway?.id);
   const resourceIdParts = resourceId.split("/");
@@ -33,7 +118,7 @@ export function normalizeGatewayCandidate(gateway) {
     ),
     location: text(gateway?.location),
     subscriptionId: text(resourceId.split("/")[2] || gateway?.subscriptionId),
-    endpoint: text(gateway?.properties?.gatewayUrl || gateway?.endpoint),
+    endpoint: normalizeGatewayEndpoint(gateway),
     model: text(gateway?.model),
   };
 }
@@ -71,6 +156,7 @@ export async function discoverGatewayModels(commandRunner, gateway) {
   const items = [];
   const seen = new Set();
   let next = uri;
+  let restError = "";
   while (next) {
     const target = new URL(next, uri);
     if (target.origin !== "https://management.azure.com" || target.pathname !== new URL(uri).pathname
@@ -79,16 +165,55 @@ export async function discoverGatewayModels(commandRunner, gateway) {
     }
     seen.add(target.href);
     const result = await commandRunner("az", ["rest", "--method", "get", "--uri", target.href, "-o", "json"]);
-    if (!result.ok) throw new Error(result.stderr || result.error || "Unable to discover gateway models.");
+    if (!result.ok) {
+      restError = result.stderr || result.error || "Unable to discover gateway models.";
+      break;
+    }
     const payload = JSON.parse(result.stdout);
-    if (!Array.isArray(payload.value)) throw new Error("Gateway model discovery returned an invalid inventory.");
+    if (!Array.isArray(payload.value)) {
+      restError = "Gateway model discovery returned an invalid inventory.";
+      break;
+    }
     items.push(...payload.value);
     next = payload.nextLink;
   }
-  const models = items.map((item) => ({
-    id: text(item.name), label: text(item.properties?.displayName || item.name),
-  })).filter((item) => item.id).sort((a, b) => a.id.localeCompare(b.id));
-  return models;
+  if (!restError) {
+    return items.map((item) => ({
+      id: text(item.name), label: text(item.properties?.displayName || item.name),
+    })).filter((item) => item.id).sort((a, b) => a.id.localeCompare(b.id));
+  }
+  const cliResult = await commandRunner("az", [
+    "aigateway",
+    "model",
+    "list",
+    "--subscription",
+    active.subscriptionId,
+    "-g",
+    active.resourceGroup,
+    "--gateway-name",
+    active.name,
+    "-o",
+    "json",
+  ]);
+  if (cliResult?.ok && cliResult.stdout) {
+    try {
+      const cliItems = JSON.parse(cliResult.stdout);
+      if (Array.isArray(cliItems)) {
+        return cliItems
+          .map((item) => {
+            const id = text(item.name);
+            const displayName = text(item.properties?.displayName);
+            const label = displayName && displayName !== id ? `${id} (${displayName})` : (displayName || id);
+            return { id, label };
+          })
+          .filter((item) => item.id)
+          .sort((a, b) => a.id.localeCompare(b.id));
+      }
+    } catch {
+      // Ignore parse errors and throw original REST error below
+    }
+  }
+  throw new Error(restError);
 }
 
 export async function loadGatewayModelOptions(commandRunner, options, requestedGateway) {
@@ -118,6 +243,23 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
   const configuredGatewayName = envValue(agentConfiguration, "AI_GATEWAY_NAME");
   const configuredResourceGroup = envValue(agentConfiguration, "AI_GATEWAY_RESOURCE_GROUP");
   const configuredSubscriptionId = envValue(agentConfiguration, "AZURE_SUBSCRIPTION_ID");
+  const sandboxGroupName = envValue(agentConfiguration, "ACA_SANDBOX_GROUP")
+    || text(activeGateway?.sandboxGroup?.name);
+  const sandboxResourceGroup = envValue(agentConfiguration, "ACA_RESOURCE_GROUP")
+    || text(activeGateway?.sandboxGroup?.resourceGroup);
+  const sandboxRegion = envValue(agentConfiguration, "ACA_REGION")
+    || text(activeGateway?.sandboxGroup?.location);
+  const sandboxSubscriptionId = envValue(agentConfiguration, "ACA_SUBSCRIPTION")
+    || text(activeGateway?.sandboxGroup?.subscriptionId)
+    || configuredSubscriptionId;
+  const sandboxGroup = sandboxGroupName
+    ? {
+        name: sandboxGroupName,
+        resourceGroup: sandboxResourceGroup,
+        location: sandboxRegion,
+        subscriptionId: sandboxSubscriptionId,
+      }
+    : null;
   const gatewayConfigured = Boolean(activeGateway)
     && !configuring
     && activeGateway.configurationStatus === "ready"
@@ -135,6 +277,7 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
     gatewayConfigured,
     model: model || null,
     activeGateway: activeGateway ?? null,
+    sandboxGroup,
     missing: gatewayConfigured
       ? []
       : activeGateway
@@ -146,7 +289,7 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
         ? configuring || activeGateway.configurationStatus === "configuring"
           ? "The selected gateway is being validated and applied. Review command output before running locally."
           : "The selected gateway needs validation. Reconfigure it before running locally."
-        : "Choose an existing AI Gateway. Unity Studio will validate its model route and configure this app automatically.",
+        : "Choose an existing AI Gateway or bootstrap a new one to connect a model.",
   };
 }
 

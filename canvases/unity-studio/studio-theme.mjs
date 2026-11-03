@@ -93,8 +93,8 @@ export function renderThemeToggle(theme = "light", presentationProfile = "standa
   validateTheme(theme);
   const presentation = getStudioPresentation(presentationProfile);
   return `<div class="studio-theme-control" role="group" aria-label="Unity Studio utilities">
-    <a class="studio-docs" href="https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme" target="_blank" rel="noopener noreferrer">Docs</a>
-    <button data-studio-button="subtle" class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
+    <a class="studio-docs" tabindex="-1" href="https://github.com/coreai-microsoft/unity/tree/main/canvases/unity-studio#readme" target="_blank" rel="noopener noreferrer">Docs</a>
+    <button data-studio-button="subtle" tabindex="-1" class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
       ${renderOcticon("gear", { size: 18 })}
     </button>
     <span class="studio-theme-error" role="status"></span>
@@ -181,16 +181,26 @@ export function renderThemeClientScript(apiToken, editorSettings = { editorId: "
           controls.forEach((button) => { button.disabled = false; });
         }
       });
+      const isExpectedAbort = (error) =>
+        error?.name === "AbortError" || /Load failed|Failed to fetch|NetworkError/i.test(String(error?.message || ""));
+      let navigatingAway = false;
+      window.addEventListener("beforeunload", () => { navigatingAway = true; });
+      window.addEventListener("pagehide", () => { navigatingAway = true; });
       window.addEventListener("focus", async () => {
-        void editorPreference.refresh();
+        if (navigatingAway || window.__unityStudioSubmitting) return;
+        void editorPreference.refresh({ silentNetworkError: true });
         if (saving) return;
         const readEpoch = ++epoch;
         try {
           const response = await fetch("/api/preferences", { headers: { "X-Unity-Studio-Token": ${token} } });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "Appearance preference could not be read.");
-          if (!saving && readEpoch === epoch) applyTheme(result.theme);
-        } catch (error) { if (readEpoch === epoch) reportError(error.message); }
+          if (!saving && !navigatingAway && !window.__unityStudioSubmitting && readEpoch === epoch) applyTheme(result.theme);
+        } catch (error) {
+          if (!navigatingAway && !window.__unityStudioSubmitting && !isExpectedAbort(error) && readEpoch === epoch) {
+            reportError(error.message);
+          }
+        }
       });
     })();
   `;

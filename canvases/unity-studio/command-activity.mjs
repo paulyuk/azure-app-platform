@@ -43,18 +43,19 @@ export function createCommandActivity(filePath) {
       const record = {
         id: randomUUID(), kind, label: redactActivityText(label).slice(0, 500),
         command: redactActivityText(command).slice(0, 8000),
-        startedAt: Date.now(), status: "running", durationMs: null, note: "",
+        startedAt: Date.now(), status: "running", durationMs: null, note: "", error: "",
       };
       await update(() => { records.unshift(record); records.length = Math.min(records.length, 60); });
       return record.id;
     },
-    async finish(id, { ok, note = "" }) {
+    async finish(id, { ok, note = "", error = "" }) {
       await update(() => {
         const record = records.find((item) => item.id === id);
         if (!record) return;
         Object.assign(record, {
           status: ok ? "succeeded" : "failed", durationMs: Date.now() - record.startedAt,
           note: redactActivityText(note).slice(0, 1000),
+          error: redactActivityText(error).slice(0, 4000),
         });
       });
     },

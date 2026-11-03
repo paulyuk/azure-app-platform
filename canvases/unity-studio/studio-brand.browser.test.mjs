@@ -84,14 +84,14 @@ test("Unity branding and opening animation work in the browser", {
       await page.waitForFunction(() => window.unityStudioReady);
       assert.equal(await page.locator(".studio-intro").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).count(), 1);
-      await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
+      await page.getByRole("button", { name: /Assemble existing projects/ }).click();
       assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).isVisible(), true);
       assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
       await page.locator("#back").click();
       assert.equal(await page.locator(".studio-intro").count(), 0);
       assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Unity Studio home" }).count(), 1);
-      await page.getByRole("button", { name: /Assemble existing pieces/ }).click();
+      await page.getByRole("button", { name: /Assemble existing projects/ }).click();
       await page.getByRole("button", { name: "Unity Studio home" }).focus();
       await page.keyboard.press("Enter");
       await page.waitForFunction(() => window.unityStudioReady);

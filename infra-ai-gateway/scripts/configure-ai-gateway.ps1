@@ -6,6 +6,11 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
+Remove-Item Env:UV_FROZEN, Env:UV_LOCKED, Env:UV_OFFLINE, Env:UV_NO_SYNC, Env:UV_EXTRA_INDEX_URL -ErrorAction SilentlyContinue
+$env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { 'https://packagefeedproxy.microsoft.io/pypi/simple/' }
+$env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
+$env:PIP_INDEX_URL = if ($env:PIP_INDEX_URL) { $env:PIP_INDEX_URL } else { $env:UV_INDEX_URL }
+
 $AiGatewayApiVersion = '2025-09-01-preview'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SliceRoot = Split-Path -Parent $ScriptDir
@@ -43,8 +48,11 @@ $gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL }
 $gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' } else { '' }
 if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
     Write-Host "Discovering models on AI Gateway $gatewayName..."
-    $modelInventory = az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to discover models on the selected gateway. Check Azure access and retry.' }
+    $modelInventory = az aigateway model list --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName --query '[].name' -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty(($modelInventory -join ''))) {
+        $modelInventory = az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to discover models on the selected gateway. Check Azure access and retry.' }
+    }
     $modelNames = @(($modelInventory -join "`n") -split '\s+' | Where-Object { $_ })
     if ($modelNames.Count -eq 0) { throw "No models are configured on $gatewayName. Add a model in AI Gateway Studio or select another gateway." }
     $miniModel = $modelNames | Where-Object { $_ -match 'mini' } | Select-Object -First 1
@@ -62,6 +70,12 @@ $gatewayMiniModel = Assert-Value 'AZURE_AI_GATEWAY_MINI_MODEL' $gatewayMiniModel
 $gatewayUrl = $env:AZURE_AI_GATEWAY_ENDPOINT
 if ([string]::IsNullOrEmpty($gatewayUrl) -and -not $explicitGatewaySelection) { $gatewayUrl = Get-AzdValue 'AZURE_AI_GATEWAY_ENDPOINT' }
 if ([string]::IsNullOrEmpty($gatewayUrl)) {
+    $cliHostname = (az aigateway show --subscription $subscriptionId -g $resourceGroup -n $gatewayName --query 'properties.gatewayUrl || properties.frontend.defaultHostname || properties.runtimeHostname' -o tsv 2>$null)
+    if (-not [string]::IsNullOrEmpty($cliHostname)) {
+        $gatewayUrl = if ($cliHostname -match '^https?://') { $cliHostname } else { "https://$cliHostname/" }
+    }
+}
+if ([string]::IsNullOrEmpty($gatewayUrl)) {
     $gatewayUrl = (az rest --method get --uri $gatewayUri --query properties.gatewayUrl -o tsv)
 }
 if ([string]::IsNullOrEmpty($gatewayUrl)) {
@@ -72,8 +86,17 @@ if ([string]::IsNullOrEmpty($gatewayUrl)) {
 }
 $gatewayUrl = Assert-Value 'AZURE_AI_GATEWAY_ENDPOINT' $gatewayUrl
 
-$gatewayApiKey = (az rest --method post --uri "https://management.azure.com$gatewayResourceId/apiKeys/default/listSecrets?api-version=$AiGatewayApiVersion" --body '{}' --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' -o tsv 2>$null)
-if ($LASTEXITCODE -ne 0) { $gatewayApiKey = '' }
+$gatewayApiKey = (az aigateway api-key list-secrets --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName -n master --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' -o tsv 2>$null)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($gatewayApiKey)) {
+    $firstKeyName = (az aigateway api-key list --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName --query '[0].name' -o tsv 2>$null)
+    if (-not [string]::IsNullOrEmpty($firstKeyName)) {
+        $gatewayApiKey = (az aigateway api-key list-secrets --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName -n $firstKeyName --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' -o tsv 2>$null)
+    }
+}
+if ([string]::IsNullOrEmpty($gatewayApiKey)) {
+    $gatewayApiKey = (az rest --method post --uri "https://management.azure.com$gatewayResourceId/apiKeys/default/listSecrets?api-version=$AiGatewayApiVersion" --body '{}' --query 'primaryKey || properties.primaryKey || primaryValue || properties.primaryValue' -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0) { $gatewayApiKey = '' }
+}
 if ([string]::IsNullOrEmpty($gatewayApiKey)) {
     $gatewayApiKey = (az rest --method post --uri "https://management.azure.com$gatewayResourceId/apiKeys/default/listValues?api-version=$AiGatewayApiVersion" --body '{}' --query 'primaryValue || properties.primaryValue || primaryKey || properties.primaryKey' -o tsv)
 }
@@ -89,8 +112,10 @@ $requestBody = @{
 
 $ready = $false
 $status = 'unavailable'
+$maxAttempts = if ($env:UNITY_GATEWAY_SELECTION -eq '1') { 2 } else { 20 }
+$timeoutSec = if ($env:UNITY_GATEWAY_SELECTION -eq '1') { 15 } else { 30 }
 Write-Host "Validating model $gatewayModel on gateway $gatewayName..."
-for ($attempt = 1; $attempt -le 20; $attempt++) {
+for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     $hasReadableMessage = $false
     try {
         $response = Invoke-WebRequest -Uri "$gatewayUrlTrimmed/default/models/openai/v1/responses" `
@@ -98,7 +123,7 @@ for ($attempt = 1; $attempt -le 20; $attempt++) {
             -Headers @{ 'Api-Key' = $gatewayApiKey; 'Content-Type' = 'application/json' } `
             -Body $requestBody `
             -UseBasicParsing `
-            -TimeoutSec 30 `
+            -TimeoutSec $timeoutSec `
             -SkipHttpErrorCheck
         $status = $response.StatusCode
         $payload = $response.Content | ConvertFrom-Json
@@ -117,7 +142,7 @@ for ($attempt = 1; $attempt -le 20; $attempt++) {
         break
     }
     Write-Host "Waiting for AI Gateway model route, attempt=$attempt, status=$status"
-    Start-Sleep -Seconds 6
+    if ($attempt -lt $maxAttempts) { Start-Sleep -Seconds 3 }
 }
 if (-not $ready) {
     Write-Error "AI Gateway Responses route did not return a readable message (HTTP $status)."
@@ -170,6 +195,21 @@ try {
         azd env set AZURE_AI_GATEWAY_API_KEY $gatewayApiKey | Out-Null
     }
 
+    $acaSandboxGroup = $env:ACA_SANDBOX_GROUP
+    $acaResourceGroup = $env:ACA_RESOURCE_GROUP
+    $acaRegion = $env:ACA_REGION
+    $acaSubscription = $env:ACA_SUBSCRIPTION
+    $acaConfigPath = Join-Path $HOME '.config\aca\config.json'
+    if ([string]::IsNullOrWhiteSpace($acaSandboxGroup) -and (Test-Path $acaConfigPath)) {
+        try {
+            $acaConfig = Get-Content -Raw $acaConfigPath | ConvertFrom-Json
+            if ($acaConfig.sandbox_group) { $acaSandboxGroup = [string]$acaConfig.sandbox_group }
+            if ($acaConfig.resource_group) { $acaResourceGroup = [string]$acaConfig.resource_group }
+            if ($acaConfig.region) { $acaRegion = [string]$acaConfig.region }
+            if ($acaConfig.subscription) { $acaSubscription = [string]$acaConfig.subscription }
+        } catch { }
+    }
+
     $agentEnvPath = Join-Path $RepoRoot 'src\agent\.env'
     $agentEnvContent = @"
 AI_GATEWAY_NAME="$gatewayName"
@@ -179,8 +219,23 @@ AZURE_AI_GATEWAY_ENDPOINT="$gatewayUrlTrimmed/"
 AZURE_AI_GATEWAY_API_KEY="$gatewayApiKey"
 AZURE_AI_GATEWAY_MODEL="$gatewayModel"
 AZURE_AI_GATEWAY_MINI_MODEL="$gatewayMiniModel"
+AI_GATEWAY_BASE_URL="$gatewayUrlTrimmed/default/models/openai/v1"
+AI_GATEWAY_API_KEY="$gatewayApiKey"
+AI_GATEWAY_MODEL="$gatewayModel"
 MOCK="0"
 "@
+    if (-not [string]::IsNullOrWhiteSpace($acaSandboxGroup)) {
+        $resolvedAcaRg = if (-not [string]::IsNullOrWhiteSpace($acaResourceGroup)) { $acaResourceGroup } else { $resourceGroup }
+        $resolvedAcaRegion = if (-not [string]::IsNullOrWhiteSpace($acaRegion)) { $acaRegion } else { 'eastus2' }
+        $resolvedAcaSub = if (-not [string]::IsNullOrWhiteSpace($acaSubscription)) { $acaSubscription } else { $subscriptionId }
+        $agentEnvContent += @"
+
+ACA_SANDBOX_GROUP="$acaSandboxGroup"
+ACA_RESOURCE_GROUP="$resolvedAcaRg"
+ACA_REGION="$resolvedAcaRegion"
+ACA_SUBSCRIPTION="$resolvedAcaSub"
+"@
+    }
     [System.IO.File]::WriteAllText(
         $agentEnvPath,
         $agentEnvContent,

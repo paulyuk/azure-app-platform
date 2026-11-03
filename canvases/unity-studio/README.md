@@ -1,21 +1,10 @@
-# Unity Studio
+# Azure App Platform
 
-Opening the canvas plays the bundled, muted 12-second Unity logo animation.
-The intro always uses a black background, independent of the saved appearance,
-with only a small floating **Skip** button and no footer. Skip is available
-immediately; Escape also skips it. Finishing or skipping the intro reveals the
-start page in the user's selected light or dark theme without changing the saved
-preference, using the same transparent Unity symbol as the workspace header
-and compact **Unity** navigation branding. Returning Home or
-reloading the page does not replay the intro; opening the canvas again does.
-Reduced-motion preferences bypass playback. If autoplay is blocked or the video
-fails or stalls, Studio opens the start page with an explanatory notice.
-The PNG and MP4 ship with the plugin and are served locally, with no CDN,
-Downloads-folder dependency, or additional install step.
+Azure App Platform opens directly to **Home** without a startup animation on launch, using the Unity symbol and compact **Azure App Platform** navigation branding in the user's selected light or dark theme, centered around **ACA Sandboxes** as the focal primitive.
 
 Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
-a 20px Unity mark and a compact, normal-weight Unity Home button. Its accessible
-name is **Unity Studio home**. Docs and the working Settings gear remain at the
+a 20px Unity mark and a compact, normal-weight Azure App Platform Home button. Its accessible
+name is **Unity Studio home** (retained for non-breaking compatibility). Docs and the working Settings gear remain at the
 top right. The large Home masthead and tagline are not repeated in the content.
 The existing app workspace header, selectors and controls are unchanged.
 

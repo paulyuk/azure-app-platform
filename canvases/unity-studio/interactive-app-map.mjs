@@ -15,7 +15,7 @@ import { buildOperationGroups } from "./operation-groups.mjs";
 import { APP_LOGS_CSS, createAppLogsPanel } from "./app-logs-panel.mjs";
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
-import { OCTICON_MARKUP, octiconMask, renderOcticon } from "./studio-icons.mjs";
+import { OCTICON_MARKUP, VSCODE_ICON_MARKUP, octiconMask, renderOcticon } from "./studio-icons.mjs";
 export const NODE_TIER_ICONS = {
   web: "browser", agent: "agent", gateway: "shield-lock", skills: "tools",
   sandbox: "codespaces", connectors: "link", workflows: "workflow", sre: "meter", data: "database",
@@ -609,7 +609,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: auto; padding: 6px; border: 0; background: transparent; flex: none; }
     #action-center:hover { background: var(--surface-muted); }
     #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
-    #guide-content h3 { margin-top: 14px; }
+    #guide-content h3 { margin-top: 14px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
+    #guide-content > p { font-size: 12px; line-height: 18px; color: var(--muted); }
     #guide-content .journey { margin: 10px 0; }
     #guide-content .journey-stage { padding-block: 8px; }
     #guide-shortcuts { display: grid; gap: 8px; padding: 4px 4px 12px; overflow: auto; }
@@ -693,8 +694,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     body.resizing-details { cursor: row-resize; user-select: none; }
     #details, #guide-rail { min-width: 0; background: var(--surface); }
     #details { overflow: auto; padding: 16px; }
-    :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 18px; }
-    :is(#details, #guide-rail) h3 { margin: 18px 0 6px; font-size: 13px; }
+    :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
+    :is(#details, #guide-rail) h3 { margin: 16px 0 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
     :is(#details, #guide-rail) p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
     :is(#details, #guide-rail) code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
     :is(#details, #guide-rail) ul { margin: 4px 0; padding-left: 18px; }
@@ -752,11 +753,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .journey-stage.complete:not(:last-child)::after { background: #107c10; }
     .journey-stage.next, .journey-stage.ready, .journey-stage.active { border-radius: 7px; background: var(--accent-soft); }
     .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
-    .journey-stage-action { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; white-space: normal; }
-    .journey-stage-action strong { text-decoration: underline; text-underline-offset: 3px; }
-    .journey-stage-action:hover { background: var(--surface-muted); }
-    .journey-detail { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
-    .journey-state { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    #guide-rail .journey-stage-action, #guide-rail .journey-stage button.journey-stage-action {
+      display: grid !important; gap: 2px; justify-items: start; align-items: start;
+      width: 100%; height: auto; min-height: 0; padding: 4px 6px !important; margin: -4px -6px !important;
+      border: 0 !important; border-radius: 6px; background: transparent !important; box-shadow: none !important; color: inherit;
+      text-align: left; white-space: normal; cursor: pointer;
+    }
+    #guide-rail .journey-stage-action > .ct-button-label {
+      display: grid; gap: 2px; justify-items: start; width: 100%; white-space: normal; text-align: left;
+    }
+    #guide-rail .journey-stage-action strong { text-decoration: underline; text-underline-offset: 3px; }
+    #guide-rail .journey-stage-action:hover { background: var(--surface-muted) !important; border: 0 !important; }
+    .journey-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.4; font-weight: 400; }
+    .journey-state { display: block; margin-bottom: 2px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-stage.complete::before { border-color: #107c10; background: #107c10; }
     .journey-stage.complete .journey-state { color: #107c10; }
     .journey-stage.next::before, .journey-stage.ready::before { border-color: var(--accent); background: var(--accent); }
@@ -947,6 +956,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const ICONS = ${safeJson(OCTICON_MARKUP)};
     const TIER_ICONS = ${safeJson(NODE_TIER_ICONS)};
     const INITIAL_EDITOR_SETTINGS = ${safeJson(editorSettings)};
+    const VSCODE_ICON_MARKUP = ${safeJson(VSCODE_ICON_MARKUP)};
     const API_TOKEN = ${safeJson(apiToken)};
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
     const mountAppLogs = (${createAppLogsPanel.toString()});
@@ -2178,7 +2188,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           appendText(card, "strong", "Starting your app");
           appendText(card, "p", totalCount
             ? String(readyCount) + " of " + String(totalCount) + " services are ready. First startup can take about a minute."
-            : "Unity is starting the local services. First startup can take about a minute.");
+            : "Starting local services. First startup can take about a minute.");
           if (totalCount) {
             const progress = document.createElement("progress");
             progress.max = totalCount;
@@ -2195,11 +2205,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             deploying: "Deploying your app",
           };
           appendText(card, "strong", activeLabels[appState] || "Updating your app");
-          appendText(card, "p", "Unity is completing this operation. Readiness updates automatically.");
+          appendText(card, "p", "Completing this operation. Readiness updates automatically.");
         }
       } else if (appState === "failed") {
         appendText(card, "strong", "Last operation failed");
         appendText(card, "p", operationalState.app.error || "Review command output before retrying.", "error");
+        if (operationalState.app.command) {
+          appendText(card, "pre", operationalState.app.command, "command-code");
+        }
+        const errorDetail = operationalState.app.errorDetail || latestCommands.find((item) => item.status === "failed")?.error;
+        if (errorDetail && errorDetail !== operationalState.app.error) {
+          const errorDisclosure = document.createElement("details");
+          errorDisclosure.className = "command-error-details";
+          appendText(errorDisclosure, "summary", "Error details");
+          appendText(errorDisclosure, "pre", errorDetail, "command-code command-error-output");
+          card.append(errorDisclosure);
+        }
         if (runtimeEntrypoints.some((entry) => entry.ready)) {
           buttons.append(card, keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
         } else if (operationalState.app.operation === "configuring") {
@@ -2214,8 +2235,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           card,
           "p",
           previewMode
-            ? "Unity can start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
-            : "Required local configuration was found. Unity can start the complete app for you.",
+            ? "Start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
+            : "Required local configuration was found. Start the app locally to try it.",
         );
         buttons.append(card, keyedActionButton(
           "run-app",
@@ -2225,11 +2246,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ));
       } else if (operationalState.readiness) {
         appendText(card, "strong", "Finish setup before running");
-        appendText(card, "p", operationalState.readiness.guidance || "Unity will guide the remaining connection setup.");
+        appendText(card, "p", operationalState.readiness.guidance || "Complete the remaining connection setup before running.");
         buttons.append(card, keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
       } else {
         appendText(card, "strong", "Checking app status");
-        appendText(card, "p", "Unity is checking what is ready and what still needs setup.");
+        appendText(card, "p", "Checking what is ready and what still needs setup.");
       }
       parent.append(card);
     }
@@ -2348,7 +2369,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.empty = "false";
       const heading = appendText(details, "h3", "Workflow progress");
       heading.tabIndex = -1;
-      appendText(details, "p", "Unity checks the app and keeps the next useful action here. Progress updates automatically.");
+      appendText(details, "p", "Check readiness and run the next step for your app.");
       if (launchNotice) {
         const notice = document.createElement("div");
         notice.className = "action-card attention";
@@ -2383,12 +2404,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         let content = item;
         if (stage.id === "build" || stage.id === "connect") {
-          content = stage.id === "build"
-            ? keyedActionButton("edit-app-structure", "", renderStructureMap)
-            : keyedActionButton("review-connections", "", renderConnectionsPanel);
+          content = document.createElement("button");
+          content.type = "button";
+          content.dataset.actionKey = stage.id === "build" ? "edit-app-structure" : "review-connections";
           content.className = "journey-stage-action";
           content.setAttribute("aria-label", stage.id === "build" ? "Build: edit app structure" : "Connect: review connections");
-          buttons.append(item, content);
+          content.addEventListener("click", stage.id === "build" ? renderStructureMap : renderConnectionsPanel);
+          item.append(content);
         }
         appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
         appendText(content, "strong", stage.label);
@@ -2537,8 +2559,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           const modelSelect = document.createElement("select");
           modelSelect.setAttribute("aria-label", "AI model");
           const models = options.models || [];
+          const preferredDefaultModel = models.find((model) => /^gpt-latest$/i.test(model.id))?.id
+            || models.find((model) => !/mini|nano/i.test(model.id))?.id
+            || models[0]?.id
+            || "";
           selectedModel = models.find((model) => model.id === selectedModel)?.id
-            || models.find((model) => model.id === options.active?.model)?.id || models[0]?.id || "";
+            || models.find((model) => model.id === options.active?.model)?.id || preferredDefaultModel;
           for (const model of models) {
             const option = document.createElement("option");
             option.value = model.id;
@@ -2704,29 +2730,39 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderDocumentAssessment(container) {
       if (!documentAssessment && !documentTesting && !(invokingAgent && agentDocument)) return;
-      const section = document.createElement("section");
+      const section = document.createElement("details");
       section.className = "document-assessment";
       section.dataset.documentAssessment = "true";
       const state = documentTesting || invokingAgent ? "pending" : documentAssessment.state;
       section.dataset.state = state;
-      appendText(section, "strong", "Processed document");
-      const badge = appendText(section, "span", state === "approved" ? "Policy checks passed"
+      section.open = state === "approved" || state === "rejected" || Boolean(documentTesting);
+      const summary = document.createElement("summary");
+      const summaryLabel = state === "approved" ? "Document policy checks passed"
+        : state === "rejected" ? "Document rejected by policy"
+        : state === "pending" ? "Checking document..."
+        : "Document check result";
+      appendText(summary, "strong", summaryLabel);
+      const badge = appendText(summary, "span", state === "approved" ? "Policy checks passed"
         : state === "rejected" ? "Document rejected" : state === "pending" ? "Checking document..."
         : "Approval not established", "command-badge");
       badge.dataset.state = state === "approved" ? "succeeded" : state === "rejected" ? "failed" : "unknown";
+      section.append(summary);
       if (state === "approved") {
-        appendText(section, "p", "Approved for agent processing - sanitized text only. This is the last completed check, not a signed trust credential.");
-        appendText(section, "p", "The original document remains untrusted. Identity, income, creditworthiness, and loan approval are not verified.");
+        appendText(section, "p", "Sanitized text passed pre-model checks. Identity, income, creditworthiness, and loan approval are not verified.");
         const labels = { email: "Email", phone: "Phone", ssn: "SSN", paymentCard: "Payment card" };
-        appendText(section, "small", "Supported patterns redacted: " + Object.entries(documentAssessment.redactions)
+        appendText(section, "small", "Redacted: " + Object.entries(documentAssessment.redactions)
           .map(([key, count]) => (labels[key] || key) + " " + count).join(" · "));
-        if (documentAssessment.truncated) appendText(section, "p", "The processed text was truncated to the output limit; it is not the complete application.");
+        if (documentAssessment.truncated) appendText(section, "p", "Truncated to output limit.");
         const text = appendText(section, "pre", documentAssessment.sanitizedText, "command-output sanitized-document");
         text.dataset.approvedDocument = "true";
       } else if (state === "rejected") {
         appendText(section, "p", "Not approved for agent processing. " + documentAssessment.reason);
       } else if (state !== "pending") {
-        appendText(section, "p", "No verified structured approval result is available. Model-written claims do not establish document trust.");
+        appendText(section, "p", "No verified structured approval result is available.");
+      }
+      if (documentResultText) {
+        const output = appendText(section, "pre", documentResultText, "command-output");
+        output.dataset.documentResult = "true";
       }
       container.append(section);
     }
@@ -2876,10 +2912,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       testEgress.dataset.testEgress = "true";
       buttons.append(actions, testOverride, testEgress);
       renderDocumentAssessment(container);
-      if (documentResultText) {
-        const output = appendText(container, "pre", documentResultText, "command-output");
-        output.dataset.documentResult = "true";
-      }
     }
 
     function renderAgentTester(container) {
@@ -3092,7 +3124,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderRuntimeServices(runtimeSection) {
       const tools = appendText(runtimeSection, "div", "", "run-section-actions");
-      appendText(tools, "p", "Local endpoints and source-discovered components. Readiness is not proof of a successful tool call.");
+      appendText(tools, "p", "Local runtime endpoints for this app.");
       buttons.append(tools, actionButton("Port settings", () => openAppSettings("ports")));
       for (const entrypoint of runtimeEntrypoints) {
         const row = document.createElement("div");
@@ -3116,32 +3148,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         buttons.setDisabled(open, !entrypoint.ready);
         buttons.append(row, open);
-        const projects = MODEL.nodes.filter((node) => node.kind === "project" && entrypointForNode(node)?.port === entrypoint.port);
-        for (const project of projects) {
-          const source = actionButton("Open " + project.name + " source", () => openRuntimeSource(project));
-          source.classList.add("runtime-source-action");
-          buttons.append(row, source);
-        }
         runtimeSection.append(row);
       }
-      for (const node of MODEL.nodes.filter((node) => node.kind === "project"
-        && ["web", "agent", "skills", "sandbox", "workflows", "connectors"].includes(node.tierId)
-        && !entrypointForNode(node))) {
-        const row = document.createElement("div");
-        row.className = "endpoint-row";
-        row.dataset.sourceOnly = "true";
-        const heading = document.createElement("div");
-        heading.className = "endpoint-heading";
-        appendText(heading, "strong", node.name);
-        appendText(heading, "span", "Source only", "endpoint-status");
-        row.append(heading);
-        appendText(row, "code", node.projectPath);
-        appendText(row, "small", "Source discovered; no standalone endpoint is declared in this app's run configuration.");
-        buttons.append(row, actionButton("Review source", () => openRuntimeSource(node)));
-        runtimeSection.append(row);
-      }
-      if (!runtimeEntrypoints.length && !MODEL.nodes.some((node) => node.kind === "project")) {
-        appendText(runtimeSection, "p", "No local components were discovered for this app.");
+      if (!runtimeEntrypoints.length) {
+        appendText(runtimeSection, "p", "No local runtime endpoints were discovered for this app.");
       }
     }
 
@@ -3195,12 +3205,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (operationalState.app?.foreignEntrypoints?.length) {
         buttons.append(container, actionButton("Resolve port conflict", () => openAppSettings("ports")));
       }
-      if (operationalState.readiness?.agentRuntime) {
-        appendText(container, "p", operationalState.readiness.agentRuntime === "copilot-sdk-sandbox"
-          ? "Copilot SDK in an ACA agent sandbox, with a separate document sandbox. Cloud isolation must be verified against the configured session pools."
-          : "Local simulation: the document tool has no OS or network isolation. Use synthetic documents only.", "run-runtime-notice");
-        buttons.append(container, actionButton("Review key files", renderBuildPanel));
-      }
       renderAgentTester(container);
     }
 
@@ -3214,7 +3218,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const appState = operationalState.app?.state;
       const readiness = operationalState.readiness;
       appendText(container, "p", readiness?.gatewayConfigured
-        ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name
+        ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name +
+          (readiness.sandboxGroup?.name ? " · Sandbox: " + readiness.sandboxGroup.name : "")
         : "Connect an AI Gateway and model to enable the agent workflow.");
       if (appState === "running" || ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(container, "p", appState === "running" ? "Stop the local app before changing its AI Gateway."
@@ -3307,7 +3312,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         row.className = "command-record";
         row.dataset.status = record.status;
         row.dataset.runDisclosure = record.id;
-        row.open = open.get(row.dataset.runDisclosure) || false;
+        row.open = open.has(row.dataset.runDisclosure)
+          ? open.get(row.dataset.runDisclosure)
+          : record.status === "failed";
         const summary = document.createElement("summary");
         summary.dataset.actionKey = "operation-" + record.id;
         if (record.id === focusedRecord) focusedSummary = summary;
@@ -3330,6 +3337,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         row.append(summary);
         const body = appendText(row, "div", "", "command-record-body");
         appendText(body, "pre", record.command, "command-code");
+        const errorText = record.error || (record.status === "failed" ? record.note : "");
+        if (errorText) {
+          const errorDetails = document.createElement("details");
+          errorDetails.className = "command-error-details";
+          errorDetails.open = record.status === "failed";
+          appendText(errorDetails, "summary", "Error details");
+          appendText(errorDetails, "pre", errorText, "command-code command-error-output");
+          body.append(errorDetails);
+        }
         container.append(row);
       }
       if (focusedRecord) (focusedSummary || details.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });

@@ -61,8 +61,8 @@ export function createEditorPreference({ select, errorDisplay, globalError, dial
     if (notify) onChange({ settings: current, busy });
   }
   const api = {
-    async refresh() {
-      if (busy) return;
+    async refresh({ silentNetworkError = false } = {}) {
+      if (busy || window.__unityStudioSubmitting) return;
       busy = true;
       report("");
       render();
@@ -70,7 +70,11 @@ export function createEditorPreference({ select, errorDisplay, globalError, dial
         current = confirmed = validate(await request("/api/editor-settings"));
       } catch (error) {
         current = confirmed;
-        report("Could not load editor preference: " + error.message);
+        const isTransientFetchAbort = silentNetworkError
+          && (error?.name === "AbortError" || /Load failed|Failed to fetch|NetworkError/i.test(String(error?.message || "")));
+        if (!window.__unityStudioSubmitting && !isTransientFetchAbort) {
+          report("Could not load editor preference: " + error.message);
+        }
       } finally {
         busy = false;
         render();

@@ -20,8 +20,8 @@ Two boundaries carry the safety story, and they are not the same boundary:
 
 | Boundary | Owns | Why it can't be the other one |
 | --- | --- | --- |
-| **ACA Sandboxes** | Execution | Model-generated code has to run *somewhere*. It runs in an ephemeral, kernel-isolated container with its own filesystem, memory, and identity, and dies after the turn. |
-| **AI Gateway (APIM)** | Egress | Model routing, tools, policies, enforcement. By the time traffic reaches a gateway, the code has already run — a gateway cannot contain execution. |
+| **ACA Sandbox Group** | Execution | Untrusted inputs and tool code have to run *somewhere*. Each turn creates an ephemeral, kernel-isolated microVM (`aca sandbox create --egress-default Deny` → `exec` → `delete`) with its own filesystem and memory, and destroys it immediately after execution. |
+| **AI Gateway (APIM)** | Egress | Model routing (`Responses API`), tools, policies, enforcement. By the time traffic reaches a gateway, the code has already run — a gateway cannot contain execution. |
 
 They compose. Sandboxed code that needs the outside world goes through a
 **secure egress proxy** to a single allow-listed destination. If the sandbox is

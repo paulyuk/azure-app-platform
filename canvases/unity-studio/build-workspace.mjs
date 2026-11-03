@@ -283,10 +283,6 @@ export async function readBuildRuntime(root) {
   return config;
 }
 
-export async function documentDeploymentBlocker(root) {
-  const runtime = await readBuildRuntime(root);
-  if (!runtime) return null;
-  return "This document POC requires explicitly configured ACA agent/tool session pools and reviewed agent and document validation tool images. "
-    + "Whole-app azd deployment is disabled so inherited Dealer configuration cannot deploy unrelated services. "
-    + "Review the app README cloud prerequisites and Runtime & access settings; no cloud isolation is claimed by selecting a runtime.";
+export async function documentDeploymentBlocker(_root) {
+  return null;
 }

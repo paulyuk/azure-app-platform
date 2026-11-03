@@ -34,13 +34,14 @@ done
 set --
 if [[ -n "$RUNTIME_ARG" ]]; then set -- "$RUNTIME_ARG"; fi
 
+unset UV_FROZEN UV_LOCKED UV_OFFLINE UV_NO_SYNC UV_EXTRA_INDEX_URL
 export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
 export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
 
 command -v uv >/dev/null || { echo "uv is required." >&2; exit 1; }
 command -v curl >/dev/null || { echo "curl is required for HTTP readiness." >&2; exit 1; }
-(cd "$ROOT/src/agent" && uv run main.py "$@" --check-runtime)
+(cd "$ROOT/src/agent" && uv sync && uv run main.py "$@" --check-runtime)
 if ! "$ROOT/scripts/dev-stop.sh"; then
   echo "Startup aborted because the previous tracked process could not be stopped. Resolve the reported process and rerun dev-stop.sh; the existing registry was preserved." >&2
   exit 1

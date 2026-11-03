@@ -90,18 +90,21 @@
 
   <!-- Flow: Host Compute -> ACA Sandboxes -->
   <path class="flow" d="M480,165 L480,110 L850,110 L850,165" marker-end="url(#arw)"/>
-  <text class="m lbl" x="665" y="100" text-anchor="middle">Tool execution (isolated)</text>
+  <text class="m lbl" x="665" y="100" text-anchor="middle">aca sandbox create → exec → delete (ephemeral microVM)</text>
 
   <!-- Flow: Host Compute -> AI Gateway -->
-  <path class="flow" d="M640,310 L680,310" marker-end="url(#arw)"/>
-  <text class="m lbl" x="660" y="297" text-anchor="middle" font-size="11">prompts</text>
+  <path class="flow" d="M640,380 L660,380 L660,520 L680,520" marker-end="url(#arw)"/>
+  <text class="m lbl" x="635" y="455" text-anchor="end" font-size="11">Responses API (sanitized)</text>
 
   <!-- Column C: ACA Sandboxes -->
   <text class="m cap" x="680" y="150">Tool Execution &amp; Egress</text>
   <rect class="panel" x="680" y="165" width="340" height="100" rx="16"/>
-  <text class="a" x="705" y="198" font-size="17" font-weight="700">★ ACA Sandboxes</text>
-  <rect class="pill" x="705" y="215" width="160" height="24" rx="12"/>
-  <text class="a" x="785" y="231" font-size="11" font-weight="700" text-anchor="middle">PII Boundary Enforced</text>
+  <text class="a" x="705" y="196" font-size="17" font-weight="700">★ ACA Sandbox Group</text>
+  <text class="m" x="705" y="214" font-size="11.5">Ephemeral microVM · egress-default: Deny</text>
+  <rect class="pill" x="705" y="226" width="160" height="24" rx="12"/>
+  <text class="a" x="785" y="242" font-size="11" font-weight="700" text-anchor="middle">PII Boundary Enforced</text>
+  <rect class="pill" x="875" y="226" width="125" height="24" rx="12"/>
+  <text class="a" x="937" y="242" font-size="11" font-weight="700" text-anchor="middle">create · exec · delete</text>
 
   <path class="flow-amber" d="M850,265 L850,283" marker-end="url(#arw-amber)"/>
   <rect class="egress" x="680" y="283" width="340" height="50" rx="14"/>

@@ -1,18 +1,34 @@
-# Unity Studio canvas plan
+# Azure App Platform canvas plan
 
-This plan is the living specification for the Unity Studio hub canvas. It
+This plan is the living specification for the **Azure App Platform** canvas (`canvases/unity-studio`). It
 covers the canvas and its project extension only; application templates and
 specialist studios remain separate authorities.
 
+## Current screen-by-screen design & UX specification
+
+- **Branding & Icon**: Visible canvas title and major repository/documentation headings use **Azure App Platform**. Keep the existing Unity mark (`/assets/unity-symbol.png`) and retain non-breaking internal identifiers (`unity-studio`, `.unity-studio/`, `unity.app.yaml`) until the tracked breaking-rename migration (#44).
+- **Focal primitive**: Lean into **ACA Sandboxes** as the focal primitive for strongly isolated execution across Home, starter templates, and assembly flows.
+- **No startup animation**: Open directly to **Home** on load (`/` without `?intro=1`); startup video playback is disabled by default.
+- **Primary screens and modes**:
+  - **Home** (formerly loosely called Start; top navigation from sub-flows uses `← Back to Home`)
+    - `-> Create new path` (**Create a new app** — Step 1 heading matches **Create a new app** with **Choose a template** as the subtitle)
+    - `-> Open existing path` (**Open an app**)
+    - `-> Assemble existing path` (**Assemble existing projects**)
+  - **App workspace modes** (once an app is created or opened):
+    - **Create / Customize** (`Customize`)
+    - **Run / Debug** (`Run & Debug`)
+    - **Observe** (`Observe` / App Map & Logs)
+- **Cross-canvas alignment**: Cross-compare and leverage proven patterns from `coreai-microsoft/canvases-cloud-foundation` (especially the Azure Functions and SRE Agent canvases).
+
 ## Product intent
 
-Unity Studio is the entry point for creating, assembling, reopening, and
-operating Unity-pattern applications. It should be useful after creation:
+Azure App Platform is the entry point for creating, assembling, reopening, and
+operating agentic cloud applications centered on **ACA Sandboxes**. It should be useful after creation:
 users must be able to identify an app, inspect what is real in its source,
 trace its App Map, open component source, hand off to specialist studios, run
 the app locally, prepare or deploy it in Azure, and delete an app deliberately.
 
-The canvas models the generic Unity pattern, not a car-buying narrative. The
+The canvas models the generic nine-tier platform pattern, not a car-buying narrative. The
 nine tiers are:
 
 | ID | Meaning |
@@ -21,7 +37,7 @@ nine tiers are:
 | `agent` | Reasoning and governed skill selection |
 | `gateway` | Policy, identity, routing, quota, and observability boundary |
 | `skills` | Hosted Skills with explicit tool contracts |
-| `sandbox` | Constrained execution for sensitive or untrusted work |
+| `sandbox` | Constrained execution for sensitive or untrusted work (focal primitive: **ACA Sandboxes**) |
 | `connectors` | Governed integration with external systems |
 | `workflows` | Durable orchestration across restarts and decisions |
 | `sre` | Self-awareness, health correlation, and bounded remediation |
@@ -31,16 +47,21 @@ Tier names and roles must remain generic. Do not add demo-specific narrative
 steps or infer that proxy access through a Hosted Skill is a direct data
 primitive.
 
-## Entry journeys
+## Entry journeys (Home)
 
-The landing context has three primary actions:
+The **Home** screen has three primary actions:
 
-1. **Create a new app** — choose the editable Empty Unity app or the
-   runnable Dealer sample.
-2. **Open an app** — rediscover apps persisted as Git repository/worktree
-   pairs.
-3. **Assemble existing pieces** — explicitly map capabilities to independently
-   built source projects and compatible Azure resources.
+1. **Create a new app** ("Start from a Sandboxes app template and customize.") — Step 1 (`Create a new app`, subtitle `Choose a template`) lists templates in this order:
+   1. **Sandboxes & AI Gateway Starter** (minimal starter with an agent runtime in ACA Sandboxes, isolated tool execution, and governed model access through AI Gateway; Step 2 and Step 3 present logical roles **Agent** with an `ACA Sandboxes` badge — *"Hosts agent runtime, providing isolated tool execution and secure egress"* — and **Gateway** with an `AI Gateway` badge — *"Governed model and tool ingress with policy, routing, and quotas"*)
+   2. **Dealership E2E Reference Sample** (complete, runnable reference app for the dealer workflow; logical roles carry their backing infrastructure badges such as `Foundry Hosted Agent` on **Agent** and `ACA Sandboxes` on **Sandbox**)
+   3. **Empty app** (editable app shell to shape around your own scenario)
+   - Subtitle copy under **Choose a template** stays template-list-agnostic ("Select a starter template or reference sample for your new app.") so adding or renaming templates does not require copy rewrites.
+   - **Create a new app** is a **2-step** flow (`Step 1 of 2` → `Step 2 of 2`):
+     - **Step 1**: Pure template selection (**Choose a template**) so the list of templates can grow cleanly. `Continue` is focused and ready to invoke.
+     - **Step 2**: **App name**, a combined **What should this app do & agent instructions** field, the **Included now** capability cards (with right-docked infrastructure badges), and direct creation (`Create starter app` / `Create runnable sample` / `Create empty app`), with the create button focused as the first tab stop.
+   - External code editor selection (VS Code, etc.) lives in the global **Settings** dialog rather than inside the Create flow.
+2. **Open an app** ("Continue building, running, or managing an app.") — rediscover apps persisted as Git repository/worktree pairs.
+3. **Assemble existing projects** ("Combine source projects, ACA Sandboxes, and Azure resources.") — explicitly map capabilities to independently built source projects, ACA Sandboxes, and compatible Azure resources.
 
 Template choice cards show only a clear title and one outcome-focused
 description. After creation or selection, navigation goes directly to the App

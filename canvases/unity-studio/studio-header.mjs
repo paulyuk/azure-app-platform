@@ -9,7 +9,7 @@ export function mountStudioHeader(element, { toolkit, utilities, onHome }) {
     return h("div", { ref });
   }
   return mountCanvasComponent(element, () => h(CanvasHeader, {
-    title: "Unity", onHome,
+    title: "Azure App Platform", onHome,
     homeButton: { "aria-label": "Unity Studio home", style: { fontWeight: 400 } },
     icon: h("img", {
       src: "/assets/unity-symbol.png", width: 20, height: 20, alt: "", "aria-hidden": true,

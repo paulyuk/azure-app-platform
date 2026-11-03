@@ -1287,7 +1287,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     for (const label of [
       "Create a new app",
       "Open an app",
-      "Assemble existing pieces",
+      "Assemble existing projects",
       "Empty Unity app",
       "Dealer sample",
       "Choose pieces",

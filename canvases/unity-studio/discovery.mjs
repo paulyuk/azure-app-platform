@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { opendir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -581,7 +581,11 @@ export function filesInAppScope(files, componentPaths) {
 }
 
 export function createCommandEnvironment(source = process.env) {
-  const environment = { ...source };
+  const environment = {
+    AZURE_CORE_COLLECT_TELEMETRY: "0",
+    AZURE_CORE_ONLY_SHOW_ERRORS: "1",
+    ...source,
+  };
   for (const key of [
     "client_session",
     "CLIENT_SESSION",
@@ -597,20 +601,65 @@ export function createCommandEnvironment(source = process.env) {
 
 export function runCommand(command, args, { timeout = 8_000, env = {}, preserveStdout = false } = {}) {
   return new Promise((resolveResult) => {
-    execFile(command, args, {
+    const child = spawn(command, args, {
       env: { ...createCommandEnvironment(), ...env },
-      timeout,
-      maxBuffer: 4 * 1024 * 1024,
       windowsHide: true,
-    }, (error, stdout, stderr) => {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const maxBuffer = 4 * 1024 * 1024;
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
+
+    const finish = ({ ok, exitCode = null, signal = null, error = null }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.stdout?.destroy();
+      child.stderr?.destroy();
       resolveResult({
-        ok: !error,
-        exitCode: typeof error?.code === "number" ? error.code : null,
-        signal: error?.signal ?? null,
-        timedOut: Boolean(error?.killed),
+        ok,
+        exitCode,
+        signal,
+        timedOut,
         stdout: preserveStdout ? stdout : stdout.trim(),
         stderr: stderr.trim(),
-        error: error?.message ?? null,
+        error,
+      });
+    };
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // Ignore
+      }
+      finish({
+        ok: false,
+        signal: "SIGTERM",
+        error: `Command timed out after ${timeout}ms: ${command} ${args.join(" ")}`,
+      });
+    }, timeout);
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      if (stdout.length < maxBuffer) stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      if (stderr.length < maxBuffer) stderr += chunk;
+    });
+    child.on("error", (error) => {
+      finish({ ok: false, error: error.message });
+    });
+    child.on("exit", (code, signal) => {
+      finish({
+        ok: code === 0 && !signal,
+        exitCode: typeof code === "number" ? code : null,
+        signal: signal ?? null,
+        error: code === 0 && !signal ? null : (stderr.trim() || `Command exited with code ${code ?? signal}`),
       });
     });
   });

@@ -95,7 +95,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
-    <title>Unity Studio</title>
+    <title>Azure App Platform</title>
     <link rel="stylesheet" href="/canvas-ui/styles.css">
     <link rel="stylesheet" href="/canvas-ui/base.css">
     ${presentation.stylesheet ? `<link rel="stylesheet" href="${presentation.stylesheet}">` : ""}
@@ -112,11 +112,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         color: var(--studio-ink);
         font: var(--text-body-medium, 14px)/var(--leading-body-medium, 1.5) var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
       }
-      main { width: min(100%, 840px); margin: 0 auto; }
-      h1 { margin: 0 0 8px; font-size: var(--text-title-large, 28px); line-height: var(--leading-title-large, 1.2); letter-spacing: -.01em; }
-      h2 { margin: 0 0 8px; font-size: 20px; }
-      h3 { font-size: 14px; }
-      p { margin: 6px 0 16px; color: var(--studio-muted); }
+      main { width: min(100%, 888px); margin: 0 auto; padding: 24px 0; }
+      h1 { margin: 0 0 8px; font-size: var(--text-title-size, 20px); line-height: var(--text-title-line-height, 28px); font-weight: var(--font-weight-semibold, 600); letter-spacing: normal; }
+      h2 { margin: 20px 0 6px; font-size: var(--text-subtitle-size, 15px); line-height: 22px; font-weight: var(--font-weight-semibold, 600); }
+      h3 { font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: var(--font-weight-semibold, 600); }
+      p { margin: 6px 0 16px; color: var(--canvas-muted, var(--studio-muted)); font-size: var(--canvas-body, 13px); line-height: 20px; font-weight: 400; }
       code { overflow-wrap: anywhere; font: var(--text-code-inline, 12px) var(--font-mono, "SFMono-Regular", Consolas, monospace); }
       button, input, textarea, select { font: inherit; }
       button {
@@ -149,16 +149,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .workspace-intro p { margin-bottom: 8px; }
       .workspace-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
       .workspace-path { color: var(--studio-muted); }
-      .step { color: var(--studio-muted); font-size: 12px; margin-bottom: 8px; }
-      .field { display: grid; gap: 5px; margin: 15px 0; font-weight: 600; }
+      .step { color: var(--canvas-muted, var(--studio-muted)); font-size: 12px; font-weight: 400; margin-bottom: 6px; }
+      .field { display: grid; gap: 6px; margin: 16px 0; font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: 500; color: var(--canvas-fg, var(--studio-ink)); }
       input[type="text"], textarea, select {
         width: 100%;
         border: 1px solid var(--studio-line);
         border-radius: 9px;
-        padding: 9px 10px;
+        padding: 8px 10px;
         background: var(--studio-raised);
         color: inherit;
-        font: inherit;
+        font-family: inherit;
+        font-size: var(--canvas-body, 13px);
+        line-height: 20px;
         font-weight: 400;
       }
       textarea { min-height: 84px; resize: vertical; }
@@ -168,9 +170,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         border-radius: 10px;
         padding: 12px;
       }
-      .capability, .review-row { display: grid; gap: 4px; }
-      .capability strong, .review-row strong { display: block; }
-      .review-row small { display: block; color: var(--studio-muted); line-height: 1.45; }
+      .capability, .review-row { display: grid; gap: 4px; background: var(--studio-raised); }
+      .capability-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+      .capability-head .badge { margin-left: auto; flex: 0 0 auto; }
+      .capability strong, .review-row strong { display: block; font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: var(--font-weight-semibold, 600); }
+      .capability small, .review-row small { display: block; color: var(--canvas-muted, var(--studio-muted)); font-size: 12px; line-height: 18px; font-weight: 400; }
       .app-row { display: flex; align-items: center; gap: 10px; }
       .app-row > [data-existing-app] { flex: 1; min-width: 0; text-align: left; }
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
@@ -226,11 +230,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .lifecycle-actions button { flex: 1 1 180px; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
       .choice small, .capability small, .mapping small { display: block; color: var(--studio-muted); }
-      .template { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 14px; }
+      .template { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 12px 14px; background: var(--studio-raised); cursor: pointer; }
+      .template:hover { border-color: var(--studio-accent-2); }
       .template > input { margin-top: 3px; }
-      .template > span { display: grid; gap: 7px; }
-      .template strong { font-size: 14px; line-height: 1.25; }
-      .template-meta { display: block; color: var(--studio-muted); font-size: 13px; line-height: 1.45; }
+      .template > span { display: grid; gap: 4px; font-weight: 400; }
+      .template strong { font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: var(--font-weight-semibold, 600); color: var(--canvas-fg, var(--studio-ink)); }
+      .template-meta { display: block; color: var(--canvas-muted, var(--studio-muted)); font-size: 12px; line-height: 18px; font-weight: 400; }
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 2px 8px; font-size: 11px; background: var(--studio-panel); }
       .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
@@ -255,9 +260,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .mapping select { margin-top: 8px; }
       .source-option { display: block; }
       .local-path { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 16px; }
-      .summary { display: grid; gap: 14px; }
-      .summary section { border-bottom: 1px solid var(--studio-line); padding-bottom: 12px; }
-      .summary section:last-child { border: 0; }
+      .summary { display: grid; gap: 16px; margin: 16px 0; }
+      .summary section { border-bottom: 1px solid var(--studio-line); padding-bottom: 14px; }
+      .summary section:last-child { border: 0; padding-bottom: 0; }
+      .summary section > h3 { margin: 0 0 6px; }
+      .summary section > p { margin: 4px 0 0; }
+      .summary .review-list { margin: 8px 0 0; }
+      .checkbox-field { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--canvas-body, 13px); line-height: 18px; color: var(--canvas-fg, var(--studio-ink)); cursor: pointer; }
+      .checkbox-field input[type="checkbox"] { margin: 0; width: 15px; height: 15px; flex: 0 0 auto; }
+      .field-hint { margin: 6px 0 0; font-size: 12px; line-height: 18px; color: var(--canvas-muted, var(--studio-muted)); }
       .component-list { display: grid; gap: 8px; margin: 10px 0 0; }
       .component-status { display: grid; grid-template-columns: minmax(130px, auto) 1fr; align-items: center; gap: 8px; }
       .component-status button { min-height: 32px; padding: 5px 9px; text-align: left; font-family: var(--font-mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
@@ -360,6 +371,14 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       const capabilities = ${JSON.stringify(capabilities)};
       let editorSettings = ${JSON.stringify(editorSettings).replaceAll("<", "\\u003c")};
       let editorPreferenceBusy = false, appBusy = false;
+      function focusPrimaryAction(selector = "#next") {
+        requestAnimationFrame(() => {
+          const target = document.querySelector(selector);
+          if (target && !target.disabled && !document.querySelector(".studio-intro")) {
+            target.focus({ preventScroll: true });
+          }
+        });
+      }
       window.addEventListener("unity-editor-settings-change", (event) => {
         editorSettings = event.detail.settings;
         editorPreferenceBusy = event.detail.busy;
@@ -411,7 +430,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         tierIds: [],
         sourceBindings: {},
         azureBindings: {},
-        openInEditor: true
+        openInEditor: false
       };
 
       function escape(value) {
@@ -461,11 +480,14 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function applyTemplateDefaults(template) {
-        if (template?.kind !== "sample") return;
-        if (!draft.appName) {
-          draft.appName = "Dealer-sample-" + crypto.randomUUID().slice(0, 8);
+        if (!template) return;
+        const prefix = template.kind === "sample"
+          ? "dealer-sample-"
+          : (template.id === "builtin-sandbox-gateway-minimal-v1" ? "sandbox-starter-" : "app-");
+        if (!draft.appName || /^(dealer-sample|Dealer-sample|sandbox-starter|app)-[a-z0-9]+$/i.test(draft.appName)) {
+          draft.appName = prefix + crypto.randomUUID().slice(0, 6);
         }
-        if (!draft.purpose) {
+        if (template.kind === "sample" && !draft.purpose) {
           draft.purpose = DEALER_SAMPLE_PURPOSE;
         }
       }
@@ -549,7 +571,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderLanding() {
-        const restoreFocus = app.contains(document.activeElement);
         draft.journey = null;
         clearStatus();
         disposeView();
@@ -561,9 +582,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
           recentError: sourcesError,
         });
-        if (restoreFocus && !document.querySelector(".studio-intro")) {
-          document.getElementById("new-app")?.focus({ preventScroll: true });
-        }
+        focusPrimaryAction("#new-app");
         window.dispatchEvent(new Event("unity-home-ready"));
       }
 
@@ -603,7 +622,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderExistingApps() {
         disposeView();
         const apps = sources?.apps || [];
-        buttons.replace(app, topBack("Back to start") + '<div class="step">Existing apps</div><h1>Open a Unity app</h1>' +
+        buttons.replace(app, topBack("Back to Home") + '<div class="step">Existing apps</div><h1>Open an app</h1>' +
           '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
           (apps.length ? '<div class="choice-list">' + apps.map((item) =>
             '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
@@ -631,10 +650,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function captureDetails() {
-        draft.appName = document.getElementById("app-name").value.trim();
-        draft.purpose = document.getElementById("purpose").value.trim();
+        const appNameInput = document.getElementById("app-name");
+        const purposeInput = document.getElementById("purpose");
+        if (appNameInput) draft.appName = appNameInput.value.trim();
+        if (purposeInput) draft.purpose = purposeInput.value.trim();
         if (draft.journey === "new") {
-          draft.templateRootId = document.querySelector('input[name="template"]:checked')?.value || "";
+          const selected = document.querySelector('input[name="template"]:checked')?.value;
+          if (selected) draft.templateRootId = selected;
         }
       }
 
@@ -671,40 +693,34 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         disposeView();
         const isNew = draft.journey === "new";
-        buttons.replace(app, topBack("Back to start") + '<div class="step">Step 1 of ' + (isNew ? "3" : "4") + '</div>' +
-          '<h1>' + (isNew ? "Build a new app" : "Assemble existing pieces") + '</h1>' +
-          (isNew ? '<h2>Choose a template</h2><p>Start with the editable Empty Unity app or the complete Dealer sample.</p><div id="templates">' + templateHtml() + '</div>' : '') +
-          '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
-          escape(draft.appName) + '" placeholder="claims-assistant"></label>' +
-          '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
-          escape(draft.purpose) + '</textarea></label>' +
-          (!isNew ? '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>' : '') +
+        buttons.replace(app, topBack("Back to Home") + '<div class="step">Step 1 of ' + (isNew ? "2" : "4") + '</div>' +
+          '<h1>' + (isNew ? "Create a new app" : "Assemble existing projects") + '</h1>' +
+          (isNew
+            ? '<h2>Choose a template</h2><p>Select a starter template or reference sample for your new app.</p><div id="templates">' + templateHtml() + '</div>'
+            : '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
+              escape(draft.appName) + '" placeholder="claims-assistant"></label>' +
+              '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
+              escape(draft.purpose) + '</textarea></label>' +
+              '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>') +
           actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" }));
         document.getElementById("back").addEventListener("click", renderLanding);
         wireTopBack(renderLanding);
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
-            captureDetails();
             draft.templateRootId = input.value;
             const template = sources.templates.find((item) => item.id === input.value);
             applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
-            document.getElementById("app-name").value = draft.appName;
-            document.getElementById("purpose").value = draft.purpose;
           });
         });
-        document.getElementById("app-name").addEventListener("input", (event) => {
+        document.getElementById("app-name")?.addEventListener("input", (event) => {
           draft.appName = event.target.value;
         });
-        document.getElementById("purpose").addEventListener("input", (event) => {
+        document.getElementById("purpose")?.addEventListener("input", (event) => {
           draft.purpose = event.target.value;
         });
         document.getElementById("next").addEventListener("click", async () => {
           captureDetails();
-          if (!draft.appName || !draft.purpose) {
-            error("Enter an app name and purpose.");
-            return;
-          }
           if (isNew) {
             try {
               await loadSources();
@@ -717,77 +733,139 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               return;
             }
             const template = sources.templates.find((item) => item.id === draft.templateRootId);
+            applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
+            draft.step = 2;
+            renderCapabilities();
+            return;
           }
-          if (!isNew) {
-            try {
-              await loadSources();
-            } catch (cause) {
-              error(cause.message);
-              return;
-            }
+          if (!draft.appName) {
+            error("Enter an app name.");
+            return;
+          }
+          if (!draft.purpose) {
+            draft.purpose = "Assist users with governed tools and models.";
+          }
+          try {
+            await loadSources();
+          } catch (cause) {
+            error(cause.message);
+            return;
           }
           draft.step = 2;
-          if (isNew) {
-            const template = sources.templates.find((item) => item.id === draft.templateRootId);
-            template.kind === "sample" ? renderReview() : renderCapabilities();
-          } else {
-            renderPieces();
-          }
+          renderPieces();
         });
+        if (isNew && sources?.templates?.length) {
+          focusPrimaryAction("#next");
+        }
       }
 
       function renderCapabilities() {
         clearStatus();
         disposeView();
+        const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
+        const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
-        const heading = isSandboxGateway ? "Customize the Sandbox &amp; Gateway template" : "Customize the empty template";
-        const intro = isSandboxGateway
-          ? "The template starts with a headless agent loop, an ACA Sandbox tool boundary, and an AI Gateway seam. Define the egress allow-list without asking Unity Studio to guess your tools."
-          : "The template starts with one intentionally empty Hosted Skill. Define its seam without asking Unity Studio to guess your tools.";
-        const secondField = isSandboxGateway
-          ? '<label class="field">Egress allow-list domain<input id="egress-domain" type="text" maxlength="253" value="' +
-            escape(draft.templateInputs.egressAllowDomain) + '" placeholder="api.lender.example.com"></label>'
-          : '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
-            escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>';
-        buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 3</div><h1>' + heading + '</h1>' +
+        const heading = isSample
+          ? "Configure the Dealership E2E Reference Sample"
+          : (isSandboxGateway ? "Customize the Sandboxes &amp; AI Gateway Starter" : "Customize the Empty app");
+        const intro = isSample
+          ? "Review the app name and included capabilities for the complete reference sample."
+          : (isSandboxGateway
+              ? "Name your app and describe what it should do or how the agent should behave. Outbound tool egress is blocked by default."
+              : "The template starts with one intentionally empty Hosted Skill. Name your app and define its initial instructions.");
+        const instructionsValue = draft.templateInputs.agentInstructions || draft.purpose ||
+          (isSample ? DEALER_SAMPLE_PURPOSE : "Help users validate documents and answer questions using governed tools and models.");
+        const instructionsField = isSample
+          ? '<label class="field">What this sample does<textarea id="agent-instructions" maxlength="2000">' +
+            escape(instructionsValue) + '</textarea></label>'
+          : '<label class="field">What should this app do &amp; agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
+            escape(instructionsValue) + '</textarea></label>';
+        const secondField = (!isSandboxGateway && !isSample)
+          ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
+            escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
+          : "";
+        const badgeByTier = {
+          web: { label: "App Service / Embr", className: "embr" },
+          agent: isSandboxGateway
+            ? { label: "ACA Sandboxes", className: "sandbox" }
+            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : null),
+          gateway: { label: "AI Gateway", className: "gateway" },
+          skills: { label: "Azure Functions", className: "hosted-skill" },
+          sandbox: { label: "ACA Sandboxes", className: "sandbox" },
+          workflows: { label: "Durable Functions", className: "durable" },
+        };
+        const visibleTiers = isSandboxGateway
+          ? [
+              { name: "Agent", badge: "ACA Sandboxes", badgeClass: "sandbox", role: "Hosts agent runtime, providing isolated tool execution and secure egress" },
+              { name: "Gateway", badge: "AI Gateway", badgeClass: "gateway", role: "Governed model and tool ingress with policy, routing, and quotas" },
+            ]
+          : draft.tierIds.map((tierId) => {
+              const tier = capabilities.find((item) => item.id === tierId);
+              if (!tier) return null;
+              const badge = badgeByTier[tierId];
+              return {
+                name: tier.name,
+                badge: badge?.label,
+                badgeClass: badge?.className,
+                role: tier.role,
+              };
+            }).filter(Boolean);
+        const createButtonLabel = isSample
+          ? "Create runnable sample"
+          : (isSandboxGateway ? "Create starter app" : "Create empty app");
+        buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 2</div><h1>' + heading + '</h1>' +
           '<p>' + intro + '</p>' +
-          '<label class="field">Agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Explain how the agent should help, without inventing tool results.">' +
-          escape(draft.templateInputs.agentInstructions || ('Help users accomplish: ' + draft.purpose)) + '</textarea></label>' +
+          '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
+          escape(draft.appName) + '" placeholder="sandbox-starter-app"></label>' +
+          instructionsField +
           secondField +
-          '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Unity Studio after creation.</p>' +
-          '<div class="capability-list">' + draft.tierIds.map((tierId) => {
-            const tier = capabilities.find((item) => item.id === tierId);
-            return '<div class="capability"><strong>' + escape(tier.name) +
-              '</strong><small>' + escape(tier.role) + '</small></div>';
-          }).join("") + '</div>' +
-          actions({ back: true, nextLabel: "Review app" }));
+          '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Azure App Platform after creation.</p>' +
+          '<div class="capability-list">' + visibleTiers.map((tier) =>
+            '<div class="capability"><div class="capability-head"><strong>' + escape(tier.name) + '</strong>' +
+              (tier.badge ? '<span class="badge ' + escape(tier.badgeClass || "") + '">' + escape(tier.badge) + '</span>' : '') +
+              '</div><small>' + escape(tier.role) + '</small></div>'
+          ).join("") + '</div>' +
+          '<div class="studio-toolkit" id="review-notice">Creates a new isolated Git worktree. No Azure resources will be created or changed.</div>' +
+          actions({ back: true, nextLabel: createButtonLabel }));
+        notices.renderNotice(document.getElementById("review-notice"), {
+          children: "Creates a new isolated Git worktree. No Azure resources will be created or changed.",
+          intent: "info",
+        });
+        document.getElementById("app-name").addEventListener("input", (event) => {
+          draft.appName = event.target.value;
+        });
+        document.getElementById("agent-instructions").addEventListener("input", (event) => {
+          draft.templateInputs.agentInstructions = event.target.value;
+          draft.purpose = event.target.value.trim().slice(0, 500);
+        });
         wireActions({
           back: renderDetails,
-          next: () => {
-            draft.templateInputs.agentInstructions = document.getElementById("agent-instructions").value.trim();
-            if (!draft.templateInputs.agentInstructions) {
-              error("Enter agent instructions.");
+          next: async () => {
+            draft.appName = document.getElementById("app-name").value.trim();
+            if (!draft.appName) {
+              error("Enter an app name.");
               return;
             }
-            if (isSandboxGateway) {
-              draft.templateInputs.egressAllowDomain = document.getElementById("egress-domain").value.trim();
-              if (!/^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(draft.templateInputs.egressAllowDomain)) {
-                error("Enter a valid egress allow-list domain, e.g. api.lender.example.com.");
-                return;
-              }
-            } else {
+            const instructions = document.getElementById("agent-instructions").value.trim();
+            if (!instructions) {
+              error("Enter instructions for the app.");
+              return;
+            }
+            draft.templateInputs.agentInstructions = instructions;
+            draft.purpose = instructions.slice(0, 500);
+            if (!isSandboxGateway && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
                 error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.");
                 return;
               }
             }
-            draft.step = 3;
-            renderReview();
+            await submit();
           }
         });
         wireTopBack(renderDetails);
+        focusPrimaryAction("#next");
       }
 
       function availableForTier(tierId) {
@@ -893,7 +971,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         notices.dispose();
         buttons.replace(app, topBack("Back") + '<div class="step">Step 3 of 4</div><h1>Map Azure resources <small>(optional)</small></h1>' +
-          '<p>These mappings are references only. Unity Studio will not read keys, deploy, or change resources.</p>' +
+          '<p>These mappings are references only. Azure App Platform will not read keys, deploy, or change resources.</p>' +
           (warning ? '<div class="notice">' + escape(warning) + ' You can continue without Azure mappings.</div>' : "") +
           '<div class="mapping-list">' + draft.tierIds.map((tierId) => {
             const tier = capabilities.find((item) => item.id === tierId);
@@ -925,11 +1003,31 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           ? sources.roots.flatMap((root) => root.implementations.map((implementation) => ({ root, implementation })))
               .find((item) => item.implementation.id === sourceId)
           : null;
-        return '<div class="review-row"><strong>' + escape(tier.name) + '</strong><small>' +
-          escape(selected ? selected.root.name + " · " + selected.implementation.projectPath :
-            (sources.templates.find((item) => item.id === draft.templateRootId)?.kind === "sample"
-              ? "Included in the complete runnable sample"
-              : (tierId === "skills" ? "One empty Hosted Skill" : "Editable template implementation"))) +
+        const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isSample = sources.templates.find((item) => item.id === draft.templateRootId)?.kind === "sample";
+        const badgeByTier = {
+          web: { label: "App Service / Embr", className: "embr" },
+          agent: isSandboxGateway
+            ? { label: "ACA Sandboxes", className: "sandbox" }
+            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : null),
+          gateway: { label: "AI Gateway", className: "gateway" },
+          skills: { label: "Azure Functions", className: "hosted-skill" },
+          sandbox: { label: "ACA Sandboxes", className: "sandbox" },
+          workflows: { label: "Durable Functions", className: "durable" },
+        };
+        const badge = badgeByTier[tierId] || null;
+        const detail = selected
+          ? selected.root.name + " · " + selected.implementation.projectPath
+          : (isSandboxGateway && tierId === "agent"
+              ? "Hosts agent runtime, providing isolated tool execution and secure egress"
+              : (isSandboxGateway && tierId === "gateway"
+                  ? "Governed model and tool ingress with policy, routing, and quotas"
+                  : (isSample
+                      ? tier.role
+                      : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))));
+        return '<div class="review-row"><div class="capability-head"><strong>' + escape(tier.name) + '</strong>' +
+          (badge ? '<span class="badge ' + escape(badge.className) + '">' + escape(badge.label) + '</span>' : '') +
+          '</div><small>' + escape(detail) +
           (draft.azureBindings[tierId] ? "<br>Azure resource mapped" : "") + '</small></div>';
       }
 
@@ -937,26 +1035,29 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         notices.dispose();
         const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
-        const total = draft.journey === "new" ? (selectedTemplate?.kind === "sample" ? 2 : 3) : 4;
+        const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const total = draft.journey === "new" ? 2 : 4;
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
           : selectedTemplate?.name;
+        const reviewTiers = isSandboxGateway
+          ? ["agent", "gateway"]
+          : draft.tierIds;
+        const createButtonLabel = draft.journey === "assemble"
+          ? "Create assembled app"
+          : (selectedTemplate?.kind === "sample"
+              ? "Create runnable sample"
+              : (isSandboxGateway ? "Create starter app" : "Create empty app"));
         buttons.replace(app, topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
-          '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong><br>' +
-          escape(draft.purpose) + '</p></section><section><h3>Starter</h3><p>' + escape(starter) +
+          '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong></p>' +
+          (draft.purpose ? '<p>' + escape(draft.purpose) + '</p>' : '') +
+          '</section><section><h3>Starter</h3><p>' + escape(starter) +
           '</p></section><section><h3>Capabilities</h3><div class="review-list">' +
-          draft.tierIds.map(capabilityReview).join("") + '</div></section><section><h3>Workspace</h3>' +
+          reviewTiers.map(capabilityReview).join("") + '</div></section><section><h3>Workspace</h3>' +
           '<p>New isolated Git worktree. Selected sources are copied or hydrated; source locations are never modified.</p>' +
-          '<label for="preferred-editor">Code editor</label><select id="preferred-editor">' +
-          editorSettings.editors.map((editor) => '<option value="' + escape(editor.id) + '"' +
-            (editor.id === editorSettings.editorId ? " selected" : "") + '>' + escape(editor.label) + '</option>').join("") +
-          '</select><p><small>Remembered across Unity Studio. The editor must already be installed.</small></p>' +
-          '<label><input id="open-editor" type="checkbox"' + (draft.openInEditor ? " checked" : "") +
-          '><span id="open-editor-label"> Open the new worktree in ' +
-          escape(editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label) + '</span></label></section></div>' +
+          '</section></div>' +
           '<div class="studio-toolkit" id="review-notice">No Azure resources will be created or changed.</div>' +
-          actions({ back: true, nextLabel: draft.journey === "assemble" ? "Create assembled app" :
-            (selectedTemplate?.kind === "sample" ? "Create runnable sample" : "Create empty app") }));
+          actions({ back: true, nextLabel: createButtonLabel }));
         notices.renderNotice(document.getElementById("review-notice"), {
           children: "No Azure resources will be created or changed.",
           intent: "info",
@@ -968,29 +1069,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
         wireTopBack(draft.journey === "assemble" ? renderAzure :
           (selectedTemplate?.kind === "sample" ? renderDetails : renderCapabilities));
-        document.getElementById("open-editor").addEventListener("change", (event) => {
-          draft.openInEditor = event.target.checked;
-        });
-        document.getElementById("preferred-editor").addEventListener("change", async (event) => {
-          const previous = editorSettings;
-          const editorId = event.target.value;
-          setBusy(true, "Saving code editor preference...");
-          try {
-            const result = await window.unityStudioEditorPreference.save(editorId);
-            if (!result.ok) throw new Error(result.error);
-            editorSettings = result.settings;
-            document.getElementById("open-editor-label").textContent = " Open the new worktree in " +
-              editorSettings.editors.find((editor) => editor.id === editorSettings.editorId).label;
-            clearStatus("Code editor preference saved.");
-          } catch (cause) {
-            editorSettings = previous;
-            event.target.value = previous.editorId;
-            error(cause.message);
-          } finally {
-            setBusy(false, status.textContent);
-          }
-        });
-        syncEditorControls();
+        focusPrimaryAction("#next");
       }
 
       function appMapVisual(appMap) {
@@ -1368,11 +1447,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function submit() {
-        if (editorPreferenceBusy) {
-          error("Wait for the preferred editor to finish loading or saving.");
-          return;
+        window.__unityStudioSubmitting = true;
+        const openEditor = document.getElementById("open-editor");
+        if (openEditor) {
+          draft.openInEditor = openEditor.checked;
         }
-        draft.openInEditor = document.getElementById("open-editor").checked;
         const sourceBindings = draft.journey === "assemble"
           ? draft.tierIds.map((tierId) => ({
               tierId,
@@ -1400,17 +1479,22 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           if (result.worktreePath) {
             openAppMap(result.worktreePath, result.editorWarning);
           } else {
+            window.__unityStudioSubmitting = false;
             renderLanding();
             clearStatus("Assembly started. The app will appear here when its isolated workspace is ready.");
             setBusy(false, status.textContent);
           }
         } catch (cause) {
+          window.__unityStudioSubmitting = false;
           error(cause.message);
           setBusy(false, status.textContent);
         }
       }
 
       renderLanding();
+      void loadSources().then(() => {
+        if (draft.journey === null) renderLanding();
+      }).catch(() => {});
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}
       window.unityStudioReady = true;

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import os
+import re
 import secrets
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -120,11 +123,34 @@ def _positive_number(value: Any, label: str) -> float:
     return float(value)
 
 
+def _load_dotenv_if_needed() -> None:
+    for candidate in (ROOT / "src" / "agent" / ".env", ROOT / ".env"):
+        if not candidate.is_file():
+            continue
+        try:
+            for raw_line in candidate.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key and val and not os.environ.get(key):
+                    os.environ[key] = val
+        except OSError:
+            pass
+
+
 def _env_value(config: dict[str, Any], field: str) -> str | None:
     env_name = config.get(field)
     if not isinstance(env_name, str) or not env_name:
         return None
     value = os.environ.get(env_name)
+    if not value:
+        _load_dotenv_if_needed()
+        value = os.environ.get(env_name)
     if not value:
         aliases = {"modelEnv": "AZURE_AI_GATEWAY_MODEL", "apiKeyEnv": "AZURE_AI_GATEWAY_API_KEY"}
         if field in aliases:
@@ -376,12 +402,15 @@ class GatewayClient:
         payload = {"model": self.settings.model, "input" if responses_api else "messages": messages}
         if responses_api:
             payload.update({"stream": False, "max_output_tokens": 1200})
+        gateway_url = self.settings.base_url.rstrip("/") + "/responses" if responses_api else self.settings.chat_completions_url()
+        print(f"[gateway] POST {gateway_url} (model={self.settings.model})", flush=True)
         response = self.transport.post_json(
-            self.settings.base_url.rstrip("/") + "/responses" if responses_api else self.settings.chat_completions_url(),
+            gateway_url,
             payload,
             self.settings.headers(),
             self.settings.timeout,
         )
+        print(f"[gateway] Received response from model {self.settings.model}", flush=True)
         try:
             if responses_api:
                 content = "\n".join(part["text"] for item in response.get("output", [])
@@ -616,6 +645,159 @@ class LocalDocumentTool:
         except json.JSONDecodeError as error:
             raise UpstreamError("Local document tool returned invalid JSON") from error
         return _validate_tool_result(parsed)
+
+
+class AcaSandboxGroupDocumentTool:
+    """Executes document validation in an ephemeral ACA Sandbox microVM via the aca CLI."""
+
+    UUID_PATTERN = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", re.IGNORECASE)
+
+    def __init__(
+        self,
+        *,
+        sandbox_group: str,
+        resource_group: str,
+        region: str,
+        subscription_id: str,
+        aca_bin: str,
+        timeout: float = 45.0,
+    ):
+        self.sandbox_group = sandbox_group
+        self.resource_group = resource_group
+        self.region = region
+        self.subscription_id = subscription_id
+        self.aca_bin = aca_bin
+        self.timeout = max(timeout, 30.0)
+        self.last_sandbox_id: str | None = None
+
+    def _scope_args(self) -> list[str]:
+        args = [
+            "--group",
+            self.sandbox_group,
+            "--resource-group",
+            self.resource_group,
+            "--region",
+            self.region,
+        ]
+        if self.subscription_id:
+            args.extend(["--subscription", self.subscription_id])
+        return args
+
+    def _build_remote_payload(self, document: dict[str, str]) -> tuple[str, str]:
+        policy_path = _template_aware_path(ROOT / "config" / "document-policy.json")
+        enforcement_path = _template_aware_path(ROOT / "src" / "policy" / "enforcement.py")
+        contract_path = _template_aware_path(ROOT / "src" / "tools" / "document-validation" / "contract.json")
+        tool_path = _template_aware_path(DOCUMENT_TOOL_PATH)
+        bundle = {
+            "config/document-policy.json": policy_path.read_text(encoding="utf-8"),
+            "src/policy/enforcement.py": enforcement_path.read_text(encoding="utf-8"),
+            "src/tools/document-validation/contract.json": contract_path.read_text(encoding="utf-8"),
+            "src/tools/document-validation/main.py": tool_path.read_text(encoding="utf-8"),
+        }
+        bundle_b64 = base64.b64encode(json.dumps(bundle, ensure_ascii=False).encode("utf-8")).decode("ascii")
+        request_b64 = base64.b64encode(
+            json.dumps({"operation": "sanitize-v1", "document": document}, ensure_ascii=False).encode("utf-8")
+        ).decode("ascii")
+        return bundle_b64, request_b64
+
+    def process(self, document: dict[str, str]) -> dict[str, Any]:
+        bundle_b64, request_b64 = self._build_remote_payload(document)
+        print(
+            f"[sandbox] Creating ephemeral microVM in ACA Sandbox Group '{self.sandbox_group}' "
+            f"({self.region}, disk=python-3.12-code-interpreter, egress=Deny)...",
+            flush=True,
+        )
+        create_cmd = [
+            self.aca_bin,
+            "sandbox",
+            "create",
+            "--disk",
+            "python-3.12-code-interpreter",
+            "--egress-default",
+            "Deny",
+            *self._scope_args(),
+        ]
+        try:
+            create_res = subprocess.run(
+                create_cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise UpstreamError("Timed out creating ACA Sandbox microVM") from error
+        combined_create = f"{create_res.stdout}\n{create_res.stderr}"
+        match = self.UUID_PATTERN.search(combined_create)
+        if create_res.returncode != 0 or not match:
+            raise UpstreamError(
+                f"Failed to create ACA Sandbox microVM in {self.sandbox_group}: "
+                f"{combined_create.strip()[:240]}"
+            )
+        sandbox_id = match.group(1)
+        self.last_sandbox_id = sandbox_id
+        print(f"[sandbox] Created microVM {sandbox_id}; executing document-validation tool...", flush=True)
+        runner_code = (
+            "import base64,json,pathlib,subprocess,sys,tempfile;"
+            "d=pathlib.Path(tempfile.mkdtemp());"
+            "[ (d/k).parent.mkdir(parents=True,exist_ok=True) or (d/k).write_text(v,encoding='utf-8') "
+            "for k,v in json.loads(base64.b64decode(sys.argv[1])).items() ];"
+            "r=subprocess.run([sys.executable,str(d/'src/tools/document-validation/main.py')],"
+            "input=base64.b64decode(sys.argv[2]),capture_output=True,"
+            "env={'PATH':'/usr/local/bin:/usr/bin:/bin','PYTHONIOENCODING':'utf-8'});"
+            "sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);raise SystemExit(r.returncode)"
+        )
+        exec_cmd = [
+            self.aca_bin,
+            "sandbox",
+            "exec",
+            "--id",
+            sandbox_id,
+            *self._scope_args(),
+            "-c",
+            f'python3 -c "{runner_code}" {bundle_b64} {request_b64}',
+        ]
+        try:
+            try:
+                exec_res = subprocess.run(
+                    exec_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise UpstreamError(f"ACA Sandbox microVM {sandbox_id} execution timed out") from error
+            if exec_res.returncode != 0:
+                raise UpstreamError(
+                    f"ACA Sandbox microVM {sandbox_id} rejected the request contract: "
+                    f"{(exec_res.stderr or exec_res.stdout).strip()[:240]}"
+                )
+            stdout_lines = [line.strip() for line in exec_res.stdout.splitlines() if line.strip().startswith("{")]
+            json_line = stdout_lines[-1] if stdout_lines else exec_res.stdout.strip()
+            try:
+                parsed = json.loads(json_line)
+            except json.JSONDecodeError as error:
+                raise UpstreamError("ACA Sandbox microVM returned invalid JSON") from error
+            validated = _validate_tool_result(parsed)
+            print(
+                f"[sandbox] Completed document-validation in microVM {sandbox_id} "
+                f"(verdict={validated.get('verdict')})",
+                flush=True,
+            )
+            return validated
+        finally:
+            delete_cmd = [
+                self.aca_bin,
+                "sandbox",
+                "delete",
+                "--id",
+                sandbox_id,
+                "--yes",
+                *self._scope_args(),
+            ]
+            subprocess.run(delete_cmd, capture_output=True, text=True, timeout=20, check=False)
+            print(f"[sandbox] Destroyed ephemeral microVM {sandbox_id}", flush=True)
 
 
 class RemoteDocumentTool:
@@ -874,11 +1056,13 @@ class AgentHarness:
 
         document_config = _required_mapping(config.get("documentTool"), "documentTool")
         if selected_runtime == AGENT_RUNTIME_LOCAL:
-            timeout = _positive_number(
+            self._local_timeout = _positive_number(
                 document_config.get("localTimeoutSeconds", 10),
                 "documentTool.localTimeoutSeconds",
             )
-            self.document_tool: LocalDocumentTool | RemoteDocumentTool = LocalDocumentTool(timeout)
+            self.document_tool: LocalDocumentTool | AcaSandboxGroupDocumentTool | RemoteDocumentTool = (
+                self._resolve_local_document_tool()
+            )
             return
 
         document_endpoint = _aca_endpoint(
@@ -909,16 +1093,49 @@ class AgentHarness:
             token_provider=self.token_provider,
         )
 
+    def _resolve_local_document_tool(self) -> LocalDocumentTool | AcaSandboxGroupDocumentTool:
+        _load_dotenv_if_needed()
+        sandbox_group = os.environ.get("ACA_SANDBOX_GROUP", "").strip()
+        aca_bin = shutil.which("aca") or str(Path.home() / ".local" / "bin" / "aca")
+        if sandbox_group and Path(aca_bin).exists():
+            return AcaSandboxGroupDocumentTool(
+                sandbox_group=sandbox_group,
+                resource_group=(
+                    os.environ.get("ACA_RESOURCE_GROUP", "").strip()
+                    or os.environ.get("AI_GATEWAY_RESOURCE_GROUP", "").strip()
+                ),
+                region=(
+                    os.environ.get("ACA_REGION", "").strip()
+                    or os.environ.get("AI_GATEWAY_LOCATION", "").strip()
+                    or "eastus2"
+                ),
+                subscription_id=(
+                    os.environ.get("ACA_SUBSCRIPTION", "").strip()
+                    or os.environ.get("AZURE_SUBSCRIPTION_ID", "").strip()
+                ),
+                aca_bin=aca_bin,
+                timeout=getattr(self, "_local_timeout", 10.0),
+            )
+        return LocalDocumentTool(getattr(self, "_local_timeout", 10.0))
+
+    def _refresh_local_document_tool_if_needed(self) -> None:
+        if self.agent_runtime == AGENT_RUNTIME_LOCAL and isinstance(self.document_tool, LocalDocumentTool):
+            resolved = self._resolve_local_document_tool()
+            if isinstance(resolved, AcaSandboxGroupDocumentTool):
+                self.document_tool = resolved
+
     def evidence(self, *, agent_dispatched: bool = False, document_dispatched: bool = False) -> dict[str, Any]:
+        self._refresh_local_document_tool_if_needed()
         remote = self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
-        return {
+        aca_group_tool = self.document_tool if isinstance(self.document_tool, AcaSandboxGroupDocumentTool) else None
+        payload: dict[str, Any] = {
             "agentRuntime": self.agent_runtime,
             "agentIsolation": "aca-custom-container-session" if remote else "local-process",
             "documentToolRuntime": (
                 "aca-custom-container-session" if remote else "local-process-simulation"
             ),
             "agentSessionDispatched": agent_dispatched,
-            "documentSessionDispatched": document_dispatched,
+            "documentSessionDispatched": document_dispatched or (aca_group_tool is not None and bool(aca_group_tool.last_sandbox_id)),
             "gatewayConfigured": (
                 True if remote and agent_dispatched
                 else None if remote
@@ -929,6 +1146,11 @@ class AgentHarness:
             "rawDocumentSentToAgent": False,
             "cloudIsolationVerified": False,
         }
+        if aca_group_tool is not None:
+            payload["acaSandboxGroup"] = aca_group_tool.sandbox_group
+            if aca_group_tool.last_sandbox_id:
+                payload["lastSandboxId"] = aca_group_tool.last_sandbox_id
+        return payload
 
     def health(self) -> dict[str, Any]:
         domain = _read_json(DOMAIN_PATH)
@@ -941,6 +1163,7 @@ class AgentHarness:
         }
 
     def test_document(self, payload: Any) -> tuple[int, dict[str, Any]]:
+        self._refresh_local_document_tool_if_needed()
         try:
             document = _parse_test_document_request(payload)
             result = self.document_tool.process(document)
@@ -963,6 +1186,7 @@ class AgentHarness:
         }
 
     def invoke(self, payload: Any) -> tuple[int, dict[str, Any]]:
+        self._refresh_local_document_tool_if_needed()
         try:
             message, document = _parse_invoke_request(payload)
         except ContractError as error:
@@ -983,6 +1207,19 @@ class AgentHarness:
                         document_dispatched=self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
                     ),
                 }
+        elif isinstance(self.document_tool, AcaSandboxGroupDocumentTool):
+            try:
+                fixture_path = ROOT / "examples" / "loan-application.txt"
+                fixture_content = (
+                    fixture_path.read_text(encoding="utf-8")
+                    if fixture_path.exists()
+                    else "# Loan Note\nApplicant contact: demo.user@example.com | (425) 555-0100"
+                )
+                tool_result = self.document_tool.process(
+                    {"name": "loan-application.txt", "content": fixture_content}
+                )
+            except UpstreamError as error:
+                raise HttpFailure(502, "document-tool-failed", str(error)) from error
 
         if self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX:
             assert self.remote_agent is not None
@@ -1157,7 +1394,7 @@ def _serve(
     server = ThreadingHTTPServer((host, port), Handler)
     server.runtime_service = service  # type: ignore[attr-defined]
     server.request_limit = request_limit  # type: ignore[attr-defined]
-    print(f"agent runtime listening on http://{host}:{port}", flush=True)
+    print(f"[agent] runtime listening on http://{host}:{port}", flush=True)
     server.serve_forever()
 
 

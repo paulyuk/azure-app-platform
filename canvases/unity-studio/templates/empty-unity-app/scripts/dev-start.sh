@@ -21,12 +21,14 @@ fi
 "$ROOT/scripts/dev-stop.sh" >/dev/null 2>&1 || true
 mkdir -p "$RUN_DIR"
 
+unset UV_FROZEN UV_LOCKED UV_OFFLINE UV_NO_SYNC UV_EXTRA_INDEX_URL
 export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
 export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
 
 command -v uv >/dev/null || { echo "uv is required." >&2; exit 1; }
 command -v npm >/dev/null || { echo "npm is required." >&2; exit 1; }
+(cd "$ROOT/src/agent" && uv sync)
 
 port_listening() {
   (echo >/dev/tcp/127.0.0.1/"$1") >/dev/null 2>&1

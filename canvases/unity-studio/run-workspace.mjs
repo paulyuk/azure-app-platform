@@ -34,14 +34,13 @@ export function createRunWorkspace({
   }
 
   function operationsSummary() {
-    if (failures) return failures + " failed";
     return operationCount ? operationCount + " recorded" : "No activity";
   }
 
-  function deploymentSummary(state, readiness) {
+  function deploymentSummary(state) {
     if (state === "provisioning") return "Provisioning…";
     if (state === "deploying") return "Deploying…";
-    return readiness?.deploymentBlocker ? "Setup needed" : "Azure";
+    return "Azure";
   }
 
   function setTabSummary(tab, summary, attention = false) {
@@ -137,13 +136,14 @@ export function createRunWorkspace({
       container.replaceChildren();
       const shell = text(container, "div", "", "run-workspace");
       const heading = text(shell, "div", "", "run-heading");
-      text(heading, "h2", "Try your app");
+      text(heading, "h2", "Run & debug");
       const connected = Boolean(readiness?.gatewayConfigured);
       const action = readiness && !connected ? "Connect AI Gateway" : "Connection settings";
       const connection = text(heading, "button", "", "run-connection");
       text(connection, "span", action, "run-connection-action");
+      const sandboxLabel = readiness?.sandboxGroup?.name ? " · " + readiness.sandboxGroup.name : "";
       const value = text(connection, "span", connected
-        ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway")
+        ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway") + sandboxLabel
         : readiness ? "No AI Gateway connected" : "Checking model connection...", "run-connection-value");
       value.id = "run-connection-value";
       connection.type = "button";
@@ -168,9 +168,8 @@ export function createRunWorkspace({
       const ready = expected.filter((service) => service.ready).length;
       setTabSummary(tabs.services, expected.length ? ready + "/" + expected.length + " ready" : "Components");
       setTabSummary(tabs.output, outputSummary(state), Boolean(outputError));
-      setTabSummary(tabs.operations, operationsSummary(), Boolean(failures));
-      setTabSummary(tabs.deployment, deploymentSummary(state, readiness),
-        Boolean(readiness?.deploymentBlocker));
+      setTabSummary(tabs.operations, operationsSummary(), false);
+      setTabSummary(tabs.deployment, deploymentSummary(state), false);
 
       const panels = text(support, "div", "", "run-tab-panels");
       createPanel(panels, "output", renderOutput);
@@ -209,7 +208,7 @@ export function createRunWorkspace({
       const outputTab = container.querySelector('[data-run-tab="output"]');
       const operationsTab = container.querySelector('[data-run-tab="operations"]');
       if (outputTab) setTabSummary(outputTab, outputSummary(lastState), Boolean(outputError));
-      if (operationsTab) setTabSummary(operationsTab, operationsSummary(), Boolean(failures));
+      if (operationsTab) setTabSummary(operationsTab, operationsSummary(), false);
     },
     selectedTab() {
       return selectedTab;

@@ -150,19 +150,8 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     assert.equal(await page.locator(".section-title").filter({ hasText: "Command reference" }).count(), 0);
     assert.equal(await page.locator(".section-title").filter({ hasText: "Test & troubleshoot" }).count(), 0);
     await page.getByRole("tab", { name: "Services", exact: true }).click();
-    const sourceWeb = page.locator('[data-source-only="true"]').filter({ hasText: "driveline-web" });
-    assert.ok(await sourceWeb.getByText("Source only", { exact: true }).isVisible());
-    assert.equal(await sourceWeb.getByRole("button", { name: /Open web/ }).count(), 0);
-    await sourceWeb.getByRole("button", { name: "Review source" }).click();
-    assert.deepEqual(sourceReviews, [{ root: graph.root, projectPath: "src/web" }]);
-    await page.getByText("Opened src/web/src/app/page.tsx in Files.", { exact: true }).waitFor();
-    sourceError = true;
-    await sourceWeb.getByRole("button", { name: "Review source" }).click();
-    await page.getByText("Files canvas unavailable.", { exact: true }).waitFor();
-    sourceError = false;
-    await page.getByRole("button", { name: "Open Agent source", exact: true }).click();
-    await page.getByText("Opened src/agent/main.py in Files.", { exact: true }).waitFor();
-    assert.deepEqual(sourceReviews.at(-1), { root: graph.root, projectPath: "src/agent" });
+    assert.equal(await page.locator('[data-source-only="true"]').count(), 0);
+    assert.equal(await page.getByRole("button", { name: /Review source|Open .* source/ }).count(), 0);
     assert.deepEqual(await page.locator("#graph-shell").evaluate((element) => ({
       background: getComputedStyle(element).backgroundColor,
       nodeFont: getComputedStyle(document.querySelector(".node-title")).fontSize,

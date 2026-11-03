@@ -24,7 +24,7 @@ test("Unity home composes public toolkit components and retains all journey call
     onOpen: () => calls.push("open"), onAssemble: () => calls.push("assemble"),
   }), handle);
   const secondary = tree.filter(node => node.type === "ActionCard");
-  assert.deepEqual(secondary.map(node => node.props.title), ["Create a new app", "Open an app", "Assemble existing pieces"]);
+  assert.deepEqual(secondary.map(node => node.props.title), ["Create a new app", "Open an app", "Assemble existing projects"]);
   for (const node of secondary) {
     assert.equal(node.props.joined, undefined);
     assert.equal(node.props.compact, true);

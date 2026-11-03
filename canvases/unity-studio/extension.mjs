@@ -73,6 +73,8 @@ import {
   gatewayCommandEnvironment,
   validateGatewayCandidate,
   discoverGatewayOptions,
+  discoverSandboxGroups,
+  selectPreferredModelId,
 } from "./gateway-state.mjs";
 
 const servers = new Map();
@@ -80,6 +82,7 @@ const appStates = new Map();
 const appOutput = new Map();
 const activeGateways = new Map();
 const gatewayWriteQueues = new Map();
+let cachedDefaultInfraPromise = null;
 let session;
 const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
 const pendingAppMutations = new Set();
@@ -113,11 +116,39 @@ function trackedAzureRunner(root) {
   };
 }
 
+function formatLogSourceLabel(prefix, entryName) {
+  const raw = `${prefix}${entryName}`.replace(/\.log$/i, "");
+  if (raw.startsWith("unity-studio/")) {
+    const stateMatch = raw.match(/^\d+-([a-z-]+)$/i) ?? raw.split("/").at(-1)?.match(/^\d+-([a-z-]+)$/i);
+    const state = stateMatch?.[1]?.toLowerCase() ?? "";
+    const labels = {
+      starting: "startup",
+      stopping: "shutdown",
+      configuring: "gateway-setup",
+      provisioning: "provision",
+      deploying: "deploy",
+    };
+    return labels[state] || state || "command";
+  }
+  return raw.replace(/\.(stdout|stderr|out|err)$/i, "");
+}
+
+function formatOutputLine(sourceLabel, line) {
+  if (/^\[(?:sandbox|gateway|agent|startup|shutdown|gateway-setup|provision|deploy)\]/i.test(line)) {
+    return line;
+  }
+  return `[${sourceLabel}] ${line}`;
+}
+
 async function readRuntimeOutput(root) {
   const run = appOutput.get(root);
   const lines = [];
   async function readLogs(directory, prefix = "") {
-    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    const entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    const logEntries = prefix === "unity-studio/"
+      ? entries.filter((entry) => entry.isFile() && entry.name.endsWith(".log")).slice(-2)
+      : entries;
+    for (const entry of logEntries) {
       const path = `${directory}/${entry.name}`;
       if (entry.isDirectory()) {
         await readLogs(path, `${prefix}${entry.name}/`);
@@ -127,7 +158,8 @@ async function readRuntimeOutput(root) {
         && (!run || (await stat(path)).mtimeMs >= run.startedAt)
       ) {
         const contents = await readFile(path, "utf8");
-        lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[${prefix}${entry.name}] ${line}`));
+        const label = formatLogSourceLabel(prefix, entry.name);
+        lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => formatOutputLine(label, line)));
       }
     }
   }
@@ -146,7 +178,8 @@ async function readRuntimeOutput(root) {
   if (run?.logPath) {
     try {
       const contents = await readFile(run.logPath, "utf8");
-      lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => `[unity-studio] ${line}`));
+      const runLabel = formatLogSourceLabel("unity-studio/", `0-${run.state || "command"}.log`);
+      lines.push(...contents.split(/\r?\n/).filter(Boolean).map((line) => formatOutputLine(runLabel, line)));
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -502,7 +535,11 @@ async function promptLocalAgent(root, prompt, requestedPort, document) {
         ? { documentAssessment: assessDocumentResult(result) } : {}),
     };
   } catch (error) {
-    await activity.finish(id, { ok: false, note: status ? `HTTP ${status}` : "HTTP request failed or timed out." });
+    await activity.finish(id, {
+      ok: false,
+      note: status ? `HTTP ${status}` : "HTTP request failed or timed out.",
+      error: error.message,
+    });
     throw error;
   }
 }
@@ -589,6 +626,206 @@ async function persistActiveGateway(root, active, expectedConfigurationId) {
   }
 }
 
+async function readAcaCliDefaultConfig() {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  if (!home) return null;
+  try {
+    return JSON.parse(await readFile(`${home}/.config/aca/config.json`, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function azureBootstrapRunner(command, args) {
+  return runCommand(command, args, { timeout: 25_000 });
+}
+
+async function fetchGatewayApiKey(gateway) {
+  const cliSecrets = await azureBootstrapRunner("az", [
+    "aigateway",
+    "api-key",
+    "list-secrets",
+    "--subscription",
+    gateway.subscriptionId,
+    "-g",
+    gateway.resourceGroup,
+    "--gateway-name",
+    gateway.name,
+    "-n",
+    "master",
+    "-o",
+    "json",
+  ]);
+  if (cliSecrets?.ok && cliSecrets.stdout) {
+    try {
+      const parsed = JSON.parse(cliSecrets.stdout);
+      if (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim()) {
+        return parsed.primaryKey.trim();
+      }
+      if (typeof parsed?.secondaryKey === "string" && parsed.secondaryKey.trim()) {
+        return parsed.secondaryKey.trim();
+      }
+    } catch {
+      // Fall back to az rest
+    }
+  }
+  const segments = [gateway.subscriptionId, gateway.resourceGroup, gateway.name].map(encodeURIComponent);
+  const restSecrets = await azureBootstrapRunner("az", [
+    "rest",
+    "--method",
+    "post",
+    "--uri",
+    `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/service/${segments[2]}/workspaces/default/subscriptions/master/listSecrets?api-version=2024-05-01`,
+    "-o",
+    "json",
+  ]);
+  if (restSecrets?.ok && restSecrets.stdout) {
+    try {
+      const parsed = JSON.parse(restSecrets.stdout);
+      if (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim()) {
+        return parsed.primaryKey.trim();
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return "";
+}
+
+async function discoverDefaultCanvasInfra() {
+  if (cachedDefaultInfraPromise) return cachedDefaultInfraPromise;
+  cachedDefaultInfraPromise = (async () => {
+    try {
+      const options = await discoverGatewayOptions(azureBootstrapRunner, null);
+      const preferredOrder = [...options.gateways].sort((a, b) => {
+        const aQuickstart = a.name.startsWith("aigw-quickstart-") ? 1 : 0;
+        const bQuickstart = b.name.startsWith("aigw-quickstart-") ? 1 : 0;
+        if (aQuickstart !== bQuickstart) return aQuickstart - bQuickstart;
+        return a.name.localeCompare(b.name);
+      });
+      let gateway = null;
+      let model = "";
+      for (const candidate of preferredOrder) {
+        const cliModels = await azureBootstrapRunner("az", [
+          "aigateway",
+          "model",
+          "list",
+          "--subscription",
+          candidate.subscriptionId,
+          "-g",
+          candidate.resourceGroup,
+          "--gateway-name",
+          candidate.name,
+          "-o",
+          "json",
+        ]);
+        if (cliModels?.ok && cliModels.stdout) {
+          try {
+            const parsed = JSON.parse(cliModels.stdout);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const models = parsed
+                .map((item) => ({ id: String(item?.name ?? "").trim() }))
+                .filter((item) => item.id);
+              const preferred = selectPreferredModelId(models);
+              if (preferred) {
+                gateway = candidate;
+                model = preferred;
+                break;
+              }
+            }
+          } catch {
+            // Try next candidate
+          }
+        }
+      }
+      if (!gateway || !model) {
+        const modelOptions = await loadGatewayModelOptions(azureBootstrapRunner, options);
+        gateway = modelOptions.suggested;
+        model = selectPreferredModelId(modelOptions.models);
+      }
+      if (!gateway || !model) return null;
+      const apiKey = await fetchGatewayApiKey(gateway);
+      if (!apiKey) return null;
+      const acaConfig = await readAcaCliDefaultConfig();
+      const { suggested: sandboxGroup } = await discoverSandboxGroups(
+        azureBootstrapRunner,
+        gateway.subscriptionId,
+        acaConfig,
+      );
+      return {
+        gateway: {
+          ...gateway,
+          model,
+          sandboxGroup: sandboxGroup ?? undefined,
+        },
+        apiKey,
+        sandboxGroup: sandboxGroup ?? null,
+      };
+    } catch {
+      return null;
+    }
+  })();
+  const resolved = await cachedDefaultInfraPromise;
+  if (!resolved) cachedDefaultInfraPromise = null;
+  return resolved;
+}
+
+function buildAgentEnvFileContent(active, apiKey, sandboxGroup) {
+  const endpoint = active.endpoint.replace(/\/+$/, "");
+  const baseUrl = `${endpoint}/default/models/openai/v1`;
+  const lines = [
+    "# Auto-generated by Unity Studio default infrastructure bootstrap — DO NOT COMMIT",
+    `AI_GATEWAY_BASE_URL=${baseUrl}`,
+    `AI_GATEWAY_API_KEY=${apiKey}`,
+    "AI_GATEWAY_API_KEY_HEADER=Ocp-Apim-Subscription-Key",
+    `AI_GATEWAY_SUBSCRIPTION_KEY=${apiKey}`,
+    `AI_GATEWAY_MODEL=${active.model}`,
+    `AZURE_AI_GATEWAY_ENDPOINT=${endpoint}`,
+    `AZURE_AI_GATEWAY_API_KEY=${apiKey}`,
+    `AZURE_AI_GATEWAY_MODEL=${active.model}`,
+    `AZURE_AI_GATEWAY_MINI_MODEL=${active.model}`,
+    `AZURE_SUBSCRIPTION_ID=${active.subscriptionId}`,
+    `AI_GATEWAY_RESOURCE_GROUP=${active.resourceGroup}`,
+    `AI_GATEWAY_NAME=${active.name}`,
+    `AI_GATEWAY_LOCATION=${active.location || "eastus2"}`,
+  ];
+  const group = sandboxGroup ?? active.sandboxGroup;
+  if (group?.name) {
+    lines.push(
+      `ACA_SANDBOX_GROUP=${group.name}`,
+      `ACA_RESOURCE_GROUP=${group.resourceGroup || active.resourceGroup}`,
+      `ACA_REGION=${group.location || active.location || "eastus2"}`,
+      `ACA_SUBSCRIPTION=${group.subscriptionId || active.subscriptionId}`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+async function ensureDefaultInfraConnected(root) {
+  try {
+    await access(`${root}/src/agent`);
+  } catch {
+    return null;
+  }
+  const infra = await discoverDefaultCanvasInfra();
+  if (!infra?.gateway || !infra?.apiKey) return null;
+  const configurationId = randomUUID();
+  const now = new Date().toISOString();
+  const active = {
+    ...infra.gateway,
+    selectedAt: now,
+    configuredAt: now,
+    configurationStatus: "ready",
+    configurationId,
+    lastExitCode: 0,
+    lastSignal: null,
+  };
+  const envContent = buildAgentEnvFileContent(active, infra.apiKey, infra.sandboxGroup);
+  await writeFile(`${root}/src/agent/.env`, envContent, { encoding: "utf8", mode: 0o600 });
+  await persistActiveGateway(root, active);
+  return envContent;
+}
+
 async function localReadiness(root) {
   let agentConfiguration = "";
   try {
@@ -596,11 +833,35 @@ async function localReadiness(root) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const gatewayReadiness = evaluateGatewayReadiness(
+  let activeGateway = await loadActiveGateway(root, { refresh: true });
+  const isConfiguring = appStates.get(root)?.state === "configuring";
+  let gatewayReadiness = evaluateGatewayReadiness(
     agentConfiguration,
-    await loadActiveGateway(root, { refresh: true }),
-    appStates.get(root)?.state === "configuring",
+    activeGateway,
+    isConfiguring,
   );
+  if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
+    const bootstrappedEnv = await ensureDefaultInfraConnected(root);
+    if (bootstrappedEnv) {
+      agentConfiguration = bootstrappedEnv;
+      activeGateway = await loadActiveGateway(root, { refresh: true });
+      if (appStates.get(root)?.state === "failed" && appStates.get(root)?.operation === "configuring") {
+        appStates.delete(root);
+      }
+      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
+    }
+  } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup) {
+    const infra = await discoverDefaultCanvasInfra();
+    if (infra?.sandboxGroup?.name && activeGateway) {
+      const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
+      await persistActiveGateway(root, updatedActive);
+      if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
+        agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
+        await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
+      }
+      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
+    }
+  }
   const runtime = await readAppRuntimeProfile(root);
   const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
   const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
@@ -795,7 +1056,6 @@ async function syncGatewayConfigScript(root, workspaceRoot) {
   const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
   const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
   await access(sourcePath);
-  await access(`${root}/infra-ai-gateway`);
   await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
   await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
 }
@@ -823,9 +1083,24 @@ async function startAppCommand(root, command, args, state, options = {}) {
     }
   }
   commandEnvironment.PATH = currentPathEntries.join(pathDelimiter);
-  for (const key of ["client_session", "CLIENT_SESSION", "AZURE_CORE_CLIENT_SESSION", "SESSION_ID", "COPILOT_AGENT_SESSION_ID", "AGENCY_SESSION_ID"]) {
+  for (const key of [
+    "client_session",
+    "CLIENT_SESSION",
+    "AZURE_CORE_CLIENT_SESSION",
+    "SESSION_ID",
+    "COPILOT_AGENT_SESSION_ID",
+    "AGENCY_SESSION_ID",
+    "UV_FROZEN",
+    "UV_LOCKED",
+    "UV_OFFLINE",
+    "UV_NO_SYNC",
+    "UV_EXTRA_INDEX_URL",
+  ]) {
     delete commandEnvironment[key];
   }
+  commandEnvironment.UV_INDEX_URL = commandEnvironment.UV_INDEX_URL || commandEnvironment.UV_DEFAULT_INDEX || "https://packagefeedproxy.microsoft.io/pypi/simple/";
+  commandEnvironment.UV_DEFAULT_INDEX = commandEnvironment.UV_DEFAULT_INDEX || commandEnvironment.UV_INDEX_URL;
+  commandEnvironment.PIP_INDEX_URL = commandEnvironment.PIP_INDEX_URL || commandEnvironment.UV_INDEX_URL;
   Object.assign(commandEnvironment, options.env ?? {});
   if (state === "starting") {
     const settings = await readPortSettings(root);
@@ -881,19 +1156,33 @@ async function startAppCommand(root, command, args, state, options = {}) {
         run.error = error.message;
         exitCode = 1;
       }
+      if (exitCode !== 0 && !run.error) {
+        try {
+          const logText = await readFile(run.logPath, "utf8");
+          const logLines = logText.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("> "));
+          const errorLine = [...logLines].reverse().find((line) => /error:|failed|exception|fatal|unable to/i.test(line)) ?? logLines.at(-1);
+          if (errorLine) run.error = errorLine;
+          run.errorTail = logLines.slice(-12).join("\n");
+        } catch {
+          // Ignore log read errors when building failure summary
+        }
+      }
       if (!run.cancelled && options.completedState && appStates.get(root)?.pid === child.pid) {
         appStates.set(root, {
           state: exitCode === 0 ? options.completedState : "failed",
           operation: state,
           exitCode,
           signal,
+          command: [command, ...args].join(" "),
           error: run.error ?? (exitCode === 0 ? undefined : `Command exited with ${exitCode ?? signal}. Review command output.`),
+          errorDetail: run.errorTail || run.error,
           updatedAt: new Date().toISOString(),
         });
       }
       await activity.finish(activityId, {
         ok: exitCode === 0,
         note: run.cancelled ? "Startup cancelled by user." : run.error || (signal ? `Signal ${signal}` : `Exit ${exitCode}`),
+        error: run.cancelled ? "" : (run.errorTail || run.error || ""),
       });
     })().catch((error) => {
       appendOutput(`Unable to record command completion: ${error.message}`);
@@ -1436,7 +1725,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         await activity.finish(id, { ok: true, note: `HTTP ${result.status}; enforcement ${body.verdict || "completed"} (not a model call).` });
         sendJson(response, 200, { ...body, documentAssessment: assessDocumentResult(body) });
       } catch (error) {
-        await activity.finish(id, { ok: false, note: "Document enforcement failed; payload omitted from logs." });
+        await activity.finish(id, { ok: false, note: "Document enforcement failed; payload omitted from logs.", error: error.message });
         throw error;
       }
       return;
@@ -1659,7 +1948,7 @@ async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
   trustedHost = `127.0.0.1:${port}`;
-  return { server, url: `http://${trustedHost}/?intro=1`, workspaceRoot, presentationProfile };
+  return { server, url: `http://${trustedHost}/`, workspaceRoot, presentationProfile };
 }
 
 function canvasError(error) {
@@ -1745,8 +2034,8 @@ const workspaceInputSchema = {
 
 const canvas = createCanvas({
   id: "unity-studio",
-  displayName: "Unity Studio",
-  description: "Create or assemble a Unity-pattern app, then operate it through an evidence-backed App Map.",
+  displayName: "Azure App Platform",
+  description: "Create or assemble an Azure App Platform app centered on ACA Sandboxes, then operate it through an evidence-backed App Map.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1955,8 +2244,8 @@ const canvas = createCanvas({
       servers.set(ctx.instanceId, entry);
     }
     return {
-      title: "Unity Studio",
-      status: "Unity apps",
+      title: "Azure App Platform",
+      status: "Azure App Platform",
       url: entry.url,
     };
   },

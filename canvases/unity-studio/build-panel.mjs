@@ -1,45 +1,48 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
-#details[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/1.5 var(--font-sans,system-ui); }
-#details[data-mode="build"] .build-workspace { box-sizing:border-box; width:100%; max-width:880px; margin-inline:auto; padding:24px; }
+#details[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
+#details[data-mode="build"] .build-workspace { box-sizing:border-box; width:100%; max-width:880px; margin-inline:auto; padding:20px 24px; }
 #details[data-mode="build"] .build-heading { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:12px; }
-#details[data-mode="build"] h2 { margin:0; font-size:18px; }
-#details[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; }
+#details[data-mode="build"] h2 { margin:0; font-size:15px; line-height:22px; font-weight:600; color:var(--studio-ink); }
+#details[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; line-height:20px; }
 #details[data-mode="build"] .build-heading p { max-width:60ch; margin-bottom:0; }
 #details[data-mode="build"] .build-heading-title { position:relative; display:flex; align-items:center; gap:8px; }
 #details[data-mode="build"] .build-help-button { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; min-height:28px; padding:4px; border:0; background:transparent; color:var(--studio-muted); }
 #details[data-mode="build"] .build-help-button:hover { background:var(--studio-panel); color:var(--studio-ink); }
 #details[data-mode="build"] .build-help-tooltip { position:absolute; z-index:3; inset-inline-start:0; top:calc(100% + 6px); box-sizing:border-box; width:320px; max-width:100%; padding:12px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); box-shadow:0 8px 24px rgb(0 0 0 / .18); font:12px/1.5 var(--font-sans,system-ui); }
-#details[data-mode="build"] button { ${ACTION_BUTTON_STYLE} }
+#details[data-mode="build"] button:not([role="tab"]) { ${ACTION_BUTTON_STYLE} }
 #details[data-mode="build"] :is(button,select,summary,.build-source-preview):focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
-#details[data-mode="build"] .build-refresh { flex:none; min-height:32px; padding:6px 8px; border:0; background:transparent; color:var(--studio-muted); font-size:12px; font-weight:400; }
-#details[data-mode="build"] .build-refresh:hover:not(:disabled) { color:var(--studio-ink); background:var(--studio-panel); }
-#details[data-mode="build"] .build-tabs { margin:20px 0 24px; }
+#details[data-mode="build"] .build-refresh { flex:none; min-height:28px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font-size:12px; font-weight:500; }
+#details[data-mode="build"] .build-refresh:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
+#details[data-mode="build"] .build-tabs { margin:16px 0 20px; }
 #details[data-mode="build"] .build-area { margin:0; min-width:0; }
-#details[data-mode="build"] .build-area-header { margin-bottom:20px; }
-#details[data-mode="build"] .build-area-title { margin:0; font-size:15px; font-weight:650; color:var(--studio-ink); }
-#details[data-mode="build"] .build-area-description { max-width:65ch; color:var(--studio-muted); font-size:13px; font-weight:400; }
-#details[data-mode="build"] .build-project-list { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px; padding:0; list-style:none; }
+#details[data-mode="build"] .build-area-header { margin-bottom:16px; }
+#details[data-mode="build"] .build-area-title { margin:0; font-size:14px; line-height:20px; font-weight:600; color:var(--studio-ink); }
+#details[data-mode="build"] .build-area-description { max-width:65ch; color:var(--studio-muted); font-size:12px; line-height:18px; font-weight:400; }
+#details[data-mode="build"] .build-project-list { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 16px; padding:0; list-style:none; }
 #details[data-mode="build"] .build-project-list li { margin:0; }
-#details[data-mode="build"] .build-project-list button { min-height:32px; max-width:100%; padding:6px 10px; background:transparent; color:var(--studio-muted); font-size:12px; font-weight:400; white-space:normal; overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-project-list button { min-height:28px; max-width:100%; padding:4px 10px; background:transparent; color:var(--studio-muted); font-size:12px; font-weight:500; white-space:normal; overflow-wrap:anywhere; }
 #details[data-mode="build"] .build-project-list button:hover { background:var(--studio-panel); color:var(--studio-ink); }
 #details[data-mode="build"] .build-project-list button[aria-current="true"] { border-color:var(--studio-accent); background:var(--studio-accent-soft); color:var(--studio-ink); font-weight:600; }
 #details[data-mode="build"] .build-project-list .build-project-location { display:block; color:var(--studio-muted); font-size:11px; font-weight:400; overflow-wrap:anywhere; }
-#details[data-mode="build"] .build-project-picker { display:grid; gap:6px; max-width:360px; min-width:0; margin:0 0 20px; color:var(--studio-muted); font-size:12px; }
-#details[data-mode="build"] .build-project-picker select { box-sizing:border-box; width:100%; max-width:100%; min-width:0; min-height:36px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:13px/1.5 var(--font-sans,system-ui); }
-#details[data-mode="build"] .build-customization h4.build-project-title { margin:0 0 16px; font-size:14px; overflow-wrap:anywhere; }
-#details[data-mode="build"] .build-file { box-sizing:border-box; min-width:0; padding:16px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
-#details[data-mode="build"] .build-file + .build-file { margin-top:20px; }
+#details[data-mode="build"] .build-project-picker { display:grid; gap:6px; max-width:360px; min-width:0; margin:0 0 16px; color:var(--studio-muted); font-size:12px; }
+#details[data-mode="build"] .build-project-picker select { box-sizing:border-box; width:100%; max-width:100%; min-width:0; min-height:32px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:12px/18px var(--font-sans,system-ui); }
+#details[data-mode="build"] .build-customization h4.build-project-title { margin:0 0 12px; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-file { box-sizing:border-box; min-width:0; padding:14px 16px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
+#details[data-mode="build"] .build-file + .build-file { margin-top:14px; }
 #details[data-mode="build"] .build-file-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; }
-#details[data-mode="build"] .build-file-heading :is(h4,h5) { margin:0; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
-#details[data-mode="build"] .build-source-path { display:block; margin:4px 0 8px; font:11px/1.5 var(--font-mono,monospace); color:var(--studio-muted); overflow-wrap:anywhere; }
-#details[data-mode="build"] .build-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin:8px 0; }
-#details[data-mode="build"] .build-edit-files { color:var(--studio-on-accent); border:1px solid var(--studio-accent); background:var(--studio-accent); }
-#details[data-mode="build"] .build-edit-files:hover:not(:disabled) { background:var(--studio-accent-2); border-color:var(--studio-accent-2); }
-#details[data-mode="build"] .build-open-editor { border:0; padding-inline:4px; background:transparent; color:var(--studio-muted); font-weight:400; }
-#details[data-mode="build"] .build-open-editor:hover:not(:disabled) { color:var(--studio-ink); text-decoration:underline; }
+#details[data-mode="build"] .build-file-heading :is(h4,h5) { margin:0; font-size:13px; line-height:18px; font-weight:600; overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-source-path { display:block; margin:2px 0 8px; font:11px/1.5 var(--font-mono,monospace); color:var(--studio-muted); overflow-wrap:anywhere; }
+#details[data-mode="build"] .build-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:6px 0; }
+#details[data-mode="build"] .build-actions button { min-height:28px; padding:4px 10px; font-size:12px; line-height:18px; font-weight:500; }
+#details[data-mode="build"] .build-actions .vscode-icon { width:14px; height:14px; flex:none; }
+#details[data-mode="build"] .build-open-editor { border:1px solid var(--studio-line); background:var(--studio-raised); color:var(--studio-ink); font-weight:500; }
+#details[data-mode="build"] .build-open-editor:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); text-decoration:none; }
+#details[data-mode="build"] .build-edit-files { border:1px solid var(--studio-line); background:transparent; color:var(--studio-muted); font-weight:500; }
+#details[data-mode="build"] .build-edit-files:hover:not(:disabled) { border-color:var(--studio-accent); color:var(--studio-ink); background:var(--studio-panel); }
 #details[data-mode="build"] :is(button,select):disabled { opacity:.65; cursor:not-allowed; }
 #details[data-mode="build"] .build-handoff-feedback { margin:4px 0 8px; font-size:12px; }
 #details[data-mode="build"] .build-source-disclosure { margin:8px 0 0; min-width:0; }
@@ -140,20 +143,24 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   function selectedEditorLabel() {
     return currentEditorSettings.editors.find((editor) => editor.id === currentEditorSettings.editorId)?.label ?? "editor";
   }
+  function isVsCodeEditor() {
+    return currentEditorSettings.editorId === "vscode" || currentEditorSettings.editorId === "vscode-insiders";
+  }
   function updateEditorControls() {
+    const editorIcon = isVsCodeEditor() ? buttons.icon(VSCODE_ICON_MARKUP) : undefined;
     for (const control of container.querySelectorAll("[data-editor-launch]")) {
-      buttons.setText(control, "Open in " + selectedEditorLabel());
+      buttons.update(control, {
+        children: "Open in " + selectedEditorLabel(),
+        icon: editorIcon,
+        disabled: editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId),
+      });
       control.title = "Open the worktree and file in " + selectedEditorLabel();
-      buttons.setDisabled(control, editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId));
     }
     for (const control of container.querySelectorAll("[data-workspace-launch]")) {
-      buttons.setText(control, "Open in " + selectedEditorLabel());
-      buttons.setDisabled(control, workspaceOpening || editorSettingsSaving);
-    }
-    for (const control of container.querySelectorAll("[data-files-launch]")) {
       buttons.update(control, {
-        disabled: pendingFilesLaunches.has(control.dataset.artifactId),
-        children: pendingFilesLaunches.has(control.dataset.artifactId) ? "Opening Files..." : "Edit in Files",
+        children: "Open in " + selectedEditorLabel(),
+        icon: editorIcon,
+        disabled: workspaceOpening || editorSettingsSaving,
       });
     }
     for (const feedback of container.querySelectorAll(".build-handoff-feedback")) {
@@ -225,7 +232,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
     buttons.update(control, { icon: buttons.icon(helpIcon) });
-    const tooltip = element("span", "Customize shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
+    const tooltip = element("span", "Customize shows recognized customization points, not every file. Previews show saved source; your code editor owns editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";
     tooltip.setAttribute("role", "tooltip");
@@ -299,17 +306,20 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     element(headingTag, artifactLabel(artifact), heading);
     element("code", artifact.path, row, "build-source-path");
     const actions = element("div", undefined, row, "build-actions");
-    const files = button(actions, "Edit in Files", () => openArtifact(artifact, true));
-    buttons.update(files, { className: "build-edit-files" });
-    files.dataset.filesLaunch = "true";
-    files.dataset.artifactId = artifact.id;
-    files.dataset.focusKey = "files-" + artifact.id;
     const external = button(actions, "Open in " + selectedEditorLabel(), () => openArtifact(artifact, false));
-    buttons.update(external, { className: "build-open-editor" });
+    buttons.update(external, {
+      className: "build-open-editor",
+      appearance: "secondary",
+      icon: isVsCodeEditor() ? buttons.icon(VSCODE_ICON_MARKUP) : undefined,
+    });
     external.dataset.editorLaunch = "true";
     external.dataset.artifactId = artifact.id;
     external.dataset.focusKey = "editor-" + artifact.id;
-    if (supportsDocuments && artifact.id === "runtime") button(actions, "Model connection", onModel).dataset.focusKey = "model";
+    if (supportsDocuments && artifact.id === "runtime") {
+      const modelButton = button(actions, "Model connection", onModel);
+      buttons.update(modelButton, { appearance: "secondary" });
+      modelButton.dataset.focusKey = "model";
+    }
     element("p", "", row, "build-handoff-feedback").dataset.artifactId = artifact.id;
     if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) {
       element("p", "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.", row, "build-warning");
@@ -440,9 +450,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const title = element("div", undefined, intro, "build-heading-title");
     element("h2", "Change your app", title);
     renderHelp(title);
-    element("p", "Choose an area to customize. Editing opens the relevant source in Files.", intro);
+    element("p", "Choose an area to preview and open its source in your code editor.", intro);
     const refresh = button(header, "Refresh source", () => show({ refresh: true }));
-    buttons.update(refresh, { className: "build-refresh", disabled: refreshing });
+    buttons.update(refresh, { className: "build-refresh", appearance: "secondary", disabled: refreshing });
     refresh.dataset.focusKey = "refresh";
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
@@ -450,7 +460,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     if (!artifacts.length) {
       const empty = element("section", undefined, workspace, "build-empty");
       element("h3", "No recognized customization points", empty);
-      element("p", "No supported customization points were found. Browse the project in Files or your code editor; Customize only shows recognized decision points.", empty);
+      element("p", "No supported customization points were found. Open the project in your code editor; Customize only shows recognized decision points.", empty);
       const open = button(empty, "Open in " + selectedEditorLabel(), async () => {
         if (workspaceOpening) return;
         workspaceOpening = true;
@@ -464,6 +474,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
           workspaceOpening = false;
           if (isActive()) updateEditorControls();
         }
+      });
+      buttons.update(open, {
+        className: "build-open-editor",
+        appearance: "secondary",
+        icon: isVsCodeEditor() ? buttons.icon(VSCODE_ICON_MARKUP) : undefined,
       });
       open.dataset.workspaceLaunch = "true";
       open.dataset.focusKey = "workspace";
@@ -512,9 +527,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
       if (!areaPanels.has(selectedArea)) selectedArea = availableAreas[0].id;
       activateArea(selectedArea, false, false);
-    }
-    if (supportsDocuments) {
-      button(element("div", undefined, workspace, "build-actions"), "Test with a document", onRun).dataset.focusKey = "test-document";
     }
     updateEditorControls();
   }

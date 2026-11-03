@@ -13,6 +13,7 @@ $env:WEB_PORT = "$WebPort"
 $env:AGENT_URL = "http://127.0.0.1:$AgentPort"
 & (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
+Remove-Item Env:UV_FROZEN, Env:UV_LOCKED, Env:UV_OFFLINE, Env:UV_NO_SYNC, Env:UV_EXTRA_INDEX_URL -ErrorAction SilentlyContinue
 $env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
 $env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
 $env:PIP_INDEX_URL = if ($env:PIP_INDEX_URL) { $env:PIP_INDEX_URL } else { $env:UV_INDEX_URL }

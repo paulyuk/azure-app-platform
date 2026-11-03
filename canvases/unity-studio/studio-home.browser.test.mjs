@@ -184,7 +184,7 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.keyboard.press("Tab");
             assert.equal(await page.locator("#assemble-app").evaluate(element => element === document.activeElement), true);
             await page.keyboard.press("Enter");
-            await page.getByRole("heading", { name: "Assemble existing pieces", exact: true }).waitFor();
+            await page.getByRole("heading", { name: "Assemble existing projects", exact: true }).waitFor();
             await page.locator("#top-back").click();
             await page.locator("#open-app").click();
             await page.getByText("No existing runnable Unity apps were found", { exact: false }).waitFor();

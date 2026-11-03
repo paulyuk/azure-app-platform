@@ -122,8 +122,8 @@ test("installed payload opens and materializes templates without checkout depend
           const switched = await canvas.open({ ...standaloneContext, input: { presentationProfile: "github-app" } });
           assert.match(await (await fetch(switched.url)).text(), /data-studio-presentation="github-app"/);
         } finally { await canvas.onClose({ instanceId: standaloneContext.instanceId }); }
-        assert.equal(new URL(opened.url).searchParams.get("intro"), "1");
-        assert.match(html, /id="skip-studio-intro"/);
+        assert.equal(new URL(opened.url).searchParams.has("intro"), false);
+        assert.doesNotMatch(html, /id="skip-studio-intro"/);
         for (const name of ["unity-symbol.png", "unity-intro.mp4"]) {
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);

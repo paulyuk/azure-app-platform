@@ -23,7 +23,7 @@ export function createWorkspaceNavigationComponent(toolkit) {
       defaultNavigationCollapsed: defaultCollapsed,
       onNavigationCollapsedChange: onCollapsedChange,
       header: h(CanvasHeader, {
-        variant: "workbench", title: "Unity Studio",
+        variant: "workbench", title: "Azure App Platform",
         icon: h("img", { src: "/assets/unity-symbol.png", alt: "" }),
         onHome, homeButton: { "aria-label": "Unity Studio home" },
         context: h(RetainedContent, { element: appTitle }),

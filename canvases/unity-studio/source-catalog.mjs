@@ -18,7 +18,7 @@ const EXCLUDED_PROJECT_PREFIXES = [
 export const EMPTY_TEMPLATE = Object.freeze({
   id: "builtin-empty-unity-v1",
   kind: "empty",
-  name: "Empty Unity app",
+  name: "Empty app",
   description: "Start with an editable app shell and shape it around your own scenario.",
   capabilityIds: ["web", "agent", "gateway", "skills"],
   customization: ["App purpose", "Agent instructions", "Hosted Skill name"],
@@ -66,10 +66,10 @@ export const EMPTY_TEMPLATE = Object.freeze({
 export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   id: "builtin-sandbox-gateway-minimal-v1",
   kind: "empty",
-  name: "Sandbox & Gateway (Minimal)",
-  description: "An agent harness, document validation tool, and model through AI Gateway. Local simulation by default; optional separate ACA sandboxes.",
+  name: "Sandboxes & AI Gateway Starter",
+  description: "Minimal starter with an agent runtime in ACA Sandboxes, isolated tool execution, and governed model access through AI Gateway.",
   capabilityIds: ["agent", "sandbox", "gateway"],
-  customization: ["App purpose", "Agent instructions", "Egress allow-list domain"],
+  customization: ["App purpose", "Agent instructions"],
   readyToRun: true,
   startup: {
     start: "./scripts/dev-start.sh",
@@ -126,7 +126,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   },
 });
 
-export const LOCAL_TEMPLATES = Object.freeze([EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE]);
+export const LOCAL_TEMPLATES = Object.freeze([SANDBOX_GATEWAY_TEMPLATE, EMPTY_TEMPLATE]);
 
 const RUNNABLE_SAMPLE_PATHS = Object.freeze([
   "scripts/dev-start.sh",
@@ -274,18 +274,23 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     projectPath: candidate.projectPath,
     matchedFiles: candidate.evidence,
   }));
-  const pinnedRepository = worktree.commit
-    ? await pinnedDiscovery(root, worktree.commit, commandRunner)
-    : { candidates: [] };
-  const pinnedImplementations = pinnedRepository.candidates
-    .filter((candidate) => isUsefulProject(candidate.projectPath))
-    .map((candidate) => ({
-      id: sourceId(root, worktree.commit, candidate.tierId, candidate.projectPath),
-      tierId: candidate.tierId,
-      name: candidate.name,
-      projectPath: candidate.projectPath,
-      matchedFiles: candidate.evidence,
-    }));
+  const normalizedRepository = remote.ok ? sanitizeRepository(remote.stdout) : null;
+  const dirty = !worktree.commit || !status.ok || Boolean(status.stdout.trim());
+  const runnableSample = sampleFiles.every((result) => result.ok);
+  const approvedSampleAncestry = approvedAncestry.ok;
+  let pinnedImplementations = implementations;
+  if (worktree.commit && normalizedRepository === DEALER_REPOSITORY && approvedSampleAncestry && runnableSample && dirty) {
+    const pinnedRepository = await pinnedDiscovery(root, worktree.commit, commandRunner);
+    pinnedImplementations = pinnedRepository.candidates
+      .filter((candidate) => isUsefulProject(candidate.projectPath))
+      .map((candidate) => ({
+        id: sourceId(root, worktree.commit, candidate.tierId, candidate.projectPath),
+        tierId: candidate.tierId,
+        name: candidate.name,
+        projectPath: candidate.projectPath,
+        matchedFiles: candidate.evidence,
+      }));
+  }
   return {
     id: sourceId(root, worktree.commit),
     kind: "git-worktree",
@@ -295,14 +300,14 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     path: root,
     branch: worktree.branch,
     commit: worktree.commit,
-    repository: remote.ok ? sanitizeRepository(remote.stdout) : null,
-    dirty: !worktree.commit || !status.ok || Boolean(status.stdout.trim()),
+    repository: normalizedRepository,
+    dirty,
     statusKnown: status.ok,
     implementations,
     pinnedImplementations,
     capabilityIds: [...new Set(implementations.map((item) => item.tierId))],
-    runnableSample: sampleFiles.every((result) => result.ok),
-    approvedSampleAncestry: approvedAncestry.ok,
+    runnableSample,
+    approvedSampleAncestry,
     commitTimestamp: commitTimestamp.ok ? Number(commitTimestamp.stdout.trim()) || 0 : 0,
   };
 }
@@ -363,11 +368,11 @@ export async function listSourceCatalog({
         root.pinnedImplementations.some((item) => item.tierId === tierId)))
     .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
   const templates = [
-    ...LOCAL_TEMPLATES,
+    SANDBOX_GATEWAY_TEMPLATE,
     ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
       kind: "sample",
-      name: "Dealer sample",
+      name: "Dealership E2E Reference Sample",
       description: "Start with a complete, runnable reference app for the dealer workflow.",
       capabilityIds: [...TEMPLATE_TIER_ORDER],
       sourceRootId: root.id,
@@ -397,6 +402,7 @@ export async function listSourceCatalog({
         reservedPorts: [3000, 8088, 7071, 7072, 7073, 7074, 10000, 10001, 10002],
       },
     })),
+    EMPTY_TEMPLATE,
   ];
   return {
     generatedAt: new Date().toISOString(),

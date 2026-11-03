@@ -247,10 +247,12 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
       startedAt: Date.now() + index,
       durationMs: 100 + index,
     }));
-    await operations.locator(".run-tab-summary").getByText("1 failed", { exact: true }).waitFor();
+    await operations.locator(".run-tab-summary").getByText("12 recorded", { exact: true }).waitFor();
+    assert.equal(await operations.locator(".run-tab-summary").getAttribute("data-attention"), "false");
     assert.equal(await services.getAttribute("aria-selected"), "true");
     await operations.click();
     const firstOperation = page.locator('[data-run-disclosure="operation-0"]');
+    await firstOperation.locator("summary").click();
     await firstOperation.locator("summary").click();
     const feed = page.locator("[data-command-feed]");
     await feed.evaluate((el) => { el.scrollTop = 80; });

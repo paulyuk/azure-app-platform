@@ -28,6 +28,7 @@ foreach ($Argument in @($RuntimeArguments)) {
   }
 }
 
+Remove-Item Env:UV_FROZEN, Env:UV_LOCKED, Env:UV_OFFLINE, Env:UV_NO_SYNC, Env:UV_EXTRA_INDEX_URL -ErrorAction SilentlyContinue
 $env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
 $env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
 $env:PIP_INDEX_URL = if ($env:PIP_INDEX_URL) { $env:PIP_INDEX_URL } else { $env:UV_INDEX_URL }
@@ -35,6 +36,8 @@ $SelectedRuntimeArguments = if ($AgentRuntime) { @("--agent-runtime=$AgentRuntim
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv is required." }
 Push-Location (Join-Path $Root "src/agent")
 try {
+  & uv sync
+  if ($LASTEXITCODE -ne 0) { throw "Dependency sync failed; see the error above." }
   & uv run main.py @SelectedRuntimeArguments --check-runtime
   if ($LASTEXITCODE -ne 0) { throw "Runtime configuration failed; see the error above." }
 } finally { Pop-Location }
