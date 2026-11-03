@@ -55,26 +55,28 @@ the add-on is drawn wrong.
 
 Three labelled columns, left to right:
 
-1. **Triggers** — `HTTP REST`, `Timer Trigger`. No front-end UI; this pattern is
+1. **Triggers** — `HTTP REST`, `Timer`, `Connectors events`, with equal visual
+   weight and solid connectors to the Agent. No front-end UI; this pattern is
    headless.
-2. **Host Compute (Interchangeable)** — `Agent Loop Host` with a green badge
-   reading `App Service / Functions / ACA`, plus an `Agentic Control Flow` soft
+2. **Host Compute (Interchangeable)** — `Agent` with a muted neutral badge
+   reading `FHA / ACA / App Service / Functions`, plus an `Agentic Control Flow` soft
    box with exactly three bullets:
    - Prompts model via AI Gateway
    - Receives tool call requests
    - Offloads code to an ACA Sandbox
-3. **Tool Execution & Egress** — `★ ACA Sandboxes` (with a `PII Boundary
-   Enforced` pill) → `🔒 Secure Egress Proxy` → `External Destination`.
+3. **Tool isolation** — `★ ACA Sandboxes` with scoped tool execution,
+   default-deny egress, and result contract/policy checks. Document processing
+   is an example, not the name of the layer. Do not show a local-process fallback.
 
-Below column 3, under the label **Egress & Model Governance**:
+Below column 3, under the label **Shared model and tool access**:
 
-4. **AI Gateway (APIM)** with exactly four chips, in this order:
-   - top row: `Model Routing`, `Tools`
+4. **AI Gateway** with exactly four chips, in this order:
+   - top row: `Model Routing`, `MCP`
    - bottom row: `Policies`, `Enforcement`
 
 Full-width bar across the bottom:
 
-5. **★ Shared Primitives** — `Auth`, `OTEL`, `Audit`, with the single line
+5. **Shared Primitives** — `Auth`, `OTEL`, `Audit`, with the single line
    *"— shared by every tier of this pattern, regardless of host compute choice"*.
 
 ---
@@ -84,17 +86,16 @@ Full-width bar across the bottom:
 These are correctness issues, not style:
 
 - **"ACA Sandboxes"**, never "Dynamic Sessions". See sandboxes.azure.com/docs.
-- **Sandbox = execution isolation. Gateway = egress governance.** Orthogonal
+- **Sandbox = execution isolation. Gateway = shared model and tool access.** Orthogonal
   boundaries. Do not merge them or imply one subsumes the other.
-- **HITL is a flow, not a component.** Never draw a standalone "Teams / Email"
-  notification card. Approval requests route Durable Task Scheduler → AI Gateway
-  → Secure Egress Proxy → `Connectors (Teams / Email / M365)`, and the approval
-  event returns along the same path. This is the point: human approval is a
-  governed outbound call like any other.
+- **HITL needs an explicit integration.** Show an approval channel and an
+  authenticated callback to durable orchestration. Model routing alone does
+  not deliver notifications or approval events.
 - **Host compute is interchangeable**, and the diagram must say so once (the
-  green badge) and never again.
-- The column holding sandboxes *and* egress is labelled **Tool Execution &
-  Egress** — not "Tool Isolation", which misdescribes two of its three boxes.
+  neutral badge) and never again.
+- **Hosted Skills add callable capabilities**, not a replacement Agent.
+  Keep the Agent and host choices in every variant; show optional skills
+  separately, reached through governed MCP / HTTP access.
 
 ---
 
@@ -112,20 +113,20 @@ prose.
 
 | Colour | Hex | Role |
 | --- | --- | --- |
-| Accent red | `#d7263d` | core / primary |
+| Slate blue | `#486581` | core / primary |
 | Indigo | `#4f46e5` | Hosted Skills |
 | Blue | `#2563eb` | durability, DTS, HITL |
 | Purple | `#8b5cf6` | evals |
 | Amber | `#b45309` | secure egress |
-| Teal | `#0f766e` | shared primitives |
-| Green | `#10b981` | interchangeable-host badge |
+| Neutral gray | theme `--muted` / `--line` | host badges and shared primitives |
 
 Colour carries meaning. Do not introduce a colour without a role.
 
 ### Markers
 
-`★` prefixes exactly two things: ACA Sandboxes and Shared Primitives — the two
-elements that define the pattern.
+Reserve visual emphasis for ACA Sandboxes and AI Gateway. Host badges and shared
+primitives use muted neutral fills, thin borders, and regular-weight labels.
+Do not add a star to Shared Primitives.
 
 ---
 

@@ -8,6 +8,13 @@ name is **App home** (retained for non-breaking compatibility). Docs and the wor
 top right. The large Home masthead and tagline are not repeated in the content.
 The existing app workspace header, selectors and controls are unchanged.
 
+## ACA CLI installation
+
+The **Install aca CLI** action installs to `~/.local/bin` on macOS/Linux without
+sudo, propagates download and installation failures, and verifies `aca --version`.
+Windows uses the official PowerShell installer. Failed ACA installations link
+back to CLI setup, not model connection settings.
+
 ## Icons
 
 Authored UI icons use official **Octicons 19.41.0**: settings, navigation,

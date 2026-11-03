@@ -4,8 +4,8 @@
   <style>
     :root {
       --bg:#ffffff; --ink:#16202b; --muted:#64748b; --line:#cbd5e1;
-      --card:#ffffff; --soft:#f1f5f9; --accent:#d7263d; --accent-soft:#fdf2f4;
-      --accent-line:#f0b8c1; --green:#10b981; --green-soft:#ecfdf5;
+      --card:#ffffff; --soft:#f1f5f9; --accent:#486581; --accent-soft:#f3f6f9;
+      --accent-line:#bcccdc; --green:#567060; --green-soft:#f2f5f2;
       --blue:#2563eb; --blue-soft:#eff6ff;
       --amber:#b45309; --amber-soft:#fffbeb;
       --teal:#0f766e; --teal-soft:#f0fdfa; --teal-line:#99f6e4;
@@ -13,8 +13,8 @@
     @media (prefers-color-scheme: dark) {
       :root {
         --bg:#0f1620; --ink:#e8eef5; --muted:#93a3b6; --line:#33465c;
-        --card:#16202b; --soft:#1b2733; --accent:#ff6b81; --accent-soft:#24161c;
-        --accent-line:#6d3541; --green:#34d399; --green-soft:#064e3b;
+        --card:#16202b; --soft:#1b2733; --accent:#9fb3c8; --accent-soft:#1b2936;
+        --accent-line:#486581; --green:#a3b8a7; --green-soft:#1b2b23;
         --blue:#60a5fa; --blue-soft:#1e3a8a;
         --amber:#fbbf24; --amber-soft:#3f2d05;
         --teal:#2dd4bf; --teal-soft:#042f2c; --teal-line:#115e59;
@@ -30,14 +30,15 @@
     .pill  { fill: var(--accent-soft); stroke: var(--accent-line); stroke-width: 1.25; }
     .trig  { fill: var(--soft); stroke: var(--line); stroke-width: 1.25; }
     .egress{ fill: var(--amber-soft); stroke: var(--amber); stroke-width: 1.75; }
-    .prim  { fill: var(--teal-soft); stroke: var(--teal); stroke-width: 1.75; }
-    .primchip { fill: var(--card); stroke: var(--teal-line); stroke-width: 1.1; }
+    .prim  { fill: var(--soft); stroke: var(--line); stroke-width: 1; }
+    .primchip { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+    .primchip + text { fill: var(--muted); }
     .t     { fill: var(--ink); }
     .m     { fill: var(--muted); }
     .a     { fill: var(--accent); }
     .b     { fill: var(--blue); }
     .am    { fill: var(--amber); }
-    .tl    { fill: var(--teal); }
+    .tl    { fill: var(--muted); }
     .cap   { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
     .lbl   { font-size: 12px; font-style: italic; }
     .sub   { font-size: 12.5px; }
@@ -45,8 +46,8 @@
     .flow-blue { fill: none; stroke: var(--blue); stroke-width: 2; stroke-dasharray: 4 4; }
     .flow-amber { fill: none; stroke: var(--amber); stroke-width: 2; }
     .flow-dash { fill: none; stroke: var(--muted); stroke-width: 1.75; stroke-dasharray: 5 5; }
-    .badge { fill: var(--green-soft); stroke: var(--green); stroke-width: 1.2; }
-    .badgeT{ fill: var(--green); font-size: 11px; font-weight: 700; }
+    .badge { fill: var(--soft); stroke: var(--line); stroke-width: 1; }
+    .badgeT{ fill: var(--muted); font-size: 11px; font-weight: 500; }
   </style>
 
   <defs>
@@ -68,7 +69,7 @@
 
   <!-- Title Section -->
   <text class="t" x="60" y="60" font-size="28" font-weight="700" letter-spacing="-0.4">Sandbox &amp; Gateway Pattern — Minimal + Durability &amp; HITL</text>
-  <text class="m" x="60" y="88" font-size="14">Adding Durable Task System (DTS) for turn-level checkpointing &amp; Human-in-the-Loop approvals</text>
+  <text class="m" x="60" y="88" font-size="14">Optional reference extension, not shipped in the starter: checkpointing and separately configured human approvals</text>
 
   <!-- 1. Triggers -->
   <text class="m cap" x="70" y="150">Triggers</text>
@@ -76,19 +77,22 @@
   <text class="t" x="92" y="201" font-size="15" font-weight="650">HTTP REST</text>
 
   <rect class="trig" x="70" y="245" width="230" height="60" rx="12"/>
-  <text class="t" x="92" y="281" font-size="15" font-weight="650">Timer Trigger</text>
+  <text class="t" x="92" y="281" font-size="15" font-weight="650">Timer</text>
+
+  <rect class="trig" x="70" y="325" width="230" height="60" rx="12"/>
+  <text class="t" x="92" y="361" font-size="15" font-weight="650">Connectors events</text>
 
   <path class="flow" d="M300,195 L340,255" marker-end="url(#arw)"/>
-  <path class="flow-dash" d="M300,275 L340,275" marker-end="url(#arw-muted)"/>
+  <path class="flow" d="M300,275 L340,275" marker-end="url(#arw)"/>
+  <path class="flow" d="M300,355 L340,355" marker-end="url(#arw)"/>
 
   <!-- 2. Host Compute + DTS -->
   <text class="m cap" x="340" y="150">Durable Host Compute</text>
   <rect class="card" x="340" y="165" width="310" height="255" rx="16"/>
-  <rect class="a" x="340" y="165" width="6" height="255" rx="3"/>
-  <text class="t" x="365" y="200" font-size="19" font-weight="700">Agent Loop Host</text>
+  <text class="t" x="365" y="200" font-size="19" font-weight="700">Agent</text>
 
   <rect class="badge" x="365" y="220" width="260" height="32" rx="8"/>
-  <text class="badgeT" x="495" y="240" text-anchor="middle">App Service / Functions / ACA</text>
+  <text class="badgeT" x="495" y="240" text-anchor="middle">FHA / ACA / App Service / Functions</text>
 
   <rect class="soft" x="365" y="270" width="260" height="130" rx="10"/>
   <text class="t" x="385" y="300" font-size="14" font-weight="650">Durable Agent Loop</text>
@@ -102,57 +106,63 @@
   <text class="m sub" x="365" y="503">Turn-level checkpointing · pause &amp; resume</text>
   <path class="flow-blue" d="M495,420 L495,445" marker-end="url(#arw-blue)"/>
 
-  <!-- HITL approval request routed through AI Gateway -->
-  <path class="flow-blue" d="M650,470 L780,530" marker-end="url(#arw-blue)"/>
-  <text class="m lbl" x="700" y="463" font-size="11">HITL approval request (via Gateway)</text>
+  <!-- Optional approval integration, separate from model routing -->
+  <path class="flow-blue" d="M650,490 L730,490 L730,655 L1150,655 L1150,490 L1180,490" marker-end="url(#arw-blue)"/>
+  <text class="m lbl" x="800" y="645" font-size="11">optional approval request</text>
+  <rect class="durable" x="1180" y="455" width="260" height="70" rx="14"/>
+  <text class="b" x="1200" y="482" font-size="13" font-weight="700">+ Teams / email integration</text>
+  <text class="m sub" x="1200" y="506">Authenticated callback</text>
 
-  <!-- Approval event returns to DTS via the same egress/gateway path -->
-  <path class="flow-blue" d="M780,590 C 690,660 550,660 495,535" marker-end="url(#arw-blue)"/>
-  <text class="m lbl" x="565" y="648" font-size="11">approval event</text>
+  <path class="flow-blue" d="M1440,490 L1460,490 L1460,675 L495,675 L495,535" marker-end="url(#arw-blue)"/>
+  <text class="m lbl" x="565" y="667" font-size="11">approval event → resume</text>
 
   <!-- Flow: Host Compute -> ACA Sandboxes -->
   <path class="flow" d="M495,165 L495,105 L890,105 L890,165" marker-end="url(#arw)"/>
-  <text class="m lbl" x="695" y="95" text-anchor="middle">Tool execution (isolated)</text>
+  <text class="m lbl" x="890" y="125" text-anchor="middle">create → exec → delete</text>
+  <path class="flow" d="M780,250 L650,250" marker-end="url(#arw)"/>
+  <text class="m lbl" x="715" y="240" text-anchor="middle">tool result</text>
 
   <!-- Flow: Host Compute -> AI Gateway -->
-  <path class="flow" d="M650,310 L780,310" marker-end="url(#arw)"/>
-  <text class="m lbl" x="715" y="297" text-anchor="middle" font-size="11">prompts</text>
+  <path class="flow" d="M650,380 L700,380 L700,550 L780,550" marker-end="url(#arw)"/>
+  <text class="m lbl" x="715" y="365" text-anchor="middle" font-size="11">checked context</text>
 
   <!-- 3. ACA Sandboxes -->
-  <text class="m cap" x="780" y="150">Tool Execution &amp; Egress</text>
+  <text class="m cap" x="780" y="150">Tool isolation</text>
   <rect class="panel" x="780" y="165" width="340" height="100" rx="16"/>
   <text class="a" x="805" y="198" font-size="17" font-weight="700">★ ACA Sandboxes</text>
   <rect class="pill" x="805" y="215" width="160" height="24" rx="12"/>
-  <text class="a" x="885" y="231" font-size="11" font-weight="700" text-anchor="middle">PII Boundary Enforced</text>
+  <text class="a" x="885" y="231" font-size="11" font-weight="700" text-anchor="middle">Scoped tool execution</text>
 
-  <path class="flow-amber" d="M950,265 L950,283" marker-end="url(#arw-amber)"/>
   <rect class="egress" x="780" y="283" width="340" height="50" rx="14"/>
-  <text class="am" x="805" y="313" font-size="14" font-weight="700">🔒 Secure Egress Proxy</text>
+  <text class="am" x="805" y="313" font-size="14" font-weight="700">Default deny · explicit egress policy</text>
 
-  <path class="flow-amber" d="M950,333 L950,351" marker-end="url(#arw-amber)"/>
   <rect class="card" x="780" y="351" width="340" height="50" rx="14"/>
-  <text class="t" x="805" y="381" font-size="14" font-weight="650">Connectors (Teams / Email / M365)</text>
+  <text class="t" x="805" y="381" font-size="14" font-weight="650">Check result contract + policy</text>
 
   <!-- 4. AI Gateway -->
-  <text class="m cap" x="780" y="440">Egress &amp; Model Governance</text>
+  <text class="m cap" x="780" y="440">Shared model and tool access</text>
   <rect class="gate" x="780" y="455" width="340" height="150" rx="16"/>
-  <text class="a" x="805" y="485" font-size="17" font-weight="700">AI Gateway (APIM)</text>
+  <text class="a" x="805" y="485" font-size="17" font-weight="700">AI Gateway</text>
 
   <rect class="chip" x="805" y="500" width="140" height="36" rx="8"/>
   <text class="t" x="875" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Model Routing</text>
 
   <rect class="chip" x="955" y="500" width="140" height="36" rx="8"/>
-  <text class="t" x="1025" y="523" font-size="11.5" font-weight="650" text-anchor="middle">Tools</text>
+  <text class="t" x="1025" y="523" font-size="11.5" font-weight="650" text-anchor="middle">MCP</text>
 
   <rect class="chip" x="805" y="544" width="140" height="36" rx="8"/>
   <text class="t" x="875" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Policies</text>
 
   <rect class="chip" x="955" y="544" width="140" height="36" rx="8"/>
   <text class="t" x="1025" y="567" font-size="11.5" font-weight="650" text-anchor="middle">Enforcement</text>
+  <path class="flow" d="M1120,570 L1180,570" marker-end="url(#arw)"/>
+  <rect class="card" x="1180" y="545" width="260" height="60" rx="14"/>
+  <text class="t" x="1310" y="581" font-size="16" font-weight="700" text-anchor="middle">Remote model</text>
+  <text class="m" x="70" y="700" font-size="12">Interchangeable agent hosting, ACA Sandboxes for tool isolation, and AI Gateway for shared model and tool access.</text>
 
   <!-- Shared Primitives bottom bar -->
   <rect class="prim" x="60" y="710" width="1380" height="60" rx="14"/>
-  <text class="tl" x="85" y="746" font-size="14.5" font-weight="700">★ Shared Primitives</text>
+  <text class="tl" x="85" y="746" font-size="13" font-weight="500">Shared Primitives</text>
 
   <rect class="primchip" x="290" y="725" width="90" height="30" rx="8"/>
   <text class="t" x="335" y="745" font-size="11.5" font-weight="650" text-anchor="middle">Auth</text>
@@ -160,6 +170,6 @@
   <text class="t" x="435" y="745" font-size="11.5" font-weight="650" text-anchor="middle">OTEL</text>
   <rect class="primchip" x="490" y="725" width="90" height="30" rx="8"/>
   <text class="t" x="535" y="745" font-size="11.5" font-weight="650" text-anchor="middle">Audit</text>
-  <text class="m sub" x="600" y="745">— shared by every tier of this pattern, regardless of host compute choice</text>
+  <text class="m sub" x="600" y="745">— recommended concerns, not all provisioned by the starter</text>
 
 </svg>

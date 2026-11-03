@@ -2285,6 +2285,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         if (runtimeEntrypoints.some((entry) => entry.ready)) {
           buttons.append(card, keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
+        } else if (operationalState.app.command?.includes("aka.ms/aca-cli-install")) {
+          buttons.append(card, actionButton("Review CLI setup", () => openAppSettings("prereqs"), true));
         } else if (operationalState.app.operation === "configuring") {
           buttons.append(card, actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
         } else {

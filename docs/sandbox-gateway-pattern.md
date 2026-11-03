@@ -1,39 +1,98 @@
-# Sandbox & Gateway Pattern
+# Sandbox & AI Gateway Pattern
 
-A lean blueprint for agentic apps on Azure. Start with the minimal building
-blocks. Add a tier only when a real requirement forces you to.
+Agents need to use tools without giving every tool the host's filesystem,
+credentials, or network access. This pattern separates **agent orchestration**,
+**isolated tool execution**, and **shared model and tool access**. It applies to code
+execution, data analysis, file conversion, document processing, and other work
+that needs an execution boundary.
+
+Azure App Platform's built-in starter demonstrates the pattern with document
+processing. That example is replaceable; neither loan documents nor document
+validation define the architecture.
 
 ---
 
-## Start here: Minimal Building Blocks
+## Start here: isolate execution, govern shared access
 
-![Sandbox & Gateway Pattern — Minimal Building Blocks](images/sandbox-gateway-minimal-building-blocks.svg)
+![Sandbox & AI Gateway Pattern — tool isolation and shared model and tool access](images/sandbox-gateway-minimal-building-blocks.svg)
 
-**This is the whole pattern.** Everything below is optional.
+Three entry points feed the Agent: **HTTP REST**, **Timer**, and **Connectors
+events**. Each starts the same orchestration and uses the same isolation and
+shared-access boundaries.
 
-A trigger — HTTP or a timer — wakes an agent loop running on interchangeable
-host compute. The loop does three things: prompt a model, receive tool calls,
-and offload code execution elsewhere. It never runs untrusted code itself and
-never calls a model directly.
+| Layer | Responsibility |
+| --- | --- |
+| **Agent host / orchestration** | Accept a request, choose work, dispatch tools, check results, and decide what happens next. Host on Foundry Hosted Agents (FHA), ACA, App Service, or Functions. The starter runs locally for development. |
+| **Tool isolation — ACA Sandboxes** | Execute selected tools in an ephemeral microVM with scoped inputs and explicit access policy, then clean it up. Isolation contains execution; it does not make tool output trustworthy. |
+| **Shared model and tool access — AI Gateway** | Govern access to models and shared tools exposed through MCP or HTTP APIs with configured routing and policies. A gateway does not replace the sandbox's execution boundary. |
 
-Two boundaries carry the safety story, and they are not the same boundary:
+**ACA Sandboxes** names the service and architectural capability. A **Sandbox
+Group** is the Azure resource configured for the built-in example; that setup
+detail does not need to be the pattern's component label.
 
-| Boundary | Owns | Why it can't be the other one |
+The agent calls models through the gateway and sends tool work to a sandbox.
+Tool results return to orchestration for contract and policy checks before
+being used in another model call or downstream action. Model and tool calls
+can alternate; the pattern does not require every workflow to start with a
+tool call.
+
+Shared MCP tools can sit behind AI Gateway when centralized access control is
+needed. Direct sandbox creation and execution remain separate; they do not
+need to pass through the gateway. MCP in the diagrams describes shared tool
+access, not a change to the starter's model inference protocol.
+
+The sandbox lifecycle is **create → execute → cleanup**. Start with egress
+denied; enable only the destinations a tool actually needs through an explicit
+egress design. The starter needs none and has an empty allowlist. Do not copy
+host credentials into a tool simply because the agent can access them.
+
+### Different tools, same boundary
+
+| Example workload | Isolated work | Result returned to the agent |
 | --- | --- | --- |
-| **ACA Sandbox Group** | Execution | Untrusted inputs and tool code have to run *somewhere*. Each turn creates an ephemeral, kernel-isolated microVM (`aca sandbox create --egress-default Deny` → `exec` → `delete`) with its own filesystem and memory, and destroys it immediately after execution. |
-| **AI Gateway (APIM)** | Egress | Model routing (`Responses API`), tools, policies, enforcement. By the time traffic reaches a gateway, the code has already run — a gateway cannot contain execution. |
+| Data analysis | Run generated calculations over scoped data | Bounded metrics and checked artifacts |
+| File conversion | Process an untrusted file with a parser or converter | Converted artifact and validation status |
+| Code execution | Run a generated script or test in a disposable environment | Bounded output, exit status, and artifacts |
+| Document processing | Extract, validate, and redact submitted content | Approved text or an explicit rejection |
 
-They compose. Sandboxed code that needs the outside world goes through a
-**secure egress proxy** to a single allow-listed destination. If the sandbox is
-compromised, the gateway still bounds the blast radius. If you had only a
-gateway, arbitrary code would be executing inside your host compute with its
-identity.
+These are applications of the pattern, not additional tools shipped by the
+starter. Each needs its own tool contract, access policy, and result checks.
 
-Underneath both sit the **shared primitives** — auth, OpenTelemetry, audit —
-present at every tier, independent of which host compute you picked.
+## Built-in example: document processing
 
-> **Host compute is a swap, not a rewrite.** App Service, Functions, or
-> Container Apps. The loop, the sandbox boundary, and the gateway don't change.
+The starter's local Python HTTP harness accepts a message and optional document.
+With an ACA Sandbox Group configured, it runs the **document-validation tool**
+in an ephemeral microVM:
+`aca sandbox create --egress-default Deny` → `exec` → `delete` (cleanup attempted).
+The tool returns bounded sanitized text and redaction counts; the harness
+independently checks the result.
+
+Rejected documents stop before inference. Approved sanitized output, the user
+message, and agent instructions go through **AI Gateway → remote model**, using
+the **Responses API** by default. The harness also checks the model reply.
+Raw document content is not forwarded to the model. Sanitation is bounded
+pattern matching, not complete PII detection or malware scanning; approved text
+remains untrusted data.
+
+### Example runtime configuration
+
+The built-in example requires a configured **ACA Sandbox Group**, the **aca CLI**, and
+an **AI Gateway with a model**. Connect those services before running the example.
+`config/runtime.json` uses `agentRuntime: "local"` for orchestration on the
+developer's machine; tool execution belongs in the sandbox, and model access
+goes through the gateway. Local orchestration does not mean local tool execution.
+The generated app's manifest is `azure-app.yaml`.
+
+Whole-agent sandbox hosting is **not the default**. The optional
+`copilot-sdk-sandbox` mode keeps the HTTP harness local but places the Copilot
+SDK agent and document tool in **two separate ACA custom-container session
+pools**, explicitly stopping each session after its request. It requires both
+configured endpoints and has no local fallback.
+
+**Test enforcement** (`POST /test-document`) runs the tool and result checks
+without calling a model. **Invoke agent** (`POST /invoke`) applies those checks
+before inference when processing a document. Missing gateway configuration
+produces an error, not a simulated model reply.
 
 ---
 
@@ -41,28 +100,12 @@ present at every tier, independent of which host compute you picked.
 
 ![Minimal + Hosted Skills](images/sandbox-gateway-hosted-skills.svg)
 
-**Add when** you want the agent loop managed for you rather than hand-written.
-
-This is not a new tier bolted onto the side — it is the Host Compute column
-swapped out. The Azure Functions agents runtime hosts the loop (MAF) instead of
-your own code. Everything else is identical: tool calls still redirect to an
-ACA Sandbox created on the fly, model calls still go through AI Gateway.
-
-That is the point of drawing it. Host compute was always advertised as
-interchangeable, and this is the proof — the boundaries did not move.
-
-Anirudh's spikes walk exactly this ladder:
-
-| Demo | Loop runs in | Everything else |
-| --- | --- | --- |
-| Simple | Function App hosting MAF ([`larohra/functions-adc-tools-hand-spike`](https://github.com/larohra/functions-adc-tools-hand-spike)) | sandbox + gateway |
-| Hosted Skills | the agents runtime ([PR #200](https://github.com/Azure/azure-functions-agents-runtime/pull/200)) | unchanged |
-| Hosted Skills + Durable | the agents runtime, checkpointed per turn ([branch](https://github.com/Azure/azure-functions-agents-runtime/tree/larohra/durable-loop-leadership-demo)) | unchanged |
-
-The third row is this diagram combined with the durability tier below.
-Checkpointing every turn — rather than only at the end of the prompt — is what
-makes a multi-hour agent run survive a machine failure, and it is also what
-makes HITL possible inside Hosted Skills.
+**Optional extension:** add reusable intelligent capabilities hosted on Azure
+Functions and exposed through MCP or HTTP. The Agent stays on its chosen host;
+Hosted Skills do not replace it. Shared skill access can use AI Gateway for
+centralized routing and policies, while sandbox dispatch remains separate.
+Preserve tool isolation and result checks regardless of the host. These
+additional skills are not shipped in the built-in starter.
 
 ---
 
@@ -70,16 +113,11 @@ makes HITL possible inside Hosted Skills.
 
 ![Minimal + Durability & HITL](images/sandbox-gateway-durable-hitl.svg)
 
-**Add when** a turn outlives a request, or a human has to say yes.
-
-The Durable Task Scheduler checkpoints turn state, so a workflow survives a host
-restart and can wait hours for a person without keeping compute warm.
-
-Note what this tier does *not* add: a special notification component. The
-approval request leaves through the AI Gateway and the egress proxy to
-**Connectors (Teams / Email / M365)**, exactly like every other governed
-outbound call. The approval event returns along the same path and resumes the
-loop. Human-in-the-loop is a flow, not a box.
+**Optional extension:** use durable orchestration when work outlives an HTTP
+request or needs a human decision. Add checkpointing, an approval channel, and
+an authenticated callback to resume the workflow. These are not shipped in the
+starter. AI Gateway model routing does not itself deliver Teams/email
+notifications or receive approval events; configure those integrations separately.
 
 ---
 
@@ -87,15 +125,11 @@ loop. Human-in-the-loop is a flow, not a box.
 
 ![Minimal + SRE & Evals](images/sandbox-gateway-sre-evals.svg)
 
-**Add when** you need to know the agent is still *good*, not just still *up*.
-
-Continuous Evals score reasoning quality on live traffic. The SRE Agent band
-reads the OTEL traces the shared primitives were already emitting and correlates
-them across compute, sandboxes, and gateway.
-
-The sandbox emits lifecycle events only — created, executed, deleted, duration,
-exit code — never payloads. So an operator can diagnose "prequal sandboxes are
-timing out" without ever seeing what they computed.
+**Optional extension:** add continuous evaluations and cross-component
+observability to measure quality as well as availability. The starter logs
+sandbox lifecycle activity, but does not ship a continuous-evaluation service
+or SRE integration. When adding telemetry, avoid sensitive inputs and tool
+payloads in traces; correlate lifecycle metadata instead.
 
 ---
 
@@ -103,19 +137,27 @@ timing out" without ever seeing what they computed.
 
 ![Complete Architecture](images/sandbox-gateway-full-architecture.svg)
 
-All three add-ons at once, drawn with dashed borders so the solid core stays
-readable. This is a destination, not a starting point.
+This reference view combines optional extensions around the isolated-tool and
+gateway flow. It is not the starter's deployment inventory. Secure egress to
+external systems would require separate policy and infrastructure; it is not
+enabled in the built-in document-processing example.
 
 ---
 
 ## Reading the diagrams
 
-- **Solid border** — core. Present in every tier.
-- **Dashed border** — add-on. Removable without breaking the core.
-- **Colour** — role, not decoration: red = core, indigo = hosted skills, blue =
-  durability, purple = evals, amber = egress, teal = shared primitives.
-- **★** — the two elements that define the pattern: sandboxes and shared
-  primitives.
+- **Solid border** — core flow, with the cloud tool configuration noted above.
+- **Dashed border / “optional” label** — extension, not built-in behavior.
+- **Colour** — role, not decoration: slate blue = core, indigo = hosted skills, blue =
+  durability, purple = evals, amber = egress. Hosts and shared primitives use
+  muted neutrals so Sandboxes and AI Gateway remain the focal points.
+- **Shared primitives** — recommended auth, OpenTelemetry, and audit concerns,
+  not a claim that the starter provisions all three.
 
-To recreate or extend these diagrams, see
-[`images/DIAGRAM-PROMPT.md`](images/DIAGRAM-PROMPT.md).
+## Source reference
+
+- [Starter runtime and mode selection](../canvases/azure-app-platform/templates/sandbox-gateway-minimal/src/agent/main.py.template)
+- [Runtime defaults](../canvases/azure-app-platform/templates/sandbox-gateway-minimal/config/runtime.json.template),
+  [egress policy](../canvases/azure-app-platform/templates/sandbox-gateway-minimal/config/egress-allowlist.json.template),
+  and [manifest](../canvases/azure-app-platform/templates/sandbox-gateway-minimal/azure-app.yaml.template)
+- [Starter usage and limitations](../canvases/azure-app-platform/templates/sandbox-gateway-minimal/README.md.template)

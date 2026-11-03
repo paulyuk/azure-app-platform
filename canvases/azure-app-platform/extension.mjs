@@ -82,6 +82,8 @@ import {
   selectPreferredModelId,
 } from "./gateway-state.mjs";
 
+const ACA_INSTALL_POSIX = "mkdir -p \"$HOME/.local/bin\"; curl -fsSL https://aka.ms/aca-cli-install | INSTALL_DIR=\"$HOME/.local/bin\" sh; export PATH=\"$HOME/.local/bin:$HOME/.aca/bin:$PATH\"; aca --version";
+
 const servers = new Map();
 const appStates = new Map();
 const appOutput = new Map();
@@ -727,7 +729,7 @@ async function detectLocalPrerequisites({ force = false } = {}) {
         actionOperation: "install-prereq-aca",
         command: process.platform === "win32"
           ? "irm https://aka.ms/aca-cli-install-ps | iex"
-          : "curl -fsSL https://aka.ms/aca-cli-install | sh",
+          : ACA_INSTALL_POSIX,
       });
     }
     const uvVersion = uvRes?.ok ? String(uvRes.stdout || "").trim().split("\n")[0] : "";
@@ -787,7 +789,7 @@ async function detectLocalPrerequisites({ force = false } = {}) {
         actionOperation: acaInstalled ? "" : "install-prereq-aca",
         command: process.platform === "win32"
           ? "irm https://aka.ms/aca-cli-install-ps | iex"
-          : "curl -fsSL https://aka.ms/aca-cli-install | sh",
+          : ACA_INSTALL_POSIX,
       },
     ];
     return {
@@ -2104,7 +2106,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             : "curl -LsSf https://astral.sh/uv/install.sh | sh; export PATH=\"$HOME/.local/bin:$PATH\"; uv --version",
           "install-prereq-aca": isWin
             ? "irm https://aka.ms/aca-cli-install-ps | iex; aca --version; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
-            : "curl -fsSL https://aka.ms/aca-cli-install | sh; export PATH=\"$HOME/.local/bin:$HOME/.aca/bin:$PATH\"; aca --version",
+            : ACA_INSTALL_POSIX,
           "install-prereq-aigateway": "az extension add --name aigateway --upgrade",
           "az-login": "az login",
         };
