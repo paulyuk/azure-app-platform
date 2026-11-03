@@ -1,7 +1,0 @@
-{
-  "name": "unity-empty-web",
-  "private": true,
-  "scripts": {
-    "dev": "node server.mjs"
-  }
-}

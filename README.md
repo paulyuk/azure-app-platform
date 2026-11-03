@@ -8,12 +8,12 @@ The defining trait of an Azure App Platform app is that **it watches itself**. O
 
 [![Unity Overview PPT](https://img.shields.io/badge/Unity%20Overview-PowerPoint-B7472A?logo=microsoftpowerpoint&logoColor=white)](https://microsoft-my.sharepoint.com/:p:/p/nimashkowski/cQqDdkpwM7BrQr0GBXmwLjDrEgUCXlixIAEsKcBJJPJUXajf0Q)
 &nbsp;
-[![Unity Platform Plan](https://img.shields.io/badge/Unity%20Platform%20Plan-docs-blue?logo=markdown&logoColor=white)](docs/unity-platform-plan.md)
+[![Unity Platform Plan](https://img.shields.io/badge/Unity%20Platform%20Plan-docs-blue?logo=markdown&logoColor=white)](docs/azure-app-platform-plan.md)
 
 ## Structure
 
 - [`docs/`](docs) - the platform plan, diagrams, and design notes
-- [`canvases/unity-studio/`](canvases/unity-studio) - Unity Studio and its reusable app templates
+- [`canvases/azure-app-platform/`](canvases/azure-app-platform) - Azure App Platform and its reusable app templates
 - [`src/`](src) - application code for Demo #1, organized per platform tier (added as the POC build starts)
 - [`tests/`](tests) - automated tests mirroring `src/` by tier
 
@@ -24,12 +24,12 @@ a document validation tool, and a remote model through AI Gateway. It includes
 a loan-application document demo, but stays reusable for other scenarios.
 Local processing is a subprocess simulation; separate ACA sandboxes are optional.
 
-Start with the [template shape and maintainer guide](canvases/unity-studio/MINIMAL-TEMPLATE.md)
+Start with the [template shape and maintainer guide](canvases/azure-app-platform/MINIMAL-TEMPLATE.md)
 for the complete file tree, editable files, token conventions, and generation
-contract. The [template source](canvases/unity-studio/templates/sandbox-gateway-minimal)
+contract. The [template source](canvases/azure-app-platform/templates/sandbox-gateway-minimal)
 is separate from the Dealer demo in this repository's `src/`.
 
-See the [finished docagent sample](canvases/unity-studio/samples/README.md) for
+See the [finished docagent sample](canvases/azure-app-platform/samples/README.md) for
 the concrete application output, with local credentials and runtime state excluded.
 
 ## Try it
@@ -58,13 +58,13 @@ Find me an EV under $40,000 with at least 250 miles of range
 The badge in the header tells you the truth about which agent answered —
 green **"● Live agent"** or amber **"⚠ Mock agent"** — never a guess.
 
-When Unity Studio creates a Dealer workspace, use the repository-level
+When Azure App Platform creates a Dealer workspace, use the repository-level
 `scripts/dev-start.*` launcher instead. Studio saves collision-free ports in
-`.unity-studio/ports.env`; the launcher reads that file as data and prints the
+`.azure-app-platform/ports.env`; the launcher reads that file as data and prints the
 actual web, agent, skill, and Azurite endpoints. `3000` is only the fallback
 when no saved or environment override exists.
 
 To run against the real `deal-finder` agent and AI Gateway (both terminals,
 plus `azd` provisioning), see [`src/README.md`](src/README.md) for the full
 walkthrough, including the demo script from the plan's
-[section 5.5](docs/unity-platform-plan.md#55-demo-script-15-minutes).
+[section 5.5](docs/azure-app-platform-plan.md#55-demo-script-15-minutes).

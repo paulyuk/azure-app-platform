@@ -170,4 +170,4 @@ Both must come back clean.
 - [ ] Add-ons dashed and colour-coded; core solid and dominant.
 - [ ] Core layout matches the other three tiers.
 - [ ] Referenced from `docs/sandbox-gateway-pattern.md` and
-      `docs/unity-platform-plan.md` §2.4.
+      `docs/azure-app-platform-plan.md` §2.4.

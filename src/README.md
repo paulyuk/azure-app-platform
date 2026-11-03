@@ -8,7 +8,7 @@ Application code for Demo #1 (car buying) lives here once the POC build starts, 
 - `workflows/` - Durable Task Scheduler orchestrations (loan approval, human-in-the-loop)
 - `sandbox/` - sandboxed financing calculation that never leaks PII
 
-See [`docs/unity-platform-plan.md`](../docs/unity-platform-plan.md) for the full architecture and phased build plan (section 5).
+See [`docs/azure-app-platform-plan.md`](../docs/azure-app-platform-plan.md) for the full architecture and phased build plan (section 5).
 
 ## Quick local test
 
@@ -55,9 +55,9 @@ processes — run each in its own terminal.** By default the web app
 falls back to the built-in mock scenario generator if it's not reachable.
 So starting only the web app still gives a fully standalone mock demo:
 
-For a Unity Studio-created Dealer workspace, prefer `scripts/dev-start.sh` or
+For a Azure App Platform-created Dealer workspace, prefer `scripts/dev-start.sh` or
 `scripts/dev-start.ps1` from the repository root. Those launchers read the
-validated `.unity-studio/ports.env`, wire every component together, and print
+validated `.azure-app-platform/ports.env`, wire every component together, and print
 the selected URLs. The manual commands in this document use the fallback
 ports.
 
@@ -244,7 +244,7 @@ gateway **once** (see [`../TESTING.md`](../TESTING.md) section 4):
 
 ```bash
 cd infra-ai-gateway
-azd env new unity-poc-aigateway
+azd env new app-platform-aigateway
 azd provision
 cd -
 ```

@@ -23,7 +23,7 @@ PowerShell, macOS, and Linux:
 
 ```shell
 cd infra-ai-gateway
-azd env new unity-poc-aigateway
+azd env new app-platform-aigateway
 azd provision
 cd ..
 ```
@@ -34,7 +34,7 @@ The script starts in-memory Azurite, all four Hosted Skills/MCP servers, the
 deal-finder agent, then the web app. It waits for each layer before starting
 the next one and prints every endpoint and log path.
 
-Unity Studio-created workspaces have a `.unity-studio/ports.env` file. The
+Azure App Platform-created workspaces have a `.azure-app-platform/ports.env` file. The
 launchers load it as data and honor these names:
 
 ```text
@@ -136,13 +136,13 @@ Pop-Location
 uv run python -m compileall src/agent src/skills
 ```
 
-## 3. Unity Studio canvas (local Copilot extension, no Azure)
+## 3. Azure App Platform canvas (local Copilot extension, no Azure)
 
 Open this repository in GitHub Copilot, reload extensions, then ask Copilot to
 open the canvas:
 
 1. Run `extensions_reload`.
-2. Run/open `unity-studio` (for example, “Open Unity Studio”).
+2. Run/open `azure-app-platform` (for example, “Open Azure App Platform”).
 3. Confirm the platform overview loads and each Unity tier can be selected.
 
 ## 4. Real AI Gateway + local deal-finder (Azure required)
@@ -155,17 +155,17 @@ Prerequisites:
 - Available Global Standard model quota in East US 2
 
 The standalone slice is intentionally separate from the future full-platform
-`infra/` deployment. It provisions into `rg-unity-poc-aigateway` in East US 2.
+`infra/` deployment. It provisions into `rg-app-platform-aigateway` in East US 2.
 
 ```shell
 cd infra-ai-gateway
-azd env new unity-poc-aigateway
+azd env new app-platform-aigateway
 azd provision
 cd ..
 ```
 
 `azd` will prompt you to select a subscription and region — choose
-**East US 2** (preview region requirement; see `docs/unity-platform-plan.md`
+**East US 2** (preview region requirement; see `docs/azure-app-platform-plan.md`
 section 5.1).
 
 The preprovision/postdown lifecycle hook deletes only an environment-owned,
@@ -179,7 +179,7 @@ stores the secret in the gitignored azd environment, and writes a mode-`0600`
 Use this only when diagnosing an individual layer. The rapid-path scripts
 above automate the same commands and are the normal test path.
 The commands below show the default ports and assume there is no
-`.unity-studio/ports.env`. For a Studio-allocated workspace, use the root
+`.azure-app-platform/ports.env`. For a Studio-allocated workspace, use the root
 launcher and the endpoints it prints so the web backend URL, MCP URLs, and
 custom Azurite connection string stay consistent.
 

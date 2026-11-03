@@ -43,7 +43,7 @@ $gatewayName = Assert-Value 'AI_GATEWAY_NAME' $(if ($env:AI_GATEWAY_NAME) { $env
 $gatewayResourceId = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.ApiManagement/service/$gatewayName"
 $gatewayUri = "https://management.azure.com$gatewayResourceId`?api-version=$AiGatewayApiVersion"
 
-$explicitGatewaySelection = $env:UNITY_GATEWAY_SELECTION -eq '1'
+$explicitGatewaySelection = $env:APP_PLATFORM_GATEWAY_SELECTION -eq '1'
 $gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MODEL' } else { '' }
 $gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' } else { '' }
 if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
@@ -112,8 +112,8 @@ $requestBody = @{
 
 $ready = $false
 $status = 'unavailable'
-$maxAttempts = if ($env:UNITY_GATEWAY_SELECTION -eq '1') { 2 } else { 20 }
-$timeoutSec = if ($env:UNITY_GATEWAY_SELECTION -eq '1') { 15 } else { 30 }
+$maxAttempts = if ($env:APP_PLATFORM_GATEWAY_SELECTION -eq '1') { 2 } else { 20 }
+$timeoutSec = if ($env:APP_PLATFORM_GATEWAY_SELECTION -eq '1') { 15 } else { 30 }
 Write-Host "Validating model $gatewayModel on gateway $gatewayName..."
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     $hasReadableMessage = $false
@@ -150,7 +150,7 @@ if (-not $ready) {
 }
 
 $lockAcquired = $false
-$stateDirectory = Join-Path $RepoRoot '.unity-studio'
+$stateDirectory = Join-Path $RepoRoot '.azure-app-platform'
 $lockDirectory = Join-Path $stateDirectory 'gateway-config.lock'
 $lockPidPath = Join-Path $lockDirectory 'pid'
 New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
@@ -170,10 +170,10 @@ try {
         exit 1
     }
     $activeGatewayPath = Join-Path $stateDirectory 'active-gateway.json'
-    if (-not [string]::IsNullOrEmpty($env:UNITY_GATEWAY_CONFIGURATION_ID)) {
+    if (-not [string]::IsNullOrEmpty($env:APP_PLATFORM_GATEWAY_CONFIGURATION_ID)) {
         $activeGateway = Get-Content -Raw $activeGatewayPath | ConvertFrom-Json
         $currentConfigurationId = $activeGateway.configurationId
-        if ($currentConfigurationId -ne $env:UNITY_GATEWAY_CONFIGURATION_ID) {
+        if ($currentConfigurationId -ne $env:APP_PLATFORM_GATEWAY_CONFIGURATION_ID) {
             Write-Host 'Gateway configuration was superseded before settings were applied.'
             exit 3
         }

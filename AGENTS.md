@@ -9,9 +9,9 @@
   effort for product architecture and cross-cutting changes.
 - Propagate this policy to child sessions and delegated agents.
 
-## Unity Studio product direction
+## Azure App Platform product direction
 
-- Optimize Unity Studio around a small number of guided user journeys rather
+- Optimize Azure App Platform around a small number of guided user journeys rather
   than exposing every platform action at once.
 - Use **capabilities** for Unity pattern tiers, **implementations** as the
   umbrella term, and **source projects**, **Azure resources**, and **matched
@@ -19,7 +19,7 @@
 - Prefer deterministic actions that create, select, map, or modify artifacts
   over instructions that require users to copy prompts between tools.
 - Materialize known Unity templates with
-  `canvases/unity-studio/template-materializer.mjs`; do not ask a model to
+  `canvases/azure-app-platform/template-materializer.mjs`; do not ask a model to
   recreate, summarize, or manually copy template files.
 - Use model reasoning only for semantic customization, user-defined tool
   contracts, cross-project integration, and troubleshooting.
@@ -41,7 +41,7 @@
   may restore its own dependencies, but must do so through the documented
   setup/start flow with clear prerequisites and errors.
 - Preserve macOS/Linux and Windows/PowerShell parity. For packaging or runtime
-  changes, run `node --test canvases/unity-studio/plugin-portability.test.mjs`.
+  changes, run `node --test canvases/azure-app-platform/plugin-portability.test.mjs`.
   Keep its isolated payload free of `node_modules` and its working directory
   unrelated to the source checkout; do not weaken isolation to make it pass.
 

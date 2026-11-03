@@ -40,7 +40,7 @@ if ([string]::IsNullOrEmpty($subscriptionId)) { $subscriptionId = (az account sh
 
 $resourceGroup = $env:AI_GATEWAY_RESOURCE_GROUP
 if ([string]::IsNullOrEmpty($resourceGroup)) { $resourceGroup = Get-AzdValue 'AI_GATEWAY_RESOURCE_GROUP' }
-if ([string]::IsNullOrEmpty($resourceGroup)) { $resourceGroup = 'rg-unity-poc-aigateway' }
+if ([string]::IsNullOrEmpty($resourceGroup)) { $resourceGroup = 'rg-app-platform-aigateway' }
 
 $gatewayName = $env:AI_GATEWAY_NAME
 if ([string]::IsNullOrEmpty($gatewayName)) { $gatewayName = Get-AzdValue 'AI_GATEWAY_NAME' }

@@ -35,7 +35,7 @@ gateway_name="$(require_value AI_GATEWAY_NAME "${AI_GATEWAY_NAME:-$(azd_value AI
 gateway_resource_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/service/${gateway_name}"
 gateway_uri="https://management.azure.com${gateway_resource_id}?api-version=${AI_GATEWAY_API_VERSION}"
 
-if [ "${UNITY_GATEWAY_SELECTION:-0}" = "1" ]; then
+if [ "${APP_PLATFORM_GATEWAY_SELECTION:-0}" = "1" ]; then
   gateway_model="${AZURE_AI_GATEWAY_MODEL:-}"
   gateway_mini_model="${AZURE_AI_GATEWAY_MINI_MODEL:-}"
 else
@@ -71,7 +71,7 @@ gateway_model="$(require_value AZURE_AI_GATEWAY_MODEL "$gateway_model")"
 gateway_mini_model="$(require_value AZURE_AI_GATEWAY_MINI_MODEL "$gateway_mini_model")"
 
 gateway_url="${AZURE_AI_GATEWAY_ENDPOINT:-}"
-if [ -z "$gateway_url" ] && [ "${UNITY_GATEWAY_SELECTION:-0}" != "1" ]; then
+if [ -z "$gateway_url" ] && [ "${APP_PLATFORM_GATEWAY_SELECTION:-0}" != "1" ]; then
   gateway_url="$(azd_value AZURE_AI_GATEWAY_ENDPOINT)"
 fi
 if [ -z "$gateway_url" ]; then
@@ -137,7 +137,15 @@ if [ -z "$gateway_api_key" ]; then
 fi
 gateway_api_key="$(require_value AZURE_AI_GATEWAY_API_KEY "$gateway_api_key")"
 
-request_body="$(python3 -c \
+run_python() {
+  if [ -x "${REPO_ROOT}/src/agent/.venv/bin/python" ]; then
+    "${REPO_ROOT}/src/agent/.venv/bin/python" "$@"
+  else
+    uv run --project "${REPO_ROOT}/src/agent" python "$@"
+  fi
+}
+
+request_body="$(run_python -c \
   'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
   "$gateway_model")"
 ready=false
@@ -145,7 +153,7 @@ echo "Validating model ${gateway_model} on gateway ${gateway_name}..."
 max_attempts=20
 connect_timeout=10
 max_time=30
-if [ "${UNITY_GATEWAY_SELECTION:-}" = "1" ]; then
+if [ "${APP_PLATFORM_GATEWAY_SELECTION:-}" = "1" ]; then
   max_attempts=2
   connect_timeout=5
   max_time=15
@@ -158,7 +166,7 @@ for attempt in $(seq 1 "$max_attempts"); do
     --data-binary "$request_body" || true)"
   status="${response##*$'\n'}"
   response_body="${response%$'\n'*}"
-  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | python3 -c '
+  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | run_python -c '
 import json, sys
 payload = json.load(sys.stdin)
 readable = any(
@@ -180,10 +188,10 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 
-active_gateway_file="${REPO_ROOT}/.unity-studio/active-gateway.json"
-gateway_lock_dir="${REPO_ROOT}/.unity-studio/gateway-config.lock"
+active_gateway_file="${REPO_ROOT}/.azure-app-platform/active-gateway.json"
+gateway_lock_dir="${REPO_ROOT}/.azure-app-platform/gateway-config.lock"
 gateway_lock_acquired=false
-mkdir -p "${REPO_ROOT}/.unity-studio"
+mkdir -p "${REPO_ROOT}/.azure-app-platform"
 release_gateway_lock() {
   if [ "$gateway_lock_acquired" = true ]; then
     rm -f "${gateway_lock_dir}/pid"
@@ -203,11 +211,11 @@ if [ "$gateway_lock_acquired" != true ]; then
   exit 1
 fi
 trap release_gateway_lock EXIT
-if [ -n "${UNITY_GATEWAY_CONFIGURATION_ID:-}" ]; then
-  current_configuration_id="$(python3 -c \
+if [ -n "${APP_PLATFORM_GATEWAY_CONFIGURATION_ID:-}" ]; then
+  current_configuration_id="$(run_python -c \
     'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("configurationId", ""))' \
     "$active_gateway_file")"
-  if [ "$current_configuration_id" != "$UNITY_GATEWAY_CONFIGURATION_ID" ]; then
+  if [ "$current_configuration_id" != "$APP_PLATFORM_GATEWAY_CONFIGURATION_ID" ]; then
     echo "Gateway configuration was superseded before settings were applied."
     exit 3
   fi
@@ -225,7 +233,7 @@ aca_resource_group="${ACA_RESOURCE_GROUP:-}"
 aca_region="${ACA_REGION:-}"
 aca_subscription="${ACA_SUBSCRIPTION:-$subscription_id}"
 if [ "${ACA_SANDBOX_DISABLE:-0}" != "1" ] && [ -z "$aca_sandbox_group" ] && [ -f "${HOME}/.config/aca/config.json" ]; then
-  eval "$(python3 - "${HOME}/.config/aca/config.json" <<'PY'
+  eval "$(run_python - "${HOME}/.config/aca/config.json" <<'PY'
 import json, shlex, sys
 try:
     cfg = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -270,9 +278,9 @@ fi
 chmod 600 "$agent_env"
 
 active_gateway_tmp="${active_gateway_file}.$$"
-python3 -c '
+run_python -c '
 import datetime, json, os, sys
-source, destination, expected, name, resource_group, subscription_id, endpoint = sys.argv[1:]
+source, destination, expected, name, resource_group, subscription_id, endpoint, sandbox_name, sandbox_rg, sandbox_region, sandbox_sub = sys.argv[1:]
 if expected:
     with open(source, encoding="utf-8") as handle:
         active = json.load(handle)
@@ -287,6 +295,13 @@ else:
         "endpoint": endpoint,
         "selectedAt": datetime.datetime.now(datetime.UTC).isoformat(),
     }
+if sandbox_name:
+    active["sandboxGroup"] = {
+        "name": sandbox_name,
+        "resourceGroup": sandbox_rg or resource_group,
+        "location": sandbox_region or "eastus2",
+        "subscriptionId": sandbox_sub or subscription_id,
+    }
 active.update({
     "configurationStatus": "ready",
     "configuredAt": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -297,8 +312,9 @@ with open(destination, "w", encoding="utf-8") as handle:
     json.dump(active, handle, indent=2)
     handle.write("\n")
 os.chmod(destination, 0o600)
-' "$active_gateway_file" "$active_gateway_tmp" "${UNITY_GATEWAY_CONFIGURATION_ID:-}" \
-  "$gateway_name" "$resource_group" "$subscription_id" "${gateway_url%/}/"
+' "$active_gateway_file" "$active_gateway_tmp" "${APP_PLATFORM_GATEWAY_CONFIGURATION_ID:-}" \
+  "$gateway_name" "$resource_group" "$subscription_id" "${gateway_url%/}/" \
+  "${aca_sandbox_group:-}" "${aca_resource_group:-}" "${aca_region:-}" "${aca_subscription:-}"
 mv "$active_gateway_tmp" "$active_gateway_file"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."

@@ -22,7 +22,7 @@ npm run dev
 
 Open http://localhost:3000.
 
-In a Unity Studio-created Dealer workspace, run the repository-level
+In a Azure App Platform-created Dealer workspace, run the repository-level
 `scripts/dev-start.*` launcher and open the URL it prints instead. The
 launcher supplies the allocated `WEB_PORT` to Next.js and sets server-only
 `AGENT_URL` from the allocated `AGENT_PORT`; `3000` and `8088` remain the

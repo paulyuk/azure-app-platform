@@ -3,7 +3,7 @@ targetScope = 'subscription'
 @minLength(1)
 @maxLength(64)
 @description('azd environment name used for deterministic names and ownership tags.')
-param environmentName string = 'unity-poc-aigateway'
+param environmentName string = 'app-platform-aigateway'
 
 @metadata({
   azd: {
@@ -18,7 +18,7 @@ param environmentName string = 'unity-poc-aigateway'
 param location string
 
 @description('Resource group containing this standalone local-agent gateway slice.')
-param resourceGroupName string = 'rg-unity-poc-aigateway'
+param resourceGroupName string = 'rg-app-platform-aigateway'
 
 @description('Full model deployment name exposed by AI Gateway.')
 param modelDeploymentName string = 'gpt-latest'

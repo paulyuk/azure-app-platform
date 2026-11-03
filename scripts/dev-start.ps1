@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$implementation = Join-Path $repoRoot 'canvases\unity-studio\templates\shared\dealer\scripts\dev-start.ps1'
+$implementation = Join-Path $repoRoot 'canvases\azure-app-platform\templates\shared\dealer\scripts\dev-start.ps1'
 if (-not (Test-Path $implementation)) {
     throw "Dealer startup implementation not found: $implementation"
 }

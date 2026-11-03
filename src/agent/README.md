@@ -6,7 +6,7 @@ It runs on the Foundry Hosted Agent runtime (`ResponsesHostServer`) and routes:
 - **Model calls** through **AI Gateway** (`/default/models/openai/v1/`)
 - **Tool calls** through **Foundry Toolbox** (which maps to AI Gateway MCP toolservers)
 
-This follows the platform plan stack in `docs/unity-platform-plan.md` section 5.3.
+This follows the platform plan stack in `docs/azure-app-platform-plan.md` section 5.3.
 
 ## What this agent does
 
@@ -35,16 +35,16 @@ root. This requires Azure credentials and model quota:
 
 ```bash
 cd infra-ai-gateway
-azd env new unity-poc-aigateway
+azd env new app-platform-aigateway
 azd provision
 cd ../src/agent
 ```
 
 `azd` will prompt you to select a subscription and region — choose **East US 2**
-(preview region requirement, see `docs/unity-platform-plan.md` section 5.1).
+(preview region requirement, see `docs/azure-app-platform-plan.md` section 5.1).
 
 For an existing environment, use
-`azd env select unity-poc-aigateway` instead of `azd env new`. Provisioning
+`azd env select app-platform-aigateway` instead of `azd env new`. Provisioning
 writes the Gateway endpoint, deployment names, and API key to the gitignored
 `src/agent/.env` with mode `0600`; it does not print the key.
 
@@ -72,7 +72,7 @@ connects to the four Hosted Skills over real MCP at `http://localhost:707{1..4}`
 `func start` first). `INVENTORY_SEARCH_PORT`, `TRADE_IN_VALUE_PORT`,
 `RATE_SHEET_PORT`, and `DEAL_DOC_PORT` override those defaults. The
 repository-level launchers set all five values from
-`.unity-studio/ports.env`, so no manual wiring is needed. See the
+`.azure-app-platform/ports.env`, so no manual wiring is needed. See the
 repository-root `TESTING.md` for the verified response and all PR test paths.
 
 ## Manual local configuration

@@ -1,0 +1,17 @@
+name: __APP_SLUG__
+purpose: "__PURPOSE_JSON__"
+capabilities:
+  agent:
+    path: src/agent
+    # Default only; scripts and Studio apply .azure-app-platform/ports.env when saved.
+    interface: http://localhost:8088
+    links: [sandbox, gateway]
+  sandbox:
+    path: src/tools/document-validation
+    # Default local simulation; config/runtime.json selects optional ACA sessions.
+    interface: subprocess
+    links: [agent]
+  gateway:
+    path: infra-ai-gateway
+    interface: configuration
+    links: [agent]

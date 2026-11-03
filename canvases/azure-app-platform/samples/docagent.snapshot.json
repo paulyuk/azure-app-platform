@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "sourceApp": "docs-agent5",
+  "templateId": "builtin-sandbox-gateway-minimal-v1",
+  "sourceBaseCommit": "3144815c1a4f02ef9fef9e9d902741b245f0d3fc",
+  "capturedAt": "2026-09-15T00:50:46.364Z",
+  "sourceState": "Generated working-tree output captured at capturedAt; sourceBaseCommit identifies the template checkout, not a commit of this generated app. The files named in followupChanges were amended afterward in this repository and are not unchanged output from that capture.",
+  "followupChanges": [
+    {
+      "amendedAt": "2026-09-15T17:51:43.916Z",
+      "kind": "lifecycle-safety-fix",
+      "description": "Repository follow-up adding process start identities, shell ancestor protection, bounded verified termination, retained retry ownership, and startup refusal after failed cleanup.",
+      "paths": [
+        "README.md",
+        "scripts/dev-start.ps1",
+        "scripts/dev-start.sh",
+        "scripts/dev-stop.ps1",
+        "scripts/dev-stop.sh"
+      ]
+    },
+    {
+      "kind": "readme-rewrite",
+      "sourceCommit": "d500e7465623830c8d5cac778870fbee5cf1f80f",
+      "description": "Plain-English README rewrite from PR #18, retaining the later lifecycle-safety guidance.",
+      "paths": [
+        "README.md"
+      ]
+    },
+    {
+      "kind": "studio-workflow-documentation",
+      "description": "Align Customize previews, native Files editing, external-editor preferences, and Model connection guidance with shared Studio Settings.",
+      "paths": [
+        "README.md",
+        "docs/demos/loan-application/HOW-IT-WORKS.md",
+        "docs/demos/loan-application/README.md"
+      ]
+    }
+  ],
+  "excluded": [
+    "Credentials and .env files",
+    "Virtual environments and caches",
+    "Logs and process state",
+    "Machine-specific .azure-app-platform metadata and saved ports",
+    "Inherited repository files"
+  ],
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "8a887ac9d1fa0bd0a3b3012d2d30bba4dfba4cac0c48f7b32264e327a50ed3cf"
+    },
+    {
+      "path": "README.md",
+      "sourceSha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5",
+      "sha256": "b11bf5d1c0aa40dafb1d38b79e5702b6b36c553c036bb49270e0d9a597d3dedd",
+      "note": "README rewritten after capture, retaining lifecycle-safety guidance. Script fixes are recorded separately in followupChanges."
+    },
+    {
+      "path": "config/document-policy.json",
+      "sha256": "6a2efe9afdd2e89bee99b38ac3bdcd70dc90f5ca3b76cb1a143adaec6c48d015"
+    },
+    {
+      "path": "config/domain.json",
+      "sha256": "062a8036d9a02feb6b605ed3539ea8a060b44ad6eb1bc1190f4475b68e00ef84"
+    },
+    {
+      "path": "config/egress-allowlist.json",
+      "sha256": "db23cf33b59ab1f902527d1bf66577a5e0d5da1dc16f073ac6573e6df8f8ba89"
+    },
+    {
+      "path": "config/runtime.json",
+      "sha256": "ea5dd401172fcc932de52e3d18ce12f3fdb14b063f01054b2bb931e44a0792d4"
+    },
+    {
+      "path": "docs/demos/loan-application/HOW-IT-WORKS.md",
+      "sha256": "79b840281ba9f19676715ae3546888a242876f2443ee3fada1e42bfc6868bdf0"
+    },
+    {
+      "path": "docs/demos/loan-application/README.md",
+      "sha256": "1330b2167f9e573184bb6f8795c675569c76581f5edb2a6cca0b225d712174cb"
+    },
+    {
+      "path": "examples/loan-application.txt",
+      "sha256": "e80e5b521fdc5c05d85799c9d51e892b373fe3093dd171877811c78fb28b1511"
+    },
+    {
+      "path": "infra-ai-gateway/README.md",
+      "sha256": "ed78477eefef59d81f30ebb7df7721350d23d0d894ac5aa31f3289a3f336cb0c"
+    },
+    {
+      "path": "scripts/dev-start.ps1",
+      "sha256": "3f7133702156468124cbf858cac7fe5d0218e4ddc728a75f2a777a63bc61f42f"
+    },
+    {
+      "path": "scripts/dev-start.sh",
+      "sha256": "0a4800efa582c06d15da2a50b2ffc0d2d99471885dabeb56910ecf0063b6cf8b"
+    },
+    {
+      "path": "scripts/dev-stop.ps1",
+      "sha256": "cd50922cc3bccbb210dc31171893193571b22fc090ce6c03c87c4bf0582c73a1"
+    },
+    {
+      "path": "scripts/dev-stop.sh",
+      "sha256": "bc680b7037f88903c80a033918327d964da0fb027de88c4efacd248610a77a11"
+    },
+    {
+      "path": "scripts/load-ports.ps1",
+      "sha256": "a6d3f426ddd1208874a4318ee3da17a9f408e7149d767e51e4e55197db67794f"
+    },
+    {
+      "path": "scripts/load-ports.sh",
+      "sha256": "242210cb7690a0a3e01781c6c48c7b93cf795d3960dd810f71cd50716ccd1c54"
+    },
+    {
+      "path": "src/agent/Dockerfile",
+      "sha256": "6a0247ae625d8b7f0aee5ccb84104157754b2f7c09feaf8ca143ea2351e5fe9f"
+    },
+    {
+      "path": "src/agent/agent.yaml",
+      "sha256": "a4f468ca71bc9aa4d3b704b856ecc102b54019278fdba4e527171bd0945e0de2"
+    },
+    {
+      "path": "src/agent/main.py",
+      "sha256": "2934be81bf21273dbb6d1dbf31d25d8f00ad71e1882952afb291426a0b434856"
+    },
+    {
+      "path": "src/agent/prompts/system.md",
+      "sha256": "806fe7f760626b44eb58e22f6fd7f9a60b3cec388bb90042db786b19edca5934"
+    },
+    {
+      "path": "src/agent/pyproject.toml",
+      "sha256": "297e2144c8f83ba1b557544498f75ea48a041465af1b7adb7d78ada5f9154705"
+    },
+    {
+      "path": "src/agent/tests/test_runtime.py",
+      "sha256": "362423f232993e14b426ca2b4ad2acbb980fb4667b0e964889535986a1be3d19"
+    },
+    {
+      "path": "src/agent/uv.lock",
+      "sha256": "0157cc5f14af957d2d03f99584f6e05c49b93fd163b2c39c6c270e3f345f6a23"
+    },
+    {
+      "path": "src/policy/enforcement.py",
+      "sha256": "0104b0ea9cab83417e2eccccae48d266c9e89454bef20b2a6258e0ecd1005c96"
+    },
+    {
+      "path": "src/tools/document-validation/Dockerfile",
+      "sha256": "b98d965180952274383e8e597cbf8ee5798ddfe85d6ef97d4096a8f7c51849be"
+    },
+    {
+      "path": "src/tools/document-validation/contract.json",
+      "sha256": "c81580bd6e4983943bf88e328c83194d2f61bfe8aa7bb6598b71e0778ee5ee9f"
+    },
+    {
+      "path": "src/tools/document-validation/egress-policy.md",
+      "sha256": "0dcb315b6e3ceff0b5876b3a7228093883f8971ab4717e83b7e123afd0520ca8"
+    },
+    {
+      "path": "src/tools/document-validation/main.py",
+      "sha256": "6ef91001039a75659b4b887e046575c134aebf8382447c8c33142cf57fb53876"
+    },
+    {
+      "path": "src/tools/document-validation/pyproject.toml",
+      "sha256": "2f51c06ba50a6bb487e5b26fe58f61154dfae4fa31b9d264f7a3025870d93c4c"
+    },
+    {
+      "path": "src/tools/document-validation/tests/test_main.py",
+      "sha256": "356c6ddf913ab161b9a36107faef45ee3ef5cdf049dc0407122ffd5e850a10d0"
+    },
+    {
+      "path": "azure-app.yaml",
+      "sha256": "771c231e0a6be8906f34121efbc524ef9b2e94dc19b0a0e9f008612b72b404d2"
+    }
+  ]
+}

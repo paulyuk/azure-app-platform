@@ -49,7 +49,7 @@ regional availability before production use.
 ## Phase 6 destination
 
 This `infra/` tree is the POC precursor described in Phase 6 of
-`docs/unity-platform-plan.md`. After the spike, extract reusable tiers to a
+`docs/azure-app-platform-plan.md`. After the spike, extract reusable tiers to a
 `unity/platform/` Bicep + `lib/` layout modeled on
 `app-agent-builders-kit/lib/{auth,gateway,connectors,context,egress}`. Keep
 `unity/verticals/car-buying/` as the only car-buying-specific directory.

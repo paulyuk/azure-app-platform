@@ -1,0 +1,30 @@
+name: Azure App Platform plugin portability
+
+on:
+  pull_request:
+    paths:
+      - canvases/azure-app-platform/**
+      - AGENTS.md
+      - .github/workflows/azure-app-platform-portability.yml
+  push:
+    branches: [main]
+    paths:
+      - canvases/azure-app-platform/**
+      - AGENTS.md
+      - .github/workflows/azure-app-platform-portability.yml
+
+permissions:
+  contents: read
+
+jobs:
+  portable-payload:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test canvases/azure-app-platform/plugin-portability.test.mjs

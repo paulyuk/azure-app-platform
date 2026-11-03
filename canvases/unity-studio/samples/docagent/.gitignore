@@ -1,9 +1,0 @@
-.azure/
-.unity-studio/
-.dev-run/
-.venv/
-node_modules/
-__pycache__/
-*.pyc
-.env
-local.settings.json

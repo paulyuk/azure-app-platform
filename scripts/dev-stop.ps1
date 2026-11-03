@@ -4,7 +4,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$implementation = Join-Path $repoRoot 'canvases\unity-studio\templates\shared\dealer\scripts\dev-stop.ps1'
+$implementation = Join-Path $repoRoot 'canvases\azure-app-platform\templates\shared\dealer\scripts\dev-stop.ps1'
 if (-not (Test-Path $implementation)) {
     throw "Dealer shutdown implementation not found: $implementation"
 }

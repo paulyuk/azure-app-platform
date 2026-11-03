@@ -7,7 +7,7 @@ set -euo pipefail
 # AZURITE_TABLE_PORT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-IMPLEMENTATION="$REPO_ROOT/canvases/unity-studio/templates/shared/dealer/scripts/dev-start.sh"
+IMPLEMENTATION="$REPO_ROOT/canvases/azure-app-platform/templates/shared/dealer/scripts/dev-start.sh"
 
 if [[ ! -f "$IMPLEMENTATION" ]]; then
   echo "Dealer startup implementation not found: $IMPLEMENTATION" >&2
