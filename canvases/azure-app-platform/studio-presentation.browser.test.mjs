@@ -295,7 +295,7 @@ test("packaged presentation follows late host delivery without remounting contro
         await capture(`github-app-fallback-${tone}-${width}-build`);
         await deliverHost(tone);
         await page.locator(".build-file").waitFor();
-        assert.equal(await page.locator(".build-file").evaluate(element => getComputedStyle(element).borderRadius), "6px");
+        assert.equal(await page.locator(".build-file").evaluate(element => getComputedStyle(element).borderRadius), "0px");
         await capture(`github-app-${tone}-${width}-build`);
         await selectWorkspace(page, "manage-app");
         const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });

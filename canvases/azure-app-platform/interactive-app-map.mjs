@@ -5,7 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
-import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_EXPLORER_CSS, BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { renderStudioBrand } from "./studio-brand.mjs";
@@ -806,6 +806,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     /* Retained content keeps its typography and tabs above the provider's generic element reset. */
     ${STUDIO_TABS_CSS}
     ${AGENT_STATUS_CSS}
+    ${BUILD_EXPLORER_CSS}
     ${APP_LOGS_CSS}
     #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #app-identity { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; }
@@ -1063,6 +1064,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let gatewayApplying = false;
     let panelMode = "manage";
     let connectionScroll = 0;
+    let mapNeedsRefresh = false;
     let observeView = "map";
     const navigationMount = document.querySelector("#workspace-navigation-mount");
     const loadingHeader = document.querySelector("#workspace-loading-header");
@@ -1207,9 +1209,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         event.currentTarget.focus({ preventScroll: true });
         openAppSettings("connection");
       },
-      onOpenStructure: () => {
-        renderStructureMap();
-      },
+      onSourceChange: () => { mapNeedsRefresh = true; },
     });
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
@@ -2165,6 +2165,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderMapWorkspace() {
+      if (mapNeedsRefresh) {
+        window.history.replaceState(null, "", "#app-map");
+        window.location.reload();
+        return;
+      }
       setStructureGuidance(false);
       panelMode = "map";
       selectedId = null;
@@ -4797,7 +4802,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       entryFilter.append(option);
     }
     applyLayout(false);
-    renderManagePanel();
+    if (window.location.hash === "#app-map") {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      renderStructureMap();
+    } else renderManagePanel();
     if (launchNotice) setStatus(launchNotice);
     void refreshOperationalState();
     const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);

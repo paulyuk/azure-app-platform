@@ -87,12 +87,12 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
   }, async (page) => {
     const tools = page.locator('.build-area[data-area-id="tools"]');
     const row = page.locator('.build-file[data-artifact="agent"]');
-    const disclosure = row.locator('.build-source-disclosure[data-preview-for="agent"]');
+    const disclosure = row.locator('.build-file-source[data-preview-for="agent"]');
     const preview = row.locator(".build-source-preview");
     const highlight = preview.locator(".build-highlight");
     await preview.waitFor();
     assert.equal(await preview.getAttribute("aria-label"), "Agent instructions source preview");
-    const tabs = page.getByRole("tablist", { name: "App customization areas", exact: true });
+    const files = page.getByRole("navigation", { name: "Build files", exact: true });
 
     await preview.evaluate((element) => {
       element.scrollTop = 240;
@@ -119,21 +119,17 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
       "An unchanged refresh retains the preview DOM");
     assert.deepEqual(await preview.evaluate((element) => [element.scrollTop, element.scrollLeft]), before);
     assert.equal(await page.evaluate(() => getSelection().toString()), selectedBefore);
-    assert.equal(await tabs.getByRole("tab", { name: "Behavior", exact: true }).getAttribute("aria-selected"), "true");
-    assert.equal(await disclosure.evaluate((element) => element.open), true);
-
-    await disclosure.locator(":scope > summary").click();
-    assert.equal(await disclosure.evaluate((element) => element.open), false);
-    const collapsedResponse = page.waitForResponse((response) =>
+    assert.equal(await files.locator('[data-file-choice="agent"]').getAttribute("aria-current"), "true");
+    assert.equal(await disclosure.isVisible(), true);
+    assert.equal(await disclosure.locator("summary,details").count(), 0, "Source has no redundant disclosure header");
+    const visibleResponse = page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/build-workspace");
     await page.getByRole("button", { name: "Refresh source", exact: true }).click();
-    await collapsedResponse;
-    assert.equal(await disclosure.evaluate((element) => element.open), false,
-      "An explicit collapsed state survives refresh");
-    await disclosure.locator(":scope > summary").click();
+    await visibleResponse;
+    assert.equal(await disclosure.isVisible(), true, "Source remains directly visible after refresh");
     await preview.waitFor();
 
-    await tabs.getByRole("tab", { name: "Tools", exact: true }).click();
+    await files.locator('[data-file-choice="tool"]').click();
     assert.equal(await tools.isVisible(), true);
     const launch = page.locator('[data-editor-launch][data-artifact-id="tool"]');
     await launch.focus();
@@ -142,10 +138,10 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
       new URL(response.url()).pathname === "/api/build-workspace");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await changedResponse;
-    assert.equal(await tabs.getByRole("tab", { name: "Tools", exact: true }).getAttribute("aria-selected"), "true");
+    assert.equal(await files.locator('[data-file-choice="tool"]').getAttribute("aria-current"), "true");
     assert.equal(await launch.evaluate((element) => element === document.activeElement), true,
       "Changed refresh restores focus to the same artifact action");
-    await tabs.getByRole("tab", { name: "Behavior", exact: true }).click();
+    await files.locator('[data-file-choice="agent"]').click();
     await page.waitForFunction(() =>
       document.querySelector('.build-file[data-artifact="agent"] .build-highlight')
         ?.textContent.startsWith("externally saved line 1"));
@@ -155,7 +151,7 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
     }, before);
     assert.equal(await highlight.textContent(), source);
     assert.deepEqual(await preview.evaluate((element) => [element.scrollTop, element.scrollLeft]), before);
-    assert.equal(await disclosure.evaluate((element) => element.open), true);
+    assert.equal(await disclosure.isVisible(), true);
 
     source = source.replace("externally saved line 1", "visible refresh line 1");
     await page.evaluate(() => {
@@ -176,8 +172,8 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
     await page.waitForFunction(() =>
       document.querySelector('.build-file[data-artifact="agent"] .build-highlight')
         ?.textContent.startsWith("workspace re-entry line 1"));
-    assert.equal(await disclosure.evaluate((element) => element.open), true);
-    assert.equal(await tabs.getByRole("tab", { name: "Behavior", exact: true }).getAttribute("aria-selected"), "true");
+    assert.equal(await disclosure.isVisible(), true);
+    assert.equal(await files.locator('[data-file-choice="agent"]').getAttribute("aria-current"), "true");
     assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
     assert.ok(reads >= 4);
   });
@@ -207,22 +203,22 @@ test("Build ignores stale refreshes while interaction changes or the workspace i
   }, async (page) => {
     const refresh = page.getByRole("button", { name: "Refresh source", exact: true });
     const agentDisclosure = page.locator(
-      '.build-file[data-artifact="agent"] .build-source-disclosure[data-preview-for="agent"]');
+      '.build-file[data-artifact="agent"] .build-file-source[data-preview-for="agent"]');
     const agentPreview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
     await agentPreview.waitFor();
 
     gate = { started: deferred(), reply: deferred(), completed: deferred() };
     await refresh.click();
     await gate.started.promise;
-    await page.getByRole("tab", { name: "Tools", exact: true }).click();
+    await page.locator('[data-file-choice="tool"]').click();
     const toolDisclosure = page.locator(
-      '.build-file[data-artifact="tool"] .build-source-disclosure[data-preview-for="tool"]');
+      '.build-file[data-artifact="tool"] .build-file-source[data-preview-for="tool"]');
     const toolPreview = page.getByRole("region", { name: "Inventory entry point source preview", exact: true });
     await toolPreview.waitFor();
     gate.reply.resolve({ artifacts: artifacts("stale agent response\n") });
     await gate.completed.promise;
-    assert.equal(await toolDisclosure.evaluate((element) => element.open), true);
-    assert.equal(await toolPreview.isVisible(), true, "A completed refresh must not undo newer disclosure state");
+    assert.equal(await toolDisclosure.isVisible(), true);
+    assert.equal(await toolPreview.isVisible(), true, "A completed refresh must not undo the newer file selection");
 
     gate = { started: deferred(), reply: deferred(), completed: deferred() };
     await refresh.click();
@@ -238,7 +234,7 @@ test("Build ignores stale refreshes while interaction changes or the workspace i
     gate = undefined;
     await page.evaluate(() => { window.panelActive = true; window.buildPanel.show(); });
     await toolPreview.waitFor();
-    assert.equal(await toolDisclosure.evaluate((element) => element.open), true);
+    assert.equal(await toolDisclosure.isVisible(), true);
     assert.equal(await toolPreview.locator(".build-highlight").textContent(), artifacts(source)[1].content);
 
     failNext = true;
@@ -246,7 +242,7 @@ test("Build ignores stale refreshes while interaction changes or the workspace i
     await page.getByRole("alert").filter({ hasText: "Preview refresh failed." }).waitFor();
     assert.equal(await refresh.isEnabled(), true);
     source = "successful retry source\n";
-    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
+    await page.locator('[data-file-choice="agent"]').click();
     await refresh.click();
     await page.waitForFunction(() =>
       document.querySelector('.build-file[data-artifact="agent"] .build-highlight')

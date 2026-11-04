@@ -1,0 +1,3 @@
+name: __BLOCK_NAME__
+kind: prompt
+instructions: prompts/system.md

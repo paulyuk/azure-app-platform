@@ -62,6 +62,7 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const filesRequests = [];
+  const editorRequests = [];
   const pending = new Map();
   const fail = new Set();
   const server = createServer((_request, response) => {
@@ -89,6 +90,9 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
           path: artifacts().find((artifact) => artifact.id === input.id).path,
           canvas: { canvasId: "editor", instanceId: `build-file-${input.id}`, scope: "repo" },
         } });
+      } else if (path === "/api/open-build-file") {
+        editorRequests.push(route.request().postDataJSON());
+        await route.fulfill({ json: { editorLabel: "VS Code" } });
       } else {
         throw new Error(`Unexpected route ${path}`);
       }
@@ -100,14 +104,23 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
     const toolRow = page.locator('.build-file[data-artifact="tool"]');
     const agentLaunch = agentRow.locator('[data-files-launch][data-artifact-id="agent"]');
     const toolLaunch = toolRow.locator('[data-files-launch][data-artifact-id="tool"]');
+    await agentRow.getByRole("button", { name: "Open with", exact: true }).click();
+    const openMenu = page.getByRole("menu", { name: "Open with", exact: true });
+    assert.equal(await openMenu.getByText("Open with", { exact: true }).count(), 1);
+    assert.ok(await openMenu.getByRole("menuitem", { name: "Files", exact: true }).locator('[aria-hidden="true"]').count() > 0);
+    assert.equal(await openMenu.getByRole("menuitem", { name: "VS Code", exact: true }).locator("svg").count(), 1);
+    assert.equal(await openMenu.locator(".build-icon-files").evaluate(icon =>
+      getComputedStyle(icon).maskImage !== "none" && icon.getBoundingClientRect().width === 16), true,
+    "The Files destination retains its visible icon inside the toolkit menu");
+    await openMenu.getByRole("menuitem", { name: "Files", exact: true }).click();
     await agentLaunch.waitFor();
 
-    await agentLaunch.click();
+    assert.equal(await agentLaunch.getAttribute("aria-label"), "Edit in Files");
     await agentLaunch.click({ force: true });
-    await page.getByRole("tab", { name: "Tools", exact: true }).click();
+    await page.locator('[data-file-choice="tool"]').click();
     await toolLaunch.waitFor();
     await toolLaunch.click();
-    await page.waitForFunction(() => document.querySelectorAll("[data-files-launch]:disabled").length === 2);
+    await page.waitForFunction(() => document.querySelectorAll("[data-files-launch]:disabled").length === 1);
     assert.deepEqual(filesRequests, [
       { root: "/fixture", id: "agent" },
       { root: "/fixture", id: "tool" },
@@ -115,26 +128,32 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
 
     pending.get("tool").resolve();
     await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').filter({ hasText: /Opened in Files/ }).waitFor();
-    assert.equal(await agentRow.locator('.build-handoff-feedback[data-artifact-id="agent"]').innerText(), "");
     assert.equal(await toolLaunch.isEnabled(), true);
+    await page.locator('[data-file-choice="agent"]').click();
+    assert.equal(await agentRow.locator('.build-handoff-feedback[data-artifact-id="agent"]').innerText(), "");
     assert.equal(await agentLaunch.isDisabled(), true);
 
     pending.get("agent").resolve();
     await page.waitForFunction(() =>
       document.querySelector('.build-handoff-feedback[data-artifact-id="agent"]')
         ?.textContent.includes("Opened in Files"));
-    assert.equal(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(),
-      "Opened in Files. Save there, then return to Build.");
-
     fail.add("agent");
-    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
     await agentLaunch.click();
     await page.waitForFunction(() => document.querySelector('[data-files-launch][data-artifact-id="agent"]')?.disabled);
     pending.get("agent").resolve();
     await agentRow.getByRole("alert").filter({ hasText: "agent Files failed." }).waitFor();
     assert.equal(await agentLaunch.isEnabled(), true);
+    await page.locator('[data-file-choice="tool"]').click();
     assert.match(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(), /Opened in Files/,
       "Failure feedback cannot leak into another artifact");
+    await toolRow.getByRole("button", { name: "Open with", exact: true }).click();
+    await page.getByRole("menuitem", { name: "VS Code", exact: true }).click();
+    const external = toolRow.getByRole("button", { name: "Open in VS Code", exact: true });
+    await toolRow.getByRole("status").filter({ hasText: /Opened the worktree and file in VS Code/ }).waitFor();
+    await external.click();
+    await page.waitForFunction(() => !document.querySelector('[data-editor-launch]')?.disabled);
+    assert.deepEqual(editorRequests, [{ root: "/fixture", id: "tool" }, { root: "/fixture", id: "tool" }],
+      "Choosing an editor opens the exact file and makes it the next primary action");
 
     assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
     assert.deepEqual(errors, []);
@@ -192,10 +211,11 @@ test("Build follows shared editor settings without owning a picker or accepting 
 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const launches = page.locator("[data-editor-launch]");
+    const launchLabels = () => launches.evaluateAll(elements => elements.map(element => element.getAttribute("aria-label")));
     const agentRow = page.locator('.build-file[data-artifact="agent"]');
     await launches.first().waitFor();
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
-    assert.deepEqual(await launches.allTextContents(), ["Open in VS Code"]);
+    assert.deepEqual(await launchLabels(), ["Open in VS Code"]);
 
     workspaceGate = { started: deferred(), reply: deferred(), completed: deferred() };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -203,36 +223,44 @@ test("Build follows shared editor settings without owning a picker or accepting 
     selectedEditor = "cursor";
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
       { editorId: "cursor", editors });
-    assert.deepEqual(await launches.allTextContents(), ["Open in Cursor"]);
+    assert.deepEqual(await launchLabels(), ["Open in Cursor"]);
     assert.equal(await launches.first().isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Open with", exact: true }).isDisabled(), true,
+      "The canonical split button is unavailable while its selected editor is being saved");
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: false }),
       { editorId: "cursor", editors });
     workspaceGate.reply.resolve();
     await workspaceGate.completed.promise;
     workspaceGate = undefined;
-    assert.deepEqual(await launches.allTextContents(), ["Open in Cursor"],
+    assert.deepEqual(await launchLabels(), ["Open in Cursor"],
       "A stale workspace response cannot replace a newer settings event");
     assert.equal(await launches.first().isEnabled(), true);
+    await page.setViewportSize({ width: 380, height: 800 });
+    await page.getByRole("button", { name: "Open with", exact: true }).click();
+    assert.equal(await page.getByRole("menuitem", { name: "Cursor", exact: true }).isEnabled(), true,
+      "The split menu follows the shared editor preference without adding an editor picker");
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 1000, height: 800 });
 
     await launches.first().click();
     assert.deepEqual(opened[0], { root: "/fixture", id: "agent" });
-    await page.getByRole("tab", { name: "Tools", exact: true }).click();
+    await page.locator('[data-file-choice="tool"]').click();
     const toolLaunch = page.locator('[data-editor-launch][data-artifact-id="tool"]');
     await toolLaunch.click();
-    await page.locator('.build-file[data-artifact="tool"] .build-handoff-feedback[role="alert"]')
+    await page.locator('.build-file[data-artifact="tool"] .build-handoff-feedback [role="alert"]')
       .filter({ hasText: "Cursor is unavailable." }).waitFor();
     assert.equal(await toolLaunch.isEnabled(), true);
 
     selectedEditor = "zed";
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
       { editorId: "zed", editors });
-    assert.equal(await toolLaunch.innerText(), "Open in Zed");
+    assert.equal(await toolLaunch.getAttribute("aria-label"), "Open in Zed");
     assert.equal(await toolLaunch.isDisabled(), true);
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: false }),
       { editorId: "zed", editors });
     assert.equal(await toolLaunch.isEnabled(), true);
-    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
-    assert.equal(await page.locator('[data-editor-launch][data-artifact-id="agent"]').innerText(), "Open in Zed");
+    await page.locator('[data-file-choice="agent"]').click();
+    assert.equal(await page.locator('[data-editor-launch][data-artifact-id="agent"]').getAttribute("aria-label"), "Open in Zed");
     assert.equal(await agentRow.locator(".build-handoff-feedback").innerText(), "Opened the worktree and file in Cursor.",
       "Tool handoff failure does not replace another artifact's feedback");
     assert.equal(requests.some(({ path }) => path === "/api/editor-settings"), false,

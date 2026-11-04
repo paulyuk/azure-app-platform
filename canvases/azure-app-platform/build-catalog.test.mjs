@@ -189,9 +189,12 @@ test("document Build honors the declared legacy tool instead of an unrelated new
   }, async (root) => {
     const state = await readBuildWorkspace(root);
     assert.equal(state.supportsDocuments, true);
-    assert.deepEqual(state.artifacts.map((item) => [item.id, item.customizationArea]), [
+    assert.deepEqual(state.artifacts.filter((item) => ["instructions", "tool", "contract", "policy", "runtime"].includes(item.id))
+      .map((item) => [item.id, item.customizationArea]).sort(), [
       ["instructions", "behavior"], ["tool", "tools"], ["contract", "tools"], ["policy", "policies"], ["runtime", "runtime"],
-    ]);
+    ].sort());
+    assert.equal(new Set(state.artifacts.map(item => item.path)).size, state.artifacts.length);
+    assert.ok(!state.artifacts.some(item => item.path.startsWith("src/tools/document-validation")));
     const tool = state.artifacts.find((item) => item.id === "tool");
     assert.equal(tool.path, "src/sandbox/tool/main.py");
     assert.equal(tool.projectPath, "src/sandbox/tool");

@@ -100,6 +100,79 @@ test("real toolkit buttons preserve keyed roots, callbacks, keyboard, visibility
       retrying.dispose();
       if (retryHost.childNodes.length) throw new Error("Retry root was not disposed");
       retryHost.remove();
+      const composition = document.createElement("section");
+      document.body.append(composition);
+      const field = buttons.field({ kind: "TextInput", label: "Block name", hint: "Keep it short.", required: true });
+      buttons.append(composition, field);
+      field.value = "retained-draft";
+      buttons.update(field, { hint: "Use lowercase letters." });
+      buttons.setDisabled(field, true);
+      if (field.value !== "retained-draft" || !field.disabled || !field.required) {
+        throw new Error("Toolkit field updates lost the draft or native state");
+      }
+      const group = buttons.actionGroup(composition);
+      const action = buttons.create({ children: "Create" });
+      buttons.append(group, action);
+      const second = buttons.create({ children: "Cancel" });
+      buttons.append(group, second);
+      buttons.setText(action, "Create block");
+      if (!group.contains(action) || action.textContent !== "Create block" ||
+        composition.querySelectorAll(".ct-actions").length !== 1) {
+        throw new Error("ActionGroup DOM interop replaced or lost an owned action");
+      }
+      let selected = "stack";
+      const segmented = buttons.segmented({
+        "aria-label": "Document layout", value: selected,
+        items: [{ value: "stack", label: "Stack" }, { value: "page", label: "Page" }],
+        onValueChange(value) { selected = value; buttons.update(segmented, { value }); },
+      });
+      buttons.append(composition, segmented);
+      const choices = segmented.querySelectorAll("button");
+      if (choices[0].getAttribute("aria-pressed") !== "true") throw new Error("Segmented control lost its initial selection");
+      choices[1].click();
+      if (selected !== "page" || choices[1].getAttribute("aria-pressed") !== "true") {
+        throw new Error("Segmented control did not deliver or render its selection");
+      }
+      choices[1].focus();
+      buttons.update(segmented, { value: "stack" });
+      if (document.activeElement !== choices[1] || choices[0].getAttribute("aria-pressed") !== "true") {
+        throw new Error("Segmented updates replaced controls or moved focus");
+      }
+      const splitCalls = [];
+      const split = buttons.split({
+        heading: "Open with", menuLabel: "Open with",
+        button: { children: "VS Code", onClick: () => splitCalls.push("stale") },
+        items: [{ id: "files", label: "Files", onClick() {} }],
+      });
+      buttons.append(group, split);
+      const primary = split.querySelector("button");
+      primary.focus();
+      buttons.update(split, { button: { children: "Files", onClick: () => splitCalls.push("latest") } });
+      primary.click();
+      if (split.querySelector("button") !== primary || document.activeElement !== primary ||
+        primary.textContent !== "Files" || splitCalls.join() !== "latest") {
+        throw new Error("Split updates replaced its primary action, lost focus or retained a stale callback");
+      }
+      buttons.setDisabled(split, true);
+      if ([...split.querySelectorAll("button")].some(button => !button.disabled)) {
+        throw new Error("Split disabled state did not reach both canonical buttons");
+      }
+      buttons.clear(composition);
+      if (composition.querySelector(".ct-provider")) throw new Error("Nested toolkit roots survived clear");
+      let disposed = false;
+      try { buttons.update(action, { children: "Stale" }); }
+      catch { disposed = true; }
+      if (!disposed) throw new Error("A nested action root retained ownership after clear");
+      disposed = false;
+      try { buttons.update(segmented, { value: "page" }); }
+      catch { disposed = true; }
+      if (!disposed) throw new Error("A segmented root retained ownership after clear");
+      disposed = false;
+      try { buttons.update(split, { disabled: false }); }
+      catch { disposed = true; }
+      if (!disposed) throw new Error("A split root retained ownership after clear");
+      composition.remove();
+      reused.focus();
     }, createStudioButtons.toString());
     await page.keyboard.press("Enter");
     await page.keyboard.press("Space");
@@ -251,6 +324,10 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
     await page.locator("#host-action").focus();
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Tab");
+    await page.waitForFunction(() => {
+      const action = document.querySelector("#host-action");
+      return document.activeElement === action && getComputedStyle(action).outline === "rgb(193, 47, 150) solid 2px";
+    });
     const readStyle = () => page.locator("#host-action").evaluate(element => {
       const style = getComputedStyle(element);
       return { background: style.backgroundColor, foreground: style.color, size: style.fontSize,

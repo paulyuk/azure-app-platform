@@ -263,6 +263,34 @@ test("installed payload opens and materializes templates without checkout depend
         const artifact = state.artifacts.find((item) => item.id === "instructions");
         assert.equal(artifact.customizationArea, "behavior");
         assert.equal("editable" in artifact, false);
+        const templates = await api("/api/build-templates?root=.");
+        assert.equal(templates.status, 200);
+        assert.deepEqual((await templates.json()).templates.map(item => item.id), ["hosted-skill", "agent-instructions"]);
+        const newBlock = await api("/api/build-block", { root: ".", templateId: "hosted-skill", name: "lookup" });
+        const newBlockResult = await newBlock.json();
+        assert.equal(newBlock.status, 201, JSON.stringify(newBlockResult));
+        assert.equal(newBlockResult.projectPath, "src/skills/lookup");
+        assert.ok(newBlockResult.paths.includes("src/skills/lookup/function_app.py"));
+        assert.match(await readFile("src/skills/lookup/function_app.py", "utf8"), /status_code=501/);
+        const { requestBuildAdjustment } = await import(base + "build-blocks.mjs");
+        for (const [id, skillName] of [
+          [newBlockResult.artifactId, "azure-app-platform-hosted-skill"],
+          [artifact.id, "azure-app-platform-agent-instructions"],
+        ]) {
+          let adjustmentPrompt;
+          await requestBuildAdjustment({
+            root: process.cwd(), id, instructions: "Customize the saved base.", targetSessionId: "app-session",
+            session: { send: async ({ prompt }) => { adjustmentPrompt = prompt; return "requested"; } },
+          });
+          const skill = await readFile(join(payload, "skills", skillName, "SKILL.md"), "utf8");
+          assert.ok(adjustmentPrompt.includes(skill), "Installed payload must carry the complete block authoring skill");
+        }
+        const duplicateBlock = await api("/api/build-block", { root: ".", templateId: "hosted-skill", name: "lookup" });
+        assert.equal(duplicateBlock.ok, false);
+        assert.match((await duplicateBlock.json()).error, /already exists/);
+        const unauthorizedBlock = await api("/api/build-block", { root: "..", templateId: "hosted-skill", name: "outside" });
+        assert.equal(unauthorizedBlock.ok, false);
+        await unauthorizedBlock.arrayBuffer();
         const native = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
         const nativeResult = await native.json();
         assert.equal(native.status, 200, JSON.stringify(nativeResult));

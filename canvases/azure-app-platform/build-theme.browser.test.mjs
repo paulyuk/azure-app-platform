@@ -6,6 +6,7 @@ import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
+import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -20,15 +21,19 @@ function luminance(color) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-test("Build guide and an expanded preview remain legible in light, dark, compact and forced-color layouts", {
+for (const presentationProfile of ["standalone", "github-app"]) {
+test(`Build guide and lighter code remain legible in light, dark, compact and forced-color layouts (${presentationProfile})`, {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
     await installToolkitRoutes(page);
-    await page.setContent(withToolkitButtons(`<!doctype html><html data-studio-theme="light"><style>
-      ${renderThemeStyles()} ${BUILD_PANEL_CSS}
+    const presentation = getStudioPresentation(presentationProfile);
+    await page.setContent(withToolkitButtons(`<!doctype html><html class="${presentation.className}" data-studio-theme="light">
+      ${presentation.stylesheet ? `<link rel="stylesheet" href="http://toolkit-fixture.test${presentation.stylesheet}">` : ""}
+      <style>
+      ${renderThemeStyles(presentationProfile)} ${renderPresentationStyles(presentationProfile)} ${BUILD_PANEL_CSS}
       body { margin:0; background:var(--studio-bg); color:var(--studio-ink); }
       #details { height:100vh; }
     </style><div id="details" data-mode="build"></div><script>
@@ -40,8 +45,8 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
           { id: "agent", customizationArea: "behavior", title: "Agent instructions", path: "src/agent/main.py",
             projectPath: "src/agent", projectName: "Agent", available: true, sha: "base",
             content: 'def main():\\n    return "hello"\\n' },
-          { id: "prompt", customizationArea: "behavior", title: "Prompt", path: "src/agent/prompts/system.md",
-            projectPath: "src/agent", projectName: "Agent", available: true, sha: "base", content: "# Instructions" },
+          { id: "prompt", customizationArea: "behavior", title: "Prompt", path: "src/helper/prompts/system.md",
+            projectPath: "src/helper", projectName: "Helper", available: true, sha: "base", content: "# Instructions" },
           { id: "runtime", customizationArea: "runtime", title: "Runtime", path: "config/runtime.json",
             available: true, sha: "base", content: '{"agentRuntime":"local"}' },
           { id: "policy", customizationArea: "policies", title: "Policy", path: "config/policy.json",
@@ -84,12 +89,20 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
       for (const theme of ["light", "dark"]) {
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
         await assertContrast(page.locator(
-          ".build-area-title, .build-area-description, .build-file-heading h4, .build-source-path, " +
-          ".build-source-disclosure > summary, .build-help-button"),
+          ".build-area-title, .build-file-heading h4, .build-source-path, " +
+          ".build-readonly-badge .ct-badge, .build-help-button"),
         `${theme} guide at ${width}px`);
         await assertContrast(page.locator(
-          ".build-language, .build-line-numbers, .build-highlight, [data-files-launch], [data-editor-launch]"),
+          ".build-line-numbers, .build-highlight, .build-highlight .token, [data-file-open] > button"),
         `${theme} preview at ${width}px`);
+        const surfaces = await row.evaluate(element => ({
+          source: getComputedStyle(element.querySelector(".build-source-preview")).backgroundColor,
+          gutter: getComputedStyle(element.querySelector(".build-line-numbers")).backgroundColor,
+          header: getComputedStyle(element.querySelector(".build-file-header")).backgroundColor,
+        }));
+        assert.ok(luminance(surfaces.source) > luminance(surfaces.header),
+          `${presentationProfile} ${theme} code is lighter than its file header: ${JSON.stringify(surfaces)}`);
+        assert.equal(surfaces.gutter, surfaces.source, "Line numbers share the lighter code background");
         assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
         assert.ok(await page.locator(".build-workspace").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
         assert.ok(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
@@ -100,22 +113,21 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
           const sourceBounds = source.getBoundingClientRect();
           return {
             top: bounds.top, bottom: bounds.bottom,
-            outlined: ["Top", "Right", "Bottom", "Left"].every((side) =>
-              style["border" + side + "Style"] === "solid" && parseFloat(style["border" + side + "Width"]) >= 1),
+            borderless: ["Top", "Right", "Bottom", "Left"].every((side) =>
+              parseFloat(style["border" + side + "Width"]) === 0),
             padding: parseFloat(style.paddingInlineStart),
             rounded: parseFloat(style.borderTopLeftRadius) > 0,
             distinctSurface: style.backgroundColor !== getComputedStyle(source).backgroundColor,
-            containsSource: sourceBounds.left > bounds.left && sourceBounds.right < bounds.right &&
-              sourceBounds.top > bounds.top && sourceBounds.bottom < bounds.bottom,
+            containsSource: sourceBounds.left >= bounds.left && sourceBounds.right <= bounds.right &&
+              sourceBounds.top > bounds.top && sourceBounds.bottom <= bounds.bottom + 1,
           };
         }));
-        assert.equal(sections.length, 2);
+        assert.equal(sections.length, 1);
         for (const section of sections) {
-          assert.ok(section.outlined && section.rounded, `${theme} file section has its own boundary at ${width}px`);
-          assert.ok(section.padding >= 12 && section.distinctSurface && section.containsSource,
-            `${theme} file section groups its header, actions, and preview at ${width}px`);
+          assert.ok(section.borderless && !section.rounded, `${theme} file section has no card container at ${width}px`);
+          assert.ok(section.padding === 0 && section.containsSource,
+            `${theme} file section uses the available preview width at ${width}px`);
         }
-        assert.ok(sections[1].top - sections[0].bottom >= 16, "Separate file sections have a visible gap");
         assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
       }
     }
@@ -124,6 +136,7 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
     await page.emulateMedia({ forcedColors: "active" });
     assert.equal(await page.getByRole("separator", { name: /Resize key files/i }).count(), 0);
     assert.equal(await preview.isVisible(), true);
+    assert.equal(await page.locator(".build-readonly-badge .ct-badge").isVisible(), true);
     assert.notEqual(await preview.locator(".build-highlight").evaluate((element) =>
       getComputedStyle(element).color), "rgba(0, 0, 0, 0)");
     await preview.focus();
@@ -136,3 +149,4 @@ test("Build guide and an expanded preview remain legible in light, dark, compact
     await browser.close();
   }
 });
+}

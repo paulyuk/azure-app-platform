@@ -1,11 +1,14 @@
 import { execFile } from "node:child_process";
-import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { APP_SERVICE_BUILDER_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
+import { BUILD_BLOCK_TEMPLATES } from "./build-blocks.mjs";
+import { parseUnityManifest } from "./discovery.mjs";
+import { getTierDefinition } from "./tier-definitions.mjs";
 
 const execFileAsync = promisify(execFile);
 const EMPTY_TEMPLATE_ID = "builtin-empty-starter-v1";
@@ -19,6 +22,84 @@ const TEMPLATE_ROOTS = {
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
 const DOMAIN_PATTERN = /^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+function appendBuildComponent(content, tierId, projectPath) {
+  const newline = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^(?:components|capabilities):\s*(?:#.*)?$/.test(line));
+  if (start < 0 || lines.filter((line) => /^(?:components|capabilities):/.test(line)).length !== 1) {
+    throw new Error("The app inventory needs one block-style components or capabilities section before adding a block.");
+  }
+  const original = parseUnityManifest({ content });
+  if (original.some((item) => !item.path || !getTierDefinition(item.tierId)
+    || /^(?:[\\/]|[A-Za-z]:)/.test(item.path) || item.path.split(/[\\/]/).includes(".."))) {
+    throw new Error("Fix the app inventory's component paths before adding a block.");
+  }
+  let end = start + 1;
+  while (end < lines.length && (!lines[end].trim() || /^\s|^#/.test(lines[end]))) end++;
+  if (lines[start].startsWith("capabilities:")) {
+    lines[start] = lines[start].replace("capabilities:", "components:");
+    for (let index = start + 1; index < end; index++) {
+      const heading = /^  ([a-z][a-z0-9-]*):\s*(#.*)?$/.exec(lines[index]);
+      if (heading) lines[index] = "  - tier: " + heading[1] + (heading[2] ? " " + heading[2] : "");
+      else if (lines[index].trim() && !/^(?: {4,}\S|\s*#)/.test(lines[index])) {
+        throw new Error("The app inventory uses an unsupported capability layout. Use a block-style components list before adding a block.");
+      }
+    }
+  }
+  lines.splice(end, 0, `  - tier: ${tierId}`, `    path: ${projectPath}`, "    interface: configuration", "    links: []");
+  const result = lines.join(newline).replace(/\s*$/, newline);
+  const parsed = parseUnityManifest({ content: result });
+  if (JSON.stringify(parsed.map(({ tierId, path }) => ({ tierId, path }))) !==
+    JSON.stringify([...original.map(({ tierId, path }) => ({ tierId, path })), { tierId, path: projectPath }])) {
+    throw new Error("Could not preserve the app inventory while adding the block.");
+  }
+  return result;
+}
+
+export async function materializeBuildBlock({ root, templateId, name }) {
+  const template = BUILD_BLOCK_TEMPLATES.find((item) => item.id === templateId);
+  if (!template) throw new Error("Choose a supported building block template.");
+  name = requireText(name, "block name (lowercase letters, digits, and hyphens)", SKILL_NAME_PATTERN, 40);
+  root = await realpath(root);
+  const projectPath = template.projectPath.replace("{name}", name);
+  const destination = join(root, projectPath);
+  const manifestPath = join(root, "azure-app.yaml");
+  let manifest, updatedManifest;
+  try {
+    if ((await lstat(manifestPath)).isSymbolicLink()) throw new Error("App inventory must not be a symlink.");
+    manifest = await readFile(manifestPath, "utf8");
+    updatedManifest = appendBuildComponent(manifest, template.tierId, projectPath);
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  let directory = root;
+  for (const part of projectPath.split("/").slice(0, -1)) {
+    directory = join(directory, part);
+    try { await mkdir(directory); } catch (error) { if (error.code !== "EEXIST") throw error; }
+    if (!(await lstat(directory)).isDirectory() || await realpath(directory) !== directory) {
+      throw new Error("New blocks must stay inside the app, not a symlink.");
+    }
+  }
+  try { await mkdir(destination); }
+  catch (error) {
+    if (error.code === "EEXIST") throw new Error("A block already exists at this path. Choose another name; existing files were not changed.");
+    throw error;
+  }
+  try {
+    const source = fileURLToPath(new URL("./templates/" + template.source, import.meta.url));
+    await cp(source, destination, { recursive: true, force: false, errorOnExist: true });
+    await replaceTokens(destination, { "__BLOCK_NAME__": name, "__SKILL_NAME__": name });
+    if (manifest !== undefined) {
+      if ((await lstat(manifestPath)).isSymbolicLink() || await readFile(manifestPath, "utf8") !== manifest) {
+        throw new Error("The app inventory changed during creation. Try again after reviewing it.");
+      }
+      await writeFile(manifestPath, updatedManifest);
+    }
+  } catch (error) {
+    await rm(destination, { recursive: true, force: true });
+    throw error;
+  }
+  return { projectPath, entry: template.entry };
+}
 
 function requireText(value, label, pattern, maxLength) {
   if (

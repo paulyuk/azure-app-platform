@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
+import { BUILD_EXPLORER_CSS, BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
 import { renderOcticon } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
@@ -24,7 +24,7 @@ test("Build is a focused read-only customization workspace with document and Run
     {
       id: "tool", customizationArea: "tools", title: "Document validation entry point",
       path: "src/tools/document-validation/main.py", projectPath: "src/tools/document-validation",
-      projectName: "Document validation", description: "Validate documents.", available: true,
+      description: "Validate documents.", available: true,
       content: "def main(): pass\n", sha: "base",
     },
     {
@@ -37,15 +37,20 @@ test("Build is a focused read-only customization workspace with document and Run
       path: "config/document-policy.json", description: "Set document limits.", available: true,
       content: '{"maxBytes":4096}', sha: "base",
     },
+    {
+      id: "source-file", customizationArea: "source", title: "Functions host configuration",
+      path: "src/other/host.json", available: true, content: '{"version":"2.0"}', sha: "base",
+    },
   ];
+  let documentSupport = true;
   const requests = [];
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
     const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
-      onRun: () => { document.body.dataset.runRequested = "true"; },
-      onModel: () => { document.body.dataset.modelRequested = "true"; },
+      onRun: location.search.includes("no-section-handlers") ? undefined : () => { document.body.dataset.runRequested = "true"; },
+      onModel: location.search.includes("no-section-handlers") ? undefined : () => { document.body.dataset.modelRequested = "true"; },
       request: async (path, options) => {
         const response = await fetch(path, options);
         const body = await response.json();
@@ -69,7 +74,7 @@ test("Build is a focused read-only customization workspace with document and Run
       const path = new URL(route.request().url()).pathname;
       requests.push({ path, method: route.request().method(), body: route.request().postDataJSON() });
       if (path === "/api/build-workspace") {
-        await route.fulfill({ json: { artifacts, supportsDocuments: true } });
+        await route.fulfill({ json: { artifacts, supportsDocuments: documentSupport } });
       } else {
         throw new Error(`Unexpected route ${path}`);
       }
@@ -77,33 +82,20 @@ test("Build is a focused read-only customization workspace with document and Run
     await installToolkitRoutes(page);
 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.addStyleTag({ content: BUILD_EXPLORER_CSS });
     await page.getByRole("heading", { name: "Build your app", exact: true }).waitFor();
 
-    const tabs = page.getByRole("tablist", { name: "App customization areas", exact: true });
-    assert.deepEqual(await tabs.getByRole("tab").allTextContents(), ["Behavior", "Tools", "Runtime", "Policies"]);
-    assert.deepEqual(await tabs.getByRole("tab").evaluateAll((items) => items.map((item) => ({
-      selected: item.getAttribute("aria-selected"),
-      tabIndex: item.tabIndex,
-    }))), [
-      { selected: "true", tabIndex: 0 },
-      { selected: "false", tabIndex: -1 },
-      { selected: "false", tabIndex: -1 },
-      { selected: "false", tabIndex: -1 },
-    ]);
-    const areas = page.locator(".build-area[data-area-id]");
-    assert.deepEqual(await areas.evaluateAll((items) => items.map((item) => ({
-      id: item.dataset.areaId,
-      hidden: item.hidden,
-      role: item.getAttribute("role"),
-    }))), [
-      { id: "behavior", hidden: false, role: "tabpanel" },
-      { id: "tools", hidden: true, role: "tabpanel" },
-      { id: "runtime", hidden: true, role: "tabpanel" },
-      { id: "policies", hidden: true, role: "tabpanel" },
-    ]);
-    assert.match(await page.locator('.build-area[data-area-id="behavior"]').innerText(), /Agent behavior.*respond/si);
+    const files = page.getByRole("navigation", { name: "Build files", exact: true });
+    assert.deepEqual(await files.locator("summary").allTextContents(), ["Behavior (1)", "Tools (1)", "Runtime (1)", "Source (1)"]);
+    assert.deepEqual(await files.locator("[data-file-choice]").allTextContents(),
+      ["Document agent", "Document validation", "Config", "Other"]);
+    assert.equal(await files.locator('[aria-current="true"]').getAttribute("data-file-choice"), "instructions");
+    assert.equal(await page.locator(".build-area-title").textContent(), "Document agent",
+      "A single file uses its discovered parent name rather than its category");
+    assert.equal(await page.locator(".build-area-description").count(), 0, "The right-pane heading has no subtitle");
     assert.equal(await page.locator(".build-area > summary").count(), 0);
-    assert.equal(await page.locator(".build-explorer,.build-explorer-reopen,[role=separator]").count(), 0);
+    assert.equal(await page.locator(".build-explorer").count(), 1);
+    assert.equal(await page.getByRole("separator", { name: "File list width", exact: true }).count(), 1);
     const behaviorPreview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
     await behaviorPreview.waitFor();
     assert.equal(await page.locator(".build-source-preview").count(), 1,
@@ -151,24 +143,27 @@ test("Build is a focused read-only customization workspace with document and Run
     await page.getByRole("button", { name: "Test with a document", exact: true }).click();
     assert.equal(await page.locator("body").getAttribute("data-run-requested"), "true");
 
-    await tabs.getByRole("tab", { name: "Tools", exact: true }).click();
+    await files.locator('[data-file-choice="tool"]').click();
+    assert.equal(await page.locator(".build-area-title").textContent(), "Document validation",
+      "A source-project path supplies the parent name when no display name is provided");
     const toolsArea = page.locator('.build-area[data-area-id="tools"]');
-    assert.equal(await toolsArea.getByRole("heading", { name: "Document validation", exact: true }).count(), 1,
-      "A single tool project still shows its name");
+    assert.equal(await files.getByText("Document validation", { exact: true }).count(), 1,
+      "The categorized list shows the source project name");
     assert.equal(await toolsArea.locator(".build-project-list").count(), 0);
 
-    await tabs.getByRole("tab", { name: "Runtime", exact: true }).click();
+    await files.locator('[data-file-choice="runtime"]').click();
     const runtimeArea = page.locator('.build-area[data-area-id="runtime"]');
-    assert.equal(await runtimeArea.getByRole("heading", { name: "Runtime", exact: true }).count(), 1);
-    assert.match(await runtimeArea.innerText(), /Model connections and ports live in Settings/);
+    assert.equal(await runtimeArea.locator(".build-area-title").textContent(), "Config",
+      "Files in a shared directory form one collection even without discovery metadata");
+    assert.equal(await runtimeArea.locator(".build-area-description").count(), 0);
     const modelAction = runtimeArea.getByRole("button", { name: "Model connection", exact: true });
     await modelAction.click();
     assert.equal(await page.locator("body").getAttribute("data-model-requested"), "true");
     assert.ok(await runtimeArea.getByText(/Local subprocess simulation/).count() > 0,
       "Runtime remains informational");
 
-    const disclosure = runtimeArea.locator('.build-source-disclosure[data-preview-for="runtime"]');
-    assert.equal(await disclosure.evaluate((element) => element.open), true);
+    const disclosure = runtimeArea.locator('.build-file-source[data-preview-for="runtime"]');
+    assert.equal(await disclosure.isVisible(), true);
     const preview = page.getByRole("region", { name: "Runtime & access source preview", exact: true });
     await preview.waitFor();
     const before = await preview.locator(".build-highlight").textContent();
@@ -177,6 +172,106 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await preview.locator(".build-highlight").textContent(), before);
     assert.equal(requests.some(({ path }) => path === "/api/build-diff" || path === "/api/build-file"), false);
     assert.equal(requests.some(({ method }) => method !== "GET"), false);
+    async function assertWarningSpacing(message) {
+      const spacing = await message.evaluate(node => {
+        const row = node.closest(".build-file");
+        const bounds = node.getBoundingClientRect();
+        return {
+          above: bounds.top - row.querySelector(".build-file-header").getBoundingClientRect().bottom,
+          below: row.querySelector(".build-file-source").getBoundingClientRect().top - bounds.bottom,
+        };
+      });
+      assert.ok(Math.abs(spacing.above - 8) <= 1 && Math.abs(spacing.below - 8) <= 1,
+        "The warning has one condensed spacing step above and below: " + JSON.stringify(spacing));
+    }
+    async function assertActionMatrix(sectionHandlers) {
+      const base = ["Open in VS Code", "Open with", "Adjust with AI"];
+      for (const artifact of artifacts) {
+        await page.setViewportSize({ width: 1000, height: 800 });
+        await files.locator(`[data-file-choice="${artifact.id === "policy" ? "runtime" : artifact.id}"]`).click();
+        const row = page.locator(`.build-file[data-artifact="${artifact.id}"]`);
+        if (await page.getByRole("toolbar", { name: "File pages", exact: true }).count()) {
+          const filename = artifact.path.split("/").pop();
+          const inline = page.getByRole("toolbar", { name: "File pages", exact: true })
+            .getByRole("button", { name: filename, exact: true });
+          if (await inline.isVisible()) await inline.click();
+          else {
+            await page.getByRole("button", { name: "More files", exact: true }).click();
+            await page.getByRole("menu", { name: "More files", exact: true })
+              .getByRole("menuitem", { name: filename, exact: true }).click();
+          }
+        }
+        const contextual = !documentSupport || !sectionHandlers ? [] :
+          artifact.id === "instructions" ? ["Test with a document"] :
+            artifact.id === "runtime" ? ["Model connection"] : [];
+        const expected = [...base, ...contextual];
+        const direct = await row.locator(".build-file-actions").getByRole("button")
+          .evaluateAll(controls => controls.map(control => control.getAttribute("aria-label")));
+        assert.deepEqual(direct, expected, `${artifact.customizationArea} exposes only its supported file actions`);
+        const enforcementWarning = row.locator('.build-warning .ct-message[data-intent="warning"]');
+        const hasEnforcementWarning = documentSupport && ["tool", "contract", "policy"].includes(artifact.id);
+        assert.equal(await enforcementWarning.count(), Number(hasEnforcementWarning),
+          "Developer-owned enforcement uses the canonical warning MessageBar only for supported enforcement files");
+        if (hasEnforcementWarning) {
+          assert.equal(await enforcementWarning.getAttribute("role"), "status");
+          assert.equal(await enforcementWarning.textContent(),
+            "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.");
+          assert.equal(await enforcementWarning.locator(".ct-message-icon[aria-hidden=true] svg").count(), 1);
+          await assertWarningSpacing(enforcementWarning);
+        }
+        const filePicker = page.getByRole("button", { name: "More files", exact: true });
+        if (await filePicker.isVisible()) {
+          await filePicker.click();
+          const menu = page.getByRole("menu", { name: "More files", exact: true });
+          const inline = await page.getByRole("toolbar", { name: "File pages", exact: true }).getByRole("button").allTextContents();
+          assert.deepEqual(await menu.getByRole("menuitem").allTextContents(),
+            ["runtime.json", "document-policy.json"].filter(filename => !inline.includes(filename)),
+            "The collection overflow lists only hidden files, not file actions");
+          const selected = menu.locator('[aria-current="true"]');
+          const filename = artifact.path.split("/").pop();
+          assert.equal(await selected.count(), Number(!inline.includes(filename)));
+          if (!inline.includes(filename)) assert.equal(await selected.textContent(), filename);
+          await page.keyboard.press("Escape");
+        }
+        await page.setViewportSize({ width: 380, height: 800 });
+        if (hasEnforcementWarning) {
+          await assertWarningSpacing(enforcementWarning);
+          assert.ok(await enforcementWarning.evaluate(message => {
+            const pane = message.closest(".build-content").getBoundingClientRect();
+            const bounds = message.getBoundingClientRect();
+            return bounds.left >= pane.left && bounds.right <= pane.right &&
+              message.scrollWidth <= message.clientWidth + 1;
+          }), "Warning text wraps inside compact source panes");
+        }
+        await row.getByRole("button", { name: "Open with", exact: true }).click();
+        const openMenu = page.getByRole("menu", { name: "Open with", exact: true });
+        assert.deepEqual(await openMenu.getByRole("menuitem").allTextContents(), ["Files", "VS Code"],
+          `${artifact.customizationArea} split menu combines only the two existing file destinations`);
+        await page.keyboard.press("Escape");
+        const more = row.getByRole("button", { name: "More file actions", exact: true });
+        assert.equal(await more.isVisible(), contextual.length > 0,
+          "More is absent when the split button and AI action already expose all available actions");
+        if (contextual.length) {
+          await more.click();
+          const menu = page.getByRole("menu", { name: "More file actions", exact: true });
+          assert.deepEqual(await menu.getByRole("menuitem").allTextContents(), contextual,
+            `${artifact.customizationArea} overflow includes only its hidden section action`);
+          await page.keyboard.press("Escape");
+        }
+      }
+    }
+    await assertActionMatrix(true);
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.goto(`http://127.0.0.1:${server.address().port}/?no-section-handlers`);
+    await page.addStyleTag({ content: BUILD_EXPLORER_CSS });
+    await files.locator('[data-file-choice="instructions"]').waitFor();
+    await assertActionMatrix(false);
+    documentSupport = false;
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.addStyleTag({ content: BUILD_EXPLORER_CSS });
+    await files.locator('[data-file-choice="instructions"]').waitFor();
+    await assertActionMatrix(true);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
@@ -245,7 +340,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByText(/No supported customization points were found/).waitFor();
     assert.match(await page.locator(".build-empty").innerText(), /Build only shows recognized decision points/);
-    assert.match(await page.locator("#details").innerText(), /Files|general implementation/i);
+    assert.match(await page.locator("#details").innerText(), /Building blocks/i);
     assert.equal(await page.locator(".build-source-preview,textarea,[contenteditable=true]").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
     assert.equal(await page.locator('[data-artifact="missing"],[data-artifact="unknown"]').count(), 0);

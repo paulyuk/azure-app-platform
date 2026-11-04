@@ -34,6 +34,7 @@ test("docagent sample preserves the generated source without local runtime state
     "scripts/load-ports.sh", "scripts/load-ports.ps1", "examples/loan-application.txt",
   ]) assert.ok(paths.includes(path), path);
   const { artifacts } = await readBuildWorkspace(fileURLToPath(root));
-  assert.equal(artifacts.length, 5);
+  assert.ok(artifacts.length >= 5);
+  assert.equal(new Set(artifacts.map(artifact => artifact.path)).size, artifacts.length);
   assert.ok(artifacts.every((artifact) => artifact.available));
 });

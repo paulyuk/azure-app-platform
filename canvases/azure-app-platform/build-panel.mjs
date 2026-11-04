@@ -1,9 +1,10 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { octiconMask } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
-:is(#details, #customize-content)[data-mode="build"] { display:block; overflow:auto; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
-:is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; width:100%; max-width:880px; margin-inline:auto; padding:20px 24px; }
+:is(#details, #customize-content)[data-mode="build"] { --build-code-bg:light-dark(var(--studio-raised),color-mix(in srgb,var(--studio-panel) 94%,var(--studio-ink))); display:flex; flex-direction:column; overflow:hidden; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
+:is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-height:0; width:100%; margin-inline:auto; padding:20px 24px 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-heading { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:12px; }
 :is(#details, #customize-content)[data-mode="build"] h2 { margin:0; font-size:15px; line-height:22px; font-weight:600; color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; line-height:20px; }
@@ -17,46 +18,51 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-refresh { flex:none; min-height:28px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font-size:12px; font-weight:500; }
 :is(#details, #customize-content)[data-mode="build"] .build-refresh:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
 :is(#details, #customize-content)[data-mode="build"] .build-heading-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; flex:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-blocks-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; margin:12px 0 16px; padding:12px 14px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
-:is(#details, #customize-content)[data-mode="build"] .build-blocks-copy { min-width:0; }
-:is(#details, #customize-content)[data-mode="build"] .build-blocks-copy strong { display:block; font-size:13px; line-height:18px; font-weight:600; color:var(--studio-ink); }
-:is(#details, #customize-content)[data-mode="build"] .build-blocks-copy span { display:block; font-size:12px; line-height:18px; color:var(--studio-muted); }
-:is(#details, #customize-content)[data-mode="build"] .build-blocks-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-:is(#details, #customize-content)[data-mode="build"] .build-tabs { margin:16px 0 20px; }
 :is(#details, #customize-content)[data-mode="build"] .build-area { margin:0; min-width:0; }
-:is(#details, #customize-content)[data-mode="build"] .build-area-header { margin-bottom:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-area-header { display:grid; gap:4px; margin-bottom:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-area-title { margin:0; font-size:14px; line-height:20px; font-weight:600; color:var(--studio-ink); }
-:is(#details, #customize-content)[data-mode="build"] .build-area-description { max-width:65ch; color:var(--studio-muted); font-size:12px; line-height:18px; font-weight:400; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 16px; padding:0; list-style:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list li { margin:0; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list button { min-height:28px; max-width:100%; padding:4px 10px; background:transparent; color:var(--studio-muted); font-size:12px; font-weight:500; white-space:normal; overflow-wrap:anywhere; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list button:hover { background:var(--studio-panel); color:var(--studio-ink); }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list button[aria-current="true"] { border-color:var(--studio-accent); background:var(--studio-accent-soft); color:var(--studio-ink); font-weight:600; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-list .build-project-location { display:block; color:var(--studio-muted); font-size:11px; font-weight:400; overflow-wrap:anywhere; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-picker { display:grid; gap:6px; max-width:360px; min-width:0; margin:0 0 16px; color:var(--studio-muted); font-size:12px; }
-:is(#details, #customize-content)[data-mode="build"] .build-project-picker select { box-sizing:border-box; width:100%; max-width:100%; min-width:0; min-height:32px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:12px/18px var(--font-sans,system-ui); }
-:is(#details, #customize-content)[data-mode="build"] .build-customization h4.build-project-title { margin:0 0 12px; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
-:is(#details, #customize-content)[data-mode="build"] .build-file { box-sizing:border-box; min-width:0; padding:14px 16px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
-:is(#details, #customize-content)[data-mode="build"] .build-file + .build-file { margin-top:14px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; padding:0; border:0; border-radius:0; background:transparent; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files { display:flex; flex-direction:column; gap:var(--canvas-spacing-normal,16px); min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-file { flex:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-file-source { flex:none; min-height:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="stack"] .build-file-source { border-bottom:1px solid var(--studio-line); box-shadow:0 6px 6px -6px var(--studio-line); }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-source-preview { display:block; flex:none; max-height:240px; overflow:clip; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-source-preview[data-expanded] { max-height:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-source-preview[data-clipped]::after { content:""; position:absolute; inset-inline:0; bottom:0; height:24px; background:linear-gradient(to bottom,transparent,var(--build-code-bg)); pointer-events:none; user-select:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-line-numbers { display:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-highlight { min-height:0; padding:12px 0; white-space:normal; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files .build-highlight::after { content:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-code-line { position:relative; display:block; min-height:1.6em; padding-inline:48px 12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+:is(#details, #customize-content)[data-mode="build"] .build-code-line::before { content:attr(data-line) / ""; position:absolute; inset-inline-start:8px; width:4ch; color:var(--studio-muted); text-align:right; user-select:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-preview-expand { padding:8px var(--build-content-gutter); background:var(--build-code-bg); }
+:is(#details, #customize-content)[data-mode="build"] .build-file-header { position:sticky; top:var(--build-header-height,0px); z-index:1; box-sizing:border-box; width:100%; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:8px var(--build-content-gutter); border-bottom:1px solid var(--studio-line); background:var(--studio-panel); --canvas-button-small-padding-inline:5px; --canvas-button-small-padding-block:3px; --canvas-button-small-min-height:28px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-identity { flex:1 1 180px; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-heading :is(h4,h5) { margin:0; font-size:13px; line-height:18px; font-weight:600; overflow-wrap:anywhere; }
-:is(#details, #customize-content)[data-mode="build"] .build-source-path { display:block; margin:2px 0 8px; font:11px/1.5 var(--font-mono,monospace); color:var(--studio-muted); overflow-wrap:anywhere; }
-:is(#details, #customize-content)[data-mode="build"] .build-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:6px 0; }
+:is(#details, #customize-content)[data-mode="build"] .build-source-path { display:block; margin:4px 0 0; font:11px/1.5 var(--font-mono,monospace); color:var(--studio-muted); overflow-wrap:anywhere; }
+:is(#details, #customize-content)[data-mode="build"] .build-actions { margin:var(--canvas-spacing-condensed,8px) 0; }
+:is(#details, #customize-content)[data-mode="build"] .build-file > .build-warning { margin:var(--canvas-spacing-condensed,8px) 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions button { min-height:28px; padding:4px 10px; font-size:12px; line-height:18px; font-weight:500; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions .vscode-icon { width:14px; height:14px; flex:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-open-editor { border:1px solid var(--studio-line); background:var(--studio-raised); color:var(--studio-ink); font-weight:500; }
-:is(#details, #customize-content)[data-mode="build"] .build-open-editor:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); text-decoration:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-edit-files { border:1px solid var(--studio-line); background:transparent; color:var(--studio-muted); font-weight:500; }
-:is(#details, #customize-content)[data-mode="build"] .build-edit-files:hover:not(:disabled) { border-color:var(--studio-accent); color:var(--studio-ink); background:var(--studio-panel); }
+:is(#details, #customize-content)[data-mode="build"] .build-file-header .vscode-icon { width:16px; height:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-action-icon { display:inline-block; flex:none; width:16px; height:16px; background:currentColor; mask-position:center; mask-size:contain; mask-repeat:no-repeat; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-files { mask-image:${octiconMask("project")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-editor { mask-image:${octiconMask("code")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-ai { mask-image:${octiconMask("agent")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-more { mask-image:${octiconMask("chevron-down")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-add { mask-image:${octiconMask("plus")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-check { mask-image:${octiconMask("check")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-test { mask-image:${octiconMask("play")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-settings { mask-image:${octiconMask("gear")}; }
 :is(#details, #customize-content)[data-mode="build"] :is(button,select):disabled { opacity:.65; cursor:not-allowed; }
 :is(#details, #customize-content)[data-mode="build"] .build-handoff-feedback { margin:4px 0 8px; font-size:12px; }
-:is(#details, #customize-content)[data-mode="build"] .build-source-disclosure { margin:8px 0 0; min-width:0; }
-:is(#details, #customize-content)[data-mode="build"] .build-source-disclosure > summary { width:fit-content; padding:4px 0; color:var(--studio-muted); font-size:12px; cursor:pointer; }
-:is(#details, #customize-content)[data-mode="build"] .build-preview-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; color:var(--studio-muted); font-size:11px; }
-/* Reserve horizontal scrollbar space so WebKit includes it in the disclosure's intrinsic height. */
-:is(#details, #customize-content)[data-mode="build"] .build-source-preview { box-sizing:border-box; display:grid; grid-template-columns:max-content minmax(max-content,1fr); align-items:start; min-width:0; max-width:100%; max-height:360px; overflow-x:scroll; overflow-y:auto; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); direction:ltr; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file > :not(.build-file-source) { flex-shrink:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-source > :not(.build-source-preview) { flex:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-readonly-badge > .ct-provider { display:contents; }
+:is(#details, #customize-content)[data-mode="build"] .build-source-preview { position:relative; z-index:0; box-sizing:border-box; display:grid; grid-template-columns:max-content minmax(max-content,1fr); align-items:start; flex:1; min-width:0; min-height:0; max-width:100%; overflow-x:scroll; overflow-y:auto; border:0; border-radius:0; background:var(--build-code-bg); direction:ltr; }
 :is(#details, #customize-content)[data-mode="build"] .build-source-preview pre { box-sizing:border-box; min-height:100%; margin:0; padding:12px; white-space:pre; overflow-wrap:normal; tab-size:4; font:12px/1.6 var(--font-mono,monospace); font-variant-ligatures:none; letter-spacing:normal; text-align:left; }
-:is(#details, #customize-content)[data-mode="build"] .build-source-preview .build-line-numbers { position:sticky; left:0; z-index:1; min-width:5ch; padding-inline:8px; border-inline-end:1px solid var(--studio-line); color:var(--studio-muted); background:var(--studio-panel); text-align:right; user-select:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-source-preview .build-line-numbers { position:sticky; left:0; z-index:1; min-width:5ch; padding-inline:8px; border-inline-end:1px solid var(--studio-line); color:var(--studio-muted); background:var(--build-code-bg); text-align:right; user-select:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-highlight { color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] .build-highlight::after { content:" "; }
 :is(#details, #customize-content)[data-mode="build"] .build-highlight .token { font:inherit; letter-spacing:inherit; }
@@ -72,31 +78,115 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-warning { color:var(--studio-warn); font-size:12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-error { color:var(--studio-danger); }
 :is(#details, #customize-content)[data-mode="build"] .build-error:empty, :is(#details, #customize-content)[data-mode="build"] [hidden] { display:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-browser { display:grid; grid-template-columns:minmax(0,var(--build-rail-width,28%)) var(--canvas-spacing-condensed,8px) minmax(0,1fr); flex:1; min-width:0; min-height:0; margin-top:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-divider { position:relative; min-width:0; cursor:col-resize; touch-action:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-divider::before { content:""; position:absolute; inset-block:0; inset-inline-start:50%; width:1px; background:var(--studio-line); }
+:is(#details, #customize-content)[data-mode="build"] .build-divider:is(:hover,:focus-visible,[data-dragging])::before { width:2px; background:var(--studio-accent); }
+:is(#details, #customize-content)[data-mode="build"] .build-divider:focus-visible { outline:2px solid var(--studio-focus); outline-offset:-2px; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer { display:flex; flex-direction:column; min-width:0; min-height:0; border:0; border-radius:0; background:transparent; overflow:hidden; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer-header { flex:none; min-width:0; padding-bottom:10px; border-bottom:1px solid var(--studio-line); background:var(--studio-bg); }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer-heading { display:flex; align-items:center; justify-content:space-between; gap:4px; padding:10px; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer-heading strong { font-size:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer-heading button { padding:4px 8px; min-height:28px; font-size:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-search { padding-inline:10px; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer-body { flex:1; min-height:0; overflow-x:hidden; overflow-y:auto; }
+:is(#details, #customize-content)[data-mode="build"] .build-filter-status { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+:is(#details, #customize-content)[data-mode="build"] .build-search-empty { padding:10px; overflow-wrap:anywhere; }
+:is(#details, #customize-content)[data-mode="build"] .build-category { padding:8px 0; }
+:is(#details, #customize-content)[data-mode="build"] .build-category + .build-category { border-top:1px solid var(--studio-line); }
+:is(#details, #customize-content)[data-mode="build"] .build-category summary { padding:2px 10px 6px; color:var(--studio-muted); font-size:12px; font-weight:600; cursor:pointer; }
+:is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-normal,16px); box-sizing:border-box; display:flex; flex-direction:column; min-width:0; min-height:0; padding:0; overflow:auto; container-type:inline-size; container-name:build-source; }
+:is(#details, #customize-content)[data-mode="build"] .build-content > .build-area-header { position:sticky; top:0; z-index:2; padding-inline:var(--build-content-gutter); background:var(--studio-bg); }
+:is(#details, #customize-content)[data-mode="build"] .build-file > :is(.build-warning,.build-error,.build-handoff-feedback) { padding-inline:var(--build-content-gutter); }
+:is(#details, #customize-content)[data-mode="build"] .build-content .build-add-form { box-sizing:border-box; padding-inline:var(--build-content-gutter); }
+:is(#details, #customize-content)[data-mode="build"] .build-source-preview:focus-visible { outline-offset:-2px; }
+:is(#details, #customize-content)[data-mode="build"] .build-content > :not(.build-file) { flex:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-add-form { display:grid; gap:var(--canvas-spacing-normal,16px); padding:0 0 var(--canvas-spacing-normal,16px); border:0; border-radius:0; background:transparent; }
+:is(#details, #customize-content)[data-mode="build"] .build-ai-form { flex:none; padding-top:var(--canvas-spacing-normal,16px); }
+:is(#details, #customize-content)[data-mode="build"] .build-add-form .build-actions { margin:0; }
+:is(#details, #customize-content)[data-mode="build"] .studio-field-mount { min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .studio-field-mount > .ct-provider { display:contents; }
+:is(#details, #customize-content)[data-mode="build"] .build-add-form p { margin:0; font-size:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-template-path { font:11px/18px var(--font-mono,monospace); overflow-wrap:anywhere; }
 @container build-panel (max-width:600px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-workspace { padding:16px; }
-  :is(#details, #customize-content)[data-mode="build"] .build-file { padding:12px; }
   :is(#details, #customize-content)[data-mode="build"] .build-heading { flex-wrap:wrap; gap:4px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-workspace { padding:12px 12px 0; }
+  :is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-condensed,8px); }
 }
-@container build-panel (min-width:601px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-file { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:16px; align-items:start; }
-  :is(#details, #customize-content)[data-mode="build"] .build-file-heading { grid-column:1; grid-row:1; }
-  :is(#details, #customize-content)[data-mode="build"] .build-source-path { grid-column:1; grid-row:2; margin-bottom:0; }
-  :is(#details, #customize-content)[data-mode="build"] .build-file > .build-actions { grid-column:2; grid-row:1 / 3; align-self:center; margin:0; }
-  :is(#details, #customize-content)[data-mode="build"] .build-file > :is(.build-source-disclosure,.build-handoff-feedback,.build-warning,.build-error) { grid-column:1 / -1; }
+@container build-panel (max-width:420px) {
+  :is(#details, #customize-content)[data-mode="build"] .build-explorer-heading { flex-wrap:wrap; padding:8px; }
 }
 @media (forced-colors:active) {
   :is(#details, #customize-content)[data-mode="build"] .build-highlight, :is(#details, #customize-content)[data-mode="build"] .build-highlight .token { color:CanvasText; }
+  :is(#details, #customize-content)[data-mode="build"] .build-file-action-icon { forced-color-adjust:none; color:ButtonText; }
+  :is(#details, #customize-content)[data-mode="build"] .build-source-preview[data-clipped]::after { background:none; border-bottom:2px dashed CanvasText; }
 }
 `;
 
-export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS;
+export const BUILD_EXPLORER_CSS = `
+:is(#details, #customize-content)[data-mode="build"] .build-file { padding:0; border:0; border-radius:0; background:transparent; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice { display:block; box-sizing:border-box; width:100%; min-width:0; min-height:30px; padding:6px 10px; border:0; border-radius:0; background:transparent; color:var(--studio-ink); text-align:start; font:12px/18px var(--font-sans,system-ui); white-space:normal; overflow-wrap:anywhere; cursor:pointer; }
+:is(#details, #customize-content)[data-mode="build"] .build-collection-path { display:block; margin-top:2px; color:var(--studio-muted); font:11px/16px var(--font-mono,monospace); }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice:hover { background:var(--studio-raised); }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice[aria-current="true"] { background:var(--studio-accent-soft); box-shadow:inset 3px 0 var(--studio-accent); font-weight:600; }
+:is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice:focus-visible { outline:2px solid var(--studio-focus); outline-offset:-2px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-header .build-file-actions { flex-direction:row; align-items:center; justify-content:flex-end; gap:4px; max-width:100%; margin:0; margin-inline-start:auto; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-overflow { display:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-compact-navigation { display:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-compact-actions { width:100%; justify-content:space-between; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-header { padding-block:8px; border-bottom:1px solid var(--studio-line); }
+:is(#details, #customize-content)[data-mode="build"] .build-block-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-heading .build-area-title { min-width:0; overflow-wrap:anywhere; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-controls { position:relative; display:flex; align-items:center; gap:8px; min-width:0; margin-top:4px; }
+:is(#details, #customize-content)[data-mode="build"] .build-view-switch-mount { flex:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-page-switch-mount { flex:0 1 auto; min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-collection-actions { flex:none; gap:4px; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-header .ct-toolbar { flex-wrap:nowrap; gap:2px; min-width:0; padding:2px; }
+:is(#details, #customize-content)[data-mode="build"] .build-view-switch { width:max-content; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-panel); }
+:is(#details, #customize-content)[data-mode="build"] .build-page-switch { overflow:clip; width:max-content; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-controls [hidden] { display:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-measure { position:absolute; width:0; height:0; overflow:hidden; visibility:hidden; pointer-events:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-header button { flex:none; white-space:nowrap; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-header button[aria-pressed="true"] { background:var(--studio-accent-soft); color:var(--studio-ink); box-shadow:inset 0 0 0 1px var(--studio-line); }
+:is(#details, #customize-content)[data-mode="build"] .build-view-icon { width:16px; height:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-content[data-block-view="page"] { overflow:hidden; }
+:is(#details, #customize-content)[data-mode="build"] .build-content > .build-block-files[data-view="page"] { flex:1; min-height:0; overflow:auto; gap:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="page"] .build-file { min-height:100%; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="page"] .build-file-header { top:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="page"] .build-file-source { flex:1; min-height:auto; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="page"] .build-source-preview { flex:1; max-height:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="page"] .build-preview-expand { display:none; }
+@media (forced-colors:active) {
+  :is(#details, #customize-content)[data-mode="build"] .build-block-header button[aria-pressed="true"]:not(:focus-visible) { outline:1px solid Highlight; outline-offset:-3px; }
+}
+@container build-source (max-width:400px) {
+  :is(#details, #customize-content)[data-mode="build"] .build-file-overflow { display:contents; }
+  :is(#details, #customize-content)[data-mode="build"] .build-file-header [data-file-secondary] { display:none; }
+  :is(#details, #customize-content)[data-mode="build"] .build-ai-form .build-actions { flex-direction:column; align-items:stretch; }
+  :is(#details, #customize-content)[data-mode="build"] .build-ai-form .build-actions button { width:100%; white-space:normal; }
+}
+@container build-panel (max-width:520px) {
+  :is(#details, #customize-content)[data-mode="build"] .build-compact-navigation { display:block; flex:none; margin-top:8px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-browser { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); margin-top:8px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-divider { display:none; }
+  :is(#details, #customize-content)[data-mode="build"] .build-explorer { display:none; grid-area:1 / 1; background:var(--studio-bg); }
+  :is(#details, #customize-content)[data-mode="build"] .build-content { grid-area:1 / 1; }
+  :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] .build-explorer { display:flex; }
+  :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] .build-content { visibility:hidden; }
+  :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] [data-compact-add] { display:none; }
+  :is(#details, #customize-content)[data-mode="build"] .build-explorer-heading { flex-wrap:nowrap; }
+}
+`;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onOpenStructure, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
+export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS + BUILD_EXPLORER_CSS;
+
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
   const areas = [
-    { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior", description: "Shape what your agent does and how it responds." },
-    { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts", description: "Choose a tool to change its implementation or the inputs it accepts." },
-    { id: "runtime", tab: "Runtime", icon: "runtime", label: "Runtime", description: "Review how your app is configured to run. Model connections and ports live in Settings." },
-    { id: "policies", tab: "Policies", icon: "policies", label: "Policies & limits", description: "Review developer-owned rules and limits separately from model instructions." },
+    { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior" },
+    { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts" },
+    { id: "runtime", tab: "Runtime", icon: "runtime", label: "Runtime" },
+    { id: "policies", tab: "Policies", icon: "policies", label: "Policies & limits" },
+    { id: "source", tab: "Source", label: "Source projects" },
   ];
   const supportedEditors = [
     { id: "vscode", label: "VS Code" }, { id: "vscode-insiders", label: "VS Code Insiders" },
@@ -115,10 +205,22 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     };
   }
   const pendingEditorLaunches = new Set(), pendingFilesLaunches = new Set();
-  const handoffFeedback = new Map(), areaPanels = new Map(), areaTabs = new Map(), selectedProjects = new Map();
-  const previewVisibility = new Map(), previewPositions = new Map();
-  let artifacts = [], supportsDocuments = false, loadVersion = 0, workspace, renderedState, selectedArea;
-  let refreshing = false, refreshTimer, panelScroll = 0, workspaceOpening = false, restoreOnShow = false;
+  let fileOpenTarget = "editor";
+  const handoffFeedback = new Map();
+  const previewPositions = new Map();
+  const expandedPreviews = new Set();
+  const blockViews = new Map();
+  let updateBlockView, rememberBlockView, updateFileOverflow;
+  const collapsedCategories = new Set();
+  let fileFilter = "";
+  let artifacts = [], supportsDocuments = false, loadVersion = 0, workspace, renderedState, selectedArtifact, contentPanel;
+  let adding = false, creating = false, templates, templateError, createdBlock;
+  const pendingAdjustments = new Set();
+  let addDraft = { templateId: "", name: "", instructions: "" };
+  const aiDrafts = new Map();
+  let refreshing = false, refreshTimer, panelScroll = 0, explorerScroll = 0, workspaceOpening = false, restoreOnShow = false;
+  let splitRatio, disposeSplitPane, observePreviews;
+  let compactFilesOpen = false;
   let currentEditorSettings = normalizeEditorSettings(initialEditorSettings);
   let editorSettingsSaving = false, editorSettingsVersion = 0;
   function element(tag, text, parent, className) {
@@ -133,6 +235,37 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     buttons.append(parent, control);
     return control;
   }
+  function fileIcon(name) {
+    return buttons.icon('<span class="build-file-action-icon build-icon-' + name + '" aria-hidden="true"></span>');
+  }
+  function setFileListOpen(open, restoreFocus = false) {
+    if (compactFilesOpen === open) return;
+    if (open) rememberView();
+    compactFilesOpen = open;
+    workspace.dataset.filesOpen = String(open);
+    const toggle = workspace.querySelector("[data-files-toggle]");
+    buttons.update(toggle, { "aria-expanded": open });
+    if (open && toggle.getClientRects().length) {
+      const current = workspace.querySelector('[data-file-choice][aria-current="true"]');
+      const target = current?.getClientRects().length ? current : workspace.querySelector(".build-explorer button");
+      target?.focus();
+    } else if (restoreFocus && toggle.getClientRects().length) toggle.focus({ preventScroll: true });
+  }
+  function selectFile(id, returnToSource = true) {
+    rememberView();
+    selectedArtifact = id;
+    adding = false;
+    renderSelection({ revealSelected: true });
+    if (returnToSource) setFileListOpen(false, true);
+  }
+  function fileAction(parent, label, name, action) {
+    const control = buttons.create({
+      size: "small", appearance: "secondary", icon: fileIcon(name),
+      "aria-label": label, title: label, onClick: action,
+    });
+    buttons.append(parent, control);
+    return control;
+  }
   function navigationButton(parent, label, action) {
     const control = element("button", label, parent);
     control.type = "button";
@@ -141,9 +274,99 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   function error(parent, message) {
     let node = parent.querySelector(":scope > .build-error:not(.build-syntax-error):not(.build-handoff-feedback)");
-    if (!node) node = element("p", "", parent, "build-error");
-    node.setAttribute("role", "alert");
-    node.textContent = message;
+    if (!node) node = element("div", undefined, parent, "build-error");
+    buttons.renderComponent(node, "MessageBar", { intent: "error", children: message, role: "alert" });
+  }
+  function clearError(parent) {
+    const node = parent.querySelector(".build-error");
+    if (node) { buttons.clear(node); node.remove(); }
+  }
+  function field(parent, props) {
+    const control = buttons.field(props);
+    buttons.append(parent, control);
+    return control;
+  }
+  function resizePanes(browser, divider) {
+    let drag;
+    const listeners = new AbortController();
+    const direction = getComputedStyle(browser).direction === "rtl" ? -1 : 1;
+    function bounds() {
+      const available = Math.max(0, browser.clientWidth - divider.offsetWidth);
+      const min = Math.min(96, available * .4);
+      return { available, min, max: Math.max(min, Math.min(420, available - Math.min(120, available * .5))) };
+    }
+    function applyWidth(requested) {
+      const { available, min, max } = bounds();
+      const initial = browser.clientWidth <= 420 ? 112 : browser.clientWidth <= 600 ? 140 :
+        Math.max(150, Math.min(240, available * .28));
+      const width = Math.max(min, Math.min(max, requested ?? (splitRatio === undefined ? initial : splitRatio * available)));
+      browser.style.setProperty("--build-rail-width", width + "px");
+      divider.setAttribute("aria-valuemin", String(available ? Math.round(min / available * 100) : 0));
+      divider.setAttribute("aria-valuemax", String(available ? Math.round(max / available * 100) : 0));
+      divider.setAttribute("aria-valuenow", String(available ? Math.round(width / available * 100) : 0));
+      divider.setAttribute("aria-valuetext", Math.round(width) + " pixels");
+      return width;
+    }
+    function changeWidth(width) {
+      const applied = applyWidth(width);
+      const { available } = bounds();
+      if (available) splitRatio = applied / available;
+    }
+    function endDrag(event) {
+      if (!drag || (event && event.pointerId !== drag.id)) return;
+      const { id } = drag;
+      drag = undefined;
+      delete divider.dataset.dragging;
+      if (divider.hasPointerCapture(id)) divider.releasePointerCapture(id);
+    }
+    divider.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || drag) return;
+      event.preventDefault();
+      divider.focus({ preventScroll: true });
+      drag = { id: event.pointerId, x: event.clientX, width: applyWidth() };
+      divider.setPointerCapture(event.pointerId);
+      divider.dataset.dragging = "true";
+    }, { signal: listeners.signal });
+    divider.addEventListener("pointermove", (event) => {
+      if (event.pointerId === drag?.id) changeWidth(drag.width + direction * (event.clientX - drag.x));
+    }, { signal: listeners.signal });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      divider.addEventListener(type, endDrag, { signal: listeners.signal });
+    }
+    divider.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const { min, max } = bounds();
+      let width;
+      if (event.key === "Home") width = min;
+      else if (event.key === "End") width = max;
+      else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        width = applyWidth() + (event.key === "ArrowRight" ? 1 : -1) * direction * (event.shiftKey ? 40 : 16);
+      } else return;
+      event.preventDefault();
+      changeWidth(width);
+    }, { signal: listeners.signal });
+    function updateHeaderHeight() {
+      const height = contentPanel.querySelector(".build-area-header")?.getBoundingClientRect().height ?? 0;
+      contentPanel.style.setProperty("--build-header-height", height + "px");
+    }
+    const observer = new ResizeObserver(() => { applyWidth(); updateFileOverflow?.(); updateHeaderHeight(); updatePreviewEdges(); });
+    observePreviews = () => {
+      observer.disconnect();
+      observer.observe(browser);
+      for (const node of browser.querySelectorAll(".build-area-header,.build-block-controls,.build-file-measure > *,.build-block-files :is(.build-source-preview,.build-highlight)")) observer.observe(node);
+      updateHeaderHeight();
+      updatePreviewEdges();
+    };
+    observePreviews();
+    applyWidth();
+    disposeSplitPane = () => {
+      observer.disconnect();
+      endDrag();
+      listeners.abort();
+      disposeSplitPane = undefined;
+      observePreviews = undefined;
+      updateFileOverflow = undefined;
+    };
   }
   function selectedEditorLabel() {
     return currentEditorSettings.editors.find((editor) => editor.id === currentEditorSettings.editorId)?.label ?? "editor";
@@ -154,13 +377,24 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   const vsCodeIconMarkup = '<svg class="vscode-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11.8 1.1a.9.9 0 0 1 .95.08l2.1 1.56c.3.22.48.57.48.95v8.62c0 .38-.18.73-.48.95l-2.1 1.56a.9.9 0 0 1-1.15-.06L6.42 9.93 3.2 12.4a.75.75 0 0 1-.96-.04l-1.1-1a.75.75 0 0 1 0-1.1L4.6 8 1.14 5.74a.75.75 0 0 1 0-1.1l1.1-1a.75.75 0 0 1 .96-.04l3.22 2.47 5.18-4.83c.06-.05.13-.1.2-.14Zm.45 2.75L8.2 7.5l4.05 3.65V3.85ZM3.1 5.58 2.38 6.2 4.9 8l-2.52 1.8.72.62L6.2 8 3.1 5.58Z"/></svg>';
   function updateEditorControls() {
     const editorIcon = isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : undefined;
-    for (const control of container.querySelectorAll("[data-editor-launch]")) {
-      buttons.update(control, {
-        children: "Open in " + selectedEditorLabel(),
-        icon: editorIcon,
-        disabled: editorSettingsSaving || pendingEditorLaunches.has(control.dataset.artifactId),
-      });
-      control.title = "Open the worktree and file in " + selectedEditorLabel();
+    for (const control of container.querySelectorAll("[data-file-open]")) {
+      const artifact = artifacts.find(item => item.id === control.dataset.fileOpen);
+      if (!artifact) continue;
+      buttons.update(control, fileOpenProps(artifact));
+      const primary = control.querySelector("button");
+      primary.toggleAttribute("data-files-launch", fileOpenTarget === "files");
+      primary.toggleAttribute("data-editor-launch", fileOpenTarget === "editor");
+      primary.dataset.artifactId = artifact.id;
+      primary.dataset.focusKey = "open-" + artifact.id;
+    }
+    for (const control of container.querySelectorAll("[data-file-menu]")) {
+      const artifact = artifacts.find(item => item.id === control.dataset.fileMenu);
+      if (artifact) buttons.update(control, { items: fileMenuItems(artifact) });
+    }
+    for (const control of container.querySelectorAll("[data-ai-submit]")) {
+      const busy = pendingAdjustments.has(control.dataset.aiSubmit);
+      buttons.update(control, { children: busy ? "Requesting…" : "Adjust with AI", disabled: busy });
+      buttons.setDisabled(control.closest("form").querySelector("textarea"), busy);
     }
     for (const control of container.querySelectorAll("[data-workspace-launch]")) {
       buttons.update(control, {
@@ -171,10 +405,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     }
     for (const feedback of container.querySelectorAll(".build-handoff-feedback")) {
       const result = handoffFeedback.get(feedback.dataset.artifactId);
-      feedback.textContent = result?.message ?? "";
       feedback.hidden = !result;
       feedback.classList.toggle("build-error", result?.error === true);
-      feedback.setAttribute("role", result?.error ? "alert" : "status");
+      if (result) buttons.renderComponent(feedback, "MessageBar", {
+        children: result.message, intent: result.error ? "error" : "info", role: result.error ? "alert" : "status",
+      });
+      else buttons.clear(feedback);
     }
   }
   function rememberPreview(source) {
@@ -184,11 +420,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   function rememberView() {
     if (!workspace?.isConnected) return;
+    rememberBlockView?.();
     panelScroll = container.scrollTop;
-    for (const disclosure of workspace.querySelectorAll(".build-source-disclosure")) {
-      previewVisibility.set(disclosure.dataset.previewFor, disclosure.open);
-      rememberPreview(disclosure.querySelector(".build-source-preview"));
-    }
+    const list = workspace.querySelector(".build-explorer-body");
+    explorerScroll = list?.scrollTop ?? 0;
+    rememberCategories(list);
+    for (const source of workspace.querySelectorAll(".build-source-preview")) rememberPreview(source);
   }
   function restorePreview(source, artifact) {
     requestAnimationFrame(() => {
@@ -267,20 +504,52 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       tooltip.hidden = true;
     });
   }
-  function renderPreview(disclosure, artifact) {
-    let source = disclosure.querySelector(".build-source-preview");
+  function wrapSourceLines(highlight) {
+    function linesFor(node) {
+      if (node.nodeType === 3) return node.textContent.split("\n").map(text => [document.createTextNode(text)]);
+      const lines = [[]];
+      for (const child of node.childNodes) {
+        const parts = linesFor(child);
+        lines.at(-1).push(...parts[0]);
+        lines.push(...parts.slice(1));
+      }
+      if (node === highlight) return lines;
+      return lines.map(children => {
+        const token = node.cloneNode(false);
+        token.append(...children);
+        return [token];
+      });
+    }
+    const lines = linesFor(highlight);
+    highlight.replaceChildren();
+    lines.forEach((nodes, index) => {
+      if (index) highlight.append("\n");
+      const line = element("span", undefined, highlight, "build-code-line");
+      line.dataset.line = String(index + 1);
+      line.append(...nodes);
+    });
+  }
+  function updatePreviewEdges() {
+    for (const source of container.querySelectorAll(".build-block-files .build-source-preview")) {
+      const stacked = source.closest(".build-block-files").dataset.view === "stack";
+      const expanded = source.hasAttribute("data-expanded");
+      const clipped = stacked && !expanded && source.scrollHeight > source.clientHeight + 1;
+      source.toggleAttribute("data-clipped", clipped);
+      source.parentElement.querySelector(".build-preview-expand").hidden = !stacked || (!expanded && !clipped);
+    }
+  }
+  function renderPreview(body, artifact) {
+    let source = body.querySelector(".build-source-preview");
     if (!source) {
       const language = syntax?.languageForPath(artifact.path) ?? { id: "plain", label: "Plain text" };
-      const toolbar = element("div", undefined, disclosure, "build-preview-toolbar");
-      element("span", "Read-only preview · Saved file", toolbar);
-      element("span", language.label, toolbar, "build-language").setAttribute("aria-label", "Language: " + language.label);
-      source = element("div", undefined, disclosure, "build-source-preview");
+      source = element("div", undefined, body, "build-source-preview");
       source.dataset.language = language.id;
       source.dataset.artifactId = artifact.id;
       source.dataset.focusKey = "preview-" + artifact.id;
       source.tabIndex = 0;
       source.setAttribute("role", "region");
       source.setAttribute("aria-label", artifact.title + " source preview");
+      source.setAttribute("aria-description", "Read-only saved source. Language: " + language.label + ". Edit in Files, open in your editor, or adjust with AI.");
       const count = (artifact.content.match(/\n/g)?.length ?? 0) + 1;
       element("pre", Array.from({ length: count }, (_, index) => String(index + 1)).join("\n"),
         source, "build-line-numbers").setAttribute("aria-hidden", "true");
@@ -291,11 +560,38 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       } catch (cause) {
         highlight.textContent = artifact.content;
         element("p", "Syntax highlighting is unavailable: " + cause.message + " Plain text preview is still available.",
-          disclosure, "build-error build-syntax-error").setAttribute("role", "alert");
+          body, "build-error build-syntax-error").setAttribute("role", "alert");
+      }
+      if (body.closest(".build-block-files")) {
+        wrapSourceLines(highlight);
+        source.id = "build-source-" + encodeURIComponent(artifact.id);
+        const footer = element("div", undefined, body, "build-preview-expand");
+        const expand = button(footer, "", () => {
+          if (expandedPreviews.has(artifact.id)) expandedPreviews.delete(artifact.id);
+          else expandedPreviews.add(artifact.id);
+          updateExpansion();
+          if (!expandedPreviews.has(artifact.id)) {
+            const row = body.closest(".build-file");
+            const stickyHeight = contentPanel.querySelector(".build-block-header")?.getBoundingClientRect().height ?? 0;
+            if (row.getBoundingClientRect().top < contentPanel.getBoundingClientRect().top + stickyHeight) {
+              contentPanel.scrollTop += row.getBoundingClientRect().top - contentPanel.getBoundingClientRect().top - stickyHeight;
+            }
+          }
+        });
+        expand.dataset.focusKey = "expand-" + artifact.id;
+        function updateExpansion() {
+          const expanded = expandedPreviews.has(artifact.id);
+          source.toggleAttribute("data-expanded", expanded);
+          buttons.update(expand, { children: expanded ? "Show less" : "Show full file",
+            appearance: "subtle", size: "small", "aria-expanded": expanded, "aria-controls": source.id });
+          updatePreviewEdges();
+        }
+        updateExpansion();
       }
       source.addEventListener("scroll", () => rememberPreview(source));
     }
     restorePreview(source, artifact);
+    observePreviews?.();
   }
   function artifactLabel(artifact) {
     const file = artifact.path.split("/").pop();
@@ -305,35 +601,86 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     if (artifact.customizationArea === "behavior") return "Instructions & agent implementation";
     return artifact.title.split(" · ")[0];
   }
+  function sectionFileActions(artifact) {
+    const items = [];
+    if (supportsDocuments && artifact.id === "instructions" && typeof onRun === "function") {
+      items.push({ id: "test", label: "Test with a document", icon: "test", onClick: onRun });
+    }
+    if (supportsDocuments && artifact.id === "runtime" && typeof onModel === "function") {
+      items.push({ id: "model", label: "Model connection", icon: "settings", onClick: onModel });
+    }
+    return items;
+  }
+  function fileMenuItems(artifact) {
+    return sectionFileActions(artifact).map(({ icon, ...item }) => ({ ...item, icon: fileIcon(icon) }));
+  }
+  function fileOpenProps(artifact) {
+    const native = fileOpenTarget === "files";
+    const label = native ? "Edit in Files" : "Open in " + selectedEditorLabel();
+    const editorIcon = isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : fileIcon("editor");
+    function choose(target) {
+      fileOpenTarget = target;
+      updateEditorControls();
+      void openArtifact(artifact, target === "files");
+    }
+    return {
+      heading: "Open with", menuLabel: "Open with", collapseLabel: true,
+      menuButton: { title: "Open with", "data-focus-key": "open-with-" + artifact.id },
+      positioning: { position: "below", align: "end" },
+      button: {
+        children: label, "aria-label": label, title: label, size: "small", appearance: "secondary",
+        icon: native ? fileIcon("files") : editorIcon,
+        disabled: native ? pendingFilesLaunches.has(artifact.id) : editorSettingsSaving || pendingEditorLaunches.has(artifact.id),
+        onClick: () => openArtifact(artifact, native),
+      },
+      items: [
+        { id: "files", label: "Files", icon: fileIcon("files"),
+          disabled: pendingFilesLaunches.has(artifact.id), onClick: () => choose("files") },
+        { id: "editor", label: selectedEditorLabel(), icon: editorIcon,
+          disabled: editorSettingsSaving || pendingEditorLaunches.has(artifact.id), onClick: () => choose("editor") },
+      ],
+    };
+  }
   function renderArtifact(parent, artifact, headingTag = "h4") {
     const row = element("section", undefined, parent, "build-file");
     row.dataset.artifact = artifact.id;
-    const heading = element("div", undefined, row, "build-file-heading");
+    const header = element("header", undefined, row, "build-file-header");
+    const identity = element("div", undefined, header, "build-file-identity");
+    const heading = element("div", undefined, identity, "build-file-heading");
     element(headingTag, artifactLabel(artifact), heading);
-    element("code", artifact.path, row, "build-source-path");
-    const actions = element("div", undefined, row, "build-actions");
-    const external = button(actions, "Open in " + selectedEditorLabel(), () => openArtifact(artifact, false));
-    buttons.update(external, {
-      className: "build-open-editor",
-      appearance: "secondary",
-      icon: isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : undefined,
-    });
-    external.dataset.editorLaunch = "true";
-    external.dataset.artifactId = artifact.id;
-    external.dataset.focusKey = "editor-" + artifact.id;
-    if (supportsDocuments && artifact.id === "instructions" && typeof onRun === "function") {
-      const testDoc = button(actions, "Test with a document", onRun);
-      buttons.update(testDoc, { appearance: "secondary" });
-      testDoc.dataset.focusKey = "test-document";
+    buttons.renderComponent(element("span", undefined, heading, "build-readonly-badge"),
+      "Badge", { appearance: "outline", children: "Read-only" });
+    element("code", artifact.path, identity, "build-source-path");
+    const actions = buttons.actionGroup(header, { className: "build-actions build-file-actions", "aria-label": "File actions" });
+    const open = buttons.split(fileOpenProps(artifact));
+    open.dataset.fileOpen = artifact.id;
+    buttons.append(actions, open);
+    const adjust = fileAction(actions, "Adjust with AI", "ai", () => renderAdjustment(row, artifact));
+    adjust.dataset.focusKey = "adjust-" + artifact.id;
+    for (const item of sectionFileActions(artifact)) {
+      const control = fileAction(actions, item.label, item.icon, item.onClick);
+      control.dataset.fileSecondary = "true";
+      control.dataset.focusKey = item.id === "test" ? "test-document" : "model";
     }
-    if (supportsDocuments && artifact.id === "runtime") {
-      const modelButton = button(actions, "Model connection", onModel);
-      buttons.update(modelButton, { appearance: "secondary" });
-      modelButton.dataset.focusKey = "model";
+    if (sectionFileActions(artifact).length) {
+      const more = buttons.menu({
+        label: null,
+        button: { size: "small", appearance: "secondary", icon: fileIcon("more"),
+          "aria-label": "More file actions", title: "More file actions" },
+        positioning: { position: "below", align: "end" },
+        items: fileMenuItems(artifact),
+      });
+      more.dataset.fileMenu = artifact.id;
+      buttons.host(more).classList.add("build-file-overflow");
+      more.dataset.focusKey = "file-menu-" + artifact.id;
+      buttons.append(actions, more);
     }
-    element("p", "", row, "build-handoff-feedback").dataset.artifactId = artifact.id;
+    element("div", undefined, row, "build-handoff-feedback").dataset.artifactId = artifact.id;
     if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) {
-      element("p", "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.", row, "build-warning");
+      buttons.renderComponent(element("div", undefined, row, "build-warning"), "MessageBar", {
+        intent: "warning", role: "status",
+        children: "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.",
+      });
     }
     if (supportsDocuments && artifact.id === "runtime") {
       try {
@@ -343,18 +690,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
           : "Local subprocess simulation. Use synthetic documents only; there is no OS or network isolation.", row, "build-warning");
       } catch (cause) { error(row, "Invalid runtime configuration: " + cause.message); }
     }
-    const disclosure = element("details", undefined, row, "build-source-disclosure");
-    disclosure.dataset.previewFor = artifact.id;
-    element("summary", "Preview source", disclosure).dataset.focusKey = "source-" + artifact.id;
-    disclosure.open = previewVisibility.get(artifact.id) ?? true;
-    disclosure.addEventListener("toggle", () => {
-      if (!disclosure.isConnected) return;
-      if (disclosure.open) {
-        previewVisibility.set(artifact.id, true);
-        renderPreview(disclosure, artifact);
-      } else previewVisibility.set(artifact.id, false);
-    });
-    if (disclosure.open) renderPreview(disclosure, artifact);
+    const body = element("div", undefined, row, "build-file-source");
+    body.dataset.previewFor = artifact.id;
+    renderPreview(body, artifact);
   }
   function projectGroups(members) {
     const groups = new Map();
@@ -362,7 +700,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       const fallback = artifact.path.endsWith("/prompts/system.md")
         ? artifact.path.slice(0, -"/prompts/system.md".length)
         : artifact.path.split("/").slice(0, -1).join("/");
-      const key = artifact.projectPath ?? fallback;
+      const key = artifact.projectPath ?? (fallback || ".");
       if (!groups.has(key)) {
         const discoveredName = artifact.projectName ?? key.split("/").pop();
         const name = discoveredName && discoveredName !== "." ? discoveredName : "App";
@@ -373,96 +711,436 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     }
     return [...groups.values()];
   }
-  function restoreOpenPreviews(panel) {
-    for (const disclosure of panel.querySelectorAll(".build-source-disclosure")) {
-      if (!disclosure.open) continue;
-      const artifact = artifacts.find((item) => item.id === disclosure.dataset.previewFor);
-      if (artifact) renderPreview(disclosure, artifact);
+  function rememberCategories(list) {
+    if (list?.dataset.filtering !== "false") return;
+    for (const category of list.querySelectorAll(".build-category")) {
+      if (category.open) collapsedCategories.delete(category.dataset.categoryId);
+      else collapsedCategories.add(category.dataset.categoryId);
     }
   }
-  function renderArea(panel, area) {
-    buttons.clear(panel);
-    panel.replaceChildren();
-    const header = element("div", undefined, panel, "build-area-header");
-    element("h3", area.label, header, "build-area-title");
-    element("p", area.description, header, "build-area-description");
-    const projects = projectGroups(artifacts.filter((artifact) => artifact.customizationArea === area.id));
+  function matchingFiles(project) {
+    const query = fileFilter.trim().toLowerCase();
+    return project.artifacts.filter(artifact => !query ||
+      [project.name, project.path, artifact.path, artifact.title, artifact.projectName]
+        .some(value => value?.toLowerCase().includes(query)));
+  }
+  function selectCollection(project, returnToSource = true) {
+    const matches = matchingFiles(project);
+    const remembered = blockViews.get(project.path)?.activeId;
+    const artifact = matches.find(item => item.id === remembered) ??
+      matches.find(item => item.id === selectedArtifact) ?? matches[0];
+    selectFile(artifact.id, returnToSource);
+  }
+  function renderFileList(list, status) {
+    rememberCategories(list);
+    buttons.clear(list);
+    list.replaceChildren();
+    const query = fileFilter.trim().toLowerCase();
+    list.dataset.filtering = String(Boolean(query));
+    const projects = projectGroups(artifacts);
+    const matches = projects.filter(project => matchingFiles(project).length);
+    const selected = projects.find(project => project.artifacts.some(item => item.id === selectedArtifact));
     const nameCounts = new Map();
     for (const project of projects) nameCounts.set(project.name, (nameCounts.get(project.name) ?? 0) + 1);
-    const selected = projects.find((project) => project.path === selectedProjects.get(area.id)) ?? projects[0];
-    selectedProjects.set(area.id, selected.path);
-    if (projects.length > 1 && area.id === "tools") {
-      const label = element("label", undefined, panel, "build-project-picker");
-      element("span", "Tool", label);
-      const picker = element("select", undefined, label);
-      picker.setAttribute("aria-label", "Tool");
-      picker.dataset.focusKey = "project-tools";
-      for (const project of projects) {
-        const duplicate = nameCounts.get(project.name) > 1;
-        const option = element("option", project.name + (duplicate ? " (" + project.path + ")" : ""), picker);
-        option.value = project.path;
-      }
-      picker.value = selected.path;
-      picker.addEventListener("change", () => {
-        rememberView();
-        selectedProjects.set(area.id, picker.value);
-        renderArea(panel, area);
-        panel.querySelector('[data-focus-key="project-tools"]').focus({ preventScroll: true });
-        updateEditorControls();
+    status.textContent = query ? matches.length + " of " + projects.length + " collections" : "";
+    if (query && !matches.length) element("p", "No matching collections.", list, "build-search-empty");
+    for (const area of areas) {
+      const members = matches.filter(project => {
+        const primaryArea = areas.find(candidate =>
+          project.artifacts.some(artifact => artifact.customizationArea === candidate.id)) ?? areas.at(-1);
+        return primaryArea.id === area.id;
       });
-    } else if (projects.length > 1) {
-      const choices = element("ul", undefined, panel, "build-project-list");
-      choices.setAttribute("aria-label", area.id === "tools" ? "Tools" : area.label + " implementations");
-      for (const project of projects) {
-        const focusKey = "project-" + area.id + "-" + project.path;
-        const control = navigationButton(element("li", undefined, choices), project.name, () => {
-          if (selectedProjects.get(area.id) === project.path) return;
-          rememberView();
-          selectedProjects.set(area.id, project.path);
-          renderArea(panel, area);
-          [...panel.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey)?.focus({ preventScroll: true });
-          updateEditorControls();
-        });
-        control.dataset.projectPath = project.path;
-        control.dataset.focusKey = focusKey;
-        control.title = project.path;
+      if (!members.length) continue;
+      const category = element("details", undefined, list, "build-category");
+      category.dataset.categoryId = area.id;
+      category.open = Boolean(query) || !collapsedCategories.has(area.id);
+      element("summary", area.tab + " (" + members.length + ")", category);
+      for (const project of members) {
+        const choice = navigationButton(category, project.name, () => selectCollection(project));
+        choice.className = "build-file-choice";
+        choice.title = project.path || ".";
         if (nameCounts.get(project.name) > 1) {
-          element("small", project.path, control, "build-project-location");
+          element("code", project.path || ".", choice, "build-collection-path");
+          choice.setAttribute("aria-label", project.name + " (" + (project.path || ".") + ")");
         }
-        control.setAttribute("aria-current", String(project.path === selected.path));
+        choice.dataset.collectionPath = project.path;
+        choice.dataset.fileChoice = project.artifacts[0].id;
+        choice.dataset.focusKey = "collection-" + project.path;
+        choice.setAttribute("aria-controls", "build-selected-file");
+        choice.setAttribute("aria-current", String(!adding && project.path === selected?.path));
+        choice.addEventListener("keydown", (event) => {
+          const choices = [...list.querySelectorAll("[data-file-choice]")].filter((node) => node.getClientRects().length);
+          const index = choices.indexOf(choice);
+          let next;
+          if (event.key === "ArrowDown") next = (index + 1) % choices.length;
+          else if (event.key === "ArrowUp") next = (index - 1 + choices.length) % choices.length;
+          else if (event.key === "Home") next = 0;
+          else if (event.key === "End") next = choices.length - 1;
+          else return;
+          event.preventDefault();
+          choices[next].focus();
+          selectCollection(projects.find(project => project.path === choices[next].dataset.collectionPath), false);
+        });
       }
     }
-    const entry = element("div", undefined, panel, "build-customization");
-    entry.dataset.projectPath = selected.path;
-    const named = area.id === "tools" || projects.length > 1;
-    if (named) element("h4", selected.name, entry, "build-project-title");
-    for (const artifact of selected.artifacts) renderArtifact(entry, artifact, named ? "h5" : "h4");
   }
-  function activateArea(areaId, focus = false, remember = true) {
-    if (remember) rememberView();
-    selectedArea = areaId;
-    for (const [id, tab] of areaTabs) {
-      tab.setAttribute("aria-selected", String(id === areaId));
-      tab.tabIndex = id === areaId ? 0 : -1;
+  function renderAdjustment(row, artifact) {
+    if (row.querySelector(".build-ai-form")) {
+      row.querySelector("textarea").focus();
+      return;
     }
-    for (const [id, panel] of areaPanels) {
-      panel.hidden = id !== areaId;
-      if (id !== areaId) continue;
-      if (!panel.childElementCount) renderArea(panel, areas.find((area) => area.id === id));
-      restoreOpenPreviews(panel);
+    const form = element("form", undefined, row, "build-add-form build-ai-form");
+    form.style.gridColumn = "1 / -1";
+    const input = field(form, {
+      kind: "Textarea", label: "What should change?", maxLength: 2000, rows: 4,
+      defaultValue: aiDrafts.get(artifact.id) ?? "",
+      hint: "Copilot edits the saved source in your app session. Review its changes, then refresh source.",
+    });
+    input.addEventListener("input", () => { aiDrafts.set(artifact.id, input.value); });
+    const actions = buttons.actionGroup(form, { className: "build-actions", "aria-label": "AI adjustment actions" });
+    const submit = button(actions, "Adjust with AI", async () => {
+      if (pendingAdjustments.has(artifact.id)) return;
+      if (!input.value.trim()) { error(form, "Describe the change first."); input.focus(); return; }
+      pendingAdjustments.add(artifact.id);
+      updateEditorControls();
+      clearError(form);
+      try {
+        await sendAdjustment(artifact.id, input.value.trim());
+        aiDrafts.delete(artifact.id);
+        handoffFeedback.set(artifact.id, { message: "Requested in your app session. Review Copilot's changes, then refresh source." });
+        buttons.clear(form);
+        form.remove();
+      } catch (cause) { error(form, "Could not request changes: " + cause.message); }
+      finally {
+        pendingAdjustments.delete(artifact.id);
+        if (isActive()) updateEditorControls();
+      }
+    });
+    submit.dataset.aiSubmit = artifact.id;
+    buttons.update(submit, { appearance: "primary" });
+    const cancel = button(actions, "Cancel", () => { buttons.clear(form); form.remove(); });
+    buttons.update(cancel, { appearance: "secondary" });
+    form.addEventListener("submit", (event) => { event.preventDefault(); submit.click(); });
+    updateEditorControls();
+    input.focus();
+  }
+  async function sendAdjustment(id, instructions) {
+    await request("/api/adjust-build-file", {
+      method: "POST", body: JSON.stringify({ root, id, instructions }),
+    });
+  }
+  function renderSelection({ revealSelected = false } = {}) {
+    const project = projectGroups(artifacts).find(project => project.artifacts.some(item => item.id === selectedArtifact));
+    for (const choice of workspace.querySelectorAll("[data-file-choice]")) {
+      choice.setAttribute("aria-current", String(!adding && choice.dataset.collectionPath === project?.path));
+    }
+    const artifact = artifacts.find((item) => item.id === selectedArtifact);
+    const members = project?.artifacts ?? [];
+    function reveal() {
+      if (!revealSelected || contentPanel.dataset.blockView === "page") return;
+      const selected = [...contentPanel.querySelectorAll(".build-file")].find(row => row.dataset.artifact === selectedArtifact);
+      const stickyHeight = contentPanel.querySelector(".build-block-header")?.getBoundingClientRect().height ?? 0;
+      if (selected) contentPanel.scrollTop += selected.getBoundingClientRect().top - contentPanel.getBoundingClientRect().top - stickyHeight;
+    }
+    const existing = [...contentPanel.querySelectorAll(".build-block-files .build-file")];
+    if (!adding && members.length > 1 && existing.length === members.length &&
+      existing.every((row, index) => row.dataset.artifact === members[index].id)) {
+      updateBlockView?.();
+      reveal();
+      return;
+    }
+    buttons.clear(contentPanel);
+    contentPanel.replaceChildren();
+    observePreviews?.();
+    contentPanel.scrollTop = 0;
+    delete contentPanel.dataset.blockView;
+    updateBlockView = undefined;
+    rememberBlockView = undefined;
+    updateFileOverflow = undefined;
+    if (adding) { renderAddForm(); return; }
+    if (!artifact) return;
+    const area = areas.find((item) => item.id === artifact.customizationArea) ?? areas.at(-1);
+    contentPanel.dataset.areaId = area.id;
+    const header = element("div", undefined, contentPanel, "build-area-header");
+    const parentName = project && (members.length > 1 || artifact.projectPath || artifact.projectName) ? project.name : undefined;
+    element("h3", parentName ?? artifact.path.split("/").pop(), header, "build-area-title");
+    if (createdBlock?.paths.includes(artifact.path)) {
+      const notice = element("div", undefined, contentPanel, "build-created");
+      buttons.renderComponent(notice, "MessageBar", { intent: "info", role: "status",
+        children: "Template created. Open it in your editor or adjust it with AI. Connect and test this block before running or deploying." });
+    }
+    const files = members.length > 1 ? element("div", undefined, contentPanel, "build-block-files") : contentPanel;
+    for (const member of members) renderArtifact(files, member);
+    if (members.length > 1) {
+      header.classList.add("build-block-header");
+      renderBlockControls(header, files, artifact, project);
+    }
+    if (createdBlock?.artifactId === artifact.id && aiDrafts.has(artifact.id) && !pendingAdjustments.has(artifact.id)) {
+      renderAdjustment([...contentPanel.querySelectorAll(".build-file")].find(row => row.dataset.artifact === artifact.id), artifact);
     }
     updateEditorControls();
-    if (focus) areaTabs.get(areaId).focus({ preventScroll: true });
+    observePreviews?.();
+    reveal();
+  }
+  function renderBlockControls(header, files, artifact, project) {
+    const members = project.artifacts;
+    let view = blockViews.get(project.path);
+    if (!view) {
+      view = { mode: "stack", activeId: artifact.id, stackScroll: 0, pageScroll: new Map() };
+      blockViews.set(project.path, view);
+    }
+    view.activeId = artifact.id;
+    rememberBlockView = () => {
+      if (view.mode === "page") view.pageScroll.set(view.activeId, files.scrollTop);
+      else view.stackScroll = contentPanel.scrollTop;
+    };
+    const heading = element("div", undefined, header, "build-block-heading");
+    heading.append(header.querySelector(".build-area-title"));
+    function viewIcon(path) {
+      return buttons.icon('<svg class="build-view-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="' + path + '"/></svg>');
+    }
+    const mode = buttons.segmented({
+      "aria-label": "Document layout", className: "build-view-switch", iconOnly: true, value: view.mode,
+      items: [
+        { value: "stack", label: "Stack view", focusKey: "layout-stack", icon: viewIcon("m2 5 6-3 6 3-6 3-6-3Zm0 3 6 3 6-3M2 11l6 3 6-3") },
+        { value: "page", label: "Page view", focusKey: "layout-page", icon: viewIcon("M4 1.5h5.5L13 5v9.5H4zM9.5 1.5V5H13") },
+      ],
+      onValueChange(value) {
+        rememberView();
+        if (view.mode === "stack") view.stackScroll = contentPanel.scrollTop;
+        else view.pageScroll.set(view.activeId, files.scrollTop);
+        view.mode = value;
+        updateBlockView();
+        contentPanel.scrollTop = value === "stack" ? view.stackScroll : 0;
+        files.scrollTop = value === "page" ? view.pageScroll.get(view.activeId) ?? 0 : 0;
+      },
+    });
+    buttons.host(mode).classList.add("build-view-switch-mount");
+    buttons.append(heading, mode);
+    const controls = element("div", undefined, header, "build-block-controls");
+    const rows = [...files.querySelectorAll(".build-file")];
+    for (const row of rows) row.id = "build-document-" + encodeURIComponent(row.dataset.artifact);
+    const pageItems = members.map((member, index) => ({
+      value: member.id, label: member.path.split("/").pop(), title: member.path,
+      controls: rows[index].id, focusKey: "page-" + member.id,
+    }));
+    const pages = buttons.segmented({
+      "aria-label": "File pages", className: "build-page-switch", value: selectedArtifact,
+      items: pageItems,
+      onValueChange(value) {
+        rememberView();
+        selectedArtifact = value;
+        renderSelection({ revealSelected: true });
+      },
+      onReselect() {
+        if (view.mode === "stack") renderSelection({ revealSelected: true });
+      },
+    });
+    const pageMount = buttons.host(pages);
+    pageMount.classList.add("build-page-switch-mount");
+    buttons.append(controls, pages);
+    // Measure the full canonical strip without adding another focusable toolbar or scrollable surface.
+    const measure = element("div", undefined, controls, "build-file-measure");
+    measure.inert = true;
+    measure.setAttribute("aria-hidden", "true");
+    const fullStrip = pages.cloneNode(true);
+    for (const node of [fullStrip, ...fullStrip.querySelectorAll("*")]) {
+      for (const attribute of ["id", "role", "aria-label", "aria-controls", "data-focus-key"]) node.removeAttribute(attribute);
+    }
+    measure.append(fullStrip);
+    const actions = buttons.actionGroup(controls, { className: "build-collection-actions", "aria-label": "Collection actions" });
+    let visibleCount = members.length;
+    function collectionFileItems() {
+      return members.slice(visibleCount).map(member => ({
+        id: member.id, label: member.path.split("/").pop(), title: member.path,
+        "aria-current": member.id === selectedArtifact ? "true" : undefined,
+        icon: member.id === selectedArtifact ? fileIcon("check") : undefined,
+        onClick: () => selectFile(member.id, false),
+      }));
+    }
+    const more = buttons.menu({
+      label: null,
+      button: { size: "small", appearance: "subtle",
+        icon: buttons.icon('<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>'),
+        "aria-label": "More files", title: "More files", "data-focus-key": "file-picker" },
+      positioning: { position: "below", align: "end" },
+      items: collectionFileItems(),
+    });
+    more.setAttribute("data-file-picker", "");
+    buttons.append(actions, more);
+    const add = fileAction(actions, "Add building block", "add", startAdding);
+    buttons.update(add, { appearance: "subtle" });
+    add.dataset.focusKey = "collection-add";
+    const moreMount = buttons.host(more).closest(".ct-dom-content") ?? buttons.host(more);
+    updateFileOverflow = () => {
+      if (!controls.getClientRects().length || controls.clientWidth === 0) return;
+      const gap = parseFloat(getComputedStyle(controls).columnGap) || 0;
+      const actionGap = parseFloat(getComputedStyle(actions.querySelector(".build-collection-actions")).columnGap) || 0;
+      const addWidth = add.getBoundingClientRect().width;
+      const fits = fullStrip.getBoundingClientRect().width + gap + addWidth <= controls.clientWidth;
+      let nextCount = members.length;
+      if (!fits) {
+        moreMount.hidden = false;
+        const available = controls.clientWidth - gap - addWidth - actionGap - more.getBoundingClientRect().width;
+        const stripStyle = getComputedStyle(fullStrip);
+        const itemGap = parseFloat(stripStyle.columnGap) || 0;
+        let used = parseFloat(stripStyle.paddingLeft) + parseFloat(stripStyle.paddingRight);
+        nextCount = 0;
+        for (const item of fullStrip.querySelectorAll("button")) {
+          used += item.getBoundingClientRect().width + (nextCount ? itemGap : 0);
+          if (used > available) break;
+          nextCount++;
+        }
+      }
+      const focusedFile = pages.contains(document.activeElement) ? document.activeElement?.dataset.focusKey : undefined;
+      const focusedMore = more === document.activeElement;
+      if (nextCount === members.length && more.getAttribute("aria-expanded") === "true") more.click();
+      moreMount.hidden = nextCount === members.length;
+      controls.toggleAttribute("data-file-overflow", nextCount < members.length);
+      pageMount.hidden = nextCount === 0;
+      if (visibleCount !== nextCount) {
+        visibleCount = nextCount;
+        buttons.update(pages, { items: pageItems.slice(0, visibleCount), value: selectedArtifact });
+        buttons.update(more, { items: collectionFileItems() });
+        if (focusedFile && !pages.querySelector(`[data-focus-key="${CSS.escape(focusedFile)}"]`)) more.focus({ preventScroll: true });
+      }
+      if (focusedMore && moreMount.hidden) add.focus({ preventScroll: true });
+    };
+    updateBlockView = () => {
+      const changedPage = view.activeId !== selectedArtifact;
+      if (changedPage && view.mode === "page") view.pageScroll.set(view.activeId, files.scrollTop);
+      view.activeId = selectedArtifact;
+      contentPanel.dataset.blockView = view.mode;
+      files.dataset.view = view.mode;
+      for (const row of rows) row.hidden = view.mode === "page" && row.dataset.artifact !== selectedArtifact;
+      buttons.update(mode, { value: view.mode });
+      buttons.update(pages, { value: selectedArtifact });
+      buttons.update(more, { items: collectionFileItems() });
+      updateFileOverflow();
+      if (changedPage && view.mode === "page") files.scrollTop = view.pageScroll.get(view.activeId) ?? 0;
+      updatePreviewEdges();
+    };
+    updateBlockView();
+    contentPanel.scrollTop = view.mode === "stack" ? view.stackScroll : 0;
+    files.scrollTop = view.mode === "page" ? view.pageScroll.get(view.activeId) ?? 0 : 0;
+  }
+  async function startAdding() {
+    rememberView();
+    adding = true;
+    setFileListOpen(false);
+    renderSelection();
+    if (!templates) {
+      try {
+        const result = await request("/api/build-templates?root=" + encodeURIComponent(root));
+        templates = result.templates;
+        templateError = undefined;
+      } catch (cause) { templateError = cause.message; }
+      if (isActive() && adding && contentPanel?.isConnected) renderSelection();
+    }
+    contentPanel?.querySelector("select,button")?.focus({ preventScroll: true });
+  }
+  function renderAddForm() {
+    const form = element("form", undefined, contentPanel, "build-add-form");
+    element("h3", "Add building block", form, "build-area-title");
+    element("p", "Start with a template, then make it yours in your editor or with AI.", form);
+    if (!templates) {
+      if (templateError) {
+        error(form, "Could not load templates: " + templateError);
+        button(form, "Retry templates", startAdding);
+      } else element("p", "Loading templates…", form).setAttribute("role", "status");
+      button(form, "Cancel", () => { adding = false; renderSelection(); });
+      return;
+    }
+    const picker = field(form, {
+      kind: "Select", label: "Template",
+      defaultValue: templates.some((item) => item.id === addDraft.templateId) ? addDraft.templateId : templates[0]?.id ?? "",
+      options: templates.map(template => ({ value: template.id, label: template.name })),
+    });
+    addDraft.templateId = picker.value;
+    const name = field(form, {
+      kind: "TextInput", label: "Block name", defaultValue: addDraft.name, placeholder: "my-block",
+      pattern: "[a-z][a-z0-9-]{0,39}", maxLength: 40, required: true,
+    });
+    const path = element("code", "", form, "build-template-path");
+    const instructions = field(form, {
+      kind: "Textarea", label: "Instructions (optional)", maxLength: 2000, rows: 4,
+      defaultValue: addDraft.instructions,
+      placeholder: "Describe what this block should do, its inputs, and the result you need.",
+    });
+    function updateTemplate() {
+      const template = templates.find((item) => item.id === picker.value);
+      addDraft = { templateId: picker.value, name: name.value, instructions: instructions.value };
+      buttons.update(picker, { hint: template?.description ?? "No templates available." });
+      path.textContent = template?.projectPath.replace("{name}", name.value || "my-block") ?? "";
+      buttons.update(instructions, { hint: "Leave blank for the starter only. Otherwise, Copilot applies your instructions using "
+        + (template?.name ?? "block") + " best practices." });
+    }
+    picker.addEventListener("change", updateTemplate);
+    name.addEventListener("input", updateTemplate);
+    instructions.addEventListener("input", updateTemplate);
+    updateTemplate();
+    for (const control of [picker, name, instructions]) buttons.setDisabled(control, creating);
+    element("p", "Creates new files only. Existing files are never replaced. Runtime connections and deployment are separate.", form);
+    const actions = buttons.actionGroup(form, { className: "build-actions", "aria-label": "Block creation actions" });
+    const create = button(actions, creating ? "Creating…" : "Create from template", async () => {
+      if (creating || !form.reportValidity()) return;
+      const requestedInstructions = instructions.value.trim();
+      creating = true;
+      buttons.setDisabled(create, true);
+      buttons.setDisabled(cancel, true);
+      for (const control of [picker, name, instructions]) buttons.setDisabled(control, true);
+      clearError(form);
+      try {
+        const result = await request("/api/build-block", {
+          method: "POST", body: JSON.stringify({ root, templateId: picker.value, name: name.value }),
+        });
+        createdBlock = result;
+        onSourceChange?.();
+        selectedArtifact = result.artifactId;
+        adding = false;
+        addDraft = { templateId: "", name: "", instructions: "" };
+        if (requestedInstructions) {
+          aiDrafts.set(result.artifactId, requestedInstructions);
+          pendingAdjustments.add(result.artifactId);
+          handoffFeedback.set(result.artifactId, { message: "Template created. Requesting AI customization..." });
+        }
+        renderedState = undefined;
+        if (isActive()) await show({ refresh: true });
+        if (requestedInstructions) {
+          try {
+            await sendAdjustment(result.artifactId, requestedInstructions);
+            aiDrafts.delete(result.artifactId);
+            handoffFeedback.set(result.artifactId, { message: "Requested in your app session. Review Copilot's changes, then refresh source." });
+          } catch (cause) {
+            handoffFeedback.set(result.artifactId, { error: true, message: "Template saved, but AI customization could not be requested: " + cause.message + ". Retry Adjust with AI; do not create the block again." });
+          } finally {
+            pendingAdjustments.delete(result.artifactId);
+            if (isActive() && selectedArtifact === result.artifactId && !adding) renderSelection();
+          }
+        }
+      } catch (cause) { error(form, "Could not create block: " + cause.message); }
+      finally {
+        creating = false;
+        for (const control of [picker, name, instructions]) buttons.setDisabled(control, false);
+        if (create.isConnected) buttons.setDisabled(create, false);
+        if (cancel.isConnected) buttons.setDisabled(cancel, false);
+      }
+    });
+    buttons.update(create, { appearance: "primary", disabled: creating || !templates.length });
+    const cancel = button(actions, "Cancel", () => { adding = false; renderSelection(); });
+    buttons.update(cancel, { appearance: "secondary", disabled: creating });
+    form.addEventListener("submit", (event) => { event.preventDefault(); create.click(); });
   }
   function renderWorkspace(diagnostics) {
     workspace = element("div", undefined, container, "build-workspace");
+    workspace.dataset.filesOpen = String(compactFilesOpen);
     const header = element("div", undefined, workspace, "build-heading");
     const intro = element("div", undefined, header);
     const title = element("div", undefined, intro, "build-heading-title");
     element("h2", "Build your app", title);
     renderHelp(title);
     element("p", "Edit code, add building blocks, and configure tools, runtime, and policies.", intro);
-    const headerActions = element("div", undefined, header, "build-heading-actions");
+    const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
     if (typeof onRun === "function") {
       const quickRun = button(headerActions, "Run & Debug", onRun);
       buttons.update(quickRun, { className: "build-quick-run", appearance: "primary" });
@@ -471,17 +1149,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const refresh = button(headerActions, "Refresh source", () => show({ refresh: true }));
     buttons.update(refresh, { className: "build-refresh", appearance: "secondary", disabled: refreshing });
     refresh.dataset.focusKey = "refresh";
-    if (typeof onOpenStructure === "function") {
-      const blocksBar = element("section", undefined, workspace, "build-blocks-bar");
-      blocksBar.setAttribute("aria-label", "Architecture building blocks");
-      const copy = element("div", undefined, blocksBar, "build-blocks-copy");
-      element("strong", "Building blocks & architecture", copy);
-      element("span", "Add capabilities (Agent, Tools, Gateway, Workflows) or wire stage connections on the App Map.", copy);
-      const blockActions = element("div", undefined, blocksBar, "build-blocks-actions");
-      const editArch = button(blockActions, "+ Add building block", onOpenStructure);
-      buttons.update(editArch, { appearance: "secondary" });
-      editArch.dataset.focusKey = "open-structure";
-    }
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
@@ -506,56 +1173,79 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       buttons.update(open, {
         className: "build-open-editor",
         appearance: "secondary",
-        icon: isVsCodeEditor() ? buttons.icon(VSCODE_ICON_MARKUP) : undefined,
+        icon: isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : undefined,
       });
       open.dataset.workspaceLaunch = "true";
       open.dataset.focusKey = "workspace";
-      element("p", "", empty, "build-handoff-feedback").dataset.artifactId = "workspace";
+      element("div", undefined, empty, "build-handoff-feedback").dataset.artifactId = "workspace";
     }
-    const availableAreas = areas.filter((area) => artifacts.some((artifact) => artifact.customizationArea === area.id));
-    if (availableAreas.length) {
-      const tabs = element("div", undefined, workspace, "build-tabs studio-tabs");
-      tabs.setAttribute("role", "tablist");
-      tabs.setAttribute("aria-label", "App customization areas");
-      for (const area of availableAreas) {
-        const tab = navigationButton(tabs, "", () => activateArea(area.id));
-        tab.className = "build-tab studio-tab";
-        tab.id = "build-tab-" + area.id;
-        tab.dataset.focusKey = "area-" + area.id;
-        tab.setAttribute("role", "tab");
-        tab.setAttribute("aria-controls", "build-area-" + area.id);
-        const main = element("span", undefined, tab, "studio-tab-main");
-        const icon = element("span", undefined, main, "studio-tab-icon studio-tab-icon--" + area.icon);
-        icon.setAttribute("aria-hidden", "true");
-        element("span", area.tab, main, "studio-tab-label");
-        areaTabs.set(area.id, tab);
-        tab.addEventListener("keydown", (event) => {
-          if (event.altKey || event.ctrlKey || event.metaKey) return;
-          const index = availableAreas.findIndex((item) => item.id === area.id);
-          const direction = getComputedStyle(tabs).direction === "rtl" ? -1 : 1;
-          let next;
-          if (event.key === "ArrowRight") next = (index + direction + availableAreas.length) % availableAreas.length;
-          else if (event.key === "ArrowLeft") next = (index - direction + availableAreas.length) % availableAreas.length;
-          else if (event.key === "Home") next = 0;
-          else if (event.key === "End") next = availableAreas.length - 1;
-          else return;
-          event.preventDefault();
-          activateArea(availableAreas[next].id, true);
-          areaTabs.get(availableAreas[next].id).scrollIntoView({ block: "nearest", inline: "nearest" });
-        });
-      }
-      for (const area of availableAreas) {
-        const panel = element("section", undefined, workspace, "build-area studio-tab-panel");
-        panel.id = "build-area-" + area.id;
-        panel.dataset.areaId = area.id;
-        panel.setAttribute("role", "tabpanel");
-        panel.setAttribute("aria-labelledby", "build-tab-" + area.id);
-        panel.hidden = true;
-        areaPanels.set(area.id, panel);
-      }
-      if (!areaPanels.has(selectedArea)) selectedArea = availableAreas[0].id;
-      activateArea(selectedArea, false, false);
+    const compactNavigation = element("div", undefined, workspace, "build-compact-navigation");
+    const compactActions = buttons.actionGroup(compactNavigation, { className: "build-compact-actions", "aria-label": "File navigation" });
+    const filesToggle = button(compactActions, "Files", () => setFileListOpen(!compactFilesOpen));
+    buttons.update(filesToggle, {
+      appearance: "secondary", icon: fileIcon("files"),
+      "aria-controls": "build-file-list", "aria-expanded": compactFilesOpen,
+    });
+    filesToggle.dataset.filesToggle = "true";
+    filesToggle.dataset.focusKey = "files-toggle";
+    const compactAdd = button(compactActions, "+ Add", startAdding);
+    buttons.update(compactAdd, { appearance: "secondary", "aria-label": "+ Add building block" });
+    compactAdd.dataset.focusKey = "compact-add-block";
+    compactAdd.dataset.compactAdd = "true";
+    const browser = element("div", undefined, workspace, "build-browser");
+    const explorer = element("nav", undefined, browser, "build-explorer");
+    explorer.id = "build-file-list";
+    explorer.setAttribute("aria-label", "Build files");
+    explorer.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || event.defaultPrevented || !filesToggle.getClientRects().length) return;
+      event.preventDefault();
+      setFileListOpen(false, true);
+    });
+    const explorerHeader = element("div", undefined, explorer, "build-explorer-header");
+    const explorerHeading = element("div", undefined, explorerHeader, "build-explorer-heading");
+    element("strong", "Building blocks", explorerHeading);
+    const add = button(explorerHeading, "+ Add", startAdding);
+    add.setAttribute("aria-label", "+ Add building block");
+    add.dataset.focusKey = "add-block";
+    buttons.update(add, { appearance: "secondary" });
+    if (!artifacts.some((artifact) => artifact.id === selectedArtifact)) selectedArtifact = artifacts[0]?.id;
+    const searchHost = element("div", undefined, explorerHeader, "build-file-search");
+    const search = field(searchHost, {
+      kind: "TextInput", label: "Filter files", type: "search", placeholder: "Name or path",
+      defaultValue: fileFilter, "aria-controls": "build-file-results",
+    });
+    search.dataset.focusKey = "file-filter";
+    const filterStatus = element("p", "", explorerHeader, "build-filter-status");
+    filterStatus.setAttribute("role", "status");
+    const list = element("div", undefined, explorer, "build-explorer-body");
+    list.id = "build-file-results";
+    function filterFiles() {
+      fileFilter = search.value;
+      renderFileList(list, filterStatus);
+      list.scrollTop = 0;
+      explorerScroll = 0;
     }
+    search.addEventListener("input", filterFiles);
+    search.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !search.value) return;
+      event.preventDefault();
+      search.value = "";
+      filterFiles();
+    });
+    renderFileList(list, filterStatus);
+    const divider = element("div", undefined, browser, "build-divider");
+    divider.tabIndex = 0;
+    divider.setAttribute("role", "separator");
+    divider.setAttribute("aria-label", "File list width");
+    divider.setAttribute("aria-orientation", "vertical");
+    divider.setAttribute("aria-controls", explorer.id);
+    divider.dataset.focusKey = "file-list-width";
+    contentPanel = element("section", undefined, browser, "build-area build-content");
+    contentPanel.id = "build-selected-file";
+    contentPanel.setAttribute("aria-label", "Selected file");
+    renderSelection();
+    resizePanes(browser, divider);
+    list.scrollTop = explorerScroll;
     updateEditorControls();
   }
   async function show({ refresh = false } = {}) {
@@ -575,6 +1265,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     let loading;
     if (!refresh || !container.childElementCount) {
       rememberView();
+      restoreOnShow = true;
+      disposeSplitPane?.();
       buttons.clear(container);
       container.replaceChildren();
       loading = element("p", "Loading app source...", container, "build-loading");
@@ -588,7 +1280,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
       container.querySelector(":scope > .build-error")?.remove();
       const next = state.artifacts.filter((artifact) => artifact.available
-        && areas.some((area) => area.id === artifact.customizationArea));
+        && (!artifact.customizationArea || areas.some((area) => area.id === artifact.customizationArea)));
       const signature = JSON.stringify([next, state.supportsDocuments, state.diagnostics]);
       if (refresh && workspace?.isConnected && renderedState === signature) {
         updateEditorControls();
@@ -599,10 +1291,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       artifacts = next;
       supportsDocuments = state.supportsDocuments === true;
       renderedState = signature;
+      disposeSplitPane?.();
       buttons.clear(container);
       container.replaceChildren();
-      areaPanels.clear();
-      areaTabs.clear();
       renderWorkspace(state.diagnostics);
       container.scrollTop = panelScroll;
       if (focusKey) [...container.querySelectorAll("[data-focus-key]")]
@@ -634,7 +1325,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     clearTimeout(refreshTimer);
     refreshing = false;
     rememberView();
-    restoreOnShow = true;
+    disposeSplitPane?.();
   }
   return { show, hide, setEditorSettings };
 }

@@ -5,7 +5,7 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
+  { id: "instructions", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
   { id: "tool", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
   { id: "contract", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
   { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
@@ -118,6 +118,8 @@ function sourceArtifact(path, candidate) {
     title: name && name !== "." ? `${title} · ${name}` : title,
     projectPath: candidate.projectPath,
     projectName: candidate.name,
+    blockTemplateId: candidate.tierId === "skills" ? "hosted-skill"
+      : candidate.tierId === "agent" ? "agent-instructions" : undefined,
     description,
     customizationArea,
   };
@@ -133,9 +135,7 @@ function candidateSourcePaths(candidate) {
 
 async function buildCatalog(root, discoveryState = {}) {
   const scope = await appScope(root);
-  if (await isDocumentApp(root, scope)) {
-    return { kind: "document", supportsDocuments: true, artifacts: DOCUMENT_ARTIFACTS, diagnostics: [] };
-  }
+  const supportsDocuments = await isDocumentApp(root, scope);
   const scan = discoveryState.scan ?? await scanRepository(root);
   const discovery = discoveryState.discovery ?? await discoverRepository(root, { scan });
   const files = new Set(scan.files.map((file) => file.path));
@@ -160,8 +160,14 @@ async function buildCatalog(root, discoveryState = {}) {
       customizationArea: "runtime",
       description: "Domain configuration used by the app template." });
   }
+  if (supportsDocuments) {
+    for (const artifact of DOCUMENT_ARTIFACTS) {
+      const actual = await appArtifact(root, artifact);
+      selected.set(actual.path, actual);
+    }
+  }
   return {
-    kind: "source", supportsDocuments: false, artifacts: [...selected.values()],
+    kind: supportsDocuments ? "document" : "source", supportsDocuments, artifacts: [...selected.values()],
     diagnostics: discovery.diagnostics,
   };
 }

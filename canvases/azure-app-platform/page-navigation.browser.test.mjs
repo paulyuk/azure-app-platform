@@ -77,9 +77,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
       assert.equal(await page.locator("dialog[open]").count(), 0);
       await page.locator(".build-source-preview").first().waitFor();
-      await page.getByRole("tab", { name: "Runtime", exact: true }).click();
-      const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
-      if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
+      await page.getByRole("toolbar", { name: "File pages", exact: true })
+        .getByRole("button", { name: "config.json", exact: true }).click();
+      const buildSource = page.locator('.build-file[data-artifact="configuration"] .build-file-source');
+      await buildSource.waitFor();
+      await buildSource.evaluate(node => { window.retainedBuildSource = node; });
       await back.click();
       await mode("manage");
       assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
@@ -195,9 +197,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await back.isDisabled(), true);
       await select("build-workspace");
       await mode("build");
-      await buildDisclosure.waitFor({ state: "attached" });
-      assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
-      assert.equal(await buildDisclosure.evaluate(node => node.open), false);
+      await buildSource.waitFor();
+      assert.equal(await page.getByRole("toolbar", { name: "File pages", exact: true })
+        .getByRole("button", { name: "config.json", exact: true }).getAttribute("aria-pressed"), "true");
+      assert.equal(await buildSource.evaluate(node => node === window.retainedBuildSource), true);
       assert.equal(await back.isDisabled(), false);
       assert.equal(await forward.isDisabled(), true, "Build is a new history destination");
       await back.click();
