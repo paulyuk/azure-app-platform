@@ -271,22 +271,18 @@ are directly accessible; search/layout options open downward.
 The options scroll within the map's available height; wheel input over them
 does not zoom the graph.
 
-Guide is a separate 280px right rail with evidence-derived progress and next
-actions. It updates on readiness changes without switching the main view,
-clearing map selection, or replacing Customize/Run inputs. Its single toggle lives
-inside the rail, not in the workspace navigation, and retains focus when closing.
-Its top and right insets are identical in both states, so it does not move when
-the rail expands or collapses, including in the narrow overlay.
-Collapsed Guide occupies 46px and shows stable stage icons with non-color state
-symbols and descriptive tooltips/accessibility labels. Clicking a stage expands
-Guide and focuses its explanation without changing the selected workspace.
-Status refreshes update the shortcuts in place without replacing focused
-buttons. Narrow screens reserve the same strip; expanded Guide overlays the
-workspace, collapsed by default unless the user has chosen otherwise.
+Guide opens from the existing footer, never from a header trigger or dedicated row.
+Its evidence-driven next step and full progress live in an on-demand nonmodal
+popover above the footer, bounded to the workspace so navigation stays accessible.
+Closed Guide reserves no rail or extra row. Enter or Arrow Down opens it; Escape,
+Close or an outside click dismisses it, returning keyboard focus to the footer.
+Progress shortcuts explain stages without navigating. Status refreshes preserve
+focused shortcuts, open recommendations and scrolling without replacing task inputs.
+Open app shares existing header utilities. The healthy Run runtime row collapses
+entirely, but meaningful lifecycle/recovery/failure notices and outside-Run controls remain.
 
-Guide visibility is a per-app browser-origin preference, separate from map
-layout and source files. An extension restart that changes the loopback origin
-can reset browser preferences. Document-test drafts stay in memory across mode
+Guide starts closed on each page visit; visibility stays in memory across workspace
+changes, separate from map layout and source files. Document-test drafts stay in memory across mode
 switches but are not persisted by this layout. Customize holds no source drafts.
 Live runtime evidence takes precedence over unresolved static source evidence
 in workflow progress. A running app reaches Observe & manage immediately;
@@ -568,12 +564,9 @@ directly mutate the graph, so its completion screen offers **Check for changes**
 to retrace the app. This is the first progressive-guidance layer; future history
 or preference signals may refine ranking but must not weaken evidence requirements.
 
-Guide has a single expand/collapse control in its own heading, available in
-both the expanded panel and compact status rail. At narrow widths Guide starts
-collapsed and can be opened as an overlay, dismissed using the toggle or Escape.
-The Connect explanation retains its explicit connection-review action.
-Guide visibility remains
-independent of the selected workspace and component.
+The footer Guide control remains reachable at narrow widths and outside Run.
+Its next step uses current evidence, and its Connect action opens gateway configuration.
+Guide visibility remains independent of the selected workspace and component.
 
 **Run/Debug** is a focused run/test surface, not an embedded IDE or debugger.
 The main area contains state-specific startup/recovery guidance, an available

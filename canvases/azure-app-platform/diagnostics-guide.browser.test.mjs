@@ -156,13 +156,21 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       page.on("pageerror", error => errors.push(error.message));
       let agentReady = false;
       await page.route("**/api/app-status*", route => route.fulfill({ json: {
-        state: "running", entrypoints: [{ name: "web", port: 3000, ready: true },
+        state: fixture.state.app, entrypoints: [{ name: "web", port: 3000, ready: true },
           { name: "agent", port: 8088, ready: agentReady, healthStatus: fixture.state.health }],
       } }));
       await page.goto(fixture.origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
       const trigger = page.locator("#action-center"), guide = page.locator("#guide-rail");
       await page.getByRole("button", { name: "Guide: Check the agent endpoint", exact: true }).waitFor();
+      assert.equal(await trigger.innerText(), "Guide");
+      assert.equal(await page.locator("#workspace-status-footer #action-center").count(), 1);
+      assert.equal(await page.locator("#workspace-runtime-bar #action-center, #studio-workspace-navigation > header #action-center").count(), 0);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+      assert.equal(await page.locator(".studio-theme-control #header-open-app").isVisible(), true);
+      assert.ok(await page.evaluate(() => Math.abs(document.querySelector("#app-workspace-main").getBoundingClientRect().top -
+        document.querySelector(".workspace-navigation-bar").getBoundingClientRect().bottom) <= 1),
+      "Healthy Run starts immediately after navigation, with no empty runtime row.");
       assert.equal(await guide.isVisible(), false);
       const width = (await page.locator("#workspace").boundingBox()).width;
       await trigger.press("ArrowDown");
@@ -217,11 +225,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           await trigger.click();
           const bounds = await guide.boundingBox();
           assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width && bounds.y + bounds.height <= height);
+          assert.ok(bounds.y >= (await page.locator("#app-workspace-main").boundingBox()).y,
+            "The footer-anchored Guide must leave header navigation accessible.");
+          assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+          assert.equal(await trigger.isVisible(), true);
           assert.ok(await guide.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
           assert.equal(await page.getByRole("button", { name: "Guide: Review failed task", exact: true }).count(), 1);
           await page.keyboard.press("Escape");
         }
       }
+      await page.locator("#map-app").click();
+      assert.equal(await trigger.isVisible(), true);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true,
+        "Runtime controls remain available outside Run.");
+      await page.locator("#manage-app").click();
+      fixture.state.app = "stopping";
+      await page.locator("#app-status-badge").filter({ hasText: "Stopping" }).waitFor();
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true,
+        "Active lifecycle notices are never removed as empty chrome.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }

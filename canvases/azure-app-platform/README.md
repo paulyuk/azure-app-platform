@@ -303,7 +303,7 @@ a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
-button. **Open app** remains in the runtime bar; **Stop app** sits immediately
+button. **Open app** remains in the existing header utilities; **Stop app** sits immediately
 after **Invoke agent** in the Run task action row.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
@@ -345,15 +345,18 @@ map/log line icons and the same flat Run-style tabs used by Customize: a shared 
 subtle selected fill, and accent underline rather than individually outlined buttons.
 Keyboard tab navigation remains available across the workspaces.
 Each view fills the workspace rather than sharing it
-with an always-visible map. **Guide** is a compact contextual control in the existing
-runtime bar, not a permanent side rail or another toolbar. Its next step uses runtime,
+with an always-visible map. **Guide** opens from the existing footer, not the header,
+a permanent side rail, or another toolbar. Its next step uses runtime,
 agent-endpoint, connection and request evidence, with failures taking priority.
 Running the app alone never recommends a successful agent test. Full workflow guidance
 opens on demand without narrowing the workspace; the five stage shortcuts explain
 progress without navigating, while their explicit actions open the corresponding workspace.
 Enter or Arrow Down opens Guide from the keyboard. Escape or **Close Guide** returns
 focus to its trigger; clicking outside dismisses it. The bounded, scrollable nonmodal
-popover starts closed at every viewport size. Polling preserves its focus, expanded
+popover opens above the footer within workspace bounds, leaving header navigation
+accessible, and starts closed at every viewport size. Healthy Run has no runtime row:
+Open app shares existing header utilities, while meaningful startup/recovery, failure
+and lifecycle notices retain their row. Polling preserves Guide focus, expanded
 recommendations and scroll position; workspace changes never reopen it or discard
 task payloads or the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**

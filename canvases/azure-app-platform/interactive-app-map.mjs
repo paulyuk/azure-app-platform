@@ -638,9 +638,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
     #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
-    #workspace-guide { flex:1; min-width:0; }
-    #workspace-guide #action-center { width:100%; max-width:100%; min-width:0; }
-    #action-center .guide-trigger-copy { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #workspace-guide { flex:none; overflow:visible; }
     #action-center[data-attention="true"] { color:var(--studio-danger); }
     #guide-rail { position:fixed; inset:auto; margin:0; padding:0; width:min(400px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; color:var(--studio-ink); background:var(--studio-raised); box-shadow:0 8px 24px var(--studio-line); font:13px/1.5 var(--font-sans,system-ui); }
     #guide-rail:popover-open { display:flex; flex-direction:column; }
@@ -847,10 +845,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
     #workspace-status-footer {
-      display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px;
+      display: flex; align-items:center; justify-content: space-between; gap: 12px; padding: 0 12px; min-height:32px;
       border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
     }
     #workspace-status-footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #workspace-status-footer #status { flex:1; }
+    #workspace-status-footer #workspace-guide { overflow:visible; }
     @media (max-width: 960px) {
       #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr) auto;
@@ -899,7 +899,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
       <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
       <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
-      <div id="workspace-runtime-actions" role="group" aria-label="App controls">
+      <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
       </div>
     </div>
@@ -1037,8 +1037,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const guideContent = document.querySelector("#guide-content");
     let guideCollapsed = true;
     const guideTrigger = buttons.create({
-      id: "action-center", appearance: "subtle",
-      children: toolkit.createElement("span", { className: "guide-trigger-copy" }, "Guide: Checking readiness"),
+      id: "action-center", appearance: "subtle", size: "small", children: "Guide",
+      "aria-label": "Guide: Checking readiness",
       "aria-expanded": false, "aria-controls": "guide-rail",
       onClick: event => {
         setGuideCollapsed(!guideCollapsed);
@@ -1047,8 +1047,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     const guideMount = document.createElement("div");
     guideMount.id = "workspace-guide";
-    document.querySelector("#workspace-runtime-bar").prepend(guideMount);
+    document.querySelector("#map-context").before(guideMount);
     buttons.append(guideMount, guideTrigger);
+    document.querySelector("#workspace-loading-header .studio-theme-control")
+      .prepend(document.querySelector("#workspace-runtime-actions"));
     guideTrigger.addEventListener("keydown", event => {
       if (event.key !== "ArrowDown") return;
       event.preventDefault();
@@ -1462,6 +1464,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       syncRuntimePlacement();
       document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
         entry.ready && normalized(entry.name) === "web");
+      document.querySelector("#workspace-runtime-actions").hidden = document.querySelector("#header-open-app").hidden;
       updateAgentStatusBrief();
     }
 
@@ -1469,6 +1472,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const state = operationalState.app?.state;
       appStatusBadge.hidden = state === "running" && operationalState.readiness?.mode !== "preview";
       headerRuntimeAction.hidden = panelMode === "manage" && ["running", "stopping"].includes(state);
+      document.querySelector("#workspace-runtime-bar").hidden = appStatusBadge.hidden && headerRuntimeAction.hidden;
     }
 
     function updateAgentStatusBrief() {
@@ -2191,10 +2195,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function placeGuide() {
       if (guideCollapsed) return;
       const rect = guideTrigger.getBoundingClientRect();
-      const top = Math.max(12, Math.min(rect.bottom + 8, innerHeight - 120));
-      guideRail.style.maxHeight = Math.max(0, innerHeight - top - 12) + "px";
+      const top = Math.max(12, document.querySelector("#app-workspace-main").getBoundingClientRect().top + 8);
+      guideRail.style.maxHeight = Math.max(0, rect.top - top - 8) + "px";
       guideRail.style.left = Math.max(12, Math.min(rect.left, innerWidth - guideRail.offsetWidth - 12)) + "px";
-      guideRail.style.top = top + "px";
+      guideRail.style.top = Math.max(top, rect.top - 8 - guideRail.offsetHeight) + "px";
     }
 
     function focusGuide() {
@@ -2225,7 +2229,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const step = currentGuideStep(status);
       const title = step.title + ". " + step.detail;
       if (guideTrigger.title !== title) buttons.update(guideTrigger, {
-        children: toolkit.createElement("span", { className: "guide-trigger-copy" }, "Guide: " + step.title),
         title, "aria-label": "Guide: " + step.title, "data-attention": String(step.attention),
       });
       const context = guideContent.querySelector("#guide-context");
