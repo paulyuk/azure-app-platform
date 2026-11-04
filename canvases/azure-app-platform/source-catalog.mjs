@@ -67,7 +67,7 @@ export const APP_SERVICE_BUILDER_TEMPLATE = Object.freeze({
   id: "builtin-app-service-builder-vite-v1",
   kind: "empty",
   name: "App Service Builder (Vite Starter)",
-  description: "Vite + TypeScript static frontend with builder.yaml, /health check, and App Service Builder handoff.",
+  description: "Web experience on App Service Builder (Vite + TypeScript), ready to expand with Hosted Skills.",
   capabilityIds: ["web"],
   customization: ["App purpose", "Sample greeting"],
   readyToRun: true,

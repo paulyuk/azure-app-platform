@@ -684,7 +684,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (template.id === "builtin-app-service-builder-vite-v1") {
           return '<div class="badges">' +
             '<span class="badge embr">Web · App Service Builder</span>' +
-            '<span class="badge gateway">Manifest · builder.yaml</span>' +
+            '<span class="badge hosted-skill">+ Optional · Hosted Skills</span>' +
             '</div>';
         }
         if (template.id === "builtin-empty-starter-v1") {
@@ -743,35 +743,24 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (template.id === "builtin-app-service-builder-vite-v1") {
           return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
             '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
-            '<small>App Service Builder static web pattern · Grounded in Azure-Samples/app-service-builder-vite</small></div>' +
+            '<small>Web experience starter · Add Hosted Skills as you grow</small></div>' +
             templateCapabilityPills(template) + '</div>' +
             '<div class="template-preview-diagram">' +
-            '<svg viewBox="0 0 560 124" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Vite TypeScript frontend with builder.yaml deployed to App Service Builder">' +
-              '<rect x="8" y="20" width="168" height="84" rx="10" fill="#f0fdfa" stroke="#5eead4" stroke-width="1.25"/>' +
-              '<text x="20" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#0f766e">Web Surface · Vite + TS</text>' +
-              '<text x="20" y="61" font-family="sans-serif" font-size="9.5" fill="#334155">index.html · src/main.ts</text>' +
-              '<text x="20" y="77" font-family="sans-serif" font-size="9.5" fill="#475569">public/health &#8594; dist/health</text>' +
-              '<text x="20" y="92" font-family="sans-serif" font-size="9" fill="#64748b">Node 24 build toolchain</text>' +
-              '<line x1="176" y1="62" x2="210" y2="62" stroke="#94a3b8" stroke-width="1.4"/>' +
-              '<polygon points="210,62 202,58 202,66" fill="#94a3b8"/>' +
-              '<rect x="212" y="20" width="154" height="84" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
-              '<text x="224" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e293b">builder.yaml Contract</text>' +
-              '<text x="224" y="61" font-family="sans-serif" font-size="9.5" fill="#334155">component: site (static)</text>' +
-              '<text x="224" y="77" font-family="sans-serif" font-size="9.5" fill="#475569">output: dist/</text>' +
-              '<text x="224" y="92" font-family="sans-serif" font-size="9" fill="#64748b">static.test.mjs verified</text>' +
-              '<line x1="366" y1="45" x2="398" y2="32" stroke="#94a3b8" stroke-width="1.4"/>' +
-              '<line x1="366" y1="79" x2="398" y2="92" stroke="#94a3b8" stroke-width="1.4"/>' +
-              '<rect x="400" y="10" width="152" height="46" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
-              '<text x="412" y="30" font-family="sans-serif" font-size="10" font-weight="700" fill="#1e3a8a">App Service Builder</text>' +
-              '<text x="412" y="45" font-family="sans-serif" font-size="9" fill="#475569">Canvas · CLI · Portal</text>' +
-              '<rect x="400" y="68" width="152" height="46" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 3"/>' +
-              '<text x="412" y="88" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ Add Agent / Skills</text>' +
-              '<text x="412" y="103" font-family="sans-serif" font-size="9" fill="#64748b">Wire in Build when ready</text>' +
+            '<svg viewBox="0 0 560 116" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Web experience on App Service Builder with optional Hosted Skills">' +
+              '<rect x="16" y="18" width="236" height="80" rx="10" fill="#f0fdfa" stroke="#5eead4" stroke-width="1.25"/>' +
+              '<text x="32" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#0f766e">Web Experience</text>' +
+              '<text x="32" y="61" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">App Service Builder</text>' +
+              '<text x="32" y="79" font-family="sans-serif" font-size="9.5" fill="#475569">Vite + TypeScript · Managed web hosting</text>' +
+              '<line x1="252" y1="58" x2="306" y2="58" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+              '<polygon points="306,58 298,54 298,62" fill="#94a3b8"/>' +
+              '<rect x="308" y="18" width="236" height="80" rx="10" fill="#f8fafc" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="5 4"/>' +
+              '<text x="324" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#1d4ed8">+ Add Hosted Skills (Optional)</text>' +
+              '<text x="324" y="61" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">Azure Functions · MCP &amp; HTTP</text>' +
+              '<text x="324" y="79" font-family="sans-serif" font-size="9.5" fill="#64748b">Attach backend skills in Build when ready</text>' +
             '</svg></div>' +
             '<ul class="template-preview-bullets">' +
-              '<li><strong>Static Deployment Contract:</strong> Includes root <code>builder.yaml</code> (<code>role: static</code>, Node 24 build toolchain, <code>output: dist</code>) and <code>/health</code> endpoint from <code>Azure-Samples/app-service-builder-vite</code>.</li>' +
-              '<li><strong>Local Preview &amp; Contract Tests:</strong> Run <code>npm run build &amp;&amp; npm test</code> to verify the emitted <code>dist/</code> bundle and loopback preview on <code>:8080</code>.</li>' +
-              '<li><strong>App Service Builder Handoff:</strong> Validate with <code>builder manifest validate</code> or hand off to the App Service Builder canvas (<em>"Open App Service Builder canvas."</em>).</li>' +
+              '<li><strong>Web Experience (App Service Builder):</strong> Starts with a clean Vite + TypeScript web frontend and <code>builder.yaml</code> ready for local preview and App Service Builder deployment.</li>' +
+              '<li><strong>Expand with Hosted Skills:</strong> Attach callable Azure Functions Hosted Skills (HTTP or MCP) in <strong>Build</strong> whenever your web app needs backend capabilities.</li>' +
             '</ul></div>';
         }
         if (template.id === "builtin-empty-starter-v1") {
