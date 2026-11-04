@@ -131,6 +131,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await installStudioAssetRoutes(page);
     await page.goto(url);
     await page.locator("#studio-workspace-navigation").waitFor();
+    await selectWorkspace(page, "build-app");
     const buildRow = page.locator('.build-file[data-artifact="instructions"]');
     const buildDisclosure = buildRow.locator(
       '.build-source-disclosure[data-preview-for="instructions"]');
@@ -145,6 +146,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     };
     await buildRow.waitFor();
     await openBuildPreview();
+    await page.getByRole("button", { name: "Close Customize", exact: true }).click();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
@@ -162,7 +164,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#guide-rail button[title='Collapse Guide']").count(), 1);
     assert.equal(await page.locator("#collapse-guide").count(), 0);
     assert.equal(await page.locator("#action-center svg").getAttribute("data-octicon"), "sidebar-collapse");
-    assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
+    assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
     assert.equal(await page.locator("#graph-shell").isVisible(), false);
     assert.equal(await page.locator(".map-palette").isVisible(), false);
     assert.equal(await page.locator(".map-view-bar").count(), 0);

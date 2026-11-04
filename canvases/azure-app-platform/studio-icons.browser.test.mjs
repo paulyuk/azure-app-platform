@@ -23,6 +23,7 @@ for (const name of ["chromium", "webkit"]) {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture.origin + "/app-map");
+      await selectWorkspace(page, "build-app");
       await page.locator('.build-help-button svg[data-octicon="info"]').waitFor();
       await selectWorkspace(page, "map-app");
       await page.locator(".node-visual > svg").first().waitFor();
@@ -31,6 +32,7 @@ for (const name of ["chromium", "webkit"]) {
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
         for (const width of [1440, 620, 380]) {
           await page.setViewportSize({ width, height: 900 });
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
           const glyphs = await page.locator("svg[data-octicon]").evaluateAll((icons) => icons
             .filter((icon) => icon.getBoundingClientRect().width > 0)
             .map((icon) => ({

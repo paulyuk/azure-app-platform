@@ -15,7 +15,7 @@ export function createWorkspaceNavigationComponent(toolkit) {
   }
   return function WorkspaceNavigation({
     current, items, appTitle, utilities, content, history,
-    onNavigate, onReady, onHome,
+    onNavigate, onCustomize, onReady, onHome,
   }) {
     useEffect(() => { onReady(); }, [onReady]);
     return h(CanvasShell, {
@@ -41,8 +41,8 @@ export function createWorkspaceNavigationComponent(toolkit) {
               }, item.label)))))),
         h(Button, {
           id: "build-app", type: "button", size: "small", appearance: "subtle",
-          "aria-controls": "workspace-shell", "aria-current": current === "build" ? "page" : undefined,
-          onClick: event => onNavigate(event, "build"),
+          "aria-controls": "app-customize", "aria-haspopup": "dialog",
+          onClick: onCustomize,
         }, "Customize"))),
     }, h(RetainedContent, { element: content, className: "studio-workspace-content" }));
   };

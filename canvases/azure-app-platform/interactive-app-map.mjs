@@ -521,6 +521,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 12px;
       border-block: 1px solid var(--border); background: var(--surface);
     }
+    .customize-dialog { position:fixed; inset:0; width:100%; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; border-radius:0; overflow:hidden; color:var(--studio-ink); background:var(--studio-raised); }
+    .customize-dialog[open] { display:flex; flex-direction:column; }
+    .customize-dialog::backdrop { background:rgb(0 0 0 / .4); }
+    .customize-dialog-heading { display:flex; flex:none; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; border-bottom:1px solid var(--studio-line); }
+    .customize-dialog-heading h2 { margin:0; font:600 16px/1.5 var(--font-sans,system-ui); }
+    .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
     #app-workspace-navigation { min-width: 0; }
     .workspace-view-switch { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     #app-workspace-navigation ul { display: flex; gap: 2px; padding: 0; margin: 0; list-style: none; }
@@ -891,7 +897,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   </header>
   <div id="workspace-content">
     <div id="workspace-runtime-bar">
-      <span class="workspace-location">Page: <strong id="workspace-location">Build</strong></span>
+      <span class="workspace-location">Page: <strong id="workspace-location">Test agent</strong></span>
       <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
       <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       <div id="workspace-runtime-actions" role="group" aria-label="App controls">
@@ -963,6 +969,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
   </footer>
   </div>
+  <dialog id="app-customize" class="customize-dialog" aria-labelledby="customize-title">
+    <div class="customize-dialog-heading">
+      <h2 id="customize-title">Customize app</h2>
+      <button data-studio-button="secondary" id="close-customize" type="button" aria-label="Close Customize" autofocus>${renderOcticon("x")}Close</button>
+    </div>
+    <div id="customize-content" class="customize-content" data-mode="build"></div>
+  </dialog>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
     (async () => {
@@ -1098,7 +1111,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedGateway = null;
     let selectedModel = "";
     let gatewayApplying = false;
-    let panelMode = "build";
+    let panelMode = "manage";
     let observeView = "map";
     const navigationMount = document.querySelector("#workspace-navigation-mount");
     const loadingHeader = document.querySelector("#workspace-loading-header");
@@ -1138,13 +1151,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         onForward: () => navigateWorkspaceHistory(1),
       },
       onNavigate: (_event, value) => {
-        if (value === "build") renderBuildPanel();
-        else if (value === "manage") renderManagePanel();
+        if (value === "manage") renderManagePanel();
         else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
           if (observeView === "logs") renderLogsPanel();
           else renderMapPanel();
         }
       },
+      onCustomize: openCustomizeApp,
       onReady: () => {
         loadingHeader.hidden = true;
         navigationMount.hidden = false;
@@ -1165,8 +1178,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (next < 0 || next >= workspaceHistory.length) return;
       workspaceHistoryIndex = next;
       const mode = workspaceHistory[next];
-      if (mode === "build") renderBuildPanel();
-      else if (mode === "manage") renderManagePanel();
+      if (mode === "manage") renderManagePanel();
       else if (mode === "deploy") renderDeployPanel();
       else if (mode === "logs") renderLogsPanel();
       else renderMapPanel();
@@ -1197,16 +1209,59 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let deleteConfirming = false;
     let deletingApp = false;
     let deleteError = "";
+    const customizeDialog = document.querySelector("#app-customize");
+    const customizeContent = document.querySelector("#customize-content");
+    let customizeReturnFocus;
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info,
-      isActive: () => panelMode === "build",
+      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info,
+      isActive: () => customizeDialog.open,
       onRun: () => {
-        renderManagePanel();
+        closeCustomizeApp(false);
+        if (panelMode !== "manage") renderManagePanel();
         details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
       onModel: () => openAppSettings("connection"),
-      onOpenStructure: () => renderStructureMap(),
+      onOpenStructure: () => {
+        closeCustomizeApp(false);
+        renderStructureMap();
+      },
+    });
+    function restoreCustomizeFocus() {
+      if (!customizeReturnFocus) return;
+      const target = customizeReturnFocus.isConnected && !customizeReturnFocus.disabled &&
+        customizeReturnFocus.getClientRects().length ? customizeReturnFocus : document.querySelector("#build-app");
+      customizeReturnFocus = null;
+      target?.focus({ preventScroll: true });
+    }
+    function closeCustomizeApp(restoreFocus = true) {
+      if (!restoreFocus) customizeReturnFocus = null;
+      customizeDialog.close();
+      buildPanel.hide();
+      if (restoreFocus) restoreCustomizeFocus();
+    }
+    document.querySelector("#close-customize").addEventListener("click", () => closeCustomizeApp());
+    customizeDialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeCustomizeApp();
+    });
+    customizeDialog.addEventListener("close", () => {
+      if (customizeDialog.open) return;
+      buildPanel.hide();
+      restoreCustomizeFocus();
+    });
+    customizeDialog.addEventListener("keydown", event => {
+      if (event.key === "Escape") event.stopPropagation();
+      if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) return;
+      const focusable = [...customizeDialog.querySelectorAll("button, input, select, textarea, summary, a[href], [tabindex]")]
+        .filter(node => !node.disabled && node.tabIndex >= 0 && node.checkVisibility());
+      if (!focusable.length) return;
+      event.preventDefault();
+      const index = focusable.indexOf(document.activeElement);
+      const next = index < 0 ? (event.shiftKey ? focusable.length - 1 : 0)
+        : (index + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+      focusable[next].focus();
     });
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
@@ -2030,8 +2085,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateModeHighlight() {
-      if (panelMode !== "build") buildPanel.hide();
-      const mode = ["build", "manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
+      const mode = ["manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
       if (workspaceHistory[workspaceHistoryIndex] !== mode) {
         workspaceHistory.splice(workspaceHistoryIndex + 1);
         workspaceHistory.push(mode);
@@ -2044,11 +2098,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const observing = mode === "map" || mode === "logs";
       if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
-      document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
+      document.body.dataset.inspecting = String(!["manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
       const current = observing ? "observe" : mode;
-      document.querySelector("#workspace-location").textContent = current === "build" ? "Customize"
-        : current === "deploy" ? "Deploy" : navigationItems.find(item => item.value === current).label;
+      document.querySelector("#workspace-location").textContent = current === "deploy" ? "Deploy" : navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
       for (const tab of document.querySelectorAll("#observe-views > [role='tab']")) {
@@ -2060,7 +2113,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
       details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
-        mode === "build" ? "Build workspace" : mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
+        mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
       updateObserveAction();
@@ -2109,17 +2162,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       structureGuidance.focus({ preventScroll: true });
     }
 
-    function renderBuildPanel() {
-      clearDocumentAssessment();
-      panelMode = "build";
-      selectedId = null;
-      selectedEdgeId = null;
-      applySelection();
-      clearElement(details);
-      details.dataset.empty = "false";
-      details.dataset.mode = "build";
-      updateModeHighlight();
-      void buildPanel.show();
+    function openCustomizeApp(event) {
+      if (customizeDialog.open) return;
+      customizeReturnFocus = event?.currentTarget || document.activeElement;
+      customizeDialog.showModal();
+      void buildPanel.show({ refresh: customizeContent.childElementCount > 0 });
     }
 
     function renderDeployPanel() {
@@ -3697,7 +3744,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       cloudActions.className = "actions";
       if (operationalState.readiness?.deploymentBlocker) {
         appendText(cloudActions, "p", operationalState.readiness.deploymentBlocker);
-        buttons.append(cloudActions, actionButton("Review runtime & access", renderBuildPanel));
+        buttons.append(cloudActions, actionButton("Review runtime & access", openCustomizeApp));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
       } else {
@@ -3852,6 +3899,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         renderSection: renderAppSettingsSection,
       });
       document.querySelector(".studio-settings").addEventListener("close", () => {
+        if (window.appPlatformSettings.isOpen()) return;
         deleteConfirming = false;
         deleteError = "";
         portReview = null;
@@ -4920,7 +4968,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     applyLayout(false);
     setGuideCollapsed(guideCollapsed);
     renderActionCenter();
-    renderBuildPanel();
+    renderManagePanel();
     void refreshOperationalState();
     const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
     const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);

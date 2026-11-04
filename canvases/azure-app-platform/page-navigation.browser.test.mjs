@@ -33,7 +33,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const origin = fixture.origin;
       await page.goto(origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
-      await page.locator(".build-source-preview").first().waitFor();
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       await page.locator("#header-open-app").waitFor();
       const nav = page.getByRole("navigation", { name: "App workspaces", exact: true });
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
@@ -44,8 +44,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
       };
       assert.deepEqual(await nav.locator("li button").allTextContents(), ["Test agent", "Inspect app"]);
-      assert.equal(await page.locator("#workspace-location").textContent(), "Customize");
-      assert.equal(await page.locator("#build-app").getAttribute("aria-current"), "page");
+      assert.equal(await page.locator("#workspace-location").textContent(), "Test agent");
+      assert.equal(await page.locator("#build-app").getAttribute("aria-haspopup"), "dialog");
+      assert.equal(await page.locator("#build-app").getAttribute("aria-current"), null);
       assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
       assert.equal(await back.isDisabled(), true);
       assert.equal(await forward.isDisabled(), true);
@@ -63,11 +64,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(positions.adjacent, "deploy-app");
       const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
 
-      // Customize remains an ordinary workspace until the dialog layer lands.
+      // Customize is independent of workspace history and retains its source view.
+      await select("build-app");
+      await page.locator(".build-source-preview").first().waitFor();
       await page.getByRole("tab", { name: "Runtime", exact: true }).click();
       const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
       if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
-      await select("manage-app");
+      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
       await mode("manage");
       assert.equal(await nav.getByRole("button", { name: "Test agent", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
@@ -168,18 +171,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await mode("manage");
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
       assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
-      await back.click();
-      await mode("build");
+      assert.equal(await back.isDisabled(), true);
+      await select("build-app");
+      await mode("manage");
       await buildDisclosure.waitFor({ state: "attached" });
       assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await buildDisclosure.evaluate(node => node.open), false);
       assert.equal(await back.isDisabled(), true);
+      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
+      assert.equal(await forward.isDisabled(), false, "Modal visits do not discard forward history");
       await forward.click();
+      await mode("map");
+      await select("manage-app");
       await mode("manage");
-      await select("build-app");
-      await mode("build");
       assert.equal(await forward.isDisabled(), true, "New destinations discard only forward history");
       await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
+      await back.click();
+      await mode("map");
       await back.click();
       await mode("manage");
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
@@ -225,7 +233,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.unroute("**/canvas-ui/base.mjs");
       await page.getByRole("button", { name: "Retry navigation", exact: true }).click();
       await page.locator("#studio-workspace-navigation").waitFor();
-      await page.locator(".build-source-preview").first().waitFor();
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       assert.equal(await page.locator("#workspace-content").evaluate(node => node === window.retryContent), true);
       assert.equal(await page.locator("#workspace-loading-header").isVisible(), false);
       assert.deepEqual(errors, []);

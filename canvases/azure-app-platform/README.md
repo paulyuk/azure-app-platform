@@ -291,10 +291,10 @@ Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
 the public small-button tokens; no private toolkit styles are overridden.
 There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
 activates them. The selected destination has `aria-current="page"` and
-`aria-pressed="true"`. **Customize** remains a separate action opening the existing
-source workspace, and the shared **Settings** gear is unchanged.
+`aria-pressed="true"`. **Customize** opens the existing source controls in a
+fullscreen dialog within the canvas pane, without replacing the current workspace.
 The header's toolkit **NavigationControls** place **Back** and **Forward** before
-the logo. They traverse workspace visits (including Customize, App Map, Logs and
+the logo. They traverse workspace visits (Test agent, App Map, Logs and
 Deploy), not browser pages or Guide stages. Repeated polling does not add visits;
 a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
@@ -303,7 +303,8 @@ deployment options; it does not provision or deploy. Open app appears only when 
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
 Guide progress steps.
-Customize opens first. It is the source-customization workspace, distinct from
+Test agent opens first; source discovery starts only when Customize opens.
+Customize is independent of workspace history, distinct from
 the Guide's **Build** readiness stage. Inspect app contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
 The existing content, utilities and app title are retained DOM slots within the
@@ -311,9 +312,13 @@ shell rather than React copies of business logic. Navigation refreshes and respo
 layout changes preserve those exact nodes, focus and task-payload selection. Permanent
 navigation disposes the shell binding and restores retained slots; persisted
 `pagehide` keeps them for the back/forward cache.
-Customize starts directly with customization areas and one focused preview, without a duplicate
-Build/Run/Map toolbar. Use **Test agent** or **Inspect app → App Map**
-navigation. The Guide's Build action opens the general map with a dismissible
+Customize retains its selected area, project, expanded preview and scroll position
+when closed and reopened. **Close** or Escape returns focus to its opener; background
+content cannot take focus or dismiss it. **Model connection** opens scoped Settings
+above Customize and returns to the same preview. **Run & Debug** and **Test with a
+document** close Customize and focus the existing task tester; **+ Add building
+block** closes it and opens the existing App Map controls. Source and external-editor
+handoffs keep their existing behavior. The Guide's Build action opens the general map with a dismissible
 hint highlighting the existing add-component and connection controls; it does
 not select a component based on the current file. Connect retains its source
 review and offers **Edit connections on App Map**. These entry points do not
@@ -394,15 +399,18 @@ starting or failing an operation does not force the user back to Output.
 There is no additional workspace
 navigation, custom debugger, or resizable diagnostics dock.
 
-The **Settings** gear opens a compact modal without leaving the current
-workspace. Appearance and **Preferred external editor** are Studio-wide
-preferences; VS Code is the default editor, while explicit saved choices are
-retained. **Model connection**,
-**Local ports**, and **Danger zone** apply to the named app. The model summary,
-setup blockers, and service port action open the relevant settings directly.
+The **Settings** gear opens a fullscreen, scoped dialog without leaving the current
+workspace. **General · Across all apps** contains Appearance and **Preferred external
+editor**, the Studio-wide preferences; VS Code is the default editor, while explicit saved choices are
+retained. **AI Gateway & Sandbox**, **Local ports**, and **Danger zone** apply to
+the named app. **Prerequisites & CLI tools** identifies device requirements for
+that app and keeps the existing install commands and error reporting. A section
+list switches one panel at a time; at narrow widths or short heights it becomes
+a labeled native section picker. Hidden app sections load only when selected.
+The model summary, setup blockers, and service port action open the relevant settings directly.
 Closing Settings or pressing Escape returns focus without discarding app input.
 Customize's **Model connection** action opens the same settings in place, preserving
-the read-only preview; Run's **Review key files** action returns to Customize rather
+the read-only preview; Deploy's **Review runtime & access** action opens Customize rather
 than introducing another editor or navigation bar.
 Delete local app remains a reviewed, stopped-app operation: it removes the local
 worktree/files and Unity-created branch, not Azure resources or source repositories.

@@ -124,7 +124,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
     await dialog.waitFor();
     assert.equal(fixture.mutations.length, 0);
-    assert.ok(await dialog.getByText("This app · Dealer · UI preview", { exact: true }).isVisible());
+    assert.equal(await dialog.locator(".studio-settings-app-name").textContent(), "This app · Dealer · UI preview");
     await page.waitForFunction(() =>
       document.querySelector('[aria-label="Preferred external editor"]')?.value === "cursor");
     await dialog.getByRole("combobox", { name: "Preferred external editor" }).selectOption("windsurf");
@@ -149,19 +149,19 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     fixture.state.preferenceError = false;
     await dialog.getByRole("combobox", { name: "Appearance" }).selectOption("dark");
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
-    await dialog.locator('[data-settings-section="connection"] > summary').click();
+    await dialog.locator('[data-settings-target="connection"]').click();
     await dialog.getByText("Stop the local app before changing its AI Gateway.", { exact: true }).waitFor();
-    await dialog.locator('[data-settings-section="danger"] > summary').click();
+    await dialog.locator('[data-settings-target="danger"]').click();
     assert.equal(await dialog.getByRole("button", { name: "Delete local app..." }).count(), 0);
-    const ports = dialog.locator('[data-settings-section="ports"] > summary');
+    const ports = dialog.locator('[data-settings-target="ports"]');
     await ports.click();
     assert.equal(await dialog.getByRole("button", { name: "Pick available ports" }).isDisabled(), true);
-    await ports.click();
+    await dialog.locator('[data-settings-target="preferences"]').click();
     fixture.state.app = "stopped";
     await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
     await ports.click();
     assert.equal(await dialog.getByRole("button", { name: "Pick available ports" }).isEnabled(), true,
-      "Reopening a collapsed setting uses current lifecycle state");
+      "Reopening a setting uses current lifecycle state");
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "hidden" });
     assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate((el) => el === document.activeElement), true);
@@ -169,6 +169,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     fixture.state.app = "stopped";
     await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await dialog.locator('[data-settings-target="danger"]').click();
     await dialog.getByRole("button", { name: "Delete local app..." }).click();
     assert.equal(fixture.mutations.filter((item) => item.path === "/api/delete-app").length, 0);
     await dialog.getByRole("button", { name: "Cancel deletion" }).click();
