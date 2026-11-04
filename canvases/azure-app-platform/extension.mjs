@@ -108,13 +108,16 @@ function commandActivity(root) {
   return commandActivities.get(root);
 }
 
-function trackedAzureRunner(root) {
+function trackedAzureRunner(root, { signal, timeout = 12_000 } = {}) {
   return async (command, args) => {
     const activity = commandActivity(root);
     const id = await activity.start({ kind: "az", label: "Azure discovery", command: [command, ...args].join(" ") });
     try {
-      const result = await runCommand(command, args);
-      await activity.finish(id, { ok: result.ok, note: result.ok ? "" : result.stderr || result.error });
+      const result = await runCommand(command, args, { signal, timeout });
+      await activity.finish(id, {
+        ok: result.ok,
+        note: result.ok ? "" : result.aborted ? "Cancelled" : result.stderr || result.error,
+      });
       return result;
     } catch (error) {
       await activity.finish(id, { ok: false, note: error.message });
@@ -1653,8 +1656,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true") {
         cachedDefaultInfraPromise = null;
       }
+      const reqAbort = new AbortController();
+      const abortFromRequest = () => reqAbort.abort();
+      request.once("aborted", abortFromRequest);
+      response.once("close", () => {
+        if (!response.writableEnded) reqAbort.abort();
+      });
       const active = await loadActiveGateway(root, { refresh: true });
-      const runner = trackedAzureRunner(root);
+      const runner = trackedAzureRunner(root, { signal: reqAbort.signal, timeout: 12_000 });
       const options = await discoverGatewayOptions(
         runner, active, url.searchParams.get("subscriptionId"),
       );
@@ -1678,6 +1687,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           fallbackAllSubscriptions: !requestedSandboxSub,
         }),
       ]);
+      if (reqAbort.signal.aborted || response.writableEnded) return;
       sendJson(response, 200, {
         ...modelOptions,
         sandboxGroups: sandboxDiscovery.sandboxGroups,

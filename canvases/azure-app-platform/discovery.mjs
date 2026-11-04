@@ -707,8 +707,21 @@ export function createCommandEnvironment(source = process.env, { platform = proc
   return environment;
 }
 
-export function runCommand(command, args, { timeout = 8_000, env = {}, preserveStdout = false, platform = process.platform } = {}) {
+export function runCommand(command, args, { timeout = 8_000, env = {}, preserveStdout = false, platform = process.platform, signal } = {}) {
   return new Promise((resolveResult) => {
+    if (signal?.aborted) {
+      resolveResult({
+        ok: false,
+        exitCode: null,
+        signal: "SIGTERM",
+        timedOut: false,
+        aborted: true,
+        stdout: "",
+        stderr: "",
+        error: "Command aborted",
+      });
+      return;
+    }
     const childEnv = createCommandEnvironment({ ...process.env, ...env }, { platform });
     normalizePathEnv(childEnv, {
       appendDirs: defaultPlatformPathDirs(childEnv, platform),
@@ -725,23 +738,41 @@ export function runCommand(command, args, { timeout = 8_000, env = {}, preserveS
     let stderr = "";
     let settled = false;
     let timedOut = false;
+    let aborted = false;
 
-    const finish = ({ ok, exitCode = null, signal = null, error = null }) => {
+    const finish = ({ ok, exitCode = null, signal: exitSignal = null, error = null }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener?.("abort", onAbort);
       child.stdout?.destroy();
       child.stderr?.destroy();
       resolveResult({
         ok,
         exitCode,
-        signal,
+        signal: exitSignal,
         timedOut,
+        aborted,
         stdout: preserveStdout ? stdout : stdout.trim(),
         stderr: stderr.trim(),
         error,
       });
     };
+
+    const onAbort = () => {
+      aborted = true;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // Ignore
+      }
+      finish({
+        ok: false,
+        signal: "SIGTERM",
+        error: `Command aborted: ${command} ${args.join(" ")}`,
+      });
+    };
+    signal?.addEventListener?.("abort", onAbort, { once: true });
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -768,12 +799,12 @@ export function runCommand(command, args, { timeout = 8_000, env = {}, preserveS
     child.on("error", (error) => {
       finish({ ok: false, error: error.message });
     });
-    child.on("exit", (code, signal) => {
+    child.on("exit", (code, exitSignal) => {
       finish({
-        ok: code === 0 && !signal,
+        ok: code === 0 && !exitSignal,
         exitCode: typeof code === "number" ? code : null,
-        signal: signal ?? null,
-        error: code === 0 && !signal ? null : (stderr.trim() || `Command exited with code ${code ?? signal}`),
+        signal: exitSignal ?? null,
+        error: code === 0 && !exitSignal ? null : (stderr.trim() || `Command exited with code ${code ?? exitSignal}`),
       });
     });
   });

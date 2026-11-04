@@ -27,23 +27,38 @@ test("command activity records real transitions, bounds history, and redacts bef
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("discovery is single-flight and rejects stale A/B/A results and manual-selection races", async () => {
+test("discovery is single-flight, aborts superseded or cancelled scans, and rejects stale results", async () => {
   const tracker = createDiscoveryTracker();
-  let finish;
+  const finishers = [];
   let loads = 0;
-  const load = () => { loads += 1; return new Promise((resolve) => { finish = resolve; }); };
+  const abortedKeys = [];
+  const load = ({ signal } = {}) => {
+    loads += 1;
+    signal?.addEventListener("abort", () => abortedKeys.push("a"));
+    return new Promise((resolve) => { finishers.push(resolve); });
+  };
   const first = tracker.begin("a", load);
+  const sameFlight = tracker.begin("a", load);
+  assert.equal(loads, 1, "Same key reuses in-flight request");
   const b = tracker.begin("b", async () => "b");
+  assert.deepEqual(abortedKeys, ["a"], "Switching keys aborts the previous in-flight scan");
   const latest = tracker.begin("a", load);
-  await Promise.resolve();
-  finish("a");
-  await Promise.all([first.promise, b.promise, latest.promise]);
-  assert.equal(loads, 1);
+  for (const finish of finishers) finish("a");
+  await Promise.all([first.promise, sameFlight.promise, b.promise, latest.promise]);
+  assert.equal(loads, 2);
   assert.equal(first.isCurrent(), false);
   assert.equal(b.isCurrent(), false);
   assert.equal(latest.isCurrent(), true);
   tracker.invalidate();
   assert.equal(latest.isCurrent(), false);
+  let abortFired = false;
+  const cancellable = tracker.begin("c", ({ signal } = {}) => {
+    signal?.addEventListener("abort", () => { abortFired = true; });
+    return new Promise(() => {});
+  }, true);
+  cancellable.abort();
+  assert.equal(abortFired, true);
+  assert.equal(cancellable.isCurrent(), false);
   const refresh = tracker.begin("a", async () => "new", true);
   assert.equal(await refresh.promise, "new");
   assert.equal(refresh.isCurrent(), true);

@@ -111,22 +111,25 @@ export async function discoverSandboxGroups(
     return found;
   };
 
+  const queryResourceGraphSandboxGroups = () => commandRunner("az", [
+    "rest",
+    "--method",
+    "post",
+    "--uri",
+    "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
+    "--body",
+    JSON.stringify({
+      query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId | order by name asc | limit 200",
+      options: { "$top": 200 },
+    }),
+    "-o",
+    "json",
+  ]);
+
   let resolvedSubscriptionId = subscriptionId;
   let groups = [];
   if (subscriptionId === "*") {
-    const graphResult = await commandRunner("az", [
-      "rest",
-      "--method",
-      "post",
-      "--uri",
-      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
-      "--body",
-      JSON.stringify({
-        query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId",
-      }),
-      "-o",
-      "json",
-    ]);
+    const graphResult = await queryResourceGraphSandboxGroups();
     if (graphResult?.ok && graphResult.stdout) {
       groups = parseGroupsFromStdout(graphResult.stdout, "");
     }
@@ -138,19 +141,7 @@ export async function discoverSandboxGroups(
       groups = parseGroupsFromStdout(result.stdout, subscriptionId);
     }
     if (!groups.length && fallbackAllSubscriptions && subscriptionId) {
-      const graphResult = await commandRunner("az", [
-        "rest",
-        "--method",
-        "post",
-        "--uri",
-        "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
-        "--body",
-        JSON.stringify({
-          query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId",
-        }),
-        "-o",
-        "json",
-      ]);
+      const graphResult = await queryResourceGraphSandboxGroups();
       if (graphResult?.ok && graphResult.stdout) {
         const crossSubGroups = parseGroupsFromStdout(graphResult.stdout, "");
         if (crossSubGroups.length) {

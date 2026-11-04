@@ -2004,6 +2004,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function updateModeHighlight() {
       if (panelMode !== "build") buildPanel.hide();
       const mode = ["build", "manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
+      if (mode !== "manage" && !window.appPlatformSettings?.isOpen?.()) {
+        gatewayDiscovery.invalidate();
+      }
       if (panelMode !== "map") setStructureGuidance(false);
       const observing = mode === "map" || mode === "logs";
       if (observing) observeView = mode;
@@ -2591,7 +2594,37 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const existingFields = container.querySelectorAll("select, button");
       for (const el of existingFields) el.disabled = true;
       const discovery = gatewayDiscovery.begin(discoveryKey,
-        () => apiRequest("/api/gateway-options?" + params), refresh);
+        ({ signal } = {}) => apiRequest("/api/gateway-options?" + params, { signal }), refresh);
+      let cancelBanner = container.querySelector('[data-discovery-cancel="true"]');
+      if (!cancelBanner) {
+        cancelBanner = document.createElement("div");
+        cancelBanner.className = "field-actions";
+        cancelBanner.dataset.discoveryCancel = "true";
+        appendText(
+          cancelBanner,
+          "small",
+          requestedSandboxSubscription === "*"
+            ? "Scanning sandbox groups across subscriptions (Resource Graph, max 200)…"
+            : "Refreshing Azure subscriptions, gateways & sandbox groups…",
+        );
+        const cancelBtn = actionButton("Cancel scan", () => {
+          discovery.abort();
+          if (!container.isConnected) return;
+          cancelBanner.remove();
+          for (const el of container.querySelectorAll("select, button")) el.disabled = false;
+          if (!container.querySelector("select")) {
+            clearElement(container);
+            appendText(container, "p", "Azure scan cancelled.");
+            buttons.append(container, actionButton("Retry scan", () => {
+              void loadGatewayControls(container, true);
+            }));
+          }
+          setStatus("Azure discovery scan cancelled.");
+        });
+        cancelBtn.setAttribute("aria-label", "Cancel Azure discovery scan");
+        buttons.append(cancelBanner, cancelBtn);
+        container.prepend(cancelBanner);
+      }
       try {
         const options = await discovery.promise;
         if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
@@ -2666,8 +2699,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               modelParams.set("sandboxSubscriptionId", selectedSandboxSubscriptionId);
             }
             try {
-              const nextOptions = await apiRequest("/api/gateway-options?" + modelParams);
-              if (!container.isConnected) return;
+              const modelDiscovery = gatewayDiscovery.begin(
+                [MODEL.root, selectedGateway.subscriptionId || selectedSubscriptionId, selectedSandboxSubscriptionId, selectedGateway.name + ":" + selectedGateway.resourceGroup].join("|"),
+                ({ signal } = {}) => apiRequest("/api/gateway-options?" + modelParams, { signal }),
+                true,
+              );
+              const nextOptions = await modelDiscovery.promise;
+              if (!container.isConnected || !modelDiscovery.isCurrent()) return;
               gatewayState = nextOptions;
               options.models = nextOptions.models || [];
               modelSelect.innerHTML = "";
@@ -2710,7 +2748,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 buttons.setDisabled(applyBtn, !nextModels.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
               }
             } catch (err) {
-              setStatus(err.message, true);
+              if (err?.name !== "AbortError") setStatus(err.message, true);
             }
           });
         } else {
@@ -2917,7 +2955,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         details.scrollTop = detailsScroll;
         container.scrollTop = containerScroll;
       } catch (error) {
-        if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
+        if (error?.name === "AbortError" || !container.isConnected || requestedSubscription !== selectedSubscriptionId ||
           requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
