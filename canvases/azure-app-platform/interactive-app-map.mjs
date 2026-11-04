@@ -1072,6 +1072,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let outputRefreshing = false;
     let operationalRefreshing = false;
     let selectedSubscriptionId = "";
+    let selectedSandboxSubscriptionId = "";
+    let selectedSandboxChoice = "";
     const gatewayDiscovery = (${createDiscoveryTracker.toString()})();
     let selectedGateway = null;
     let selectedModel = "";
@@ -2571,33 +2573,45 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       const requestedSubscription = selectedSubscriptionId;
+      const requestedSandboxSubscription = selectedSandboxSubscriptionId;
       const params = new URLSearchParams({ root: MODEL.root });
       if (requestedSubscription) params.set("subscriptionId", requestedSubscription);
+      if (requestedSandboxSubscription) params.set("sandboxSubscriptionId", requestedSandboxSubscription);
       if (selectedGateway) {
         params.set("gatewayName", selectedGateway.name);
         params.set("resourceGroup", selectedGateway.resourceGroup);
       }
+      if (refresh) params.set("refresh", "1");
+      const discoveryKey = [
+        MODEL.root,
+        requestedSubscription,
+        requestedSandboxSubscription,
+        selectedGateway ? selectedGateway.name + ":" + selectedGateway.resourceGroup : "",
+      ].join("|");
       const existingFields = container.querySelectorAll("select, button");
       for (const el of existingFields) el.disabled = true;
-      const discovery = gatewayDiscovery.begin(params.toString(),
+      const discovery = gatewayDiscovery.begin(discoveryKey,
         () => apiRequest("/api/gateway-options?" + params), refresh);
       try {
         const options = await discovery.promise;
         if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
+          requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
           !discovery.isCurrent()) return;
         const detailsScroll = details.scrollTop;
         const containerScroll = container.scrollTop;
         gatewayState = options;
         selectedSubscriptionId = options.subscription?.id || "";
+        selectedSandboxSubscriptionId = options.sandboxSubscriptionId || selectedSubscriptionId;
         selectedGateway = options.suggested;
         clearElement(container);
         for (const warning of options.warnings || []) appendText(container, "p", warning, "error");
-        const activeName = gatewayState.active?.name || "";
+        const subscriptions = gatewayState.subscriptions || [];
+        const subNameById = new Map(subscriptions.map((sub) => [String(sub.id).toLowerCase(), sub.name]));
 
         const subGroup = appendText(container, "div", "", "field-group");
         const subscriptionSelect = document.createElement("select");
         subscriptionSelect.setAttribute("aria-label", "Azure subscription");
-        for (const subscription of gatewayState.subscriptions || []) {
+        for (const subscription of subscriptions) {
           const option = document.createElement("option");
           option.value = subscription.id;
           option.textContent = subscription.name + (subscription.isDefault ? " (default)" : "");
@@ -2606,9 +2620,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         appendField(subGroup, "Azure subscription", subscriptionSelect);
         const subActions = appendText(subGroup, "div", "", "field-actions");
-        buttons.append(subActions, actionButton("Refresh", () => {
+        const refreshGatewayBtn = actionButton("Refresh", () => {
           void loadGatewayControls(container, true);
-        }));
+        });
+        refreshGatewayBtn.setAttribute("aria-label", "Refresh subscriptions & gateways");
+        buttons.append(subActions, refreshGatewayBtn);
         subscriptionSelect.addEventListener("change", () => {
           selectedSubscriptionId = subscriptionSelect.value;
           selectedGateway = null;
@@ -2644,7 +2660,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               subscriptionId: selectedGateway.subscriptionId || selectedSubscriptionId,
               gatewayName: selectedGateway.name,
               resourceGroup: selectedGateway.resourceGroup,
+              refresh: "1",
             });
+            if (selectedSandboxSubscriptionId) {
+              modelParams.set("sandboxSubscriptionId", selectedSandboxSubscriptionId);
+            }
             try {
               const nextOptions = await apiRequest("/api/gateway-options?" + modelParams);
               if (!container.isConnected) return;
@@ -2754,36 +2774,85 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           }
         }
 
+        const sbSubGroup = appendText(container, "div", "", "field-group");
+        const sandboxSubSelect = document.createElement("select");
+        sandboxSubSelect.setAttribute("aria-label", "Sandbox subscription");
+        const allSubsOption = document.createElement("option");
+        allSubsOption.value = "*";
+        allSubsOption.textContent = "All enabled subscriptions";
+        allSubsOption.selected = selectedSandboxSubscriptionId === "*";
+        sandboxSubSelect.append(allSubsOption);
+        for (const subscription of subscriptions) {
+          const option = document.createElement("option");
+          option.value = subscription.id;
+          option.textContent = subscription.name + (subscription.isDefault ? " (default)" : "");
+          option.selected = subscription.id === selectedSandboxSubscriptionId;
+          sandboxSubSelect.append(option);
+        }
+        appendField(sbSubGroup, "Sandbox subscription", sandboxSubSelect);
+        const sbSubActions = appendText(sbSubGroup, "div", "", "field-actions");
+        const refreshSandboxBtn = actionButton("Refresh", () => {
+          void loadGatewayControls(container, true);
+        });
+        refreshSandboxBtn.setAttribute("aria-label", "Refresh sandbox groups");
+        buttons.append(sbSubActions, refreshSandboxBtn);
+        sandboxSubSelect.addEventListener("change", () => {
+          selectedSandboxSubscriptionId = sandboxSubSelect.value;
+          selectedSandboxChoice = "";
+          void loadGatewayControls(container);
+        });
+
         const sbGroup = appendText(container, "div", "", "field-group");
         const sandboxGroups = options.sandboxGroups || [];
         const sandboxSelect = document.createElement("select");
         sandboxSelect.setAttribute("aria-label", "ACA Sandbox Group");
         const activeSandboxInSub = options.active?.sandboxGroup?.name
-          && (!options.subscription?.id
-            || (options.active?.sandboxGroup?.subscriptionId || options.active?.subscriptionId || "").toLowerCase() === options.subscription.id.toLowerCase())
-          ? options.active.sandboxGroup.name
+          && (!selectedSandboxSubscriptionId
+            || selectedSandboxSubscriptionId === "*"
+            || (options.active?.sandboxGroup?.subscriptionId || options.active?.subscriptionId || "").toLowerCase() === selectedSandboxSubscriptionId.toLowerCase())
+          ? options.active.sandboxGroup.name + ":" + (options.active.sandboxGroup.resourceGroup || "")
           : "";
-        const activeSandboxName = options.suggestedSandboxGroup?.name || activeSandboxInSub || "";
-        const hasSelectedSandbox = sandboxGroups.some((sg) => sg.name === activeSandboxName);
+        const suggestedSandboxKey = options.suggestedSandboxGroup?.name
+          ? options.suggestedSandboxGroup.name + ":" + (options.suggestedSandboxGroup.resourceGroup || "")
+          : "";
+        const targetSandboxKey = selectedSandboxChoice || suggestedSandboxKey || activeSandboxInSub || "";
+        const hasSelectedSandbox = targetSandboxKey !== "local-simulation" && sandboxGroups.some((sg) =>
+          (sg.name + ":" + (sg.resourceGroup || "")) === targetSandboxKey || sg.name === targetSandboxKey,
+        );
         for (const [index, sg] of sandboxGroups.entries()) {
           const option = document.createElement("option");
           option.value = String(index);
-          option.textContent = sg.name + (sg.resourceGroup ? " · " + sg.resourceGroup : "");
-          option.selected = sg.name === activeSandboxName;
+          const sgKey = sg.name + ":" + (sg.resourceGroup || "");
+          const subLabel = selectedSandboxSubscriptionId === "*" && sg.subscriptionId
+            ? " · " + (subNameById.get(String(sg.subscriptionId).toLowerCase()) || sg.subscriptionId.slice(0, 8))
+            : "";
+          option.textContent = sg.name + (sg.resourceGroup ? " · " + sg.resourceGroup : "") + subLabel;
+          option.selected = sgKey === targetSandboxKey || sg.name === targetSandboxKey;
           sandboxSelect.append(option);
         }
         const simOption = document.createElement("option");
         simOption.value = "local-simulation";
-        simOption.textContent = "Local simulation mode (no microVM)";
-        simOption.selected = !sandboxGroups.length || !hasSelectedSandbox;
+        simOption.textContent = "Local simulation mode (no sandbox)";
+        simOption.selected = targetSandboxKey === "local-simulation" || !sandboxGroups.length || !hasSelectedSandbox;
         sandboxSelect.append(simOption);
+        sandboxSelect.addEventListener("change", () => {
+          if (sandboxSelect.value === "local-simulation") {
+            selectedSandboxChoice = "local-simulation";
+          } else {
+            const chosen = sandboxGroups[Number(sandboxSelect.value)];
+            selectedSandboxChoice = chosen ? chosen.name + ":" + (chosen.resourceGroup || "") : "";
+          }
+        });
         appendField(sbGroup, "ACA Sandbox Group", sandboxSelect);
         const sbActions = appendText(sbGroup, "div", "", "field-actions");
         buttons.append(sbActions, actionButton("Create Sandbox Group", async () => {
           const activeCandidate = options.gateways[Number(select.value)] || gatewayState.suggested;
+          const targetSub = selectedSandboxSubscriptionId && selectedSandboxSubscriptionId !== "*"
+            ? selectedSandboxSubscriptionId
+            : (options.subscription?.id || activeCandidate?.subscriptionId || "");
           if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
           await runAppOperation("create-sandbox-group", {
-            subscriptionId: options.subscription?.id || activeCandidate?.subscriptionId || "",
+            subscriptionId: targetSub,
             resourceGroup: activeCandidate?.resourceGroup || "rg-app-platform-aigateway",
             location: activeCandidate?.location || "eastus2",
             sandboxGroupName: "aca-sandboxes-samples",
@@ -2805,7 +2874,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 envTabSummary.textContent = "Applying…";
                 envTabSummary.dataset.attention = "false";
               }
-              subscriptionSelect.disabled = select.disabled = modelSelect.disabled = sandboxSelect.disabled = true;
+              subscriptionSelect.disabled = sandboxSubSelect.disabled = select.disabled = modelSelect.disabled = sandboxSelect.disabled = true;
               try {
                 const gateway = options.gateways[Number(select.value)];
                 const chosenSandboxGroup = sandboxGroups.length && sandboxSelect.value !== "local-simulation"
@@ -2849,6 +2918,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         container.scrollTop = containerScroll;
       } catch (error) {
         if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
+          requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
         appendText(container, "p", error.message, "error");

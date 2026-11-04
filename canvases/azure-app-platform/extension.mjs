@@ -860,6 +860,53 @@ async function fetchGatewayApiKey(gateway) {
   return "";
 }
 
+async function probeGatewayModelResponses(endpoint, apiKey, model) {
+  if (!endpoint || !apiKey || !model) return false;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  timeout.unref?.();
+  try {
+    const response = await fetch(`${endpoint.replace(/\/+$/, "")}/default/models/openai/v1/responses`, {
+      method: "POST",
+      headers: {
+        "Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        input: "Reply with exactly one word: ok",
+        max_output_tokens: 32,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    return Array.isArray(payload?.output) && payload.output.some((item) =>
+      item?.type === "message"
+      && Array.isArray(item.content)
+      && item.content.some((content) => content?.type === "output_text" && String(content?.text || "").trim()),
+    );
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function probeSandboxGroupDataPlane(sandboxGroup) {
+  if (!sandboxGroup?.name || !sandboxGroup?.resourceGroup) return false;
+  const sub = sandboxGroup.subscriptionId || "";
+  const rg = sandboxGroup.resourceGroup;
+  const region = sandboxGroup.location || "eastus2";
+  const group = sandboxGroup.name;
+  const args = [];
+  if (sub) args.push("-s", sub);
+  args.push("-g", rg, "--region", region, "-o", "json", "sandbox", "list", "--group", group);
+  const listResult = await azureBootstrapRunner("aca", args);
+  return Boolean(listResult?.ok);
+}
+
 async function discoverDefaultCanvasInfra() {
   if (cachedDefaultInfraPromise) return cachedDefaultInfraPromise;
   cachedDefaultInfraPromise = (async () => {
@@ -873,61 +920,59 @@ async function discoverDefaultCanvasInfra() {
       });
       let gateway = null;
       let model = "";
+      let apiKey = "";
       for (const candidate of preferredOrder) {
-        const cliModels = await azureBootstrapRunner("az", [
-          "aigateway",
-          "model",
-          "list",
-          "--subscription",
-          candidate.subscriptionId,
-          "-g",
-          candidate.resourceGroup,
-          "--gateway-name",
-          candidate.name,
-          "-o",
-          "json",
-        ]);
-        if (cliModels?.ok && cliModels.stdout) {
-          try {
-            const parsed = JSON.parse(cliModels.stdout);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const models = parsed
-                .map((item) => ({ id: String(item?.name ?? "").trim() }))
-                .filter((item) => item.id);
-              const preferred = selectPreferredModelId(models);
-              if (preferred) {
-                gateway = candidate;
-                model = preferred;
-                break;
-              }
-            }
-          } catch {
-            // Try next candidate
+        let models = [];
+        try {
+          models = await discoverGatewayModels(azureBootstrapRunner, candidate);
+        } catch {
+          models = [];
+        }
+        if (!models.length) continue;
+        const candidateKey = await fetchGatewayApiKey(candidate);
+        if (!candidateKey) continue;
+        const preferred = selectPreferredModelId(models);
+        const orderedModels = [
+          preferred,
+          ...models.map((item) => item.id).filter((id) => id !== preferred),
+        ].filter(Boolean);
+        for (const candidateModel of orderedModels) {
+          if (await probeGatewayModelResponses(candidate.endpoint, candidateKey, candidateModel)) {
+            gateway = candidate;
+            model = candidateModel;
+            apiKey = candidateKey;
+            break;
           }
         }
+        if (gateway && model && apiKey) break;
       }
-      if (!gateway || !model) {
-        const modelOptions = await loadGatewayModelOptions(azureBootstrapRunner, options);
-        gateway = modelOptions.suggested;
-        model = selectPreferredModelId(modelOptions.models);
-      }
-      if (!gateway || !model) return null;
-      const apiKey = await fetchGatewayApiKey(gateway);
-      if (!apiKey) return null;
+      if (!gateway || !model || !apiKey) return null;
       const acaConfig = await readAcaCliDefaultConfig();
-      const { suggested: sandboxGroup } = await discoverSandboxGroups(
+      const { sandboxGroups, suggested } = await discoverSandboxGroups(
         azureBootstrapRunner,
         gateway.subscriptionId,
         acaConfig,
+        { includeAll: true, fallbackAllSubscriptions: true },
       );
+      let validatedSandboxGroup = null;
+      const orderedGroups = [
+        suggested,
+        ...sandboxGroups.filter((item) => item?.name !== suggested?.name || item?.resourceGroup !== suggested?.resourceGroup),
+      ].filter(Boolean);
+      for (const candidateGroup of orderedGroups) {
+        if (await probeSandboxGroupDataPlane(candidateGroup)) {
+          validatedSandboxGroup = candidateGroup;
+          break;
+        }
+      }
       return {
         gateway: {
           ...gateway,
           model,
-          sandboxGroup: sandboxGroup ?? undefined,
+          sandboxGroup: validatedSandboxGroup ?? undefined,
         },
         apiKey,
-        sandboxGroup: sandboxGroup ?? null,
+        sandboxGroup: validatedSandboxGroup ?? null,
       };
     } catch {
       return null;
@@ -1605,6 +1650,9 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     if (request.method === "GET" && url.pathname === "/api/gateway-options") {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
+      if (url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true") {
+        cachedDefaultInfraPromise = null;
+      }
       const active = await loadActiveGateway(root, { refresh: true });
       const runner = trackedAzureRunner(root);
       const options = await discoverGatewayOptions(
@@ -1616,16 +1664,25 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             subscriptionId: active.sandboxGroup.subscriptionId || active.subscriptionId || "",
           }
         : await readAcaCliDefaultConfig();
+      const requestedSandboxSub = url.searchParams.get("sandboxSubscriptionId") || "";
+      const initialSandboxSub = requestedSandboxSub
+        || configuredSandboxGroup?.subscriptionId
+        || options.subscription?.id
+        || "";
       const [modelOptions, sandboxDiscovery] = await Promise.all([
         loadGatewayModelOptions(runner, options, {
           name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
         }),
-        discoverSandboxGroups(runner, options.subscription?.id, configuredSandboxGroup, { includeAll: true }),
+        discoverSandboxGroups(runner, initialSandboxSub, configuredSandboxGroup, {
+          includeAll: true,
+          fallbackAllSubscriptions: !requestedSandboxSub,
+        }),
       ]);
       sendJson(response, 200, {
         ...modelOptions,
         sandboxGroups: sandboxDiscovery.sandboxGroups,
         suggestedSandboxGroup: sandboxDiscovery.suggested,
+        sandboxSubscriptionId: sandboxDiscovery.subscriptionId || initialSandboxSub,
       });
       return;
     }

@@ -49,21 +49,38 @@ test("discovery is single-flight and rejects stale A/B/A results and manual-sele
   assert.equal(refresh.isCurrent(), true);
 });
 
-test("gateway models span providers; empty gateways are skipped for new default selection", async () => {
+test("gateway models span providers and include callable aliases; empty gateways are skipped for new default selection", async () => {
   const gateways = ["empty", "ready"].map((name) => ({
     name, subscriptionId: "sub", resourceGroup: "rg", endpoint: `https://${name}.example`,
   }));
   const runner = async (_, args) => {
     const uri = args[args.indexOf("--uri") + 1];
-    assert.ok(uri.includes("/workspaces/default/models?"));
+    assert.ok(uri.includes("/workspaces/default/models?") || uri.includes("/workspaces/default/aliases?"));
     assert.ok(!uri.includes("/modelProviders/foundry"));
-    return { ok: true, stdout: JSON.stringify({ value: uri.includes("/service/empty/")
+    if (uri.includes("/workspaces/default/aliases?")) {
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          value: uri.includes("/empty/")
+            ? []
+            : [{
+                name: "primary-router",
+                properties: {
+                  aliasName: "gpt-latest",
+                  backendModels: [{ resourceId: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ApiManagement/aigateways/ready/workspaces/default/modelProviders/foundry/models/gpt-main" }],
+                },
+              }],
+        }),
+      };
+    }
+    return { ok: true, stdout: JSON.stringify({ value: uri.includes("/empty/")
       ? [] : [{ name: "gpt-main", properties: { displayName: "GPT Main" } }] }) };
   };
   const options = { gateways, active: null, suggested: gateways[0] };
   const result = await loadGatewayModelOptions(runner, options);
   assert.equal(result.suggested.name, "ready");
-  assert.equal(result.models[0].id, "gpt-main");
+  assert.deepEqual(result.models.map((item) => item.id), ["gpt-latest", "gpt-main"]);
+  assert.match(result.models[0].label, /gpt-latest · alias → gpt-main/);
   const saved = await loadGatewayModelOptions(runner, { ...options, active: gateways[0] });
   assert.equal(saved.suggested.name, "empty");
   assert.deepEqual(saved.models, []);

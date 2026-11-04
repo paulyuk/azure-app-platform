@@ -69,61 +69,120 @@ export function normalizeSandboxGroupCandidate(group) {
   };
 }
 
-export async function discoverSandboxGroups(commandRunner, subscriptionId = "", configuredGroup = null, { includeAll = false } = {}) {
+export async function discoverSandboxGroups(
+  commandRunner,
+  subscriptionId = "",
+  configuredGroup = null,
+  { includeAll = false, fallbackAllSubscriptions = false } = {},
+) {
   const configured = configuredGroup ? normalizeSandboxGroupCandidate(configuredGroup) : null;
+  const matchesSub = (candidateSub, targetSub) =>
+    !targetSub || !candidateSub || candidateSub.toLowerCase() === targetSub.toLowerCase();
   const configuredMatchesSubscription = Boolean(
     configured?.name
     && configured?.resourceGroup
-    && (
-      !subscriptionId
-      || (
-        configured.subscriptionId
-        && configured.subscriptionId.toLowerCase() === subscriptionId.toLowerCase()
-      )
-    ),
+    && matchesSub(configured.subscriptionId, subscriptionId),
   );
   if (!includeAll && configuredMatchesSubscription) {
-    return { sandboxGroups: [configured], suggested: configured };
+    return { sandboxGroups: [configured], suggested: configured, subscriptionId: subscriptionId || configured.subscriptionId || "" };
   }
-  const args = ["resource", "list", "--resource-type", "Microsoft.App/sandboxGroups", "-o", "json"];
-  if (subscriptionId) args.splice(4, 0, "--subscription", subscriptionId);
-  const result = await commandRunner("az", args);
-  const groups = [];
-  if (result?.ok && result.stdout) {
+
+  const parseGroupsFromStdout = (stdout, filterSub = "") => {
+    const found = [];
+    if (!stdout) return found;
     try {
-      const parsed = JSON.parse(result.stdout);
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          const candidate = normalizeSandboxGroupCandidate(item);
-          if (
-            candidate.name
-            && candidate.resourceGroup
-            && (!subscriptionId || !candidate.subscriptionId || candidate.subscriptionId.toLowerCase() === subscriptionId.toLowerCase())
-          ) {
-            groups.push(candidate);
+      const parsed = JSON.parse(stdout);
+      const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.data) ? parsed.data : []);
+      for (const item of list) {
+        const candidate = normalizeSandboxGroupCandidate(item);
+        if (candidate.name && candidate.resourceGroup && matchesSub(candidate.subscriptionId, filterSub)) {
+          if (!found.some((existing) =>
+            existing.name === candidate.name
+            && existing.resourceGroup === candidate.resourceGroup
+            && (existing.subscriptionId || "").toLowerCase() === (candidate.subscriptionId || "").toLowerCase()
+          )) {
+            found.push(candidate);
           }
         }
       }
     } catch {
-      // Ignore parse failures and fall back to configured group if present
+      // Ignore parse failures
+    }
+    return found;
+  };
+
+  let resolvedSubscriptionId = subscriptionId;
+  let groups = [];
+  if (subscriptionId === "*") {
+    const graphResult = await commandRunner("az", [
+      "rest",
+      "--method",
+      "post",
+      "--uri",
+      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
+      "--body",
+      JSON.stringify({
+        query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId",
+      }),
+      "-o",
+      "json",
+    ]);
+    if (graphResult?.ok && graphResult.stdout) {
+      groups = parseGroupsFromStdout(graphResult.stdout, "");
+    }
+  } else {
+    const args = ["resource", "list", "--resource-type", "Microsoft.App/sandboxGroups", "-o", "json"];
+    if (subscriptionId) args.splice(4, 0, "--subscription", subscriptionId);
+    const result = await commandRunner("az", args);
+    if (result?.ok && result.stdout) {
+      groups = parseGroupsFromStdout(result.stdout, subscriptionId);
+    }
+    if (!groups.length && fallbackAllSubscriptions && subscriptionId) {
+      const graphResult = await commandRunner("az", [
+        "rest",
+        "--method",
+        "post",
+        "--uri",
+        "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
+        "--body",
+        JSON.stringify({
+          query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId",
+        }),
+        "-o",
+        "json",
+      ]);
+      if (graphResult?.ok && graphResult.stdout) {
+        const crossSubGroups = parseGroupsFromStdout(graphResult.stdout, "");
+        if (crossSubGroups.length) {
+          groups = crossSubGroups;
+          resolvedSubscriptionId = "*";
+        }
+      }
     }
   }
-  if (configuredMatchesSubscription && !groups.some((item) =>
-    item.name === configured.name && item.resourceGroup === configured.resourceGroup
-  )) {
+
+  const effectiveFilterSub = resolvedSubscriptionId === "*" ? "" : resolvedSubscriptionId;
+  if (
+    configured?.name
+    && configured?.resourceGroup
+    && matchesSub(configured.subscriptionId, effectiveFilterSub)
+    && !groups.some((item) =>
+      item.name === configured.name && item.resourceGroup === configured.resourceGroup
+    )
+  ) {
     groups.unshift(configured);
   }
   groups.sort((a, b) => a.name.localeCompare(b.name));
   const suggested = (
     configured?.name
     && configured?.resourceGroup
-    && (!subscriptionId || !configured.subscriptionId || configured.subscriptionId.toLowerCase() === subscriptionId.toLowerCase())
+    && matchesSub(configured.subscriptionId, effectiveFilterSub)
       ? groups.find((item) => item.name === configured.name && item.resourceGroup === configured.resourceGroup)
       : null
   )
     ?? groups[0]
     ?? null;
-  return { sandboxGroups: groups, suggested };
+  return { sandboxGroups: groups, suggested, subscriptionId: resolvedSubscriptionId };
 }
 
 export function normalizeGatewayCandidate(gateway) {
@@ -180,71 +239,187 @@ export function gatewayCommandEnvironment(active) {
   return env;
 }
 
+function normalizeModelEntry({ id, name, displayName, kind = "model", targets = [] }) {
+  const callableId = text(id || name);
+  if (!callableId) return null;
+  const display = text(displayName);
+  let label = callableId;
+  if (kind === "alias") {
+    const targetSuffix = targets.length ? ` → ${targets.join(", ")}` : "";
+    const aliasResource = text(name);
+    const resourceNote = aliasResource && aliasResource !== callableId ? ` (${aliasResource})` : "";
+    label = `${callableId} · alias${targetSuffix}${resourceNote}`;
+  } else if (display && display !== callableId) {
+    label = `${callableId} (${display})`;
+  }
+  return { id: callableId, label, kind };
+}
+
+function extractAliasTargetModelNames(item) {
+  const backends = Array.isArray(item?.properties?.backendModels) ? item.properties.backendModels : [];
+  const names = [];
+  for (const backend of backends) {
+    const resourceId = text(backend?.resourceId);
+    const parts = resourceId.split("/").filter(Boolean);
+    const modelsIdx = parts.findIndex((part) => part.toLowerCase() === "models");
+    const modelName = modelsIdx >= 0 ? text(parts[modelsIdx + 1]) : text(parts.at(-1));
+    if (modelName && !names.includes(modelName)) names.push(modelName);
+  }
+  return names;
+}
+
 export async function discoverGatewayModels(commandRunner, gateway) {
   const active = validateGatewayCandidate(gateway);
   const segments = [active.subscriptionId, active.resourceGroup, active.name].map(encodeURIComponent);
-  const uri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/service/${segments[2]}/workspaces/default/models?api-version=2025-09-01-preview`;
-  const items = [];
-  const seen = new Set();
-  let next = uri;
+  const resourceTypes = ["aigateways", "service"];
+  const collected = new Map();
+  const addEntry = (entry) => {
+    if (!entry?.id) return;
+    const existing = collected.get(entry.id);
+    if (!existing || (existing.kind !== "alias" && entry.kind === "alias")) {
+      collected.set(entry.id, entry);
+    }
+  };
+
   let restError = "";
-  while (next) {
-    const target = new URL(next, uri);
-    if (target.origin !== "https://management.azure.com" || target.pathname !== new URL(uri).pathname
-      || target.username || target.password || seen.has(target.href) || seen.size >= 100) {
-      throw new Error("Gateway model discovery returned an invalid continuation URL.");
-    }
-    seen.add(target.href);
-    const result = await commandRunner("az", ["rest", "--method", "get", "--uri", target.href, "-o", "json"]);
-    if (!result.ok) {
-      restError = result.stderr || result.error || "Unable to discover gateway models.";
-      break;
-    }
-    const payload = JSON.parse(result.stdout);
-    if (!Array.isArray(payload.value)) {
-      restError = "Gateway model discovery returned an invalid inventory.";
-      break;
-    }
-    items.push(...payload.value);
-    next = payload.nextLink;
-  }
-  if (!restError) {
-    return items.map((item) => ({
-      id: text(item.name), label: text(item.properties?.displayName || item.name),
-    })).filter((item) => item.id).sort((a, b) => a.id.localeCompare(b.id));
-  }
-  const cliResult = await commandRunner("az", [
-    "aigateway",
-    "model",
-    "list",
-    "--subscription",
-    active.subscriptionId,
-    "-g",
-    active.resourceGroup,
-    "--gateway-name",
-    active.name,
-    "-o",
-    "json",
-  ]);
-  if (cliResult?.ok && cliResult.stdout) {
-    try {
-      const cliItems = JSON.parse(cliResult.stdout);
-      if (Array.isArray(cliItems)) {
-        return cliItems
-          .map((item) => {
-            const id = text(item.name);
-            const displayName = text(item.properties?.displayName);
-            const label = displayName && displayName !== id ? `${id} (${displayName})` : (displayName || id);
-            return { id, label };
-          })
-          .filter((item) => item.id)
-          .sort((a, b) => a.id.localeCompare(b.id));
+  let restSucceeded = false;
+  for (const resourceType of resourceTypes) {
+    const modelsUri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/${resourceType}/${segments[2]}/workspaces/default/models?api-version=2025-09-01-preview`;
+    const items = [];
+    const seen = new Set();
+    let next = modelsUri;
+    let typeFailed = false;
+    while (next) {
+      const target = new URL(next, modelsUri);
+      if (target.origin !== "https://management.azure.com" || target.pathname !== new URL(modelsUri).pathname
+        || target.username || target.password || seen.has(target.href) || seen.size >= 100) {
+        throw new Error("Gateway model discovery returned an invalid continuation URL.");
       }
-    } catch {
-      // Ignore parse errors and throw original REST error below
+      seen.add(target.href);
+      const result = await commandRunner("az", ["rest", "--method", "get", "--uri", target.href, "-o", "json"]);
+      if (!result?.ok) {
+        restError = result?.stderr || result?.error || "Unable to discover gateway models.";
+        typeFailed = true;
+        break;
+      }
+      let payload;
+      try {
+        payload = JSON.parse(result.stdout);
+      } catch {
+        restError = "Gateway model discovery returned an invalid inventory.";
+        typeFailed = true;
+        break;
+      }
+      if (!Array.isArray(payload?.value)) {
+        restError = "Gateway model discovery returned an invalid inventory.";
+        typeFailed = true;
+        break;
+      }
+      items.push(...payload.value);
+      next = payload.nextLink;
+    }
+    if (!typeFailed) {
+      restSucceeded = true;
+      for (const item of items) {
+        addEntry(normalizeModelEntry({
+          id: item?.name,
+          displayName: item?.properties?.displayName,
+          kind: "model",
+        }));
+      }
+      const aliasesUri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/${resourceType}/${segments[2]}/workspaces/default/aliases?api-version=2025-09-01-preview`;
+      const aliasResult = await commandRunner("az", ["rest", "--method", "get", "--uri", aliasesUri, "-o", "json"]);
+      if (aliasResult?.ok && aliasResult.stdout) {
+        try {
+          const aliasPayload = JSON.parse(aliasResult.stdout);
+          const aliasItems = Array.isArray(aliasPayload?.value) ? aliasPayload.value : (Array.isArray(aliasPayload) ? aliasPayload : []);
+          for (const item of aliasItems) {
+            addEntry(normalizeModelEntry({
+              id: item?.properties?.aliasName || item?.aliasName || item?.name,
+              name: item?.name,
+              kind: "alias",
+              targets: extractAliasTargetModelNames(item),
+            }));
+          }
+        } catch {
+          // Ignore optional alias parse failures
+        }
+      }
+      break;
     }
   }
-  throw new Error(restError);
+
+  if (!restSucceeded) {
+    const [cliModelsResult, cliAliasesResult] = await Promise.all([
+      commandRunner("az", [
+        "aigateway",
+        "model",
+        "list",
+        "--subscription",
+        active.subscriptionId,
+        "-g",
+        active.resourceGroup,
+        "--gateway-name",
+        active.name,
+        "-o",
+        "json",
+      ]),
+      commandRunner("az", [
+        "aigateway",
+        "model-alias",
+        "list",
+        "--subscription",
+        active.subscriptionId,
+        "-g",
+        active.resourceGroup,
+        "--gateway-name",
+        active.name,
+        "-o",
+        "json",
+      ]),
+    ]);
+    let cliSucceeded = false;
+    if (cliModelsResult?.ok && cliModelsResult.stdout) {
+      try {
+        const cliItems = JSON.parse(cliModelsResult.stdout);
+        if (Array.isArray(cliItems)) {
+          cliSucceeded = true;
+          for (const item of cliItems) {
+            addEntry(normalizeModelEntry({
+              id: item?.name,
+              displayName: item?.properties?.displayName,
+              kind: "model",
+            }));
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    if (cliAliasesResult?.ok && cliAliasesResult.stdout) {
+      try {
+        const cliAliases = JSON.parse(cliAliasesResult.stdout);
+        if (Array.isArray(cliAliases)) {
+          cliSucceeded = true;
+          for (const item of cliAliases) {
+            addEntry(normalizeModelEntry({
+              id: item?.properties?.aliasName || item?.aliasName || item?.name,
+              name: item?.name,
+              kind: "alias",
+              targets: extractAliasTargetModelNames(item),
+            }));
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    if (!cliSucceeded) {
+      throw new Error(restError || "Unable to discover gateway models.");
+    }
+  }
+
+  return [...collected.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function loadGatewayModelOptions(commandRunner, options, requestedGateway) {
