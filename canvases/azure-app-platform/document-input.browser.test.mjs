@@ -233,11 +233,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         "Paragraph " + i + ": preserve the full agreement, punctuation and line breaks.").join("\r\n\r\n") +
         '\r\n\r\n<img src="https://untrusted.invalid/image" onerror="window.documentExecuted=true">' +
         '\r\n<script>window.documentExecuted=true</script>\r\n[External](https://untrusted.invalid/link)\r\nFINAL SOURCE LINE';
+      const documentName = "loan-terms-" + "agreement-".repeat(12) + ".md";
       const chooser = page.waitForEvent("filechooser");
       await plus.click();
-      await (await chooser).setFiles({ name: "loan-terms.md", mimeType: "text/markdown", buffer: Buffer.from(content) });
+      await (await chooser).setFiles({ name: documentName, mimeType: "text/markdown", buffer: Buffer.from(content) });
       const summary = page.getByLabel("Document attachment", { exact: true });
-      await page.locator(".document-name").filter({ hasText: "loan-terms.md" }).waitFor();
+      await page.locator(".document-name").filter({ hasText: documentName }).waitFor();
       const card = page.locator(".document-attachment");
       const preview = page.getByRole("region", { name: "Attached document text", exact: true });
       await summary.focus();
@@ -272,13 +273,25 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok(geometry.fits && geometry.inside &&
             Math.abs(geometry.leftInset - 6) <= 1 && geometry.bottomInset >= 0 && geometry.bottomInset < 12,
           JSON.stringify({ width, height, theme, geometry }));
+          const badgeGeometry = await card.locator(".document-source-label").evaluate(badge => {
+            const name = badge.previousElementSibling, summary = badge.closest("summary");
+            const file = name.getBoundingClientRect(), label = badge.getBoundingClientRect();
+            return { gap: label.left - file.right, centered: Math.abs((file.top + file.bottom) - (label.top + label.bottom)) < 2,
+              truncated: name.scrollWidth > name.clientWidth && getComputedStyle(name).textOverflow === "ellipsis",
+              marker: getComputedStyle(summary).display === "list-item", neutral: !badge.hasAttribute("data-state"),
+              muted: getComputedStyle(badge).color === getComputedStyle(document.querySelector(".document-edit > summary")).color };
+          });
+          assert.ok(badgeGeometry.gap >= 6 && badgeGeometry.gap <= 10 && badgeGeometry.centered &&
+            badgeGeometry.truncated && badgeGeometry.marker && badgeGeometry.neutral && badgeGeometry.muted,
+          JSON.stringify({ width, theme, badgeGeometry }));
+          assert.equal(await card.locator(".document-name").getAttribute("title"), documentName);
           assert.equal(await card.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
         }
       }
       await page.setViewportSize({ width: 620, height: 800 });
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();
-      assert.deepEqual(fixture.mutations.at(-1).body.document, { name: "loan-terms.md", content });
+      assert.deepEqual(fixture.mutations.at(-1).body.document, { name: documentName, content });
       await page.getByRole("button", { name: "Remove document", exact: true }).click();
       assert.equal(await card.isVisible(), false);
       assert.equal(await plus.evaluate(node => node === document.activeElement), true);

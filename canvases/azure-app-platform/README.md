@@ -707,8 +707,10 @@ without calling a model. Both it and **Invoke agent** use the message and option
 document together in **Run/Debug**. The official **+ Document** action at the
 task textarea's bottom-left opens a `.txt`/`.md` picker (up to 64 KiB).
 Its tooltip explains document analysis and safety-policy testing.
-An expandable attachment card immediately below the textarea shows the name and
-untrusted-source label; Remove is a separate action and restores focus to Add document.
+An expandable attachment card immediately below the textarea shows the filename
+and a muted **Untrusted source** badge immediately to its right. Long filenames
+truncate with a full-name tooltip; the disclosure and badge remain visible.
+Remove is a separate action and restores focus to Add document.
 Expansion shows all source text with preserved line breaks, paragraphs and wrapping.
 Unsafe override/egress tests show an informational message beside the attachment:
 what test text was added (or a synthetic document supplied) and which protections

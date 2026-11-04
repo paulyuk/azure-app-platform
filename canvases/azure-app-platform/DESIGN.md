@@ -590,6 +590,9 @@ Its tooltip explains analysis and safety-policy testing. Override/egress additio
 show a polite informational MessageBar describing the inserted test text and its
 purpose, separate from the test outcome. It updates with the test mode, survives
 polling/navigation and clears on document editing, replacement, removal or sample reset.
+The attachment summary keeps its native disclosure marker, a truncating filename
+and a muted neutral **Untrusted source** badge immediately to its right; Remove
+remains separate from the summary. The full filename is available in its tooltip.
 The attachment card directly below the textarea expands to show all original text
 with readable wrapping, line breaks and paragraphs. Content is assigned as text,
 never interpreted as HTML or fetched through links/images. Removal is separate from

@@ -3379,8 +3379,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       disclosure.open = documentInputExpanded;
       const summary = appendText(disclosure, "summary", "");
       summary.setAttribute("aria-label", "Document attachment");
-      const name = appendText(summary, "span", agentDocument?.name || (documentLoading ? "Reading document..." : "No document attached"), "document-name");
-      appendText(summary, "small", "Untrusted source", "document-source-label");
+      const summaryContent = appendText(summary, "span", "", "document-summary-content");
+      const name = appendText(summaryContent, "span", agentDocument?.name || (documentLoading ? "Reading document..." : "No document attached"), "document-name");
+      name.title = name.textContent;
+      appendText(summaryContent, "small", "Untrusted source", "document-source-label command-badge");
       disclosure.addEventListener("toggle", () => {
         if (disclosure.isConnected) documentInputExpanded = disclosure.open;
       });
@@ -3463,6 +3465,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ? "Use a document no larger than 64 KiB." : "";
         error.textContent = documentError;
         name.textContent = agentDocument?.name || "No document attached";
+        name.title = name.textContent;
         preview.textContent = agentDocument?.content || "";
         row.hidden = !agentDocument && !documentError;
         clearDocumentAssessment();
