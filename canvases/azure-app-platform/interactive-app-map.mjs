@@ -1109,6 +1109,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentRequestState = "idle";
     let invokingAgent = false;
     let agentDocument = null;
+    let documentTestNotice = "";
     let documentInputExpanded = false;
     let documentEditorExpanded = false;
     let documentError = "";
@@ -1169,6 +1170,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     const getAgentStatus = (${getAgentStatus.toString()});
     const agentStatusRoot = document.createElement("div");
+    const documentTestNoticeRoot = document.createElement("div");
+    documentTestNoticeRoot.dataset.documentTestNotice = "true";
+    documentTestNoticeRoot.className = "studio-toolkit";
     agentStatusRoot.id = "agent-status";
     agentStatusRoot.setAttribute("role", "status");
     agentStatusRoot.setAttribute("aria-live", "polite");
@@ -1307,6 +1311,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons,
       onClear: container => {
         if (container.contains(agentStatusRoot)) agentStatusRoot.remove();
+        if (container.contains(documentTestNoticeRoot)) documentTestNoticeRoot.remove();
         buttons.clear(container);
       },
       renderTry: renderTryApp,
@@ -2063,6 +2068,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function clearElement(element) {
       if (element.contains(agentStatusRoot)) agentStatusRoot.remove();
+      if (element.contains(documentTestNoticeRoot)) documentTestNoticeRoot.remove();
       if (element === details) runWorkspace.capture();
       if (element === details && details.dataset.mode === "connections") {
         connectionScroll = details.scrollTop;
@@ -3345,6 +3351,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(section);
     }
 
+    function clearDocumentTestNotice() {
+      documentTestNotice = "";
+      components.clearNotice(documentTestNoticeRoot);
+      documentTestNoticeRoot.remove();
+    }
+
     function renderDocumentInput(container, promptFrame) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
@@ -3373,6 +3385,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "aria-label": "Remove document", title: "Remove document", onClick: () => {
           documentReadVersion += 1;
           agentDocument = null;
+          clearDocumentTestNotice();
           documentError = "";
           documentInputExpanded = false;
           clearDocumentAssessment();
@@ -3383,6 +3396,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
       remove.dataset.removeDocument = "true";
       buttons.append(row, remove);
+      if (documentTestNotice) {
+        input.append(documentTestNoticeRoot);
+        components.renderNotice(documentTestNoticeRoot, {
+          children: documentTestNotice, intent: "info", role: "status",
+          "aria-live": "polite", "aria-atomic": true,
+        });
+      }
       const file = document.createElement("input");
       file.type = "file";
       file.hidden = true;
@@ -3392,7 +3412,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const tools = appendText(promptFrame, "div", "", "agent-prompt-tools");
       const add = buttons.create({
         appearance: "subtle", size: "small", icon: buttons.icon(ICONS.plus),
-        "aria-label": "Add document", title: "Add document", onClick: () => file.click(),
+        children: "Document", "aria-label": "Add document",
+        title: "Add a document for the agent to analyze or to test how safety policies handle its content.",
+        onClick: () => file.click(),
       });
       add.dataset.addDocument = "true";
       add.dataset.actionKey = "add-document";
@@ -3407,6 +3429,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(editor, "p", "Plain text or Markdown, up to 64 KiB. Preview preserves all source text; document instructions are untrusted.");
       const loadSample = actionButton("Load sample loan note", () => {
         documentReadVersion += 1;
+        clearDocumentTestNotice();
         documentError = "";
         documentInputExpanded = false;
         agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
@@ -3424,6 +3447,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       error.setAttribute("role", "alert");
       text.addEventListener("input", () => {
         documentReadVersion += 1;
+        clearDocumentTestNotice();
         agentDocument = text.value ? { name: agentDocument?.name || "document.txt", content: text.value } : null;
         documentError = new TextEncoder().encode(text.value).length > capability.maxBytes
           ? "Use a document no larger than 64 KiB." : "";
@@ -3438,6 +3462,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const selected = file.files?.[0];
         if (!selected) return;
         const version = ++documentReadVersion;
+        clearDocumentTestNotice();
         agentDocument = null;
         clearDocumentAssessment();
         documentError = "";
@@ -3519,10 +3544,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const baseName = currentDocument?.name || defaultName;
       const baseContent = cleaned || DEFAULT_BASE_DOCUMENT.content;
       const candidate = baseContent + snippet;
-      if (new TextEncoder().encode(candidate).length <= maxBytes) {
-        return { name: baseName, content: candidate };
-      }
-      return { name: baseName, content: DEFAULT_BASE_DOCUMENT.content + snippet };
+      const synthetic = !cleaned || new TextEncoder().encode(candidate).length > maxBytes;
+      return {
+        document: { name: baseName, content: synthetic ? DEFAULT_BASE_DOCUMENT.content + snippet : candidate },
+        synthetic,
+      };
     }
 
     function renderDocumentTest(container, _actions) {
@@ -3532,7 +3558,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         documentReadVersion += 1;
         documentError = "";
         documentInputExpanded = false;
-        agentDocument = ensureAdversarialDocument(agentDocument, mode, maxBytes);
+        const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
+        agentDocument = prepared.document;
+        const addition = mode === "egress" ? "an outbound credential/PII probe" : "override text";
+        const purpose = mode === "egress" ? "egress protections" : "redaction and approval-bypass protections";
+        documentTestNotice = (prepared.synthetic ? "Created a synthetic document with " : "Added to the document: ") +
+          addition + " to test " + purpose + ". See the separate test result for the outcome.";
         const document = agentDocument;
         clearDocumentAssessment();
         const epoch = documentAssessmentEpoch;
@@ -3603,6 +3634,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           promptInput.value = preset.prompt;
           if (preset.attachSample && operationalState.readiness?.documentInput && !agentDocument) {
             documentReadVersion += 1;
+            clearDocumentTestNotice();
             documentError = "";
             documentInputExpanded = true;
             agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };

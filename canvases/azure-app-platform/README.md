@@ -700,11 +700,16 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run/Debug**. The official **+ Add document** action at the
-task textarea's bottom-right opens a `.txt`/`.md` picker (up to 64 KiB).
+document together in **Run/Debug**. The official **+ Document** action at the
+task textarea's bottom-left opens a `.txt`/`.md` picker (up to 64 KiB).
+Its tooltip explains document analysis and safety-policy testing.
 An expandable attachment card immediately below the textarea shows the name and
 untrusted-source label; Remove is a separate action and restores focus to Add document.
 Expansion shows all source text with preserved line breaks, paragraphs and wrapping.
+Unsafe override/egress tests show an informational message beside the attachment:
+what test text was added (or a synthetic document supplied) and which protections
+it probes. This is not a test result. The message survives polling/navigation and
+clears when the document is edited, replaced, removed or reset to a sample.
 This is a safe text preview, not HTML/Markdown execution: links, images and scripts
 are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
 **Paste text or use sample** retains the secondary paste/edit and synthetic sample controls.

@@ -208,7 +208,7 @@ test("Run shares optional document input with invocation and enforcement across 
 });
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Compact document picker, full inert preview, retention and removal in ${name}`, {
+  test(`Bottom-left document picker, full inert preview, retention and removal in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -224,7 +224,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => window.appPlatformReady);
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       const plus = page.getByRole("button", { name: "Add document", exact: true });
-      assert.equal(await plus.getAttribute("title"), "Add document");
+      assert.equal(await plus.textContent(), "Document");
+      assert.equal(await plus.getAttribute("title"),
+        "Add a document for the agent to analyze or to test how safety policies handle its content.");
       assert.equal(await plus.locator('[data-octicon="plus"]').count(), 1);
       assert.equal(await page.locator(".document-attachment").isVisible(), false);
       const content = "# Loan terms\r\n\r\n" + Array.from({ length: 85 }, (_, i) =>
@@ -265,9 +267,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const text = node.closest(".agent-prompt-frame").querySelector("textarea").getBoundingClientRect();
             return { fits: document.documentElement.scrollWidth <= innerWidth,
               inside: button.left >= text.left && button.right <= text.right && button.top >= text.top && button.bottom <= text.bottom + 1,
-              trailing: text.right - button.right < 12 && text.bottom - button.bottom < 12 };
+              leftInset: button.left - text.left, bottomInset: text.bottom - button.bottom };
           });
-          assert.ok(geometry.fits && geometry.inside && geometry.trailing, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.fits && geometry.inside &&
+            Math.abs(geometry.leftInset - 6) <= 1 && geometry.bottomInset >= 0 && geometry.bottomInset < 12,
+          JSON.stringify({ width, height, theme, geometry }));
           assert.equal(await card.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
         }
       }
@@ -289,5 +293,98 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.deepEqual(errors, []);
       assert.deepEqual(external, [], "Document markup never fetches external content");
     } finally { await browser.close(); await fixture.close(); }
+  });
+
+  test(`Safety document additions explain the probe without claiming an outcome in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.documentInput = true;
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    try {
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(7000);
+      const requests = [], errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/document-test", async route => {
+        requests.push(route.request().postDataJSON());
+        if (requests.length === 1) await pending;
+        await route.fulfill({ json: { verdict: "rejected",
+          documentAssessment: { state: "rejected", reason: "Synthetic policy rejection." } } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      const file = page.getByLabel("Document file", { exact: true });
+      await file.setInputFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("# Original terms") });
+      await page.locator(".document-name").filter({ hasText: "terms.md" }).waitFor();
+      const notice = page.locator("[data-document-test-notice] .ct-message");
+      assert.equal(await notice.count(), 0);
+      await page.getByRole("button", { name: "Test unsafe override", exact: true }).click();
+      await notice.waitFor();
+      assert.match(await notice.textContent(), /Added to the document: override text.*redaction and approval-bypass protections/);
+      assert.match(await notice.textContent(), /separate test result/);
+      assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
+      assert.equal(await notice.getAttribute("role"), "status");
+      assert.equal(await notice.getAttribute("aria-live"), "polite");
+      assert.equal(await notice.getAttribute("aria-atomic"), "true");
+      assert.equal(await notice.getAttribute("data-intent"), "info");
+      await notice.evaluate(node => { window.documentNoticeRoot = node; });
+      assert.equal(await page.locator("[data-document-assessment][data-state='rejected']").count(), 0,
+        "Insertion is explained before any result is returned");
+      fixture.state.health = "Notice survived polling";
+      await page.waitForFunction(() => document.querySelector("#run-panel-services").textContent.includes("Notice survived polling"));
+      await page.locator("#map-app").click();
+      await page.locator("#manage-app").click();
+      assert.equal(await notice.evaluate(node => node === window.documentNoticeRoot), true);
+      release();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      await page.getByRole("button", { name: "Test unsafe egress", exact: true }).click();
+      await notice.filter({ hasText: "outbound credential/PII probe" }).waitFor();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      assert.match(await notice.textContent(), /test egress protections/);
+      assert.doesNotMatch(await notice.textContent(), /override text/);
+      assert.equal(await notice.evaluate(node => node === window.documentNoticeRoot), true);
+      for (const [width, height] of [[320, 480], [380, 480], [620, 800]]) {
+        await page.setViewportSize({ width, height });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          assert.equal(await notice.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true,
+            JSON.stringify({ width, theme }));
+        }
+      }
+      await page.locator(".document-edit > summary").click();
+      const editor = page.getByLabel("Document text", { exact: true });
+      await editor.fill("Edited document.");
+      assert.equal(await notice.count(), 0);
+      await editor.fill("a".repeat(65530));
+      await page.getByRole("button", { name: "Test unsafe override", exact: true }).click();
+      await notice.filter({ hasText: "Created a synthetic document with override text" }).waitFor();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      assert.match(requests.at(-1).document.content, /^# Synthetic Loan Note/);
+      assert.deepEqual(Object.keys(requests.at(-1).document).sort(), ["content", "name"]);
+      await file.setInputFiles({ name: "replacement.txt", mimeType: "text/plain", buffer: Buffer.from("New document") });
+      await page.locator(".document-name").filter({ hasText: "replacement.txt" }).waitFor();
+      assert.equal(await notice.count(), 0);
+      await page.getByRole("button", { name: "Test unsafe override", exact: true }).click();
+      await notice.waitFor();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      await page.getByRole("button", { name: "Load sample loan note", exact: true }).click();
+      assert.equal(await notice.count(), 0);
+      await page.getByRole("button", { name: "Test unsafe egress", exact: true }).click();
+      await notice.waitFor();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      await page.getByRole("button", { name: "Remove document", exact: true }).click();
+      assert.equal(await notice.count(), 0);
+      await page.getByRole("button", { name: "Test unsafe egress", exact: true }).click();
+      await notice.filter({ hasText: "Created a synthetic document" }).waitFor();
+      await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
+      await page.getByRole("button", { name: "Remove document", exact: true }).click();
+      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      assert.equal(await notice.count(), 0);
+      assert.equal(fixture.mutations.some(item => item.path === "/api/agent-invoke"), false);
+      assert.deepEqual(errors, []);
+    } finally { release(); await browser.close(); await fixture.close(); }
   });
 }
