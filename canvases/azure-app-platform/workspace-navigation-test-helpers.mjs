@@ -15,15 +15,6 @@ export async function installStudioAssetRoutes(page) {
 
 export async function openWorkspaceNavigation(page) {
   const menu = page.locator("#app-workspace-navigation");
-  await menu.waitFor({ state: "attached" });
-  await page.waitForFunction(() => {
-    const shell = document.querySelector("#studio-workspace-navigation");
-    return shell.getBoundingClientRect().width >= 1180 || shell.dataset.navigationExpanded === "false";
-  });
-  const narrow = await page.locator("#studio-workspace-navigation").evaluate(node => node.getBoundingClientRect().width < 1180);
-  if (!await menu.isVisible() || narrow && await menu.getAttribute("data-mode") !== "held") {
-    await page.locator("#browse-workspaces").click();
-  }
   await menu.waitFor();
 }
 

@@ -512,6 +512,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     #workspace-loading-header, #app-workspace-main, #workspace-status-footer { min-width: 0; }
     #workspace-navigation-mount { grid-row: 1 / -1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; height: 100%; }
+    #studio-workspace-navigation { height: 100%; }
+    #studio-workspace-navigation > main { flex: 1; min-height: 0; overflow: hidden; }
+    .workspace-navigation-bar { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px; background: var(--surface); }
+    #app-workspace-navigation { min-width: 0; }
+    .workspace-view-switch { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    #app-workspace-navigation ul { display: flex; gap: 2px; padding: 0; margin: 0; list-style: none; }
+    #app-workspace-navigation li { flex: none; }
     #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
     .studio-workspace-content { height: 100%; min-height: 0; color: var(--text); font: 16px/normal "Segoe UI", system-ui, sans-serif; }
     #workspace-loading-header {
@@ -525,6 +532,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-navigation-loading { grid-area: loading; }
     .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
     #workspace-runtime-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    #workspace-runtime-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .workspace-location { flex: 1; min-width: 60px; font-size: 12px; }
     #app-title { min-width: 0; max-width: 100%; font-weight: 600; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
@@ -880,6 +888,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <span class="workspace-location">Page: <strong id="workspace-location">Build</strong></span>
       <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
       <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
+      <div id="workspace-runtime-actions" role="group" aria-label="App controls">
+        <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
+        <button data-studio-button="secondary" id="deploy-app" type="button" aria-controls="workspace-shell" title="Review deployment options">Deploy</button>
+      </div>
     </div>
   <main id="app-workspace-main">
     <section id="workspace-shell" role="region" aria-labelledby="workspace-location">
@@ -1087,18 +1099,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const navigationRetry = document.querySelector("#retry-workspace-navigation");
     const navigationMessage = document.querySelector("#workspace-navigation-message");
     const navigationItems = [
-      { value: "build", label: "Build", button: { id: "build-app", "aria-controls": "workspace-shell" } },
-      { value: "manage", label: "Run & Debug", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
-      { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
-      { value: "deploy", label: "Deploy", button: { id: "deploy-app", "aria-controls": "workspace-shell" } },
+      { value: "manage", label: "Test agent", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
+      { value: "observe", label: "Inspect app", button: { id: "map-app", "aria-controls": "workspace-shell" } },
     ];
-    const navigationPreferenceKey = "app-platform-workspace:" + MODEL.root + ":navigation-collapsed";
-    let navigationCollapsed = false;
-    try {
-      const saved = localStorage.getItem(navigationPreferenceKey);
-      if (saved !== null && saved !== "true" && saved !== "false") throw new Error("Invalid navigation preference.");
-      navigationCollapsed = saved === "true";
-    } catch (error) { setStatus("Could not restore workspace navigation: " + error.message, true); }
+    const workspaceHistory = [];
+    let workspaceHistoryIndex = -1;
     let navigationToolkit, navigationAttempt = toolkitAttempt, navigationFailed = false, navigationDisposed = false;
     let resolveNavigationReady;
     const navigationReady = new Promise(resolve => { resolveNavigationReady = resolve; });
@@ -1122,20 +1127,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const navigationProps = {
       items: navigationItems, appTitle: document.querySelector("#app-title"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
-      defaultCollapsed: navigationCollapsed,
+      history: {
+        onBack: () => navigateWorkspaceHistory(-1),
+        onForward: () => navigateWorkspaceHistory(1),
+      },
       onNavigate: (_event, value) => {
         if (value === "build") renderBuildPanel();
         else if (value === "manage") renderManagePanel();
-        else if (value === "deploy") renderDeployPanel();
         else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
           if (observeView === "logs") renderLogsPanel();
           else renderMapPanel();
         }
-      },
-      onCollapsedChange: value => {
-        navigationProps.defaultCollapsed = value;
-        try { localStorage.setItem(navigationPreferenceKey, String(value)); }
-        catch (error) { setStatus("Could not remember workspace navigation: " + error.message, true); }
       },
       onReady: () => {
         loadingHeader.hidden = true;
@@ -1146,11 +1148,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     };
     function renderWorkspaceNavigation(current) {
       if (!navigationFailed && !navigationDisposed) components.renderComponent(navigationMount, "WorkspaceNavigation",
-        { ...navigationProps, current }, "workspace navigation");
+        { ...navigationProps, current, history: {
+          ...navigationProps.history,
+          backDisabled: workspaceHistoryIndex <= 0,
+          forwardDisabled: workspaceHistoryIndex >= workspaceHistory.length - 1,
+        } }, "workspace navigation");
+    }
+    function navigateWorkspaceHistory(delta) {
+      const next = workspaceHistoryIndex + delta;
+      if (next < 0 || next >= workspaceHistory.length) return;
+      workspaceHistoryIndex = next;
+      const mode = workspaceHistory[next];
+      if (mode === "build") renderBuildPanel();
+      else if (mode === "manage") renderManagePanel();
+      else if (mode === "deploy") renderDeployPanel();
+      else if (mode === "logs") renderLogsPanel();
+      else renderMapPanel();
     }
     function focusWorkspaceNavigation(id = "map-app") {
       const target = document.querySelector("#" + id);
-      (target?.getClientRects().length ? target : document.querySelector("#browse-workspaces"))?.focus({ preventScroll: true });
+      target?.focus({ preventScroll: true });
     }
     navigationRetry.addEventListener("click", () => {
       navigationAttempt++;
@@ -1342,6 +1359,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons.setDisabled(headerRuntimeAction, disabled);
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
+      document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
+        entry.ready && normalized(entry.name) === "web");
     }
 
     function detailsHeightMaximum() {
@@ -2007,6 +2026,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function updateModeHighlight() {
       if (panelMode !== "build") buildPanel.hide();
       const mode = ["build", "manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
+      if (workspaceHistory[workspaceHistoryIndex] !== mode) {
+        workspaceHistory.splice(workspaceHistoryIndex + 1);
+        workspaceHistory.push(mode);
+        workspaceHistoryIndex = workspaceHistory.length - 1;
+      }
       if (mode !== "manage" && !window.appPlatformSettings?.isOpen?.()) {
         gatewayDiscovery.invalidate();
       }
@@ -2017,7 +2041,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
       const current = observing ? "observe" : mode;
-      document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
+      document.querySelector("#workspace-location").textContent = current === "build" ? "Customize"
+        : current === "deploy" ? "Deploy" : navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
       for (const tab of document.querySelectorAll("#observe-views > [role='tab']")) {
@@ -2108,7 +2133,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(titleGroup, "p", "Provision cloud infrastructure and deploy application code once local validation and observation are complete.");
 
       const body = appendText(details, "div", "", "run-tab-body");
-      renderDeploymentPanel(body);
+      renderDeployment(body);
     }
 
     function renderLogsPanel(nodeId = null) {
@@ -4792,6 +4817,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       dismissStructureGuidance();
     });
     document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
+    document.querySelector("#deploy-app").addEventListener("click", renderDeployPanel);
+    document.querySelector("#header-open-app").addEventListener("click", async () => {
+      const web = runtimeEntrypoints.find(entry => entry.ready && normalized(entry.name) === "web");
+      if (!web) {
+        setStatus("No ready web entrypoint is available. Start the app before opening it.", true);
+        return;
+      }
+      try {
+        await apiRequest("/api/open-entrypoint", {
+          method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
+        });
+      } catch (error) { setStatus(error.message, true); }
+    });
     for (const tabs of document.querySelectorAll(".workspace-tabs")) {
       tabs.addEventListener("keydown", (event) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -4852,9 +4890,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (first) first.focus();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || event.defaultPrevented ||
-        (document.querySelector("#app-workspace-navigation")?.dataset.mode !== "sidebar" &&
-          document.querySelector("#browse-workspaces")?.getAttribute("aria-expanded") === "true")) return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       if (document.querySelector(".map-tools").open) {
         document.querySelector(".map-tools").open = false;
         document.querySelector(".map-tools > summary").focus();

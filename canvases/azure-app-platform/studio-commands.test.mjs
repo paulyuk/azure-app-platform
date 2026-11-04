@@ -1947,10 +1947,10 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /function updateAppStatusBadge/);
   assert.match(html, /aria-label="Collapse Guide"/);
   assert.match(html, /id="guide-shortcuts"/);
-  assert.match(html, /id: "app-workspace-navigation", label: "App workspaces"/);
+  assert.match(html, /id: "app-workspace-navigation", "aria-label": "App workspaces"/);
   assert.match(html, /role="tablist" aria-label="Observe views"/);
-  assert.match(html, /value: "manage", label: "Run & Debug"/);
-  assert.match(html, /value: "observe", label: "Observe"/);
+  assert.match(html, /value: "manage", label: "Test agent"/);
+  assert.match(html, /value: "observe", label: "Inspect app"/);
   assert.doesNotMatch(html, /class="header-actions"/);
   assert.match(html, /function createRunWorkspace/);
   assert.match(html, /"Output"/);
@@ -1993,7 +1993,9 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Deploy latest app/);
   assert.match(html, /Delete local worktree/);
   assert.match(html, /Invoke agent/);
-  assert.match(html, /Write a message while the agent starts/);
+  assert.match(html, /Autonomous event \/ task payload/);
+  assert.match(html, /Event triggers:/);
+  assert.match(html, /Autonomous run result/);
   assert.match(html, /agentPromptDraft = prompt\.value/);
   assert.match(html, /Agent unavailable/);
   assert.match(html, /local agent cannot start until this app has an AI Gateway connection/);
@@ -2002,7 +2004,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /Stop preview/);
   assert.doesNotMatch(html, /Send test prompt|Agent test prompt/);
   assert.match(html, /"\/api\/agent-invoke"/);
-  assert.match(html, /port: agentEntrypoint\.port/);
+  assert.match(html, /port: readyEntry\.port/);
   assert.match(html, /data-runtime-output/);
   assert.match(html, /refreshRunOutput\(\); \}, 1000/);
   assert.doesNotMatch(html, /Command reference & HTTP examples/);
@@ -2022,7 +2024,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /id="workspace-navigation-mount"/);
   assert.match(html, /id="workspace-runtime-bar"/);
   assert.match(html, /id="workspace-location"/);
-  assert.match(html, /browse: \{/);
+  assert.match(html, /history: h\(NavigationControls/);
+  assert.doesNotMatch(html, /browse: \{/);
   assert.match(html, /variant: "workbench"/);
   assert.match(html, /id="logs-app"/);
   assert.match(html, /function renderLogsPanel/);
@@ -2151,4 +2154,3 @@ test("Windows command launcher normalizes Path/PATH and wraps .cmd binaries via 
   assert.equal(exeResolved.command, "C:\\Windows\\System32\\powershell.exe");
   assert.deepEqual(exeResolved.args, ["-NoProfile", "-Command", "aca --version"]);
 });
-

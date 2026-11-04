@@ -17,7 +17,7 @@ Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
 a 20px Unity mark and a compact, normal-weight Azure App Platform Home button. Its accessible
 name is **App home** (retained for non-breaking compatibility). Docs and the working Settings gear remain at the
 top right. The large Home masthead and tagline are not repeated in the content.
-The existing app workspace header, selectors and controls are unchanged.
+Existing apps use the same header with Back/Forward before the logo.
 
 ## ACA CLI installation
 
@@ -284,27 +284,32 @@ After creation or selection, the app workspace becomes the primary interface.
 The Unity logo and **Azure App Platform** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The only main destinations are **Customize**, **Run & Debug**, and **Observe**, using
-the genuine toolkit **ProductNavigation**. At 1180px of available shell width or
-more, they occupy a canonical 256px collapsible sidebar; smaller canvases use
-**Browse app workspaces** to preview or hold a menu below the header. Collapse is
-remembered per app in the current browser origin. Focus or hover previews the menu;
-click holds it on narrow canvases. Arrow Down or Tab enters it, and Enter/Space
-activates the focused destination. Selection, Escape, Close and outside interaction
-dismiss the compact menu, with toolkit-owned focus restoration. The active
-destination has `aria-current="page"` and a canonical highlight; the persistent
-**Page:** label stays visible with the menu closed. These are free destinations,
-not Guide progress steps, and there is no duplicate header strip or command palette.
+The primary destinations are **Test agent** and **Inspect app**, presented as a
+content-width segmented group of shipped toolkit Buttons at every canvas width.
+There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
+activates them. The selected destination has `aria-current="page"` and
+`aria-pressed="true"`. **Customize** remains a separate action opening the existing
+source workspace, and the shared **Settings** gear is unchanged.
+The header's toolkit **NavigationControls** place **Back** and **Forward** before
+the logo. They traverse workspace visits (including Customize, App Map, Logs and
+Deploy), not browser pages or Guide stages. Repeated polling does not add visits;
+a new destination after Back discards forward visits. This history lasts for the
+current page visit, without changing browser history or stored app recency.
+**Deploy**, immediately beside **Open app** in the runtime bar, opens existing
+deployment options; it does not provision or deploy. Open app appears only when a
+ready web entrypoint is available. Explicit cloud actions retain their resource
+change warning and existing execution path. These are free destinations, not
+Guide progress steps.
 Customize opens first. It is the source-customization workspace, distinct from
-the Guide's **Build** readiness stage. Observe contains **App Map** and
+the Guide's **Build** readiness stage. Inspect app contains **App Map** and
 **Logs** views and remembers the last one used during the current visit.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive
-layout changes preserve those exact nodes, focus and message selection. Permanent
+layout changes preserve those exact nodes, focus and task-payload selection. Permanent
 navigation disposes the shell binding and restores retained slots; persisted
 `pagehide` keeps them for the back/forward cache.
 Customize starts directly with customization areas and one focused preview, without a duplicate
-Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
+Build/Run/Map toolbar. Use **Test agent** or **Inspect app → App Map**
 navigation. The Guide's Build action opens the general map with a dismissible
 hint highlighting the existing add-component and connection controls; it does
 not select a component based on the current file. Connect retains its source
@@ -314,7 +319,7 @@ Every workspace remains accessible regardless of readiness: this is not a
 locked wizard. The two Observe views use a compact tab row with
 map/log line icons and the same flat Run-style tabs used by Customize: a shared baseline,
 subtle selected fill, and accent underline rather than individually outlined buttons.
-Keyboard tab navigation remains available across all three pages.
+Keyboard tab navigation remains available across the workspaces.
 Each view fills the workspace rather than sharing it
 with an always-visible map. Guide owns workflow progress and the next useful
 action, independently of the active workspace. Its inline toggle collapses the panel
@@ -325,7 +330,11 @@ The rail retains Build, Connect, Run, and Observe icons with checkmarks,
 attention indicators, and descriptive tooltips. Selecting an icon expands
 Guide at that stage's explanation without changing workspaces.
 There is no separate Guide button in the top navigation;
-switching views never reopens Guide or discards message drafts or the selected Customize preview.
+switching views never reopens Guide or discards task payloads or the selected Customize preview.
+Test agent retains **Autonomous event / task payload**, the **Event triggers:**
+presets (including their sample document attachment), and **Autonomous run result**.
+It dispatches tasks/events through the existing invocation path; it is not a
+conversation view and adds no chat bubbles or conversation history.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.
 A persistent badge beside the app name distinguishes

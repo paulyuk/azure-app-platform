@@ -149,7 +149,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
-    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Run & Debug", "Observe", "Deploy"]);
+    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Test agent", "Inspect app"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
     assert.equal(await page.locator("#studio-workspace-navigation > header h1").count(), 1);
@@ -247,8 +247,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
     await openWorkspaceNavigation(page);
-    await page.getByRole("button", { name: "Build", exact: true }).press("Tab");
-    assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).evaluate((el) => el === document.activeElement), true);
+    await page.locator("#manage-app").focus();
+    assert.equal(await page.getByRole("button", { name: "Test agent", exact: true }).evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     await page.keyboard.press("Enter");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
@@ -506,12 +506,11 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#viewport").getAttribute("transform"), cameraBeforeDetails);
     for (const width of [380, 640, 1024, 1440]) {
       await page.setViewportSize({ width, height: 850 });
-      await page.waitForFunction(wide => {
+      await page.waitForFunction(() => {
         const map = document.querySelector("#graph-shell").getBoundingClientRect();
         const inspector = document.querySelector("#details").getBoundingClientRect();
-        return document.querySelector("#studio-workspace-navigation").dataset.navigationExpanded === String(wide)
-          && Math.abs(map.width - inspector.width) < 1 && inspector.y >= map.bottom;
-      }, width >= 1180);
+        return Math.abs(map.width - inspector.width) < 1 && inspector.y >= map.bottom;
+      });
       const { map, inspector } = await page.evaluate(() => ({
         map: document.querySelector("#graph-shell").getBoundingClientRect().toJSON(),
         inspector: document.querySelector("#details").getBoundingClientRect().toJSON(),

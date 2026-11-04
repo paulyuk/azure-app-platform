@@ -173,8 +173,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           });
           for (const width of [380, 640, 1280]) {
             await page.setViewportSize({ width, height: 700 });
-            await page.waitForFunction(wide => document.querySelector("#studio-workspace-navigation")
-              .dataset.navigationExpanded === String(wide), width >= 1180);
+            await page.waitForFunction(() => document.querySelector("#app-workspace-navigation").getBoundingClientRect().right <= innerWidth);
             const result = await readSvg(`${profile}-${tone}-${width}-fallback`);
             assert.equal(result.tokens.raised, tone === "light" ? "rgb(255, 255, 255)" :
               profile === "standalone" ? "rgb(27, 30, 37)" : "rgb(13, 17, 23)");
@@ -186,8 +185,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               await deliverHost(hostTone);
               for (const width of [380, 640, 1280]) {
                 await page.setViewportSize({ width, height: 700 });
-                await page.waitForFunction(wide => document.querySelector("#studio-workspace-navigation")
-                  .dataset.navigationExpanded === String(wide), width >= 1180);
+                await page.waitForFunction(() => document.querySelector("#app-workspace-navigation").getBoundingClientRect().right <= innerWidth);
                 const result = await readSvg(`${profile}-${tone}-${width}-host-${hostTone}`);
                 assert.equal(result.tokens.raised, hostTone === "light" ? "rgb(249, 244, 238)" : "rgb(28, 20, 43)");
                 assert.equal(result.tokens.ink, hostTone === "light" ? "rgb(90, 54, 18)" : "rgb(224, 205, 245)");
