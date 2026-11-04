@@ -466,8 +466,10 @@ and tier filters. A floating palette keeps zoom and fit directly accessible;
 search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
 row. Status Brief retains runtime availability and failures. The redundant
-**Running locally** header badge is hidden; preview, startup/recovery, failure and
-active-operation notices remain visible. **Stop app** follows **Invoke agent** in the
+**Running locally** and healthy **Not running** header badges are hidden. Healthy
+stopped Run has no runtime row; **Start app** precedes **Invoke agent** in task actions
+when ready. Preview, startup/recovery, failure and active-operation notices remain
+visible. **Stop app** follows **Invoke agent** in the
 task action row, with the same stop-local operation and stopping-state gating.
 Other pages expose **Runtime controls** to return to Run; startup/cancel and
 partial-startup recovery remain available in the header. Each

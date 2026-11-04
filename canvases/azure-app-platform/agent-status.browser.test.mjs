@@ -151,7 +151,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     }
   });
 
-  test(`Task action row owns Stop without losing runtime notices or recovery in ${name}`, {
+  test(`Task action row owns Start and Stop without losing runtime notices or recovery in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -169,6 +169,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       await page.route("**/api/app-command", async route => {
         operations.push(route.request().postDataJSON());
+        if (operations.at(-1).operation === "run-local") {
+          fixture.state.app = "starting";
+          await route.fulfill({ json: { outcome: "command-started" } });
+          return;
+        }
         fixture.state.app = "stopping";
         if (holdStop) await new Promise(resolve => { release = resolve; });
         fixture.state.app = "stopped";
@@ -206,8 +211,32 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       holdStop = false;
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
       assert.equal(await stop.count(), 0);
-      fixture.state.app = "starting";
+      const start = page.locator("[data-task-start-app]");
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+      assert.equal(await page.locator("#app-status-badge").isVisible(), false);
+      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.deepEqual(await start.evaluate(node => [...node.closest(".actions").querySelectorAll("button")]
+        .map(button => button.textContent)), ["Start app", "Invoke agent"]);
+      await start.focus();
+      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+      assert.equal(await invoke.evaluate(node => node === document.activeElement), true);
+      for (const width of [320, 380, 620]) {
+        await page.setViewportSize({ width, height: 480 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          assert.ok(await start.evaluate(node => node.getBoundingClientRect().left >= 0 &&
+            node.closest(".actions").scrollWidth <= node.closest(".actions").clientWidth + 1));
+        }
+      }
+      await page.locator("#map-app").click();
+      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await page.locator("#header-runtime-action").isVisible(), true);
+      await page.locator("#manage-app").click();
+      await start.click();
       await page.getByRole("button", { name: "Cancel startup", exact: true }).waitFor();
+      assert.equal(await start.count(), 0);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
+      assert.equal(operations.at(-1).operation, "run-local");
       recovered = true;
       await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
@@ -220,11 +249,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await stop.innerText(), "Stop preview");
       await stop.click();
       await stop.waitFor({ state: "detached" });
-      assert.deepEqual(operations, Array(3).fill({ root: "/fixture/dealer", operation: "stop-local" }));
+      assert.deepEqual(operations, ["stop-local", "run-local", "stop-local", "stop-local"]
+        .map(operation => ({ root: "/fixture/dealer", operation })));
       fixture.state.app = "failed";
       fixture.state.error = "Simulated lifecycle failure.";
       await page.locator("#app-status-badge").filter({ hasText: "Needs attention" }).waitFor();
       assert.match(await page.locator(".run-primary").innerText(), /Simulated lifecycle failure/);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
+      assert.equal(await start.innerText(), "Start preview");
+      fixture.state.configured = true;
+      await start.filter({ hasText: "Start app" }).waitFor();
+      assert.equal(await start.isDisabled(), false);
+      await page.route("**/api/local-readiness*", route => route.fulfill({ json: {
+        ready: false, gatewayConfigured: false, mode: "full",
+      } }));
+      await start.waitFor({ state: "detached" });
+      assert.equal(await page.locator("#header-runtime-action").innerText(), "Set up");
+      assert.equal(await page.locator("#header-runtime-action").isVisible(), true);
       assert.deepEqual(errors, []);
     } finally { release?.(); await browser.close(); await fixture.close(); }
   });

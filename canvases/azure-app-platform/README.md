@@ -303,8 +303,8 @@ a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
-button. **Open app** remains in the existing header utilities; **Stop app** sits immediately
-after **Invoke agent** in the Run task action row.
+button. **Open app** remains in the existing header utilities; **Start app** sits immediately
+before **Invoke agent** when stopped and ready, while **Stop app** follows Invoke when running.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
@@ -392,11 +392,15 @@ visit. Closing it does not stop output polling or hide errors: unavailable logs 
 failed operation counts stay beside the toggle, while Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
 The Status Brief retains truthful runtime, agent, request and failure information.
-The redundant **Running locally** header badge is hidden. Header notices still
+The redundant **Running locally** and healthy **Not running** header badges are hidden.
+Healthy stopped Run has no empty runtime row; **Start app** (or **Start preview**)
+is immediately before **Invoke agent**, with the existing readiness and busy gating.
+Header notices still
 show previews, startup/recovery, stopping, failures and cloud operations.
 **Stop app** (or **Stop preview**) follows **Invoke agent**, using the same lifecycle
 operation and disabled stopping state. On other workspace pages, **Runtime controls**
-returns to Run without stopping anything. Header startup/cancel and partial-startup
+returns to Run without stopping anything; stopped pages retain their Start action.
+Header startup/cancel and partial-startup
 recovery controls remain accessible. Each request-flow stage exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and

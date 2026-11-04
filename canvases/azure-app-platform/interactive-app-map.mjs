@@ -1473,10 +1473,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       updateAgentStatusBrief();
     }
 
+    function canStartApp() {
+      return ["stopped", "failed"].includes(operationalState.app?.state) &&
+        Boolean(operationalState.readiness?.ready);
+    }
+
     function syncRuntimePlacement() {
       const state = operationalState.app?.state;
-      appStatusBadge.hidden = state === "running" && operationalState.readiness?.mode !== "preview";
-      headerRuntimeAction.hidden = panelMode === "manage" && ["running", "stopping"].includes(state);
+      const healthyStopped = state === "stopped" && !operationalState.app.error &&
+        !operationalState.app.recovered && !readinessError;
+      appStatusBadge.hidden = healthyStopped || state === "running" && operationalState.readiness?.mode !== "preview";
+      headerRuntimeAction.hidden = panelMode === "manage" && (["running", "stopping"].includes(state) || canStartApp());
       document.querySelector("#workspace-runtime-bar").hidden = appStatusBadge.hidden && headerRuntimeAction.hidden;
     }
 
@@ -2411,6 +2418,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         await refreshOperationalState();
       } finally {
         lifecycleOperation = null;
+        syncAgentInputControls();
       }
     }
 
@@ -3301,6 +3309,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
       const add = tester.querySelector("[data-add-document]");
       if (add) buttons.setDisabled(add, busy);
+      const start = tester.querySelector("[data-task-start-app]");
+      if (start) buttons.setDisabled(start, busy || Boolean(lifecycleOperation));
       for (const preset of tester.querySelectorAll("[data-event-preset]")) preset.disabled = busy;
     }
 
@@ -3741,6 +3751,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions";
+      if (canStartApp()) {
+        const label = operationalState.readiness.mode === "preview" ? "Start preview" : "Start app";
+        const start = keyedActionButton("start-app", label, () => runAppOperation("run-local"));
+        start.dataset.taskStartApp = "true";
+        buttons.append(actions, start);
+      }
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
