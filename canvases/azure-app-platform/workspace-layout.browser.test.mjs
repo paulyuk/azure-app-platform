@@ -371,10 +371,12 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
 
     await selectWorkspace(page, "manage-app");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
-    const document = page.getByRole("textbox", { name: "Document text", exact: true });
+    const document = page.getByLabel("Document text", { exact: true });
     await message.fill("Explain my application.");
-    await page.getByLabel("Document attachment", { exact: true }).click();
+    await page.getByRole("button", { name: "Add document", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Paste a document", exact: true }).click();
     await document.fill("Synthetic loan application.");
+    await page.getByRole("button", { name: "Attach pasted document", exact: true }).click();
     assert.equal(await page.locator("#details").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     await page.locator("#action-center").click();
     assert.equal(await message.inputValue(), "Explain my application.");

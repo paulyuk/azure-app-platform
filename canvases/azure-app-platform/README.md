@@ -704,9 +704,13 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run/Debug**. The official **+ Document** action at the
-task textarea's bottom-left opens a `.txt`/`.md` picker (up to 64 KiB).
-Its tooltip explains document analysis and safety-policy testing.
+document together in **Run/Debug**. The compact secondary **+ Document** menu at
+the task textarea's bottom-left offers **Upload document**, **Paste a document**
+and **Add sample**. Upload accepts `.txt`/`.md` files up to 64 KiB; Paste opens an
+on-demand editor with explicit Add and Cancel, without clipboard permissions.
+Its draft survives polling/navigation and does not replace the attachment until
+confirmed. Invocation and safety tests wait for Add or Cancel. Add sample uses
+the existing synthetic loan note. The tooltip explains analysis and safety-policy testing.
 An expandable attachment card immediately below the textarea shows the filename
 and a muted **Untrusted source** badge immediately to its right. Long filenames
 truncate with a full-name tooltip; the disclosure and badge remain visible.
@@ -718,7 +722,7 @@ it probes. This is not a test result. The message survives polling/navigation an
 clears when the document is edited, replaced, removed or reset to a sample.
 This is a safe text preview, not HTML/Markdown execution: links, images and scripts
 are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
-**Paste text or use sample** retains the secondary paste/edit and synthetic sample controls.
+Choose **Paste a document** to edit the attached text before explicitly adding it.
 Remove the document to send only a message; removal or editing clears stale assessments.
 Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.

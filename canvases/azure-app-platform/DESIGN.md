@@ -584,8 +584,13 @@ useful status summaries remain specific to runtime state. Failure counts, output
 discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. Diagnostics is optional, closed by default, and
 resizable with pointer or keyboard; failure warnings stay visible when it is hidden.
-A **+ Document** action at the task textarea's bottom-left appears only when readiness
-advertises document support. It opens the supported text/Markdown file picker.
+A compact secondary **+ Document** toolkit menu at the task textarea's bottom-left
+appears only when readiness advertises document support. Its three actions are
+**Upload document**, **Paste a document** and **Add sample**. The public MenuButton
+owns keyboard navigation, dismissal and focus return. Paste opens an on-demand,
+confirmable editor, not a second permanent control row; Cancel preserves the attachment
+and assessment. Its draft/selection survive polling and navigation. Invocation and safety
+tests wait for Add or Cancel; no clipboard-read permission is assumed.
 Its tooltip explains analysis and safety-policy testing. Override/egress additions
 show a polite informational MessageBar describing the inserted test text and its
 purpose, separate from the test outcome. It updates with the test mode, survives
@@ -596,8 +601,8 @@ remains separate from the summary. The full filename is available in its tooltip
 The attachment card directly below the textarea expands to show all original text
 with readable wrapping, line breaks and paragraphs. Content is assigned as text,
 never interpreted as HTML or fetched through links/images. Removal is separate from
-the summary and returns focus to the plus action. A secondary disclosure retains
-paste/edit and sample controls. File reading, UTF-8 byte limits, removal, and in-flight state
+the summary and returns focus to the plus action. Paste/edit, upload and sample
+share the attachment state. File reading, UTF-8 byte limits, removal, and in-flight state
 are shared by Invoke agent and Test enforcement; Customize links to this single Run
 surface rather than maintaining a separate test form. Document and message drafts
 remain in panel memory across polling and mode switches, never in command history.
