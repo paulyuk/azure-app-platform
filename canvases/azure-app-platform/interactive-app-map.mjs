@@ -1113,6 +1113,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let documentInputExpanded = false;
     let documentMenuOpen = false;
     let documentPasteOpen = false;
+    let documentEditMode = false;
     let documentPasteDraft = "";
     let documentError = "";
     let documentLoading = false;
@@ -3316,6 +3317,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (egress) buttons.setDisabled(egress, !canRun || busy || Boolean(documentError) || documentPasteOpen);
       const remove = tester.querySelector("[data-remove-document]");
       if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
+      const edit = tester.querySelector("[data-edit-document]");
+      if (edit) buttons.setDisabled(edit, busy);
       if (documentMenuRoot.isConnected) components.renderComponent(documentMenuRoot, "MenuButton", {
         button: { ...documentMenuButtonProps, disabled: busy },
       });
@@ -3387,18 +3390,27 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ? "Use UTF-8 document text no larger than 64 KiB." : "";
     }
 
-    function replaceDocument(next) {
+    function openDocumentEditor(editing = false) {
+      documentPasteOpen = true;
+      documentEditMode = editing;
+      documentPasteDraft = agentDocument?.content || "";
+      renderManagePanel();
+      requestAnimationFrame(() => details.querySelector(".document-paste textarea")?.focus());
+    }
+
+    function replaceDocument(next, { expanded = false } = {}) {
       documentReadVersion += 1;
       agentDocument = next;
       clearDocumentTestNotice();
       documentError = "";
       documentLoading = false;
-      documentInputExpanded = false;
+      documentInputExpanded = expanded;
       documentPasteOpen = false;
+      documentEditMode = false;
       documentPasteDraft = "";
       clearDocumentAssessment();
       renderManagePanel();
-      details.querySelector("[data-add-document]")?.focus({ preventScroll: true });
+      details.querySelector(expanded ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
     }
 
     function renderDocumentInput(container, promptFrame) {
@@ -3425,6 +3437,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       preview.setAttribute("role", "region");
       preview.setAttribute("aria-label", "Attached document text");
       preview.dataset.runScrollKey = "document-preview";
+      const editing = documentPasteOpen && documentEditMode;
+      preview.hidden = editing;
+      if (agentDocument) {
+        const edit = buttons.create({
+          appearance: "secondary", size: "small", children: "Edit document",
+          "aria-label": "Edit document", onClick: () => openDocumentEditor(true),
+        });
+        edit.dataset.editDocument = "true";
+        edit.dataset.actionKey = "edit-document";
+        buttons.host(edit).hidden = editing;
+        buttons.append(disclosure, edit);
+      }
       row.append(disclosure);
       const remove = buttons.create({
         appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
@@ -3464,10 +3488,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           } }, "Upload document"),
           toolkit.createElement(toolkit.MenuItem, { key: "paste", onClick: () => {
             setMenuOpen(false);
-            documentPasteOpen = true;
-            documentPasteDraft = agentDocument?.content || "";
-            renderManagePanel();
-            requestAnimationFrame(() => details.querySelector(".document-paste textarea")?.focus());
+            openDocumentEditor();
           } }, "Paste a document"),
           toolkit.createElement(toolkit.MenuItem, { key: "sample", onClick: () => {
             setMenuOpen(false);
@@ -3475,17 +3496,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           } }, "Add sample"),
         ],
       });
-      const editor = appendText(input, "section", "", "document-paste");
+      const editor = appendText(editing ? disclosure : input, "section", "", "document-paste");
       editor.hidden = !documentPasteOpen;
       editor.setAttribute("role", "group");
-      editor.setAttribute("aria-label", "Paste a document");
-      appendText(editor, "strong", "Paste a document");
-      const hint = appendText(editor, "p", "Plain text or Markdown, up to 64 KiB. Add or cancel before invoking.", "document-paste-hint");
+      editor.setAttribute("aria-label", editing ? "Edit document" : "Paste a document");
+      appendText(editor, "strong", editing ? "Edit document" : "Paste a document");
+      const hint = appendText(editor, "p", editing
+        ? "Plain text or Markdown, up to 64 KiB. Save or cancel before invoking."
+        : "Plain text or Markdown, up to 64 KiB. Add or cancel before invoking.", "document-paste-hint");
       hint.id = "document-paste-hint";
       const text = document.createElement("textarea");
       text.maxLength = capability.maxBytes;
       text.value = documentPasteOpen ? documentPasteDraft : agentDocument?.content || "";
-      text.placeholder = "Paste document text...";
+      text.placeholder = editing ? "Edit document text..." : "Paste document text...";
       text.setAttribute("aria-label", "Document text");
       text.setAttribute("aria-describedby", hint.id);
       const pasteError = appendText(editor, "p", documentTextError(text.value, capability.maxBytes), "error");
@@ -3499,23 +3522,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
       editor.append(text);
       const pasteActions = appendText(editor, "div", "", "actions");
-      const confirm = buttons.create({ appearance: "primary", children: "Add document",
-        "aria-label": "Attach pasted document", onClick: () => {
+      const confirm = buttons.create({ appearance: "primary", children: editing ? "Save document" : "Add document",
+        "aria-label": editing ? "Save document" : "Attach pasted document", onClick: () => {
           const validation = documentTextError(documentPasteDraft, capability.maxBytes);
           if (!documentPasteDraft || validation) {
-            pasteError.textContent = validation || "Paste document text before adding it.";
+            pasteError.textContent = validation || "Enter document text before saving it.";
             return;
           }
-          replaceDocument({ name: agentDocument?.name || "document.txt", content: documentPasteDraft });
+          replaceDocument({ name: agentDocument?.name || "document.txt", content: documentPasteDraft }, { expanded: editing });
         },
       });
       confirm.dataset.confirmDocument = "true";
       const cancel = buttons.create({ appearance: "secondary", children: "Cancel",
-        "aria-label": "Cancel paste", onClick: () => {
+        "aria-label": editing ? "Cancel document edit" : "Cancel paste", onClick: () => {
           documentPasteOpen = false;
+          documentEditMode = false;
           documentPasteDraft = "";
           renderManagePanel();
-          details.querySelector("[data-add-document]")?.focus({ preventScroll: true });
+          details.querySelector(editing ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
         },
       });
       cancel.dataset.cancelDocument = "true";
@@ -3527,6 +3551,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         clearDocumentTestNotice();
         agentDocument = null;
         documentPasteOpen = false;
+        documentEditMode = false;
         documentPasteDraft = "";
         clearDocumentAssessment();
         documentError = "";
@@ -3698,6 +3723,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             documentReadVersion += 1;
             clearDocumentTestNotice();
             documentError = "";
+            documentPasteOpen = false;
+            documentEditMode = false;
+            documentPasteDraft = "";
             documentInputExpanded = true;
             agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
             clearDocumentAssessment();

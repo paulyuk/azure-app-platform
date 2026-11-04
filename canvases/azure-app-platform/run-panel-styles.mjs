@@ -75,6 +75,7 @@ export const RUN_PANEL_CONTENT_CSS = `
 #details[data-mode="manage"] .document-source-label { flex:none; margin:0; color:var(--studio-muted); }
 #details[data-mode="manage"] .document-preview { margin:8px 0 0; max-height:280px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.65 var(--font-sans, system-ui); color:var(--studio-ink); }
 #details[data-mode="manage"] .document-paste { display:grid; gap:8px; min-width:0; }
+#details[data-mode="manage"] .run-document > .document-paste { margin-top:8px; }
 #details[data-mode="manage"] .document-paste[hidden] { display:none; }
 #details[data-mode="manage"] .event-runner-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
 #details[data-mode="manage"] .event-runner-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }

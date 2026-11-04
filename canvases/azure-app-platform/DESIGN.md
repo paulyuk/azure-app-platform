@@ -600,7 +600,14 @@ and a muted neutral **Untrusted source** badge immediately to its right; Remove
 remains separate from the summary. The full filename is available in its tooltip.
 The attachment card directly below the textarea expands to show all original text
 with readable wrapping, line breaks and paragraphs. Content is assigned as text,
-never interpreted as HTML or fetched through links/images. Removal is separate from
+never interpreted as HTML or fetched through links/images. Every source (upload,
+paste, sample, event or injected safety document) exposes **Edit document** inside the
+expanded card. It reuses the paste editor in place, with explicit Save document/Cancel,
+not another permanent editor. Save retains the filename and exact edited payload,
+clears stale assessment/results/insertion notice, and returns to the readable preview;
+Cancel preserves the attachment and evidence. Draft, selection and scroll survive
+polling/navigation; UTF-8 limits and busy gating prevent invalid or concurrent submission.
+Removal is separate from
 the summary and returns focus to the plus action. Paste/edit, upload and sample
 share the attachment state. File reading, UTF-8 byte limits, removal, and in-flight state
 are shared by Invoke agent and Test enforcement; Customize links to this single Run

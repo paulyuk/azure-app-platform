@@ -716,13 +716,20 @@ and a muted **Untrusted source** badge immediately to its right. Long filenames
 truncate with a full-name tooltip; the disclosure and badge remain visible.
 Remove is a separate action and restores focus to Add document.
 Expansion shows all source text with preserved line breaks, paragraphs and wrapping.
+Every attachment has **Edit document** inside the expanded card, including uploads,
+pasted text, samples, event documents and safety-test documents. It opens the shared
+full-text editor with **Save document** and **Cancel**. Saving retains the filename,
+updates the exact text sent to invocation/tests, and clears stale document assessments,
+results and insertion notices. Cancel preserves the committed attachment and evidence.
+Edit drafts, selection and scrolling survive polling/navigation. Invocation/tests
+wait for Save or Cancel; UTF-8 limits and busy/read gating apply to edits too.
 Unsafe override/egress tests show an informational message beside the attachment:
 what test text was added (or a synthetic document supplied) and which protections
 it probes. This is not a test result. The message survives polling/navigation and
 clears when the document is edited, replaced, removed or reset to a sample.
 This is a safe text preview, not HTML/Markdown execution: links, images and scripts
 are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
-Choose **Paste a document** to edit the attached text before explicitly adding it.
+Choose **Paste a document** to attach pasted text; use **Edit document** to change an attachment.
 Remove the document to send only a message; removal or editing clears stale assessments.
 Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.
