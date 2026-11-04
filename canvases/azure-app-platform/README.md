@@ -704,13 +704,15 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run/Debug**. The compact secondary **+ Document** menu at
-the task textarea's bottom-left offers **Upload document**, **Paste a document**
+document together in **Run/Debug**. The compact secondary **+ Document** menu
+immediately to the right of **Invoke agent** offers **Upload document**, **Paste a document**
 and **Add sample**. Upload accepts `.txt`/`.md` files up to 64 KiB; Paste opens an
 on-demand editor with explicit Add and Cancel, without clipboard permissions.
 Its draft survives polling/navigation and does not replace the attachment until
 confirmed. Invocation and safety tests wait for Add or Cancel. Add sample uses
 the existing synthetic loan note. The tooltip explains analysis and safety-policy testing.
+Invoke and Document stay together when the task actions wrap on compact canvases;
+Start remains before them and Stop follows them.
 An expandable attachment card immediately below the textarea shows the filename
 and a muted **Untrusted source** badge immediately to its right. Long filenames
 truncate with a full-name tooltip; the disclosure and badge remain visible.

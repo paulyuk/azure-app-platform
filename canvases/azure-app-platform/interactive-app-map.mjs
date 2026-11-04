@@ -3413,7 +3413,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.querySelector(expanded ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
     }
 
-    function renderDocumentInput(container, promptFrame) {
+    function renderDocumentInput(container, actions) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
       const input = appendText(container, "div", "", "document-input");
@@ -3470,9 +3470,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       file.hidden = true;
       file.accept = capability.extensions.join(",");
       file.setAttribute("aria-label", "Document file");
-      promptFrame.append(file);
-      const tools = appendText(promptFrame, "div", "", "agent-prompt-tools");
-      tools.append(documentMenuRoot);
+      input.append(file);
+      actions.append(documentMenuRoot);
       const setMenuOpen = open => {
         documentMenuOpen = open;
         components.renderComponent(documentMenuRoot, "MenuButton", { open });
@@ -3830,7 +3829,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.dataset.state = agentRequestState;
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
-      actions.className = "actions";
+      actions.className = "actions agent-task-actions";
       if (canStartApp()) {
         const label = operationalState.readiness.mode === "preview" ? "Start preview" : "Start app";
         const start = keyedActionButton("start-app", label, () => runAppOperation("run-local"));
@@ -3840,7 +3839,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
-      buttons.append(actions, send);
+      const dispatchActions = appendText(actions, "div", "", "agent-dispatch-actions");
+      buttons.append(dispatchActions, send);
+      const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
+      promptFrame.append(prompt);
+      renderDocumentInput(tester, dispatchActions);
       const appState = operationalState.app?.state;
       if (appState === "running" || appState === "stopping") {
         const label = appState === "stopping" ? "Stopping…"
@@ -3850,9 +3853,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         buttons.setDisabled(stop, appState === "stopping");
         buttons.append(actions, stop);
       }
-      const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
-      promptFrame.append(prompt);
-      renderDocumentInput(tester, promptFrame);
       tester.append(actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);

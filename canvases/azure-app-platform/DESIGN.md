@@ -584,13 +584,16 @@ useful status summaries remain specific to runtime state. Failure counts, output
 discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. Diagnostics is optional, closed by default, and
 resizable with pointer or keyboard; failure warnings stay visible when it is hidden.
-A compact secondary **+ Document** toolkit menu at the task textarea's bottom-left
+A compact secondary **+ Document** toolkit menu immediately to the right of **Invoke agent**
 appears only when readiness advertises document support. Its three actions are
 **Upload document**, **Paste a document** and **Add sample**. The public MenuButton
 owns keyboard navigation, dismissal and focus return. Paste opens an on-demand,
 confirmable editor, not a second permanent control row; Cancel preserves the attachment
 and assessment. Its draft/selection survive polling and navigation. Invocation and safety
 tests wait for Add or Cancel; no clipboard-read permission is assumed.
+Invoke and Document share a non-wrapping pair inside the wrapping task actions,
+with Start before the pair and Stop after it. The textarea has no document overlay
+or reserved bottom padding.
 Its tooltip explains analysis and safety-policy testing. Override/egress additions
 show a polite informational MessageBar describing the inserted test text and its
 purpose, separate from the test outcome. It updates with the test mode, survives

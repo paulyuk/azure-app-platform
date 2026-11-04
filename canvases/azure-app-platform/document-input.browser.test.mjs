@@ -21,6 +21,28 @@ async function pasteDocument(page, content) {
   await page.getByRole("button", { name: "Attach pasted document", exact: true }).click();
 }
 
+async function assertDocumentActionPlacement(page) {
+  const geometry = await page.getByRole("button", { name: "Add document", exact: true }).evaluate(node => {
+    const invoke = document.querySelector("[data-invoke-agent]");
+    const button = node.getBoundingClientRect(), primary = invoke.getBoundingClientRect();
+    const pair = node.closest(".agent-dispatch-actions");
+    const textarea = document.querySelector(".agent-prompt-frame textarea");
+    return {
+      pair: pair === invoke.closest(".agent-dispatch-actions"),
+      order: [...pair.querySelectorAll("button")].map(button => button.getAttribute("aria-label") || button.textContent),
+      gap: button.left - primary.right,
+      centered: Math.abs((button.top + button.bottom) - (primary.top + primary.bottom)) < 2,
+      fits: document.documentElement.scrollWidth <= innerWidth && button.right <= innerWidth && primary.left >= 0,
+      overlay: Boolean(node.closest(".agent-prompt-frame")),
+      bottomPadding: getComputedStyle(textarea).paddingBottom,
+    };
+  });
+  assert.ok(geometry.pair && geometry.centered && geometry.fits && !geometry.overlay &&
+    geometry.gap >= 6 && geometry.gap <= 10, JSON.stringify(geometry));
+  assert.deepEqual(geometry.order, ["Invoke agent", "Add document"]);
+  assert.equal(geometry.bottomPadding, "10px");
+}
+
 test("Run shares optional document input with invocation and enforcement across polling and modes", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
@@ -428,6 +450,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await add.getAttribute("aria-haspopup"), "menu");
       assert.equal(await editor.count(), 0, "Paste entry is absent from the accessibility tree until requested");
       assert.equal(await page.locator(".document-edit,[data-load-sample-document]").count(), 0);
+      for (const appState of ["stopped", "running"]) {
+        fixture.state.app = appState;
+        await page.locator('.agent-status-brief[data-state="' + (appState === "running" ? "ready" : "stopped") + '"]').waitFor();
+        await assertDocumentActionPlacement(page);
+        assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(),
+          appState === "running" ? ["Invoke agent", "Document", "Stop app"] : ["Start app", "Invoke agent", "Document"]);
+      }
+      await invoke.focus();
+      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+      assert.equal(await add.evaluate(node => node === document.activeElement), true);
       await add.focus();
       await add.press("ArrowDown");
       assert.deepEqual(await menu.getByRole("menuitem").allTextContents(), ["Upload document", "Paste a document", "Add sample"]);
@@ -443,10 +475,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await add.click();
       await page.locator(".agent-status-brief h3").click();
       assert.equal(await menu.count(), 0, "Outside click dismisses the canonical menu");
+      await page.waitForFunction(() => document.querySelector("[data-add-document]").getAttribute("aria-expanded") !== "true");
       for (const [width, height] of [[320, 480], [380, 480], [620, 800]]) {
         await page.setViewportSize({ width, height });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          await assertDocumentActionPlacement(page);
           await add.click();
           const geometry = await menu.evaluate(node => {
             const rect = node.getBoundingClientRect();
@@ -512,7 +546,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     } finally { release(); await browser.close(); await fixture.close(); }
   });
 
-  test(`Bottom-left document picker, full inert preview, retention and removal in ${name}`, {
+  test(`Task action document picker, full inert preview, retention and removal in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -567,16 +601,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.setViewportSize({ width, height });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-          const geometry = await plus.evaluate(node => {
-            const button = node.getBoundingClientRect();
-            const text = node.closest(".agent-prompt-frame").querySelector("textarea").getBoundingClientRect();
-            return { fits: document.documentElement.scrollWidth <= innerWidth,
-              inside: button.left >= text.left && button.right <= text.right && button.top >= text.top && button.bottom <= text.bottom + 1,
-              leftInset: button.left - text.left, bottomInset: text.bottom - button.bottom };
-          });
-          assert.ok(geometry.fits && geometry.inside &&
-            Math.abs(geometry.leftInset - 6) <= 1 && geometry.bottomInset >= 0 && geometry.bottomInset < 12,
-          JSON.stringify({ width, height, theme, geometry }));
+          await assertDocumentActionPlacement(page);
           const badgeGeometry = await card.locator(".document-source-label").evaluate(badge => {
             const name = badge.previousElementSibling, summary = badge.closest("summary");
             const file = name.getBoundingClientRect(), label = badge.getBoundingClientRect();
