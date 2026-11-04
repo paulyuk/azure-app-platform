@@ -125,7 +125,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               height: support.clientHeight, max: Math.floor(node.clientHeight * .55),
               scrollbar: primary.offsetWidth - primary.clientWidth };
           });
-          assert.ok(geometry.fits && geometry.contained && geometry.mainHeight > 30, JSON.stringify({ width, height, geometry }));
+          assert.ok(geometry.fits && geometry.contained && geometry.mainHeight > 65, JSON.stringify({ width, height, geometry }));
           assert.ok(geometry.height <= geometry.max && geometry.scrollbar >= 14);
           assert.ok(await panel.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
         }

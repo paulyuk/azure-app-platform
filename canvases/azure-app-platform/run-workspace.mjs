@@ -32,7 +32,10 @@ export function createRunWorkspace({
   function sizeDiagnostics(height = diagnosticsHeight, remember = false) {
     const shell = container.querySelector(".run-workspace");
     if (!shell) return;
-    const maximum = Math.max(0, Math.min(560, Math.floor(shell.clientHeight * .55)));
+    const heightAvailable = shell.clientHeight;
+    const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
+    const chrome = shell.querySelector(".run-diagnostics-toolbar").offsetHeight + 8;
+    const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55), heightAvailable - chrome - primaryReserve));
     const minimum = Math.min(120, maximum);
     const size = Math.round(Math.max(minimum, Math.min(maximum, height)));
     if (remember) diagnosticsHeight = size;

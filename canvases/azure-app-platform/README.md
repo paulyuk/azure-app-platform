@@ -369,7 +369,9 @@ initially. The task tester remains above it with independent scrolling; it is no
 Drag the separator or focus **Resize Diagnostics** and use Up/Down (24 pixels),
 Shift+Up/Down (48 pixels), Home (minimum) or End (maximum). The pane is bounded to
 55% of the available Run height and 560 pixels, with a 120-pixel minimum reduced
-for short canvases. Resizing the window clamps its displayed size without losing the
+for short canvases. It also reserves 160 pixels for the primary tester (40% of Run
+height on short canvases) after accounting for the toggle, warning and separator.
+Resizing the window clamps its displayed size without losing the
 preferred height. Escape inside Diagnostics or **Hide Diagnostics** closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
 and disclosures survive close/reopen, navigation and lifecycle polling for the current
