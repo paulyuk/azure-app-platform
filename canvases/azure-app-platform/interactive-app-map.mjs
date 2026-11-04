@@ -527,9 +527,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .customize-dialog-heading { display:flex; flex:none; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; border-bottom:1px solid var(--studio-line); }
     .customize-dialog-heading h2 { margin:0; font:600 16px/1.5 var(--font-sans,system-ui); }
     .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
-    #app-workspace-navigation { min-width: 0; }
-    .workspace-view-switch { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
-    #app-workspace-navigation ul { display: flex; gap: 2px; padding: 0; margin: 0; list-style: none; }
+    #app-workspace-navigation { min-width: 0; max-width: 100%; }
+    .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    #app-workspace-navigation ul { display: flex; flex-wrap: wrap; gap: 2px; padding: 0; margin: 0; list-style: none; }
     #app-workspace-navigation li { flex: none; }
     #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
     .studio-workspace-content { height: 100%; min-height: 0; color: var(--text); font: 16px/normal "Segoe UI", system-ui, sans-serif; }
@@ -1112,14 +1112,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedModel = "";
     let gatewayApplying = false;
     let panelMode = "manage";
+    let mapWorkspace = "observe";
     let observeView = "map";
     const navigationMount = document.querySelector("#workspace-navigation-mount");
     const loadingHeader = document.querySelector("#workspace-loading-header");
     const navigationRetry = document.querySelector("#retry-workspace-navigation");
     const navigationMessage = document.querySelector("#workspace-navigation-message");
     const navigationItems = [
-      { value: "manage", label: "Test agent", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
-      { value: "observe", label: "Inspect app", button: { id: "map-app", "aria-controls": "workspace-shell" } },
+      { value: "build", label: "Build", button: { id: "build-workspace", "aria-controls": "workspace-shell" } },
+      { value: "connections", label: "Connect", button: { id: "connect-workspace", "aria-controls": "workspace-shell" } },
+      { value: "manage", label: "Run", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
+      { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
+      { value: "deploy", label: "Deploy", button: { id: "deploy-workspace", "aria-controls": "workspace-shell" } },
     ];
     const workspaceHistory = [];
     let workspaceHistoryIndex = -1;
@@ -1151,8 +1155,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         onForward: () => navigateWorkspaceHistory(1),
       },
       onNavigate: (_event, value) => {
-        if (value === "manage") renderManagePanel();
-        else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
+        if (value === "build") renderStructureMap();
+        else if (value === "connections") renderConnectionsPanel();
+        else if (value === "manage") renderManagePanel();
+        else if (value === "deploy") renderDeployPanel();
+        else if (value === "observe" && !["map", "logs"].includes(workspaceDestination())) {
           if (observeView === "logs") renderLogsPanel();
           else renderMapPanel();
         }
@@ -1178,7 +1185,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (next < 0 || next >= workspaceHistory.length) return;
       workspaceHistoryIndex = next;
       const mode = workspaceHistory[next];
-      if (mode === "manage") renderManagePanel();
+      if (mode === "build") renderStructureMap();
+      else if (mode === "connections") renderConnectionsPanel();
+      else if (mode === "manage") renderManagePanel();
       else if (mode === "deploy") renderDeployPanel();
       else if (mode === "logs") renderLogsPanel();
       else renderMapPanel();
@@ -2071,7 +2080,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const target = panelMode === "connections" && !guideCollapsed
         ? guideContent.querySelector('[data-action-key="review-connections"]')
         : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
-      renderMapPanel();
+      if (panelMode !== "connections" && mapWorkspace === "build") renderStructureMap();
+      else renderMapPanel();
       if (target) target.focus({ preventScroll: true });
       else focusWorkspaceNavigation();
     }
@@ -2084,24 +2094,30 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(label);
     }
 
+    function workspaceDestination() {
+      if (["manage", "logs", "deploy", "connections"].includes(panelMode)) return panelMode;
+      return mapWorkspace === "build" ? "build" : "map";
+    }
+
     function updateModeHighlight() {
       const mode = ["manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
-      if (workspaceHistory[workspaceHistoryIndex] !== mode) {
+      const destination = workspaceDestination();
+      if (workspaceHistory[workspaceHistoryIndex] !== destination) {
         workspaceHistory.splice(workspaceHistoryIndex + 1);
-        workspaceHistory.push(mode);
+        workspaceHistory.push(destination);
         workspaceHistoryIndex = workspaceHistory.length - 1;
       }
       if (mode !== "manage" && !window.appPlatformSettings?.isOpen?.()) {
         gatewayDiscovery.invalidate();
       }
       if (panelMode !== "map") setStructureGuidance(false);
-      const observing = mode === "map" || mode === "logs";
+      const observing = destination === "map" || destination === "logs";
       if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
       document.body.dataset.inspecting = String(!["manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
-      const current = observing ? "observe" : mode;
-      document.querySelector("#workspace-location").textContent = current === "deploy" ? "Deploy" : navigationItems.find(item => item.value === current).label;
+      const current = observing ? "observe" : destination;
+      document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
       for (const tab of document.querySelectorAll("#observe-views > [role='tab']")) {
@@ -2112,7 +2128,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       workspace.setAttribute("role", observing ? "tabpanel" : "region");
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
-      details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
+      details.setAttribute("aria-label", destination === "build" ? "Build workspace" :
+        destination === "connections" ? "Connections workspace" : mode === "map" ? "Observe/Map inspector" :
         mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
@@ -2142,7 +2159,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderMapPanel() {
+      renderMapWorkspace("observe");
+    }
+
+    function renderMapWorkspace(stage) {
       setStructureGuidance(false);
+      mapWorkspace = stage;
       panelMode = "map";
       selectedId = null;
       selectedEdgeId = null;
@@ -2157,7 +2179,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderStructureMap() {
-      renderMapPanel();
+      renderMapWorkspace("build");
       setStructureGuidance(true);
       structureGuidance.focus({ preventScroll: true });
     }
@@ -4861,7 +4883,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#map-view").addEventListener("click", renderMapPanel);
     const dismissStructureGuidance = () => {
       setStructureGuidance(false);
-      document.querySelector("#map-view").focus({ preventScroll: true });
+      if (mapWorkspace === "build") focusWorkspaceNavigation("build-workspace");
+      else document.querySelector("#map-view").focus({ preventScroll: true });
     };
     document.querySelector("#close-structure-guidance").addEventListener("click", dismissStructureGuidance);
     structureGuidance.addEventListener("keydown", (event) => {

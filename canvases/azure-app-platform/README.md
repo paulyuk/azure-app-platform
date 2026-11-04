@@ -284,8 +284,10 @@ After creation or selection, the app workspace becomes the primary interface.
 The Unity logo and **Azure App Platform** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The primary destinations are **Test agent** and **Inspect app**, presented as a
-content-width segmented group of shipped toolkit Buttons at every canvas width.
+The workflow destinations are **Build**, **Connect**, **Run**, **Observe**, and
+**Deploy**, presented as a content-width segmented group of shipped toolkit
+Buttons at every canvas width. The group wraps in narrow panes so all five
+destinations remain visible, without a hidden overflow menu.
 The menu row has theme-aware top and bottom borders and compact spacing.
 Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
 the public small-button tokens; no private toolkit styles are overridden.
@@ -294,19 +296,23 @@ activates them. The selected destination has `aria-current="page"` and
 `aria-pressed="true"`. **Customize** opens the existing source controls in a
 fullscreen dialog within the canvas pane, without replacing the current workspace.
 The header's toolkit **NavigationControls** place **Back** and **Forward** before
-the logo. They traverse workspace visits (Test agent, App Map, Logs and
-Deploy), not browser pages or Guide stages. Repeated polling does not add visits;
+the logo. They traverse workspace visits (Build, Connect, Run, App Map, Logs and
+Deploy), not browser pages or readiness progression. Repeated polling does not add visits;
 a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
 **Deploy**, immediately beside **Open app** in the runtime bar, opens existing
 deployment options; it does not provision or deploy. Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
-Guide progress steps.
-Test agent opens first; source discovery starts only when Customize opens.
-Customize is independent of workspace history, distinct from
-the Guide's **Build** readiness stage. Inspect app contains **App Map** and
-**Logs** views and remembers the last one used during the current visit.
+readiness gates.
+Run opens first with the existing autonomous event/task tester; source discovery
+starts only when Customize opens. Build opens the App Map's existing structure
+controls, Connect opens source-derived connection review, and Deploy opens
+existing deployment options without execution.
+Customize is independent of workspace history, distinct from the **Build**
+workspace and the Guide's Build readiness stage. Observe contains **App Map**
+and **Logs** views and remembers the last one used during the current visit,
+including visits through Build or Connect.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive
 layout changes preserve those exact nodes, focus and task-payload selection. Permanent

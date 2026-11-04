@@ -43,8 +43,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const mode = async expected => {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
       };
-      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Test agent", "Inspect app"]);
-      assert.equal(await page.locator("#workspace-location").textContent(), "Test agent");
+      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
+      assert.equal(await page.locator("#workspace-location").textContent(), "Run");
       assert.equal(await page.locator("#build-app").getAttribute("aria-haspopup"), "dialog");
       assert.equal(await page.locator("#build-app").getAttribute("aria-current"), null);
       assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
@@ -72,7 +72,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
       await page.getByRole("button", { name: "Close Customize", exact: true }).click();
       await mode("manage");
-      assert.equal(await nav.getByRole("button", { name: "Test agent", exact: true }).getAttribute("aria-pressed"), "true");
+      assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       await page.getByText("Event triggers:", { exact: true }).waitFor();
       await page.getByText("Autonomous run result", { exact: true }).waitFor();
@@ -120,11 +120,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.headerFits, true, JSON.stringify({ width, tone, geometry }));
           assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
-          assert.ok(geometry.navRight <= width && geometry.groupWidth < 300, "Destinations stay content-width");
+          assert.ok(geometry.navRight <= width && geometry.groupWidth < 400, "Destinations stay content-width");
           assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
-          assert.ok(geometry.menuHeight <= 44, JSON.stringify({ width, tone, geometry }));
-          assert.equal(geometry.buttons.length, 3);
+          assert.ok(geometry.menuHeight <= (width < 480 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
+          assert.equal(geometry.buttons.length, 6);
           for (const button of geometry.buttons) {
             assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
           }
@@ -239,6 +239,97 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.deepEqual(errors, []);
       assert.ok(requests.some(url => url.endsWith("/canvas-ui/react-runtime.mjs")));
       assert.ok(requests.every(url => new URL(url).origin === origin), "Only same-origin shipped assets are used");
+    } finally {
+      await browser.close();
+      await fixture.close();
+    }
+  });
+
+  test(`All five workflow destinations stay reachable with correct history in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+      page.setDefaultTimeout(7000);
+      await page.goto(fixture.origin + "/app-map");
+      await page.waitForFunction(() => window.appPlatformReady);
+      const nav = page.getByRole("navigation", { name: "App workspaces", exact: true });
+      const labels = ["Build", "Connect", "Run", "Observe", "Deploy"];
+      const select = label => nav.getByRole("button", { name: label, exact: true }).click();
+      const selected = label => nav.getByRole("button", { name: label, exact: true })
+        .getAttribute("aria-current");
+      const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await draft.fill("Keep this unattended event payload.");
+      for (const width of [320, 380, 620, 1280]) {
+        await page.setViewportSize({ width, height: 480 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          assert.deepEqual(await nav.getByRole("button").allTextContents(), labels);
+          const geometry = await nav.evaluate(element => ({
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            targets: [...element.querySelectorAll("button")].map(button => {
+              const rect = button.getBoundingClientRect();
+              return {
+                label: button.textContent, width: rect.width, height: rect.height,
+                inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+                reachable: button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)),
+              };
+            }),
+          }));
+          assert.equal(geometry.overflow, false, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.targets.every(target => target.inViewport && target.reachable &&
+            target.width >= 28 && target.height >= 28), JSON.stringify({ width, theme, geometry }));
+        }
+      }
+      await page.setViewportSize({ width: 380, height: 800 });
+      await select("Build");
+      await page.getByRole("region", { name: "App structure guidance", exact: true }).waitFor();
+      assert.equal(await selected("Build"), "page");
+      assert.equal(await page.locator("#observe-views").isVisible(), false);
+      await page.getByRole("button", { name: "Dismiss app structure guidance", exact: true }).click();
+      assert.equal(await page.locator("#build-workspace").evaluate(node => node === document.activeElement), true);
+      await select("Connect");
+      await page.getByRole("heading", { name: "Connection review", exact: true }).waitFor();
+      assert.equal(await selected("Connect"), "page");
+      assert.equal(await page.locator("#observe-views").isVisible(), false);
+      await page.locator("#build-app").click();
+      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
+      assert.equal(await selected("Connect"), "page");
+      assert.equal(await page.getByRole("heading", { name: "Connection review", exact: true }).isVisible(), true);
+      await select("Run");
+      assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
+      await select("Observe");
+      await page.getByRole("tab", { name: "App Map", exact: true }).waitFor();
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await page.locator("#details[data-mode='logs']").waitFor();
+      await select("Deploy");
+      await page.getByRole("heading", { name: "Deploy to Azure", exact: true }).waitFor();
+      assert.equal(await selected("Deploy"), "page");
+      assert.deepEqual(fixture.mutations, [], "Workflow navigation never starts local or cloud execution");
+      const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
+      const back = history.getByRole("button", { name: "Back", exact: true });
+      const forward = history.getByRole("button", { name: "Forward", exact: true });
+      for (const label of ["Observe", "Observe", "Run", "Connect", "Build", "Run"]) {
+        await back.click();
+        assert.equal(await selected(label), "page");
+      }
+      assert.equal(await back.isDisabled(), true);
+      assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
+      await forward.click();
+      assert.equal(await selected("Build"), "page");
+      await forward.click();
+      assert.equal(await selected("Connect"), "page");
+      await select("Observe");
+      assert.equal(await page.getByRole("tab", { name: "App Map", exact: true }).getAttribute("aria-selected"), "true");
+      assert.equal(await forward.isDisabled(), true);
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await select("Build");
+      await select("Observe");
+      assert.equal(await page.getByRole("tab", { name: "Logs", exact: true }).getAttribute("aria-selected"), "true");
+      assert.deepEqual(fixture.mutations, []);
     } finally {
       await browser.close();
       await fixture.close();

@@ -1949,8 +1949,11 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /id="guide-shortcuts"/);
   assert.match(html, /id: "app-workspace-navigation", "aria-label": "App workspaces"/);
   assert.match(html, /role="tablist" aria-label="Observe views"/);
-  assert.match(html, /value: "manage", label: "Test agent"/);
-  assert.match(html, /value: "observe", label: "Inspect app"/);
+  assert.match(html, /value: "build", label: "Build"/);
+  assert.match(html, /value: "connections", label: "Connect"/);
+  assert.match(html, /value: "manage", label: "Run"/);
+  assert.match(html, /value: "observe", label: "Observe"/);
+  assert.match(html, /value: "deploy", label: "Deploy"/);
   assert.doesNotMatch(html, /class="header-actions"/);
   assert.match(html, /function createRunWorkspace/);
   assert.match(html, /"Output"/);

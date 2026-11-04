@@ -151,7 +151,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
-    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Test agent", "Inspect app"]);
+    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
     assert.equal(await page.locator("#studio-workspace-navigation > header h1").count(), 1);
