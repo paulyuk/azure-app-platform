@@ -1,7 +1,7 @@
 {
   "name": "azure-app-platform",
   "description": "Azure App Platform inventories, traces, and operates multi-tier agentic applications centered on ACA Sandboxes.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Cloud Foundation",
     "url": "https://github.com/coreai-microsoft/azure-app-platform"
