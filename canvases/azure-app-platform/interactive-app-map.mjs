@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
-import { RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
+import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
+import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -880,6 +881,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     /* Retained content keeps its typography and tabs above the provider's generic element reset. */
     ${STUDIO_TABS_CSS}
+    ${AGENT_STATUS_CSS}
     ${APP_LOGS_CSS}
   </style>
 </head>
@@ -1072,6 +1074,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const defaultPositions = new Map();
     let runtimeEntrypoints = [];
     let operationalState = { app: null, readiness: null };
+    let readinessError = "";
     let portReview = null;
     let portBusy = false;
     let portMessage = "";
@@ -1087,7 +1090,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ? "Process document"
         : "Summarize how you can help and run a sample check";
     let agentPromptTouched = false;
-    let agentResponseText = "The agent response will appear here.";
+    let agentResponseText = "No task has run yet.";
+    let agentRequestState = "idle";
     let invokingAgent = false;
     let agentDocument = null;
     let documentInputExpanded = false;
@@ -1147,6 +1151,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         setStatus(message, true);
       },
     });
+    const getAgentStatus = (${getAgentStatus.toString()});
+    const agentStatusRoot = document.createElement("div");
+    agentStatusRoot.id = "agent-status";
+    agentStatusRoot.setAttribute("role", "status");
+    agentStatusRoot.setAttribute("aria-live", "polite");
+    agentStatusRoot.setAttribute("aria-atomic", "true");
+    const agentStatusView = toolkit.mountCanvasComponent(agentStatusRoot,
+      (${createAgentStatusComponent.toString()})(toolkit), getAgentStatus());
     const navigationProps = {
       items: navigationItems, appTitle: document.querySelector("#app-title"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
@@ -1213,6 +1225,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appLogs?.dispose();
       buildPanel.hide();
       components.dispose();
+      agentStatusView.dispose();
     });
     ${BUILD_SYNTAX_SCRIPT}
     let deleteConfirming = false;
@@ -1275,7 +1288,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
-      onClear: buttons.clear,
+      onClear: container => {
+        if (container.contains(agentStatusRoot)) agentStatusRoot.remove();
+        buttons.clear(container);
+      },
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
       renderEnvironment: renderEnvironmentPanel,
@@ -1299,7 +1315,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         feed.dataset.runScrollKey = "operations";
         renderCommandFeed(feed);
       },
-      onConnection: () => openAppSettings("connection"),
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -1431,6 +1446,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
       document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
         entry.ready && normalized(entry.name) === "web");
+      updateAgentStatusBrief();
+    }
+
+    function updateAgentStatusBrief() {
+      agentStatusView.update(getAgentStatus({
+        ...operationalState, readinessError, requestState: agentRequestState,
+        agentReady: runtimeEntrypoints.some(entry => entry.ready && normalized(entry.name) === "agent"),
+      }));
     }
 
     function detailsHeightMaximum() {
@@ -2011,6 +2034,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function clearElement(element) {
+      if (element.contains(agentStatusRoot)) agentStatusRoot.remove();
+      if (element === details) runWorkspace.capture();
       buttons.clear(element);
       if (element === details) {
         appLogs?.dispose();
@@ -3463,8 +3488,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const testEgress = actionButton("Test unsafe egress", () => runAdversarialTest("egress"));
       testEgress.dataset.testEgress = "true";
       buttons.append(egressCard, testEgress);
-
-      renderDocumentAssessment(container);
     }
 
     function renderEventPresetChips(tester, promptInput) {
@@ -3496,6 +3519,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     async function executeAgentInvocation(promptInput) {
+      if (invokingAgent) return;
       const message = promptInput.value.trim();
       if (!message) {
         setStatus("Enter an event payload or task for the local agent.", true);
@@ -3503,9 +3527,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       invokingAgent = true;
+      agentRequestState = "invoking";
+      agentRawResponse = "";
+      agentToolActivity = [];
       clearDocumentAssessment();
       const assessmentEpoch = documentAssessmentEpoch;
-      syncAgentInputControls();
       agentResponseText = "Waiting for the local agent…";
       const updateResponseNode = (text) => {
         agentResponseText = text;
@@ -3513,6 +3539,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (currentResponse) currentResponse.textContent = text;
       };
       updateResponseNode(agentResponseText);
+      updateAgentStatusBrief();
+      if (panelMode === "manage") renderManagePanel();
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
           updateResponseNode(msg);
@@ -3534,6 +3562,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           documentAssessment = result.documentAssessment ?? { state: "unverified" };
         }
         agentToolActivity = result.summary?.tools || [];
+        agentRequestState = "succeeded";
         updateResponseNode(result.summary
           ? result.summary.text || "No assistant text was reported. Inspect the raw response below."
           : agentRawResponse);
@@ -3541,11 +3570,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (currentResponse) currentResponse.scrollTop = 0;
         setStatus("Agent response received.");
       } catch (error) {
+        agentRequestState = "failed";
         if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
         updateResponseNode(error.message);
         setStatus(error.message, true);
       } finally {
         invokingAgent = false;
+        updateAgentStatusBrief();
         syncAgentInputControls();
         if (panelMode === "manage") renderManagePanel();
       }
@@ -3556,75 +3587,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       tester.className = "developer-tool-card agent-tester";
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
-      if (!agentEntrypoint) {
-        const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
-        const needsGateway = !gatewayConfigured && (operationalState.readiness?.mode === "preview"
-          || !operationalState.readiness?.ready);
-        const appRunning = operationalState.app?.state === "running";
-        const canRun = canInvokeOrStartAgent();
-        appendText(tester, "span", canRun ? "Agent standby · Auto-starts on invoke" : "Agent unavailable", "tool-status");
-        appendText(
-          tester,
-          "p",
-          needsGateway
-            ? "The local agent cannot start until this app has an AI Gateway connection."
-            : appRunning
-              ? "The agent service did not start with the rest of the app."
-              : "Invoke agent will automatically start the local app if it is not running yet.",
-        );
-        const prompt = document.createElement("textarea");
-        appendText(tester, "strong", "Autonomous event / task payload");
-        renderEventPresetChips(tester, prompt);
-        prompt.maxLength = 2000;
-        prompt.value = agentPromptDraft;
-        prompt.placeholder = "Select an event trigger above or describe an unattended agent task while the service starts";
-        prompt.setAttribute("aria-label", "Agent message");
-        prompt.addEventListener("input", () => {
-          agentPromptTouched = true;
-          agentPromptDraft = prompt.value;
-        });
-        const actions = document.createElement("div");
-        actions.className = "actions";
-        const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), canRun);
-        send.dataset.invokeAgent = "true";
-        buttons.setDisabled(send, !canRun || invokingAgent);
-        buttons.append(actions, send);
-        if (needsGateway && appRunning) {
-          buttons.append(actions, actionButton("Stop preview", () => runAppOperation("stop-local"), true));
-        } else if (needsGateway) {
-          buttons.append(actions, actionButton(
-            "Connect AI Gateway",
-            () => renderManagePanel({ openGateway: true }),
-            true,
-          ));
-        } else if (appRunning) {
-          buttons.append(actions, actionButton("Stop app", () => runAppOperation("stop-local"), true));
-        }
-        tester.append(prompt);
-        renderDocumentInput(tester);
-        tester.append(actions);
-        if (invokingAgent || agentResponseText) {
-          appendText(tester, "h3", "Autonomous run result");
-          const response = appendText(tester, "div", agentResponseText, "agent-response");
-          response.setAttribute("role", "region");
-          response.setAttribute("aria-label", "Agent response");
-        }
-        renderDocumentTest(tester, actions);
-        if (agentRawResponse) {
-          renderTools(tester);
-        }
-        container.append(tester);
-        syncAgentInputControls();
-        return;
-      }
-
-      appendText(tester, "span", "Agent ready · Event-driven runner", "tool-status ready");
+      const canRun = canInvokeOrStartAgent();
       const prompt = document.createElement("textarea");
       appendText(tester, "strong", "Autonomous event / task payload");
       renderEventPresetChips(tester, prompt);
       prompt.maxLength = 2000;
       prompt.value = agentPromptDraft;
-      prompt.placeholder = "Dispatch an event payload or unattended task to the running agent";
+      prompt.placeholder = agentEntrypoint
+        ? "Dispatch an event payload or unattended task to the running agent"
+        : "Select an event trigger or describe an unattended task";
       prompt.setAttribute("aria-label", "Agent message");
       prompt.addEventListener("input", () => {
         agentPromptTouched = true;
@@ -3634,12 +3605,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.className = "agent-response";
       response.setAttribute("role", "region");
       response.setAttribute("aria-label", "Agent response");
+      response.tabIndex = 0;
+      response.dataset.runScrollKey = "agent-result";
+      response.dataset.state = agentRequestState;
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions";
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
       send.dataset.invokeAgent = "true";
-      buttons.setDisabled(send, invokingAgent);
+      buttons.setDisabled(send, !canRun || invokingAgent);
       buttons.append(actions, send);
       tester.append(prompt);
       renderDocumentInput(tester);
@@ -3647,12 +3621,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
       renderDocumentTest(tester, actions);
-      renderTools(tester);
+      renderDocumentAssessment(tester);
+      if (agentRequestState !== "idle") renderTools(tester);
       if (agentRawResponse) {
         const raw = document.createElement("details");
         raw.dataset.runDisclosure = "raw-response";
         appendText(raw, "summary", "Raw agent response");
-        appendText(raw, "pre", agentRawResponse, "command-output");
+        const output = appendText(raw, "pre", agentRawResponse, "command-output");
+        output.dataset.runScrollKey = "agent-raw";
+        output.tabIndex = 0;
         tester.append(raw);
       }
       container.append(tester);
@@ -3781,24 +3758,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderTryApp(container) {
-      const state = operationalState.app?.state;
-      if (state !== "running") renderRuntimeAction(container);
-      else {
-        const web = runtimeEntrypoints.find((entry) => entry.ready && normalized(entry.name) === "web");
-        if (web) {
-          const actions = appendText(container, "div", "", "run-open-app");
-          appendText(actions, "p", "Try the web experience, or send a message to the agent below.");
-          buttons.append(actions, actionButton("Open app", async () => {
-            try {
-              await apiRequest("/api/open-entrypoint", {
-                method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
-              });
-            } catch (error) { setStatus(error.message, true); }
-          }, true));
-        }
-      }
+      updateAgentStatusBrief();
+      container.append(agentStatusRoot);
+      const actions = appendText(container, "div", "", "run-setup-actions");
+      buttons.append(actions, actionButton(operationalState.readiness && !operationalState.readiness.gatewayConfigured
+        ? "Connect AI Gateway" : "Connection settings", () => openAppSettings("connection")));
       if (operationalState.app?.foreignEntrypoints?.length) {
-        buttons.append(container, actionButton("Resolve port conflict", () => openAppSettings("ports")));
+        buttons.append(actions, actionButton("Resolve port conflict", () => openAppSettings("ports")));
+      }
+      if (operationalState.app?.state === "failed" || operationalState.app?.recovered) {
+        renderRuntimeAction(container);
       }
       renderPrerequisiteBanner(container);
       renderAgentTester(container);
@@ -4060,6 +4029,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           gatewayConfigured: readiness.gatewayConfigured,
           model: readiness.model,
           gateway: readiness.activeGateway?.name,
+          gatewayStatus: readiness.activeGateway?.configurationStatus,
+          prerequisites: readiness.prerequisites,
           documentInput: readiness.documentInput,
           entrypoints: (app.entrypoints || []).map((entrypoint) => [
             entrypoint.name,
@@ -4073,6 +4044,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const changed = nextFingerprint !== operationalFingerprint;
         operationalFingerprint = nextFingerprint;
         operationalState = { app, readiness };
+        readinessError = "";
         if (!agentPromptTouched && typeof readiness?.starterPrompt === "string" && readiness.starterPrompt.trim()) {
           agentPromptDraft = readiness.starterPrompt.trim();
           const activePrompt = details.querySelector('[aria-label="Agent message"]');
@@ -4108,6 +4080,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const changed = operationalFingerprint !== "unavailable";
         operationalFingerprint = "unavailable";
         operationalState = { app: null, readiness: null };
+        readinessError = "Unable to refresh app readiness: " + error.message;
         runtimeEntrypoints = [];
         updateAppStatusBadge();
         if (changed) renderActionCenter();

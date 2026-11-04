@@ -345,10 +345,25 @@ attention indicators, and descriptive tooltips. Selecting an icon expands
 Guide at that stage's explanation without changing workspaces.
 There is no separate Guide button in the top navigation;
 switching views never reopens Guide or discards task payloads or the selected Customize preview.
-Test agent retains **Autonomous event / task payload**, the **Event triggers:**
+Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
+**Status Brief** leads the tester with separate runtime, agent-endpoint and model
+connection facts. A running web app, configured gateway or Azure operation never
+establishes agent availability or successful policy enforcement. Stopped, starting,
+preview, missing prerequisites/connection and unavailable agent states explain the
+next step; invoking, result received and failed invocation states describe the
+current or last task independently of those facts. Readiness-fetch errors are explicit.
+**Invoke agent** retains the existing auto-start/wait/dispatch contract and optional
+document request shape. The payload, sample-document presets, document assessment,
+last result, reported tool activity and raw response survive polling, workspace visits
+and runtime transitions. A failed retry clears the previous run's raw/tool evidence,
+keeps its own error visible and never becomes a success just because the runtime
+recovers. Text selection, result scrolling and evidence disclosures are retained.
+Open app and lifecycle controls remain in the header rather than a second tester
+toolbar. Output, Services, Environment and Operations remain in their existing
+support panel; Diagnostics resizing and Guide redesign are separate work.
 Guide visibility is remembered per app in the current browser origin.
 On narrow screens it starts collapsed and opens as a dismissible overlay.
 A persistent badge beside the app name distinguishes

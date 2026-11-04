@@ -5,15 +5,32 @@ export function createRunWorkspace({
   renderEnvironment,
   renderOutput,
   renderOperations,
-  onConnection,
   onClear = () => {},
 }) {
-  const expanded = new Map();
+  const disclosures = new Map();
+  const scrolling = new Map();
+  const selections = new Map();
   let selectedTab = "output";
   let lastState;
   let failures = 0;
   let operationCount = 0;
   let outputError = "";
+
+  function capture() {
+    for (const node of container.querySelectorAll("[data-run-disclosure]")) {
+      disclosures.set(node.dataset.runDisclosure, node.open);
+    }
+    for (const node of container.querySelectorAll("[data-run-scroll-key]")) {
+      if (!node.getClientRects().length) continue;
+      scrolling.set(node.dataset.runScrollKey, [
+        node.scrollTop,
+        node.dataset.runScrollKey === "output" && node.scrollHeight - node.scrollTop - node.clientHeight < 40,
+      ]);
+    }
+    for (const node of container.querySelectorAll("textarea[aria-label]")) {
+      selections.set(node.getAttribute("aria-label"), [node.selectionStart, node.selectionEnd, node.scrollTop]);
+    }
+  }
 
   function text(parent, tag, content, className = "") {
     const node = document.createElement(tag);
@@ -109,46 +126,23 @@ export function createRunWorkspace({
     render({ state, readiness, services = [] }) {
       const active = document.activeElement;
       const hadFocus = container.contains(active);
+      const focusedTester = hadFocus && Boolean(active?.closest?.(".agent-tester"));
       const focusedPanel = active?.closest?.("[data-run-panel]")?.dataset.runPanel;
       const focusedTab = active?.closest?.("[data-run-tab]")?.dataset.runTab;
       const label = active?.getAttribute("aria-label");
       const key = active?.getAttribute("data-action-key");
+      const scrollKey = active?.getAttribute("data-run-scroll-key");
       const content = ["BUTTON", "SUMMARY"].includes(active?.tagName) ? active.textContent : null;
       const selection = hadFocus && typeof active.selectionStart === "number"
         ? [active.selectionStart, active.selectionEnd] : null;
       const scrollTop = container.scrollTop;
-      const nested = [...container.querySelectorAll("[data-run-disclosure]")]
-        .map((node) => [node.dataset.runDisclosure, node.open]);
-      const scrolling = [...container.querySelectorAll("[data-run-scroll-key]")].map((node) => [
-        node.dataset.runScrollKey,
-        node.scrollTop,
-        node.scrollHeight - node.scrollTop - node.clientHeight < 40,
-      ]);
+      capture();
       lastState = state;
 
       onClear(container);
       container.replaceChildren();
       const shell = text(container, "div", "", "run-workspace");
-      const heading = text(shell, "div", "", "run-heading");
-      text(heading, "h2", "Run & debug");
       const connected = Boolean(readiness?.gatewayConfigured);
-      const configuring = state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring";
-      const action = readiness && !connected && !configuring ? "Connect AI Gateway" : "Connection settings";
-      const connection = text(heading, "button", "", "run-connection");
-      text(connection, "span", action, "run-connection-action");
-      const sandboxLabel = readiness?.sandboxGroup?.name ? " · " + readiness.sandboxGroup.name : "";
-      const value = text(connection, "span", configuring
-        ? "Applying " + (readiness?.activeGateway?.name || "AI Gateway") + "…"
-        : connected
-          ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway") + sandboxLabel
-          : readiness ? "No AI Gateway connected" : "Checking model connection...", "run-connection-value");
-      value.id = "run-connection-value";
-      connection.type = "button";
-      connection.setAttribute("aria-label", action);
-      connection.setAttribute("aria-describedby", value.id);
-      connection.title = action + ": " + value.textContent;
-      connection.dataset.connected = String(connected || configuring);
-      connection.addEventListener("click", onConnection);
       renderTry(text(shell, "div", "", "run-primary"));
 
       const support = text(shell, "div", "", "run-support");
@@ -186,22 +180,32 @@ export function createRunWorkspace({
       createPanel(panels, "operations", renderOperations);
       activateTab(shell, selectedTab);
 
-      for (const [id, open] of nested) {
+      for (const [id, open] of disclosures) {
         const node = container.querySelector('[data-run-disclosure="' + id + '"]');
         if (node) node.open = open;
       }
-      for (const [id, top, following] of scrolling) {
+      for (const [id, [top, following]] of scrolling) {
         const node = container.querySelector('[data-run-scroll-key="' + id + '"]');
         if (node) node.scrollTop = following ? node.scrollHeight : top;
       }
       container.scrollTop = scrollTop;
+      for (const node of container.querySelectorAll("textarea[aria-label]")) {
+        const previous = selections.get(node.getAttribute("aria-label"));
+        if (previous) {
+          node.setSelectionRange(previous[0], previous[1]);
+          node.scrollTop = previous[2];
+        }
+      }
       if (hadFocus) {
-        const replacement = [...container.querySelectorAll("button, input, textarea, select, summary")]
+        const replacement = [...container.querySelectorAll("button, input, textarea, select, summary, [data-run-scroll-key][tabindex]")]
           .find((node) => !node.disabled && !node.closest("[hidden]") && (key ? node.dataset.actionKey === key
-            : label ? node.getAttribute("aria-label") === label : content && node.textContent === content));
+            : label ? node.getAttribute("aria-label") === label
+              : scrollKey ? node.dataset.runScrollKey === scrollKey : content && node.textContent === content));
         if (replacement) {
           replacement.focus({ preventScroll: true });
           if (selection && replacement.setSelectionRange) replacement.setSelectionRange(...selection);
+        } else if (focusedTester) {
+          container.querySelector(".agent-response")?.focus({ preventScroll: true });
         } else if (focusedTab || focusedPanel) {
           const fallback = container.querySelector('[data-run-tab="' + (focusedTab || focusedPanel || selectedTab) + '"]');
           fallback?.focus({ preventScroll: true });
@@ -209,6 +213,7 @@ export function createRunWorkspace({
         }
       }
     },
+    capture,
     diagnostics({ failures: count = 0, operations = operationCount, error = "" } = {}) {
       failures = count;
       operationCount = operations;
