@@ -45,7 +45,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       };
       assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
       assert.equal(await page.locator("#workspace-location").textContent(), "Run");
-      assert.equal(await page.locator("#build-workspace").getAttribute("aria-haspopup"), "dialog");
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-haspopup"), null);
       assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), null);
       assert.equal(await page.locator("#build-app").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Customize", exact: true }).count(), 0);
@@ -63,13 +63,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.ok(positions.history <= positions.logo);
       const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
 
-      // Build opens the retained editor without adding a workspace history visit.
+      // Build is a normal retained source workspace in destination history.
       await select("build-workspace");
+      await mode("build");
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
+      assert.equal(await page.locator("dialog[open]").count(), 0);
       await page.locator(".build-source-preview").first().waitFor();
       await page.getByRole("tab", { name: "Runtime", exact: true }).click();
       const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
       if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
-      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
+      await back.click();
       await mode("manage");
       assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
@@ -172,21 +175,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
       assert.equal(await back.isDisabled(), true);
       await select("build-workspace");
-      await mode("manage");
+      await mode("build");
       await buildDisclosure.waitFor({ state: "attached" });
       assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await buildDisclosure.evaluate(node => node.open), false);
-      assert.equal(await back.isDisabled(), true);
-      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
-      assert.equal(await forward.isDisabled(), false, "Modal visits do not discard forward history");
+      assert.equal(await back.isDisabled(), false);
+      assert.equal(await forward.isDisabled(), true, "Build is a new history destination");
+      await back.click();
+      await mode("manage");
+      assert.equal(await forward.isDisabled(), false);
       await forward.click();
-      await mode("map");
+      await mode("build");
       await select("manage-app");
       await mode("manage");
       assert.equal(await forward.isDisabled(), true, "New destinations discard only forward history");
-      await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
-      await back.click();
+      await select("map-app");
       await mode("map");
+      await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
       await back.click();
       await mode("manage");
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
@@ -284,11 +289,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       await page.setViewportSize({ width: 380, height: 800 });
       await select("Build");
-      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
-      assert.equal(await selected("Run"), "page");
-      assert.equal(await selected("Build"), null);
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
+      assert.equal(await selected("Run"), null);
+      assert.equal(await selected("Build"), "page");
       await page.keyboard.press("Escape");
-      assert.equal(await page.locator("#build-workspace").evaluate(node => node === document.activeElement), true);
+      assert.equal(await selected("Build"), "page", "Escape does not close a page");
       assert.equal(await page.locator("#observe-views").isVisible(), false);
       await select("Connect");
       await page.getByRole("heading", { name: "Gateway connections", exact: true }).waitFor();
@@ -296,8 +301,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await selected("Connect"), "page");
       assert.equal(await page.locator("#observe-views").isVisible(), false);
       await page.locator("#build-workspace").click();
-      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
-      await page.getByRole("button", { name: "Close Customize", exact: true }).click();
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
+      await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();
       assert.equal(await selected("Connect"), "page");
       assert.equal(await page.getByRole("heading", { name: "Gateway connections", exact: true }).isVisible(), true);
       await select("Run");
@@ -313,19 +318,21 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
       const back = history.getByRole("button", { name: "Back", exact: true });
       const forward = history.getByRole("button", { name: "Forward", exact: true });
-      for (const label of ["Observe", "Observe", "Run", "Connect", "Run"]) {
+      for (const label of ["Observe", "Observe", "Run", "Connect", "Build", "Run"]) {
         await back.click();
         assert.equal(await selected(label), "page");
       }
       assert.equal(await back.isDisabled(), true);
       assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
       await forward.click();
-      assert.equal(await selected("Connect"), "page");
+      assert.equal(await selected("Build"), "page");
       await select("Build");
       await page.keyboard.press("Escape");
-      assert.equal(await forward.isDisabled(), false, "Build preserves the existing forward history");
+      assert.equal(await forward.isDisabled(), false, "Re-selecting Build does not add a visit");
       await forward.click();
-      assert.equal(await selected("Run"), "page");
+      assert.equal(await selected("Connect"), "page");
+      await select("Build");
+      assert.equal(await forward.isDisabled(), true, "Build navigation after Back discards forward visits");
       await select("Observe");
       assert.equal(await page.getByRole("tab", { name: "App Map", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await forward.isDisabled(), true);

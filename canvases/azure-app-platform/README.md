@@ -293,11 +293,12 @@ Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
 the public small-button tokens; no private toolkit styles are overridden.
 There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
 activates them. The selected workspace page has `aria-current="page"` and
-`aria-pressed="true"`. **Build** opens the existing Customize source controls in a
-fullscreen dialog within the canvas pane, without replacing the current workspace.
-It is a dialog action, not another history destination. There is no separate Customize link.
+`aria-pressed="true"`. **Build** shows the existing Customize source controls as a
+normal workspace page inside the shell. Navigation, history, utilities and footer stay
+available; there is no overlay, Close action, Escape dismissal or focus trap.
+There is no separate Customize link.
 The header's toolkit **NavigationControls** place **Back** and **Forward** before
-the logo. They traverse workspace visits (Connect, Run, App Map, Logs and
+the logo. They traverse workspace visits (Build, Connect, Run, App Map, Logs and
 Deploy), not browser pages or readiness progression. Repeated polling does not add visits;
 a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
@@ -310,10 +311,10 @@ ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
 readiness gates.
 Run opens first with the existing autonomous event/task tester; source discovery
-starts only when Build opens Customize. Connect opens the complete gateway connection
+starts only when Build is opened. Connect opens the complete gateway connection
 page, and Deploy opens
 existing deployment options without execution.
-Build/Customize is independent of workspace history and retains the underlying page.
+Build participates in workspace history and retains its source controls between visits.
 Observe contains **App Map**
 and **Logs** views and remembers the last one used during the current visit,
 including visits through Build or Connect.
@@ -328,14 +329,14 @@ shell rather than React copies of business logic. Navigation refreshes and respo
 layout changes preserve those exact nodes, focus and task-payload selection. Permanent
 navigation disposes the shell binding and restores retained slots; persisted
 `pagehide` keeps them for the back/forward cache.
-Customize retains its selected area, project, expanded preview and scroll position
-when closed and reopened. **Close** or Escape returns focus to its opener; background
-content cannot take focus or dismiss it. **Model connection** opens scoped Settings
-above Customize and returns to the same preview. **Run & Debug** and **Test with a
-document** close Customize and focus the existing task tester; **+ Add building
-block** closes it and opens the existing App Map controls. Source and external-editor
+Build retains its selected area, project, expanded preview, source/page scroll and focused
+source control across navigation and Back/Forward. **Model connection** opens scoped Settings
+above the Build page and returns to the same control and preview. Settings alone remains
+modal. **Run & Debug** and **Test with a document** navigate to Run and focus the existing
+task tester; **+ Add building block** opens the existing App Map controls. Task/document
+drafts, selections, results and assessments survive Build visits. Source and external-editor
 handoffs keep their existing behavior. The Guide's Build action opens the same
-Customize dialog; its Connect action opens gateway configuration. Source connection
+Build page; its Connect action opens gateway configuration. Source connection
 review remains under Observe's App Map **Search & layout**, with **Edit connections on
 App Map** highlighting the existing diagram controls. These entry points do not
 change files or start the app.

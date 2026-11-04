@@ -81,9 +81,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await field("AI model").evaluate(node => node === window.retainedGatewayModel && node === document.activeElement), true);
       await page.locator("#build-workspace").click();
-      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
-      await page.keyboard.press("Escape");
-      assert.equal(await field("AI model").evaluate(node => node === window.retainedGatewayModel), true);
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
+      await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();
+      await field("AI model").waitFor();
+      assert.equal(await field("AI model").inputValue(), "gpt-alternate");
       await page.locator("#manage-app").click();
       assert.equal(await draft.inputValue(), "Keep this document-backed event.");
       await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();

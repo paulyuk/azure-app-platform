@@ -226,17 +226,21 @@ the repository or subscription.
 ### Workspace and Guide
 
 The app interface exposes Build, Connect, Run, Observe, and Deploy in one compact
-navigation group. Build opens the existing full-screen Customize dialog, with no
-separate Customize entrypoint or workspace history visit. It presents compact category
+navigation group. Build is a normal shell page using the existing Customize renderer,
+with no separate Customize entrypoint, dialog, overlay, Close action or Escape trap.
+It participates in Back/Forward history and retains category/project selection,
+preview expansion, source/page scroll and focused control across visits. It presents compact category
 tabs and source previews rather than a second editor. Connect is a dedicated gateway
 configuration page using the canonical Settings/Environment renderer and shared
 subscription, gateway, model and sandbox discovery/actions. Opening it does not apply
 changes or create resources. Run remains the autonomous event/task tester; Observe owns
 App Map/Logs and source connection review; Deploy reviews explicit deployment actions.
 Guide's Build and Connect actions use those same destinations. Source review and
-Customize's add-building-block handoff can highlight the existing map controls.
+Build's add-building-block handoff can highlight the existing map controls.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
-highlight. Customize's area/project selections and preview expansion are retained across these transitions.
+highlight. Model connection still opens scoped modal Settings above Build, with focus
+returning to its trigger. Run/document handoffs navigate to the one existing task tester;
+task/document drafts, selection, results and assessments survive Build visits.
 They share one compact top bar whose Unity logo and name link home, with no
 separate Home button. The same bar contains app identity,
 runtime status and start/stop, Docs, and Settings. There is no separate
@@ -258,7 +262,7 @@ Tabs have no individual outlines. Clear hover/focus styling reinforces clickabil
 Observe retains its map/log icons, selected state, roving focus, and labelled
 tabpanel relationships. Arrow keys, Home, and End move focus without activation,
 respecting text direction; Enter or Space opens the focused Observe view.
-Customize is the initial view. Customize, Run, and Logs use the main content region; the graph and its
+Run is the initial view. Build, Run, and Logs use the main content region; the graph and its
 view/search controls are visible only in Map. Map details are a contextual
 inspector, not the container for every app workflow.
 The inspector opens below the map, never as another right-hand rail. Its

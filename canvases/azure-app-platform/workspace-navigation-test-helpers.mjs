@@ -19,11 +19,6 @@ export async function openWorkspaceNavigation(page) {
 }
 
 export async function selectWorkspace(page, id) {
-  const customize = page.locator("#app-customize[open]");
-  if (await customize.count()) {
-    if (id === "build-workspace") return;
-    await page.getByRole("button", { name: "Close Customize", exact: true }).click();
-  }
   await openWorkspaceNavigation(page);
   await page.locator("#" + id).click();
 }

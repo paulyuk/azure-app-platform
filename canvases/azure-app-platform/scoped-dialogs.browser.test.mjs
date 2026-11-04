@@ -15,7 +15,7 @@ async function selectSection(page, section) {
 }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Fullscreen Customize retains task/source state and handoffs in ${name}`, {
+  test(`Build page retains task/source state, history, scoped Settings and handoffs in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -24,11 +24,14 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     try {
       const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
       page.setDefaultTimeout(7000);
-      const errors = [], sourceRequests = [];
-      let reads = 0, fail = false;
+      const errors = [], sourceRequests = [], invocations = [];
+      let reads = 0, fail = false, holdNextRead;
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/build-workspace*", async route => {
         reads++;
+        const hold = holdNextRead;
+        holdNextRead = undefined;
+        if (hold) await hold;
         await route.fulfill(fail ? { status: 503, json: { error: "Source discovery unavailable." } } : { json: {
           supportsDocuments: true,
           artifacts: [{
@@ -38,13 +41,22 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           }, {
             id: "runtime", customizationArea: "runtime", title: "Runtime configuration",
             path: "src/agent/config.json", projectPath: "src/agent", projectName: "Deal finder",
-            available: true, content: '{"port":8088,"notes":"' + "long-value-".repeat(80) + '"}', sha: "fixture",
+            available: true, content: JSON.stringify({ agentRuntime: "local", notes: Array.from({ length: 60 }, (_, i) =>
+              i + "long-value-".repeat(80)) }, null, 2), sha: "fixture",
           }],
         } });
       });
       await page.route("**/api/open-build-file", async route => {
         sourceRequests.push(route.request().postDataJSON());
         await route.fulfill({ json: { path: "src/agent/config.json", editorLabel: "VS Code" } });
+      });
+      await page.route("**/api/agent-invoke", async route => {
+        invocations.push(route.request().postDataJSON());
+        await route.fulfill({ json: {
+          summary: { text: "Retained task result", tools: [{ name: "document_validation", status: "Call reported" }] },
+          documentAssessment: { state: "approved", sanitizedText: "Verified fixture text",
+            redactions: { email: 1 }, truncated: false },
+        } });
       });
       await page.goto(fixture.origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
@@ -53,97 +65,134 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await page.locator("[data-event-preset]").first().click();
       await prompt.fill("Preserve this unattended event.");
-      await prompt.evaluate(node => { window.dialogPrompt = node; node.setSelectionRange(2, 8); });
+      await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await page.getByLabel("Document attachment", { exact: true }).click();
+      await page.getByRole("button", { name: "Edit document", exact: true }).click();
+      const text = page.getByLabel("Document text", { exact: true });
+      const draft = "# Unsaved document edit\n\n" + "Keep this paragraph.\n".repeat(60);
+      await text.fill(draft);
+      await text.evaluate(node => { node.setSelectionRange(2, 8); node.scrollTop = 90; });
       const customize = page.locator("#build-workspace");
-      const dialog = page.getByRole("dialog", { name: "Customize app", exact: true });
-      const close = dialog.getByRole("button", { name: "Close Customize", exact: true });
+      const build = page.getByRole("region", { name: "Build workspace", exact: true });
+      const content = page.locator("#customize-content");
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
-      for (const [width, height] of [[320, 480], [620, 800], [1280, 800]]) {
+      const back = history.getByRole("button", { name: "Back", exact: true });
+      const forward = history.getByRole("button", { name: "Forward", exact: true });
+      await customize.click();
+      await build.locator(".build-workspace").waitFor();
+      assert.equal(await customize.getAttribute("aria-current"), "page");
+      assert.equal(await customize.getAttribute("aria-haspopup"), null);
+      assert.equal(await page.locator("#close-customize,dialog#app-customize").count(), 0);
+      const disclosure = build.locator('[data-artifact="runtime"] .build-source-disclosure');
+      const preview = build.getByRole("region", { name: "Runtime configuration source preview", exact: true });
+      await build.getByRole("tab", { name: "Runtime", exact: true }).click();
+      await disclosure.evaluate(node => { window.buildDisclosure = node; });
+      for (const [width, height] of [[320, 480], [380, 480], [620, 800], [1280, 800]]) {
         await page.setViewportSize({ width, height });
-        await customize.click();
-        await dialog.locator(".build-workspace").waitFor();
-        assert.deepEqual(await dialog.evaluate(node => {
-          const box = node.getBoundingClientRect();
-          return {
-            modal: node.matches(":modal"), left: box.left, top: box.top,
-            fullWidth: Math.abs(box.width - innerWidth) < 1,
-            fullHeight: Math.abs(box.height - innerHeight) < 1,
-            fits: node.scrollWidth <= node.clientWidth + 1,
-          };
-        }), { modal: true, left: 0, top: 0, fullWidth: true, fullHeight: true, fits: true });
-        await page.locator("#header-open-app").evaluate(node => node.focus());
-        assert.ok(await dialog.evaluate(node => node.contains(document.activeElement)));
-        await close.focus();
-        await page.keyboard.press("Shift+Tab");
-        assert.ok(await dialog.evaluate(node => node.contains(document.activeElement)));
-        await page.keyboard.press("Tab");
-        assert.equal(await close.evaluate(node => node === document.activeElement), true,
-          await page.evaluate(() => document.activeElement.outerHTML));
-        await dialog.getByRole("tab", { name: "Runtime", exact: true }).click();
-        assert.equal(await dialog.getByRole("tab", { name: "Runtime", exact: true })
-          .evaluate(node => getComputedStyle(node).borderBottomWidth), "3px", "Moving source controls retains flat tab styling");
-        const disclosure = dialog.locator('[data-artifact="runtime"] .build-source-disclosure');
-        if (width === 320) {
-          if (await disclosure.evaluate(node => node.open)) await disclosure.locator("summary").click();
-          await disclosure.evaluate(node => { window.dialogDisclosure = node; });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          const geometry = await build.evaluate(node => {
+            const box = node.getBoundingClientRect();
+            const shell = document.querySelector("#app-workspace-main").getBoundingClientRect();
+            const footer = document.querySelector("#workspace-status-footer").getBoundingClientRect();
+            return { tag: node.tagName, dialogs: document.querySelectorAll("dialog[open]").length,
+              inside: box.top >= shell.top && box.bottom <= footer.top + 1 && box.left >= 0 && box.right <= innerWidth,
+              fits: node.scrollWidth <= node.clientWidth + 1 && document.documentElement.scrollWidth <= innerWidth,
+              height: box.height };
+          });
+          assert.ok(geometry.tag === "SECTION" && geometry.dialogs === 0 && geometry.inside &&
+            geometry.fits && geometry.height > 150, JSON.stringify({ width, theme, geometry }));
         }
-        assert.equal(await disclosure.evaluate(node => node.open), false);
-        assert.equal(await disclosure.evaluate(node => node === window.dialogDisclosure), true);
-        await dialog.locator(".customize-dialog-heading").click();
-        await dialog.dispatchEvent("click");
-        assert.equal(await dialog.evaluate(node => node.open), true, "Content/backdrop clicks never dismiss a fullscreen editor");
-        await dialog.getByRole("button", { name: "Model connection", exact: true }).click();
+        await page.locator("#header-open-app").evaluate(node => node.focus());
+        assert.equal(await page.locator("#header-open-app").evaluate(node => node === document.activeElement), true,
+          "Build does not trap focus away from the shell");
+        await page.keyboard.press("Escape");
+        assert.equal(await build.isVisible(), true, "Escape never closes a workspace page");
+        assert.equal(await build.getByRole("tab", { name: "Runtime", exact: true })
+          .evaluate(node => getComputedStyle(node).borderBottomWidth), "3px", "Moving source controls retains flat tab styling");
+        assert.equal(await disclosure.evaluate(node => node === window.buildDisclosure), true);
+        await build.getByRole("button", { name: "Model connection", exact: true }).click();
         const settings = page.getByRole("dialog", { name: "Settings", exact: true });
         await settings.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor();
+        assert.equal(await settings.evaluate(node => node.matches(":modal")), true);
         await page.keyboard.press("Escape");
         await settings.waitFor({ state: "hidden" });
-        assert.equal(await dialog.evaluate(node => node.open && node.contains(document.activeElement)), true);
-        assert.equal(await disclosure.evaluate(node => node === window.dialogDisclosure), true);
+        await page.waitForFunction(() => document.activeElement?.dataset.focusKey === "model");
+        assert.equal(await build.getByRole("button", { name: "Model connection", exact: true })
+          .evaluate(node => node === document.activeElement), true);
+        assert.equal(await disclosure.evaluate(node => node === window.buildDisclosure), true);
         if (width === 620) {
           fixture.state.health = "Readiness changed while customizing";
           await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
-          await page.waitForFunction(() => document.querySelector('[aria-label="Agent message"]') !== window.dialogPrompt);
-          assert.equal(await dialog.evaluate(node => node.open && node.contains(document.activeElement)), true);
-          assert.equal(await prompt.inputValue(), "Preserve this unattended event.");
-          await prompt.evaluate(node => { window.dialogPrompt = node; node.setSelectionRange(2, 8); });
+          assert.equal(await disclosure.evaluate(node => node === window.buildDisclosure), true);
+          assert.equal(await build.getByRole("button", { name: "Model connection", exact: true })
+            .evaluate(node => node === document.activeElement), true);
         }
         if (width === 1280) {
-          await dialog.getByRole("button", { name: "Open in VS Code", exact: true }).click();
-          await dialog.getByText("Opened the worktree and file in VS Code.", { exact: true }).waitFor();
+          await build.getByRole("button", { name: "Open in VS Code", exact: true }).click();
+          await build.getByText("Opened the worktree and file in VS Code.", { exact: true }).waitFor();
           assert.equal(sourceRequests.length, 1);
           assert.deepEqual(sourceRequests[0], { root: "/fixture/dealer", id: "runtime" });
           fail = true;
-          await dialog.getByRole("button", { name: "Refresh source", exact: true }).click();
-          await dialog.getByRole("alert").filter({ hasText: "Source discovery unavailable." }).waitFor();
+          await build.getByRole("button", { name: "Refresh source", exact: true }).click();
+          await build.getByRole("alert").filter({ hasText: "Source discovery unavailable." }).waitFor();
           fail = false;
-          await dialog.getByRole("button", { name: "Refresh source", exact: true }).click();
-          await dialog.getByRole("alert").waitFor({ state: "hidden" });
+          await build.getByRole("button", { name: "Refresh source", exact: true }).click();
+          await build.getByRole("alert").waitFor({ state: "hidden" });
         }
-        if (width === 620) await page.keyboard.press("Escape");
-        else await close.click();
-        await dialog.waitFor({ state: "hidden" });
-        assert.equal(await customize.evaluate(node => node === document.activeElement), true);
-        assert.equal(await history.getByRole("button", { name: "Back", exact: true }).isDisabled(), true);
-        assert.equal(await prompt.evaluate(node => node === window.dialogPrompt && node.selectionStart === 2 && node.selectionEnd === 8), true);
+        if (!(await disclosure.evaluate(node => node.open))) await disclosure.locator("summary").click();
+        await preview.focus();
+        await preview.evaluate(node => { node.scrollTop = 70; node.scrollLeft = 100; });
+        const scroll = await content.evaluate(node => node.scrollTop);
+        await page.locator("#manage-app").click();
+        await build.waitFor({ state: "hidden" });
+        assert.equal(await prompt.inputValue(), "Preserve this unattended event.");
+        assert.equal(await text.inputValue(), draft);
+        assert.deepEqual(await text.evaluate(node => [node.selectionStart, node.selectionEnd, node.scrollTop]), [2, 8, 90]);
+        assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 1);
+        assert.equal(await page.locator(".agent-response").textContent(), "Retained task result");
         assert.match(await page.locator(".document-input").textContent(), /sample-loan-note\.md/);
+        await back.click();
+        await build.waitFor();
+        await page.waitForFunction(() => document.activeElement?.dataset.focusKey === "preview-runtime");
+        assert.equal(await content.evaluate(node => node.scrollTop), scroll);
+        assert.deepEqual(await preview.evaluate(node => [node.scrollTop, node.scrollLeft]), [70, 100]);
+        assert.equal(await forward.isDisabled(), false, "Build participates in Back/Forward history");
       }
-      await customize.click();
-      await dialog.getByRole("tab", { name: "Behavior", exact: true }).click();
-      await dialog.getByRole("button", { name: "Test with a document", exact: true }).click();
-      await dialog.waitFor({ state: "hidden" });
+      await build.getByRole("tab", { name: "Behavior", exact: true }).click();
+      await build.getByRole("button", { name: "Test with a document", exact: true }).click();
+      await build.waitFor({ state: "hidden" });
       assert.equal(await prompt.evaluate(node => node === document.activeElement), true);
       await customize.click();
-      await dialog.getByRole("button", { name: "+ Add building block", exact: true }).click();
-      await dialog.waitFor({ state: "hidden" });
+      await build.getByRole("button", { name: "+ Add building block", exact: true }).click();
+      await build.waitFor({ state: "hidden" });
       await page.locator("#structure-guidance").waitFor();
       assert.equal(await page.locator("#structure-guidance").evaluate(node => node === document.activeElement), true);
       assert.equal(await page.locator("#map-app").getAttribute("aria-current"), "page");
       await page.locator("#manage-app").click();
+      await page.getByRole("button", { name: "Cancel document edit", exact: true }).click();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();
-      assert.deepEqual(fixture.mutations.map(item => item.path), ["/api/agent-invoke"]);
-      assert.equal(fixture.mutations[0].body.message, "Preserve this unattended event.");
-      assert.equal(fixture.mutations[0].body.document.name, "sample-loan-note.md");
+      await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
+      assert.deepEqual(fixture.mutations, []);
+      assert.equal(invocations.length, 2);
+      assert.equal(invocations[1].message, "Preserve this unattended event.");
+      assert.equal(invocations[1].document.name, "sample-loan-note.md");
+      let releaseRead;
+      holdNextRead = new Promise(resolve => { releaseRead = resolve; });
+      const request = page.waitForRequest("**/api/build-workspace*");
+      await customize.click();
+      await request;
+      await page.locator("#manage-app").click();
+      await prompt.focus();
+      const response = page.waitForResponse("**/api/build-workspace*");
+      releaseRead();
+      await response;
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.equal(await build.isVisible(), false, "Late source discovery cannot reopen a departed page");
+      assert.equal(await prompt.evaluate(node => node === document.activeElement), true,
+        "Late source discovery cannot steal task focus");
+      assert.equal(await page.locator("#manage-app").getAttribute("aria-current"), "page");
       assert.equal(await page.locator(".conversation-list,.chat-bubble").count(), 0);
       assert.deepEqual(errors, []);
     } finally {

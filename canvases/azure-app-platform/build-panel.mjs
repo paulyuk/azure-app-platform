@@ -118,7 +118,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   const handoffFeedback = new Map(), areaPanels = new Map(), areaTabs = new Map(), selectedProjects = new Map();
   const previewVisibility = new Map(), previewPositions = new Map();
   let artifacts = [], supportsDocuments = false, loadVersion = 0, workspace, renderedState, selectedArea;
-  let refreshing = false, refreshTimer, panelScroll = 0, workspaceOpening = false;
+  let refreshing = false, refreshTimer, panelScroll = 0, workspaceOpening = false, restoreOnShow = false;
   let currentEditorSettings = normalizeEditorSettings(initialEditorSettings);
   let editorSettingsSaving = false, editorSettingsVersion = 0;
   function element(tag, text, parent, className) {
@@ -560,6 +560,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   async function show({ refresh = false } = {}) {
     clearTimeout(refreshTimer);
+    if (restoreOnShow && workspace?.isConnected) {
+      container.scrollTop = panelScroll;
+      for (const source of workspace.querySelectorAll(".build-source-preview")) {
+        const artifact = artifacts.find(item => item.id === source.dataset.artifactId);
+        if (artifact) restorePreview(source, artifact);
+      }
+    }
+    restoreOnShow = false;
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
     refreshing = true;
@@ -626,6 +634,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     clearTimeout(refreshTimer);
     refreshing = false;
     rememberView();
+    restoreOnShow = true;
   }
   return { show, hide, setEditorSettings };
 }

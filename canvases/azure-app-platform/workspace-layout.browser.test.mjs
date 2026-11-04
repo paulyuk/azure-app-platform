@@ -146,7 +146,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     };
     await buildRow.waitFor();
     await openBuildPreview();
-    await page.getByRole("button", { name: "Close Customize", exact: true }).click();
+    await selectWorkspace(page, "manage-app");
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);

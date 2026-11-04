@@ -200,10 +200,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await trigger.click();
       await page.locator("#guide-content [data-action-key='customize-app']").click();
       assert.equal(await guide.isVisible(), false);
-      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
       assert.equal(await trigger.getAttribute("aria-expanded"), "false");
       await page.keyboard.press("Escape");
-      assert.equal(await page.locator("#build-workspace").evaluate(node => node === document.activeElement), true);
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
       await page.locator("#manage-app").click();
       await trigger.click();
       await page.locator("#close-guide").click();
