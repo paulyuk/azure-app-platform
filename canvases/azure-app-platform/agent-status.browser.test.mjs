@@ -151,6 +151,84 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     }
   });
 
+  test(`Task action row owns Stop without losing runtime notices or recovery in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    let release, recovered = false, holdStop = true;
+    const operations = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(10000);
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/app-status*", async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, json: { ...await response.json(), recovered } });
+      });
+      await page.route("**/api/app-command", async route => {
+        operations.push(route.request().postDataJSON());
+        fixture.state.app = "stopping";
+        if (holdStop) await new Promise(resolve => { release = resolve; });
+        fixture.state.app = "stopped";
+        recovered = false;
+        await route.fulfill({ json: { outcome: "command-started" } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
+      const stop = page.locator("[data-task-runtime-action]");
+      assert.equal(await page.locator("#app-status-badge").isVisible(), false);
+      assert.equal(await page.locator("#header-runtime-action").isVisible(), false);
+      assert.match(await page.getByRole("region", { name: "Status Brief", exact: true }).innerText(), /Running locally/);
+      assert.equal(await page.getByRole("button", { name: "Stop app", exact: true }).count(), 1);
+      assert.equal(await stop.evaluate(node => node.closest(".actions").querySelectorAll("button")[1] === node), true);
+      await invoke.focus();
+      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+      assert.equal(await stop.evaluate(node => node === document.activeElement), true);
+      for (const width of [320, 380, 620]) {
+        await page.setViewportSize({ width, height: 480 });
+        assert.ok(await stop.evaluate(node => node.getBoundingClientRect().right <= innerWidth &&
+          node.closest(".actions").scrollWidth <= node.closest(".actions").clientWidth + 1));
+      }
+      await page.locator("#map-app").click();
+      await page.getByRole("button", { name: "Runtime controls", exact: true }).click();
+      await stop.waitFor();
+      assert.equal(await page.locator("dialog[open]").count(), 0);
+      assert.deepEqual(operations, [], "Returning to Run must not stop or configure anything.");
+      await stop.click();
+      await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
+      assert.equal(await stop.innerText(), "Stopping…");
+      assert.equal(await stop.isDisabled(), true);
+      assert.equal(await invoke.isDisabled(), true);
+      release();
+      holdStop = false;
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      assert.equal(await stop.count(), 0);
+      fixture.state.app = "starting";
+      await page.getByRole("button", { name: "Cancel startup", exact: true }).waitFor();
+      recovered = true;
+      await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
+      assert.equal(await page.locator("#app-status-badge").isVisible(), true);
+      await page.locator("#header-runtime-action").click();
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      fixture.state.configured = false;
+      fixture.state.app = "running";
+      await page.locator('.agent-status-brief[data-state="preview"]').waitFor();
+      assert.equal(await page.locator("#app-status-badge").isVisible(), true);
+      assert.equal(await stop.innerText(), "Stop preview");
+      await stop.click();
+      await stop.waitFor({ state: "detached" });
+      assert.deepEqual(operations, Array(3).fill({ root: "/fixture/dealer", operation: "stop-local" }));
+      fixture.state.app = "failed";
+      fixture.state.error = "Simulated lifecycle failure.";
+      await page.locator("#app-status-badge").filter({ hasText: "Needs attention" }).waitFor();
+      assert.match(await page.locator(".run-primary").innerText(), /Simulated lifecycle failure/);
+      assert.deepEqual(errors, []);
+    } finally { release?.(); await browser.close(); await fixture.close(); }
+  });
+
   test(`Status Brief exposes preview, missing agent, prerequisites and readiness errors in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {

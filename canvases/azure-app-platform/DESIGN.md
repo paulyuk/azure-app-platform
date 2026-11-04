@@ -469,10 +469,12 @@ The map uses directional evidence-backed edges, pan and zoom controls, search,
 and tier filters. A floating palette keeps zoom and fit directly accessible;
 search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
-row. Overall runtime state remains visible beside
-the app name as **Not running**, **Local preview**, **Running locally**, or the
-current lifecycle transition. A persistent adjacent action starts or stops the
-local runtime and routes missing prerequisites into **Run/Debug**. Each
+row. Status Brief retains runtime availability and failures. The redundant
+**Running locally** header badge is hidden; preview, startup/recovery, failure and
+active-operation notices remain visible. **Stop app** follows **Invoke agent** in the
+task action row, with the same stop-local operation and stopping-state gating.
+Other pages expose **Runtime controls** to return to Run; startup/cancel and
+partial-startup recovery remain available in the header. Each
 request-flow stage exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
@@ -604,8 +606,8 @@ Operations tab; separate command-example and troubleshooting cards are omitted. 
 and readable response typography without changing the App Map. Agent answers are separate from raw
 responses. Source-discovered Hosted Skills and sandbox implementations are not
 presented as successful tool calls; only response-reported tool evidence is shown.
-The persistent runtime badge opens this panel
-directly, and starting an operation keeps the run panel visible.
+Runtime notices and the outside-Run **Runtime controls** action open this panel
+directly without executing an operation. Starting an operation keeps Run visible.
 The top-right Settings gear opens a native modal with Studio-wide appearance and
 preferred external editor, plus app-scoped
 model connection, local ports, and a separated Danger zone. Focus stays in the

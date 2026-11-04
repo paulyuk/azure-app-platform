@@ -303,7 +303,8 @@ a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
-button. **Open app** and the existing runtime start/stop controls remain in the runtime bar.
+button. **Open app** remains in the runtime bar; **Stop app** sits immediately
+after **Invoke agent** in the Run task action row.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
@@ -387,11 +388,13 @@ and disclosures survive close/reopen, navigation and lifecycle polling for the c
 visit. Closing it does not stop output polling or hide errors: unavailable logs and
 failed operation counts stay beside the toggle, while Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
-A persistent badge beside the app name distinguishes
-**Not running**, **Local preview**, **Running locally**, and active lifecycle
-transitions; selecting it opens the local runtime controls. A neighboring
-contextual action starts the app or preview, stops a running app, or opens
-required setup. Each request-flow stage exposes a
+The Status Brief retains truthful runtime, agent, request and failure information.
+The redundant **Running locally** header badge is hidden. Header notices still
+show previews, startup/recovery, stopping, failures and cloud operations.
+**Stop app** (or **Stop preview**) follows **Invoke agent**, using the same lifecycle
+operation and disabled stopping state. On other workspace pages, **Runtime controls**
+returns to Run without stopping anything. Header startup/cancel and partial-startup
+recovery controls remain accessible. Each request-flow stage exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
@@ -403,7 +406,8 @@ Additional recommendations are collapsed. **Observe → App Map** has one reques
 map. Once the app is running, Guide marks Run complete and makes
 **Observe** current for runtime inspection, not proof of a successful task.
 Guide's **Observe: inspect App Map** action remains available on demand. Clicking
-**Connect** opens a read-only connection review in the bottom inspector, with
+**Review source connections** under App Map's **Search & layout** opens a read-only
+connection review in the bottom inspector, with
 source locations, possible destinations, and actions to inspect affected
 components or resolve missing connections.
 Uncertain source connections remain review items, not a gate on observing a

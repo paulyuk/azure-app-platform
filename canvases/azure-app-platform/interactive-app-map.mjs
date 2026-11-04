@@ -1437,8 +1437,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         actionLabel = "Checking…";
         disabled = true;
       } else if (appState === "running") {
-        actionLabel = "Stop app";
-        operation = "stop-local";
+        actionLabel = "Runtime controls";
+        operation = "open-runtime";
       } else if (appState === "starting") {
         actionLabel = operationalState.app.recovered ? "Stop partial startup" : "Cancel startup";
         operation = "stop-local";
@@ -1459,9 +1459,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons.setDisabled(headerRuntimeAction, disabled);
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
+      syncRuntimePlacement();
       document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
         entry.ready && normalized(entry.name) === "web");
       updateAgentStatusBrief();
+    }
+
+    function syncRuntimePlacement() {
+      const state = operationalState.app?.state;
+      appStatusBadge.hidden = state === "running" && operationalState.readiness?.mode !== "preview";
+      headerRuntimeAction.hidden = panelMode === "manage" && ["running", "stopping"].includes(state);
     }
 
     function updateAgentStatusBrief() {
@@ -2177,6 +2184,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
+      syncRuntimePlacement();
       updateGuideContext();
     }
 
@@ -3213,14 +3221,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function canInvokeOrStartAgent() {
+      const appState = operationalState.app?.state;
+      if (appState === "stopping") return false;
       const ready = runtimeEntrypoints.some((entry) => entry.ready && normalized(entry.name) === "agent");
       if (ready) return true;
       const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
       const needsGateway = !gatewayConfigured && (operationalState.readiness?.mode === "preview"
         || !operationalState.readiness?.ready);
       if (needsGateway) return false;
-      const appState = operationalState.app?.state;
-      if (appState && ["stopping", "configuring", "provisioning", "deploying"].includes(appState)) return false;
+      if (appState && ["configuring", "provisioning", "deploying"].includes(appState)) return false;
       return Boolean(operationalState.readiness?.ready);
     }
 
@@ -3701,6 +3710,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
       buttons.append(actions, send);
+      const appState = operationalState.app?.state;
+      if (appState === "running" || appState === "stopping") {
+        const label = appState === "stopping" ? "Stopping…"
+          : operationalState.readiness?.mode === "preview" ? "Stop preview" : "Stop app";
+        const stop = keyedActionButton("stop-app", label, () => runAppOperation("stop-local"));
+        stop.dataset.taskRuntimeAction = "true";
+        buttons.setDisabled(stop, appState === "stopping");
+        buttons.append(actions, stop);
+      }
       const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
       promptFrame.append(prompt);
       renderDocumentInput(tester, promptFrame);
@@ -5014,6 +5032,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     headerRuntimeAction.addEventListener("click", () => {
       if (headerRuntimeAction.disabled) return;
       const operation = headerRuntimeAction.dataset.operation;
+      if (operation === "open-runtime") {
+        renderManagePanel();
+        return;
+      }
       if (operation) {
         void runAppOperation(operation);
         return;
