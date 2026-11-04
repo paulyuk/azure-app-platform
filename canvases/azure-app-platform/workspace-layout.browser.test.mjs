@@ -183,7 +183,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     const assertHeaderLayout = async (width) => {
       const layout = await page.evaluate(() => {
         const header = document.querySelector("#studio-workspace-navigation > header");
-        const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+        const action = document.querySelector("#header-runtime-action:not([hidden]), [data-task-runtime-action]").getBoundingClientRect();
         const title = document.querySelector("#app-title").getBoundingClientRect();
         const utilities = document.querySelector("#studio-workspace-navigation .studio-theme-control").getBoundingClientRect();
         return {
