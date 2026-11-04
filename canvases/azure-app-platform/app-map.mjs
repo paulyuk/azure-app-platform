@@ -390,7 +390,7 @@ function consolidateGatewayNodes(nodes) {
 }
 
 function namedManifestValue(files, fileName, key) {
-  const expression = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:\\s*["']?([^"'\\n#]+)`, "m");
+  const expression = new RegExp(`^\\s*(?:-\\s*)?${escapeRegExp(key)}\\s*:\\s*["']?([^"'\\n#]+)`, "m");
   for (const file of files.filter((item) => item.name === fileName)) {
     const found = firstMatch(file, expression);
     if (found) {
@@ -456,16 +456,16 @@ function addPlatformMetadata(nodes, files) {
 
   for (const node of findNodes(nodes, "web")) {
     const owned = candidateFiles(node, files);
-    const manifestName = namedManifestValue(owned, "embr.yaml", "name");
+    const manifestName = namedManifestValue(owned, "builder.yaml", "name") ?? namedManifestValue(owned, "embr.yaml", "name");
     if (manifestName) node.name = manifestName.value;
-    const manifest = owned.find((file) => file.name === "embr.yaml");
+    const manifest = owned.find((file) => file.name === "builder.yaml" || file.name === "embr.yaml");
     if (manifest) {
       node.badges = [
-        platformBadge("Embr target", "embr", sourceEvidence(
+        platformBadge("App Service Builder target", "embr", sourceEvidence(
           manifest.path,
           1,
           "embr-target",
-          "embr.yaml",
+          manifest.name,
         )),
       ];
     }

@@ -44,11 +44,24 @@ else
 fi
 if [ -z "$gateway_model" ] || [ -z "$gateway_mini_model" ]; then
   echo "Discovering models on AI Gateway ${gateway_name}..." >&2
+  alias_names="$(az aigateway model-alias list \
+    --subscription "$subscription_id" \
+    -g "$resource_group" \
+    --gateway-name "$gateway_name" \
+    --query '[].properties.aliasName' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
   model_names="$(az aigateway model list \
     --subscription "$subscription_id" \
     -g "$resource_group" \
     --gateway-name "$gateway_name" \
     --query '[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
+  if [ -n "$alias_names" ]; then
+    model_names="$(printf '%s\n%s\n' "$alias_names" "$model_names" | awk 'NF && !seen[$0]++')"
+  fi
+  if [ -z "$model_names" ]; then
+    model_names="$(az rest --method get \
+      --uri "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ApiManagement/aigateways/${gateway_name}/workspaces/default/models?api-version=${AI_GATEWAY_API_VERSION}" \
+      --query 'value[].name' -o tsv 2>/dev/null | tr '\t' '\n' || true)"
+  fi
   if [ -z "$model_names" ]; then
     model_names="$(az rest --method get \
       --uri "https://management.azure.com${gateway_resource_id}/workspaces/default/models?api-version=${AI_GATEWAY_API_VERSION}" \
@@ -137,10 +150,19 @@ if [ -z "$gateway_api_key" ]; then
 fi
 gateway_api_key="$(require_value AZURE_AI_GATEWAY_API_KEY "$gateway_api_key")"
 
-request_body="$(python3 -c \
-  'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
+run_python() {
+  if [ -x "${REPO_ROOT}/src/agent/.venv/bin/python" ]; then
+    "${REPO_ROOT}/src/agent/.venv/bin/python" "$@"
+  else
+    uv run --project "${REPO_ROOT}/src/agent" python "$@"
+  fi
+}
+
+request_body="$(run_python -c \
+  'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":512,"stream":False}))' \
   "$gateway_model")"
 ready=false
+last_error_detail=""
 echo "Validating model ${gateway_model} on gateway ${gateway_name}..."
 max_attempts=20
 connect_timeout=10
@@ -158,25 +180,46 @@ for attempt in $(seq 1 "$max_attempts"); do
     --data-binary "$request_body" || true)"
   status="${response##*$'\n'}"
   response_body="${response%$'\n'*}"
-  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | python3 -c '
+  if [[ "$status" == 2* ]] && printf '%s' "$response_body" | run_python -c '
 import json, sys
 payload = json.load(sys.stdin)
-readable = any(
-    content.get("type") == "output_text" and content.get("text", "").strip()
-    for item in payload.get("output", [])
-    if item.get("type") == "message"
-    for content in item.get("content", [])
-)
+output_text = payload.get("output_text")
+readable = isinstance(output_text, str) and bool(output_text.strip())
+if not readable:
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if isinstance(content, dict) and content.get("type") in {"output_text", "text"} and str(content.get("text", "")).strip():
+                    readable = True
+        elif item.get("type") == "reasoning":
+            readable = True
 raise SystemExit(0 if readable else 1)
 '; then
     ready=true
     break
   fi
-  echo "Waiting for AI Gateway model route, attempt=${attempt}, status=${status:-unavailable}"
+  last_error_detail="$(printf '%s' "$response_body" | run_python -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+    err = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(err, dict):
+        msg = err.get("message") or err.get("details") or err.get("code") or ""
+        print(str(msg).strip()[:240])
+except Exception:
+    pass
+' 2>/dev/null || true)"
+  echo "Waiting for AI Gateway model route, attempt=${attempt}, status=${status:-unavailable}${last_error_detail:+ ($last_error_detail)}"
   [ "$attempt" -lt "$max_attempts" ] && sleep 3
 done
 if [ "$ready" != true ]; then
-  echo "AI Gateway Responses route did not return a readable message (HTTP ${status:-unavailable})." >&2
+  if [ "$status" = "502" ] || [ "$status" = "503" ]; then
+    echo "AI Gateway '${gateway_name}' returned HTTP ${status} for model '${gateway_model}'${last_error_detail:+: ${last_error_detail}}. The backend model deployment or provider is unreachable or misconfigured; choose another gateway/model or repair the model provider." >&2
+  else
+    echo "AI Gateway Responses route did not return a readable message for model '${gateway_model}' (HTTP ${status:-unavailable})${last_error_detail:+: ${last_error_detail}}." >&2
+  fi
   exit 1
 fi
 
@@ -204,7 +247,7 @@ if [ "$gateway_lock_acquired" != true ]; then
 fi
 trap release_gateway_lock EXIT
 if [ -n "${APP_PLATFORM_GATEWAY_CONFIGURATION_ID:-}" ]; then
-  current_configuration_id="$(python3 -c \
+  current_configuration_id="$(run_python -c \
     'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("configurationId", ""))' \
     "$active_gateway_file")"
   if [ "$current_configuration_id" != "$APP_PLATFORM_GATEWAY_CONFIGURATION_ID" ]; then
@@ -225,7 +268,7 @@ aca_resource_group="${ACA_RESOURCE_GROUP:-}"
 aca_region="${ACA_REGION:-}"
 aca_subscription="${ACA_SUBSCRIPTION:-$subscription_id}"
 if [ "${ACA_SANDBOX_DISABLE:-0}" != "1" ] && [ -z "$aca_sandbox_group" ] && [ -f "${HOME}/.config/aca/config.json" ]; then
-  eval "$(python3 - "${HOME}/.config/aca/config.json" <<'PY'
+  eval "$(run_python - "${HOME}/.config/aca/config.json" <<'PY'
 import json, shlex, sys
 try:
     cfg = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -243,6 +286,38 @@ for env_name, key, nested_key in (
         print(f"{env_name}={shlex.quote(val)}")
 PY
 )"
+fi
+
+if [ -n "$aca_sandbox_group" ]; then
+  resolved_aca_rg="${aca_resource_group:-$resource_group}"
+  resolved_aca_region="${aca_region:-eastus2}"
+  resolved_aca_sub="${aca_subscription:-$subscription_id}"
+  export PATH="$HOME/.local/bin:$HOME/.aca/bin:$PATH"
+  if ! command -v aca >/dev/null 2>&1; then
+    echo "ACA CLI ('aca') is not installed. Install ACA CLI in Prerequisites or choose Local simulation mode." >&2
+    exit 1
+  fi
+  echo "Validating ACA Sandbox Group '${aca_sandbox_group}' (create and delete permissions)..."
+  create_out="$(aca -s "$resolved_aca_sub" -g "$resolved_aca_rg" --region "$resolved_aca_region" \
+    sandbox create --group "$aca_sandbox_group" --egress-default Deny -l purpose=canvas-validation 2>&1)" || {
+      if printf '%s' "$create_out" | grep -qiE '403|Forbidden|Access denied'; then
+        echo "Access denied (HTTP 403) creating a sandbox in '${aca_sandbox_group}' (resource group '${resolved_aca_rg}', subscription '${resolved_aca_sub}'). Assign 'Container Apps SandboxGroup Data Owner' on this sandbox group: aca -s ${resolved_aca_sub} -g ${resolved_aca_rg} sandboxgroup role create --group ${aca_sandbox_group} --role \"Container Apps SandboxGroup Data Owner\" --principal-id <your-entra-object-id>" >&2
+      else
+        echo "Failed to create a validation sandbox in '${aca_sandbox_group}': ${create_out}" >&2
+      fi
+      exit 1
+    }
+  validation_sb_id="$(printf '%s\n' "$create_out" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n 1 || true)"
+  if [ -z "$validation_sb_id" ]; then
+    echo "ACA Sandbox Group '${aca_sandbox_group}' did not return a valid sandbox ID during validation: ${create_out}" >&2
+    exit 1
+  fi
+  delete_out="$(aca -s "$resolved_aca_sub" -g "$resolved_aca_rg" --region "$resolved_aca_region" \
+    sandbox delete --group "$aca_sandbox_group" --id "$validation_sb_id" --yes 2>&1)" || {
+      echo "Created validation sandbox '${validation_sb_id}' in '${aca_sandbox_group}', but deleting it failed: ${delete_out}" >&2
+      exit 1
+    }
+  echo "ACA Sandbox Group '${aca_sandbox_group}' verified (create and delete succeeded)."
 fi
 
 agent_env="${REPO_ROOT}/src/agent/.env"
@@ -270,9 +345,9 @@ fi
 chmod 600 "$agent_env"
 
 active_gateway_tmp="${active_gateway_file}.$$"
-python3 -c '
+run_python -c '
 import datetime, json, os, sys
-source, destination, expected, name, resource_group, subscription_id, endpoint = sys.argv[1:]
+source, destination, expected, name, resource_group, subscription_id, endpoint, sandbox_name, sandbox_rg, sandbox_region, sandbox_sub = sys.argv[1:]
 if expected:
     with open(source, encoding="utf-8") as handle:
         active = json.load(handle)
@@ -287,6 +362,13 @@ else:
         "endpoint": endpoint,
         "selectedAt": datetime.datetime.now(datetime.UTC).isoformat(),
     }
+if sandbox_name:
+    active["sandboxGroup"] = {
+        "name": sandbox_name,
+        "resourceGroup": sandbox_rg or resource_group,
+        "location": sandbox_region or "eastus2",
+        "subscriptionId": sandbox_sub or subscription_id,
+    }
 active.update({
     "configurationStatus": "ready",
     "configuredAt": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -298,7 +380,8 @@ with open(destination, "w", encoding="utf-8") as handle:
     handle.write("\n")
 os.chmod(destination, 0o600)
 ' "$active_gateway_file" "$active_gateway_tmp" "${APP_PLATFORM_GATEWAY_CONFIGURATION_ID:-}" \
-  "$gateway_name" "$resource_group" "$subscription_id" "${gateway_url%/}/"
+  "$gateway_name" "$resource_group" "$subscription_id" "${gateway_url%/}/" \
+  "${aca_sandbox_group:-}" "${aca_resource_group:-}" "${aca_region:-}" "${aca_subscription:-}"
 mv "$active_gateway_tmp" "$active_gateway_file"
 
 echo "AI Gateway is ready. Local agent settings were written to src/agent/.env (key not displayed)."

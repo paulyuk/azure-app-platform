@@ -258,6 +258,25 @@ class GatewaySettings:
         return _positive_number(self.config.get("timeoutSeconds", 60), "gateway.timeoutSeconds")
 
     @property
+    def max_output_tokens(self) -> int:
+        env_val = (
+            _env_value(self.config, "maxOutputTokensEnv")
+            or os.environ.get("AZURE_AI_GATEWAY_MAX_OUTPUT_TOKENS")
+            or os.environ.get("AI_GATEWAY_MAX_OUTPUT_TOKENS")
+        )
+        if env_val:
+            try:
+                parsed = int(env_val.strip())
+                if parsed >= 256:
+                    return parsed
+            except ValueError as error:
+                raise ConfigurationError("AZURE_AI_GATEWAY_MAX_OUTPUT_TOKENS must be an integer >= 256") from error
+        raw = self.config.get("maxOutputTokens", 4096)
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 256:
+            raise ConfigurationError("gateway.maxOutputTokens must be an integer >= 256")
+        return raw
+
+    @property
     def wire_api(self) -> str:
         wire_api = self.config.get("wireApi", "completions")
         if wire_api not in {"completions", "responses"}:
@@ -378,6 +397,54 @@ class GatewayClient:
     def __init__(self, settings: GatewaySettings, transport: JsonHttpTransport | None = None):
         self.settings = settings
         self.transport = transport or JsonHttpTransport()
+        self.last_response_metadata: dict[str, Any] = {}
+
+    @staticmethod
+    def _extract_responses_text(response: dict[str, Any]) -> str:
+        top_text = response.get("output_text")
+        if isinstance(top_text, str) and top_text.strip():
+            return top_text.strip()
+        parts: list[str] = []
+        for item in response.get("output", []):
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "message":
+                for part in item.get("content", []):
+                    if (
+                        isinstance(part, dict)
+                        and part.get("type") in {"output_text", "text"}
+                        and isinstance(part.get("text"), str)
+                        and part["text"].strip()
+                    ):
+                        parts.append(part["text"].strip())
+            elif item.get("type") in {"output_text", "text"} and isinstance(item.get("text"), str) and item["text"].strip():
+                parts.append(item["text"].strip())
+        return "\n".join(parts).strip()
+
+    @staticmethod
+    def _summarize_response_meta(response: dict[str, Any], token_budget: int) -> dict[str, Any]:
+        status = str(response.get("status") or "completed")
+        incomplete_details = response.get("incomplete_details") if isinstance(response.get("incomplete_details"), dict) else {}
+        incomplete_reason = str(incomplete_details.get("reason") or "")
+        usage_raw = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+        out_details = usage_raw.get("output_tokens_details") if isinstance(usage_raw.get("output_tokens_details"), dict) else {}
+        comp_details = usage_raw.get("completion_tokens_details") if isinstance(usage_raw.get("completion_tokens_details"), dict) else {}
+        input_tokens = usage_raw.get("input_tokens") if isinstance(usage_raw.get("input_tokens"), int) else usage_raw.get("prompt_tokens")
+        output_tokens = usage_raw.get("output_tokens") if isinstance(usage_raw.get("output_tokens"), int) else usage_raw.get("completion_tokens")
+        reasoning_tokens = out_details.get("reasoning_tokens") if isinstance(out_details.get("reasoning_tokens"), int) else comp_details.get("reasoning_tokens")
+        meta: dict[str, Any] = {
+            "status": status,
+            "maxOutputTokens": token_budget,
+        }
+        if incomplete_reason:
+            meta["incompleteReason"] = incomplete_reason
+        if isinstance(input_tokens, int) or isinstance(output_tokens, int) or isinstance(reasoning_tokens, int):
+            meta["usage"] = {
+                "inputTokens": input_tokens if isinstance(input_tokens, int) else 0,
+                "outputTokens": output_tokens if isinstance(output_tokens, int) else 0,
+                "reasoningTokens": reasoning_tokens if isinstance(reasoning_tokens, int) else 0,
+            }
+        return meta
 
     def reply(
         self,
@@ -399,28 +466,73 @@ class GatewayClient:
                 {"role": "user", "content": user_content},
         ]
         responses_api = self.settings.wire_api == "responses"
-        payload = {"model": self.settings.model, "input" if responses_api else "messages": messages}
+        token_budget = self.settings.max_output_tokens
+        payload: dict[str, Any] = {"model": self.settings.model, "input" if responses_api else "messages": messages}
         if responses_api:
-            payload.update({"stream": False, "max_output_tokens": 1200})
+            payload.update({"stream": False, "max_output_tokens": token_budget})
         gateway_url = self.settings.base_url.rstrip("/") + "/responses" if responses_api else self.settings.chat_completions_url()
-        print(f"[gateway] POST {gateway_url} (model={self.settings.model})", flush=True)
+        print(f"[gateway] POST {gateway_url} (model={self.settings.model}, max_output_tokens={token_budget if responses_api else 'default'})", flush=True)
         response = self.transport.post_json(
             gateway_url,
             payload,
             self.settings.headers(),
             self.settings.timeout,
         )
-        print(f"[gateway] Received response from model {self.settings.model}", flush=True)
+        meta = self._summarize_response_meta(response, token_budget)
+        self.last_response_metadata = meta
+        usage_summary = meta.get("usage", {})
+        print(
+            f"[gateway] Received response from model {self.settings.model} "
+            f"(status={meta['status']}, output_tokens={usage_summary.get('outputTokens', 'n/a')}, "
+            f"reasoning_tokens={usage_summary.get('reasoningTokens', 'n/a')})",
+            flush=True,
+        )
         try:
             if responses_api:
-                content = "\n".join(part["text"] for item in response.get("output", [])
-                    if item.get("type") == "message" for part in item.get("content", [])
-                    if part.get("type") == "output_text" and isinstance(part.get("text"), str))
+                content = self._extract_responses_text(response)
+                if not content and (
+                    meta["status"] == "incomplete"
+                    or meta.get("incompleteReason") == "max_output_tokens"
+                    or (usage_summary.get("reasoningTokens", 0) > 0 and usage_summary.get("outputTokens", 0) >= token_budget)
+                ):
+                    retry_budget = max(token_budget * 2, 8192)
+                    retry_payload = dict(payload)
+                    retry_payload["max_output_tokens"] = retry_budget
+                    print(
+                        f"[gateway] Model {self.settings.model} exhausted {token_budget} tokens before emitting visible text "
+                        f"(status={meta['status']}, reasoning_tokens={usage_summary.get('reasoningTokens', 0)}); "
+                        f"retrying with max_output_tokens={retry_budget}",
+                        flush=True,
+                    )
+                    response = self.transport.post_json(
+                        gateway_url,
+                        retry_payload,
+                        self.settings.headers(),
+                        self.settings.timeout,
+                    )
+                    meta = self._summarize_response_meta(response, retry_budget)
+                    meta["retriedAfterTokenExhaustion"] = True
+                    self.last_response_metadata = meta
+                    usage_summary = meta.get("usage", {})
+                    content = self._extract_responses_text(response)
             else:
                 content = response["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, AttributeError) as error:
             raise UpstreamError("AI Gateway response did not contain an assistant message") from error
         if not isinstance(content, str) or not content.strip():
+            if responses_api and (
+                meta.get("status") == "incomplete"
+                or meta.get("incompleteReason")
+                or usage_summary.get("reasoningTokens", 0) > 0
+            ):
+                reason = meta.get("incompleteReason") or meta.get("status") or "empty_output"
+                raise UpstreamError(
+                    f"AI Gateway model '{self.settings.model}' returned an incomplete response without visible assistant text "
+                    f"(status={meta.get('status')}, reason={reason}, "
+                    f"output_tokens={usage_summary.get('outputTokens', 0)}, "
+                    f"reasoning_tokens={usage_summary.get('reasoningTokens', 0)}, "
+                    f"max_output_tokens={meta.get('maxOutputTokens', token_budget)})."
+                )
             raise UpstreamError("AI Gateway returned an empty assistant message")
         return content.strip()
 
@@ -1285,6 +1397,9 @@ class AgentHarness:
                     tool_result=tool_result,
                 ) from error
             evidence = self.evidence()
+            gateway_meta = getattr(self.gateway_client, "last_response_metadata", None)
+            if isinstance(gateway_meta, dict) and gateway_meta:
+                evidence["gatewayResponse"] = gateway_meta
 
         try:
             require_safe_output(reply)

@@ -299,7 +299,65 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(gateway.reply("Summarize", None, "Use approved data"), "Approved summary")
         self.assertEqual(calls[0][0], "https://gateway.example/default/models/openai/v1/responses")
         self.assertEqual(calls[0][1]["model"], "gpt-latest")
+        self.assertEqual(calls[0][1]["max_output_tokens"], 4096)
         self.assertEqual(calls[0][1]["input"][0]["content"], "Use approved data")
+
+    def test_reasoning_budget_exhaustion_retries_and_surfaces_incomplete_diagnostics(self):
+        calls = []
+
+        class ReasoningRetryTransport:
+            def post_json(self, url, payload, headers, timeout):
+                calls.append(payload["max_output_tokens"])
+                if len(calls) == 1:
+                    return {
+                        "status": "incomplete",
+                        "incomplete_details": {"reason": "max_output_tokens"},
+                        "output": [{"type": "reasoning", "summary": []}],
+                        "usage": {
+                            "input_tokens": 110,
+                            "output_tokens": 4096,
+                            "output_tokens_details": {"reasoning_tokens": 4096},
+                        },
+                    }
+                return {
+                    "status": "completed",
+                    "output": [{"type": "message", "content": [{"type": "output_text", "text": "Approved after retry"}]}],
+                    "usage": {
+                        "input_tokens": 110,
+                        "output_tokens": 1450,
+                        "output_tokens_details": {"reasoning_tokens": 1200},
+                    },
+                }
+
+        environment = {
+            "AZURE_AI_GATEWAY_ENDPOINT": "https://gateway.example/",
+            "AZURE_AI_GATEWAY_MODEL": "gpt-latest",
+            "AZURE_AI_GATEWAY_API_KEY": "fixture-key",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            gateway = agent.GatewayClient(agent.GatewaySettings(self.config["gateway"], lambda _: ""), ReasoningRetryTransport())
+            self.assertEqual(gateway.reply("Summarize", None, "Use approved data"), "Approved after retry")
+            self.assertEqual(calls, [4096, 8192])
+            self.assertTrue(gateway.last_response_metadata.get("retriedAfterTokenExhaustion"))
+            self.assertEqual(gateway.last_response_metadata["usage"]["reasoningTokens"], 1200)
+
+        class AlwaysIncompleteTransport:
+            def post_json(self, url, payload, headers, timeout):
+                return {
+                    "status": "incomplete",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                    "output": [{"type": "reasoning", "summary": []}],
+                    "usage": {
+                        "input_tokens": 110,
+                        "output_tokens": payload["max_output_tokens"],
+                        "output_tokens_details": {"reasoning_tokens": payload["max_output_tokens"]},
+                    },
+                }
+
+        with patch.dict(os.environ, environment, clear=True):
+            gateway = agent.GatewayClient(agent.GatewaySettings(self.config["gateway"], lambda _: ""), AlwaysIncompleteTransport())
+            with self.assertRaisesRegex(agent.UpstreamError, "incomplete response without visible assistant text.*reasoning_tokens=8192"):
+                gateway.reply("Summarize", None, "Use approved data")
 
     def test_saved_runtime_is_respected_without_flag_override(self):
         self.config["agentRuntime"] = "copilot-sdk-sandbox"

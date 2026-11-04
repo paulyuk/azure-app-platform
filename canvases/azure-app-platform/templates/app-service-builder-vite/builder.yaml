@@ -1,0 +1,6 @@
+components:
+  - name: site
+    role: static
+    platform: nodejs
+    platformVersion: "24"
+    output: dist

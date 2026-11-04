@@ -48,7 +48,14 @@ $gatewayModel = if ($env:AZURE_AI_GATEWAY_MODEL) { $env:AZURE_AI_GATEWAY_MODEL }
 $gatewayMiniModel = if ($env:AZURE_AI_GATEWAY_MINI_MODEL) { $env:AZURE_AI_GATEWAY_MINI_MODEL } elseif (-not $explicitGatewaySelection) { Get-AzdValue 'AZURE_AI_GATEWAY_MINI_MODEL' } else { '' }
 if ([string]::IsNullOrEmpty($gatewayModel) -or [string]::IsNullOrEmpty($gatewayMiniModel)) {
     Write-Host "Discovering models on AI Gateway $gatewayName..."
+    $aliasInventory = az aigateway model-alias list --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName --query '[].properties.aliasName' -o tsv 2>$null
     $modelInventory = az aigateway model list --subscription $subscriptionId -g $resourceGroup --gateway-name $gatewayName --query '[].name' -o tsv 2>$null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty(($aliasInventory -join ''))) {
+        $modelInventory = @($aliasInventory; $modelInventory)
+    }
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty(($modelInventory -join ''))) {
+        $modelInventory = az rest --method get --uri "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.ApiManagement/aigateways/$gatewayName/workspaces/default/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv 2>$null
+    }
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty(($modelInventory -join ''))) {
         $modelInventory = az rest --method get --uri "https://management.azure.com$gatewayResourceId/workspaces/default/models?api-version=$AiGatewayApiVersion" --query 'value[].name' -o tsv
         if ($LASTEXITCODE -ne 0) { throw 'Unable to discover models on the selected gateway. Check Azure access and retry.' }
@@ -106,12 +113,13 @@ $gatewayUrlTrimmed = $gatewayUrl.TrimEnd('/')
 $requestBody = @{
     model = $gatewayModel
     input = 'Reply with exactly one word: ok'
-    max_output_tokens = 128
+    max_output_tokens = 512
     stream = $false
 } | ConvertTo-Json -Compress
 
 $ready = $false
 $status = 'unavailable'
+$lastErrorDetail = ''
 $maxAttempts = if ($env:APP_PLATFORM_GATEWAY_SELECTION -eq '1') { 2 } else { 20 }
 $timeoutSec = if ($env:APP_PLATFORM_GATEWAY_SELECTION -eq '1') { 15 } else { 30 }
 Write-Host "Validating model $gatewayModel on gateway $gatewayName..."
@@ -127,13 +135,23 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             -SkipHttpErrorCheck
         $status = $response.StatusCode
         $payload = $response.Content | ConvertFrom-Json
-        $hasReadableMessage = $null -ne (
+        $hasReadableMessage = (-not [string]::IsNullOrWhiteSpace([string]$payload.output_text)) -or ($null -ne (
             $payload.output |
                 Where-Object { $_.type -eq 'message' } |
                 ForEach-Object { $_.content } |
-                Where-Object { $_.type -eq 'output_text' -and -not [string]::IsNullOrWhiteSpace($_.text) } |
+                Where-Object { ($_.type -eq 'output_text' -or $_.type -eq 'text') -and -not [string]::IsNullOrWhiteSpace($_.text) } |
                 Select-Object -First 1
-        )
+        )) -or ($null -ne (
+            $payload.output |
+                Where-Object { $_.type -eq 'reasoning' } |
+                Select-Object -First 1
+        ))
+        if (-not $hasReadableMessage -and $payload.error) {
+            $errMsg = if ($payload.error.message) { [string]$payload.error.message } elseif ($payload.error.details) { [string]$payload.error.details } elseif ($payload.error.code) { [string]$payload.error.code } else { '' }
+            if (-not [string]::IsNullOrWhiteSpace($errMsg)) {
+                $lastErrorDetail = $errMsg.Trim()
+            }
+        }
     } catch {
         $status = 'unavailable'
     }
@@ -141,11 +159,17 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         $ready = $true
         break
     }
-    Write-Host "Waiting for AI Gateway model route, attempt=$attempt, status=$status"
+    $detailSuffix = if ($lastErrorDetail) { " ($lastErrorDetail)" } else { '' }
+    Write-Host "Waiting for AI Gateway model route, attempt=$attempt, status=$status$detailSuffix"
     if ($attempt -lt $maxAttempts) { Start-Sleep -Seconds 3 }
 }
 if (-not $ready) {
-    Write-Error "AI Gateway Responses route did not return a readable message (HTTP $status)."
+    $detailColon = if ($lastErrorDetail) { ": $lastErrorDetail" } else { '' }
+    if ($status -eq 502 -or $status -eq 503 -or $status -eq '502' -or $status -eq '503') {
+        Write-Error "AI Gateway '$gatewayName' returned HTTP $status for model '$gatewayModel'$detailColon. The backend model deployment or provider is unreachable or misconfigured; choose another gateway/model or repair the model provider."
+    } else {
+        Write-Error "AI Gateway Responses route did not return a readable message for model '$gatewayModel' (HTTP $status)$detailColon."
+    }
     exit 1
 }
 
@@ -212,6 +236,45 @@ try {
             if ($acaConfig.subscription) { $acaSubscription = [string]$acaConfig.subscription }
             elseif ($acaConfig.sandbox -and $acaConfig.sandbox.subscription) { $acaSubscription = [string]$acaConfig.sandbox.subscription }
         } catch { }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($acaSandboxGroup)) {
+        $resolvedAcaRg = if (-not [string]::IsNullOrWhiteSpace($acaResourceGroup)) { $acaResourceGroup } else { $resourceGroup }
+        $resolvedAcaRegion = if (-not [string]::IsNullOrWhiteSpace($acaRegion)) { $acaRegion } else { 'eastus2' }
+        $resolvedAcaSub = if (-not [string]::IsNullOrWhiteSpace($acaSubscription)) { $acaSubscription } else { $subscriptionId }
+        $extraAcaPaths = @(
+            (Join-Path $HOME '.local\bin'),
+            (Join-Path $HOME '.aca\bin')
+        ) | Where-Object { Test-Path $_ }
+        if ($extraAcaPaths.Count -gt 0) {
+            $env:PATH = ($extraAcaPaths -join [System.IO.Path]::PathSeparator) + [System.IO.Path]::PathSeparator + $env:PATH
+        }
+        if (-not (Get-Command aca -ErrorAction SilentlyContinue)) {
+            Write-Error "ACA CLI ('aca') is not installed. Install ACA CLI in Prerequisites or choose Local simulation mode."
+            exit 1
+        }
+        Write-Host "Validating ACA Sandbox Group '$acaSandboxGroup' (create and delete permissions)..."
+        $createOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox create --group $acaSandboxGroup --egress-default Deny -l purpose=canvas-validation 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            if ($createOut -match '403|Forbidden|Access denied') {
+                Write-Error "Access denied (HTTP 403) creating a sandbox in '$acaSandboxGroup' (resource group '$resolvedAcaRg', subscription '$resolvedAcaSub'). Assign 'Container Apps SandboxGroup Data Owner' on this sandbox group: aca -s $resolvedAcaSub -g $resolvedAcaRg sandboxgroup role create --group $acaSandboxGroup --role `"Container Apps SandboxGroup Data Owner`" --principal-id <your-entra-object-id>"
+            } else {
+                Write-Error "Failed to create a validation sandbox in '$acaSandboxGroup': $createOut"
+            }
+            exit 1
+        }
+        $uuidMatch = [regex]::Match($createOut, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+        if (-not $uuidMatch.Success) {
+            Write-Error "ACA Sandbox Group '$acaSandboxGroup' did not return a valid sandbox ID during validation: $createOut"
+            exit 1
+        }
+        $validationSbId = $uuidMatch.Value
+        $deleteOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox delete --group $acaSandboxGroup --id $validationSbId --yes 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Created validation sandbox '$validationSbId' in '$acaSandboxGroup', but deleting it failed: $deleteOut"
+            exit 1
+        }
+        Write-Host "ACA Sandbox Group '$acaSandboxGroup' verified (create and delete succeeded)."
     }
 
     $agentEnvPath = Join-Path $RepoRoot 'src\agent\.env'

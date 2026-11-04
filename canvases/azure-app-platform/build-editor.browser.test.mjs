@@ -124,7 +124,7 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
       document.querySelector('.build-handoff-feedback[data-artifact-id="agent"]')
         ?.textContent.includes("Opened in Files"));
     assert.equal(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(),
-      "Opened in Files. Save there, then return to Customize.");
+      "Opened in Files. Save there, then return to Build.");
 
     fail.add("agent");
     await page.getByRole("tab", { name: "Behavior", exact: true }).click();

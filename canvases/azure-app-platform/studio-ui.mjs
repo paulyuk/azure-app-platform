@@ -232,17 +232,28 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .choice small, .capability small, .mapping small { display: block; color: var(--studio-muted); }
       .template { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 12px 14px; background: var(--studio-raised); cursor: pointer; }
       .template:hover { border-color: var(--studio-accent-2); }
+      .template:has(input:checked) { border-color: var(--studio-accent); box-shadow: 0 0 0 1px var(--studio-accent); }
       .template > input { margin-top: 3px; }
       .template > span { display: grid; gap: 4px; font-weight: 400; }
       .template strong { font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: var(--font-weight-semibold, 600); color: var(--canvas-fg, var(--studio-ink)); }
       .template-meta { display: block; color: var(--canvas-muted, var(--studio-muted)); font-size: 12px; line-height: 18px; font-weight: 400; }
+      .template-preview-card { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--studio-line); border-radius: 10px; background: var(--studio-panel); display: grid; gap: 11px; }
+      :root[data-studio-theme="light"] .template-preview-card { background: #f1f5f9; border-color: #cbd5e1; }
+      .template-preview-eyebrow { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--studio-muted); margin-bottom: 2px; }
+      .template-preview-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px; }
+      .template-preview-head strong { font-size: 13px; font-weight: 650; color: var(--studio-ink); display: block; }
+      .template-preview-head small { color: var(--studio-muted); font-size: 12px; display: block; margin-top: 2px; }
+      .template-preview-diagram { border: 1px solid var(--studio-line); border-radius: 8px; padding: 10px 12px; background: var(--studio-raised); overflow-x: auto; }
+      .template-preview-diagram svg { display: block; width: 100%; height: auto; max-height: 155px; }
+      .template-preview-bullets { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; line-height: 1.45; color: var(--studio-muted); }
+      .template-preview-bullets li strong { font-weight: 600; color: var(--studio-ink); }
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 2px 8px; font-size: 11px; background: var(--studio-panel); }
-      .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #ddf4ff; border-color: #54aeff; color: #0550ae; }
-      .badge.http, .badge.embr { background: #cffafe; border-color: #22d3ee; color: #155e75; }
-      .badge.mcp, .badge.connector { background: #f3e8ff; border-color: #c084fc; color: #6b21a8; }
-      .badge.docker, .badge.sandbox, .badge.durable { background: #e0e7ff; border-color: #818cf8; color: #3730a3; }
-      .badge.data, .badge.gateway { background: #f1f5f9; border-color: #94a3b8; color: #334155; }
+      .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #f0f6fc; border-color: #b6d4fe; color: #1d4ed8; }
+      .badge.http, .badge.embr { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
+      .badge.mcp, .badge.connector { background: #faf5ff; border-color: #d8b4fe; color: #6b21a8; }
+      .badge.docker, .badge.sandbox, .badge.durable { background: #f5f7ff; border-color: #c7d2fe; color: #3730a3; }
+      .badge.data, .badge.gateway { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
       .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 24px; }
       .actions-right { display: flex; gap: 8px; margin-left: auto; }
       .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
@@ -483,8 +494,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (!template) return;
         const prefix = template.kind === "sample"
           ? "dealer-sample-"
-          : (template.id === "builtin-sandbox-gateway-minimal-v1" ? "sandbox-starter-" : "app-");
-        if (!draft.appName || /^(dealer-sample|Dealer-sample|sandbox-starter|app)-[a-z0-9]+$/i.test(draft.appName)) {
+          : (template.id === "builtin-sandbox-gateway-minimal-v1"
+              ? "sandbox-starter-"
+              : (template.id === "builtin-app-service-builder-vite-v1" ? "builder-vite-" : "app-"));
+        if (!draft.appName || /^(dealer-sample|Dealer-sample|sandbox-starter|builder-vite|app)-[a-z0-9]+$/i.test(draft.appName)) {
           draft.appName = prefix + crypto.randomUUID().slice(0, 6);
         }
         if (template.kind === "sample" && !draft.purpose) {
@@ -514,7 +527,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (normalized.includes("hostedagent")) return "hosted-agent";
         if (normalized.includes("hostedskill")) return "hosted-skill";
         if (normalized === "http") return "http";
-        if (normalized === "embr") return "embr";
+        if (normalized === "embr" || normalized.includes("app service builder")) return "embr";
         if (normalized.includes("mcp")) return "mcp";
         if (normalized.includes("connector")) return "connector";
         if (normalized.includes("docker")) return "docker";
@@ -660,6 +673,164 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         }
       }
 
+      function templateCapabilityPills(template) {
+        if (template.id === "builtin-sandbox-gateway-minimal-v1") {
+          return '<div class="badges">' +
+            '<span class="badge hosted-agent">Agent · Any Compute</span>' +
+            '<span class="badge sandbox">Tools · ACA Sandboxes</span>' +
+            '<span class="badge gateway">Gateway · AI Gateway</span>' +
+            '</div>';
+        }
+        if (template.id === "builtin-app-service-builder-vite-v1") {
+          return '<div class="badges">' +
+            '<span class="badge embr">Web · App Service Builder</span>' +
+            '<span class="badge gateway">Manifest · builder.yaml</span>' +
+            '</div>';
+        }
+        if (template.id === "builtin-empty-starter-v1") {
+          return '<div class="badges">' +
+            '<span class="badge gateway">Empty Workspace</span>' +
+            '<span class="badge hosted-agent">+ Add Building Blocks</span>' +
+            '</div>';
+        }
+        const labelById = {
+          web: { label: "Web · App Service Builder", cls: "embr" },
+          agent: { label: template.kind === "sample" ? "Agent · Foundry Hosted Agent" : "Agent · Any Compute", cls: "hosted-agent" },
+          skills: { label: "Skills · Azure Functions", cls: "hosted-skill" },
+          sandbox: { label: "Tools · ACA Sandboxes", cls: "sandbox" },
+          gateway: { label: "Gateway · AI Gateway", cls: "gateway" },
+          workflows: { label: "Workflows · Durable Functions", cls: "durable" },
+        };
+        return '<div class="badges">' + (template.capabilityIds || [])
+          .filter((id) => Boolean(labelById[id]))
+          .map((id) => {
+            const item = labelById[id];
+            return '<span class="badge ' + escape(item.cls) + '">' + escape(item.label) + '</span>';
+          }).join("") + '</div>';
+      }
+
+      function renderTemplatePreviewCard(template) {
+        if (!template) return "";
+        if (template.id === "builtin-sandbox-gateway-minimal-v1") {
+          return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+            '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+            '<small>3 capabilities · Brain &amp; Hands isolation pattern</small></div>' +
+            templateCapabilityPills(template) + '</div>' +
+            '<div class="template-preview-diagram">' +
+            '<svg viewBox="0 0 560 132" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Agent on any compute connects to Tools in ACA Sandboxes and Models through AI Gateway">' +
+              '<rect x="8" y="24" width="166" height="84" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+              '<text x="20" y="47" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e3a8a">Agent (Brain)</text>' +
+              '<text x="20" y="65" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">Any Compute</text>' +
+              '<text x="20" y="82" font-family="sans-serif" font-size="9.5" fill="#475569">Local · ACA · Functions · Foundry</text>' +
+              '<text x="20" y="97" font-family="sans-serif" font-size="9" fill="#64748b">Orchestrates work · No raw tools</text>' +
+              '<line x1="174" y1="46" x2="218" y2="34" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<polygon points="218,34 210,32 213,39" fill="#94a3b8"/>' +
+              '<line x1="174" y1="86" x2="218" y2="98" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<polygon points="218,98 213,93 210,100" fill="#94a3b8"/>' +
+              '<rect x="220" y="6" width="332" height="54" rx="10" fill="#f5f7ff" stroke="#a5b4fc" stroke-width="1.25"/>' +
+              '<text x="234" y="26" font-family="sans-serif" font-size="11" font-weight="700" fill="#312e81">Tools (Hands) · ACA Sandboxes</text>' +
+              '<text x="234" y="42" font-family="sans-serif" font-size="9.5" fill="#475569">Untrusted document &amp; code execution · Default-deny egress · Zero secrets</text>' +
+              '<rect x="220" y="72" width="332" height="54" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+              '<text x="234" y="92" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e293b">Gateway · AI Gateway</text>' +
+              '<text x="234" y="108" font-family="sans-serif" font-size="9.5" fill="#475569">Governed model aliases (gpt-latest) · Token budgets · Central auth</text>' +
+            '</svg></div>' +
+            '<ul class="template-preview-bullets">' +
+              '<li><strong>Agent on Any Compute:</strong> Run the agent locally, in Azure Container Apps, Azure Functions, or Foundry Hosted Agents without changing tool boundaries.</li>' +
+              '<li><strong>Tools on ACA Sandboxes:</strong> Untrusted document parsing and code run inside ephemeral sandboxes with <code>--egress-default Deny</code> and zero host secrets.</li>' +
+              '<li><strong>AI Gateway Governance:</strong> Model calls route through governed aliases (<code>gpt-latest</code>) with centralized credentials, rate limits, and token telemetry.</li>' +
+            '</ul></div>';
+        }
+        if (template.id === "builtin-app-service-builder-vite-v1") {
+          return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+            '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+            '<small>App Service Builder static web pattern · Grounded in Azure-Samples/app-service-builder-vite</small></div>' +
+            templateCapabilityPills(template) + '</div>' +
+            '<div class="template-preview-diagram">' +
+            '<svg viewBox="0 0 560 124" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Vite TypeScript frontend with builder.yaml deployed to App Service Builder">' +
+              '<rect x="8" y="20" width="168" height="84" rx="10" fill="#f0fdfa" stroke="#5eead4" stroke-width="1.25"/>' +
+              '<text x="20" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#0f766e">Web Surface · Vite + TS</text>' +
+              '<text x="20" y="61" font-family="sans-serif" font-size="9.5" fill="#334155">index.html · src/main.ts</text>' +
+              '<text x="20" y="77" font-family="sans-serif" font-size="9.5" fill="#475569">public/health &#8594; dist/health</text>' +
+              '<text x="20" y="92" font-family="sans-serif" font-size="9" fill="#64748b">Node 24 build toolchain</text>' +
+              '<line x1="176" y1="62" x2="210" y2="62" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<polygon points="210,62 202,58 202,66" fill="#94a3b8"/>' +
+              '<rect x="212" y="20" width="154" height="84" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+              '<text x="224" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e293b">builder.yaml Contract</text>' +
+              '<text x="224" y="61" font-family="sans-serif" font-size="9.5" fill="#334155">component: site (static)</text>' +
+              '<text x="224" y="77" font-family="sans-serif" font-size="9.5" fill="#475569">output: dist/</text>' +
+              '<text x="224" y="92" font-family="sans-serif" font-size="9" fill="#64748b">static.test.mjs verified</text>' +
+              '<line x1="366" y1="45" x2="398" y2="32" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<line x1="366" y1="79" x2="398" y2="92" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<rect x="400" y="10" width="152" height="46" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+              '<text x="412" y="30" font-family="sans-serif" font-size="10" font-weight="700" fill="#1e3a8a">App Service Builder</text>' +
+              '<text x="412" y="45" font-family="sans-serif" font-size="9" fill="#475569">Canvas · CLI · Portal</text>' +
+              '<rect x="400" y="68" width="152" height="46" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+              '<text x="412" y="88" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ Add Agent / Skills</text>' +
+              '<text x="412" y="103" font-family="sans-serif" font-size="9" fill="#64748b">Wire in Build when ready</text>' +
+            '</svg></div>' +
+            '<ul class="template-preview-bullets">' +
+              '<li><strong>Static Deployment Contract:</strong> Includes root <code>builder.yaml</code> (<code>role: static</code>, Node 24 build toolchain, <code>output: dist</code>) and <code>/health</code> endpoint from <code>Azure-Samples/app-service-builder-vite</code>.</li>' +
+              '<li><strong>Local Preview &amp; Contract Tests:</strong> Run <code>npm run build &amp;&amp; npm test</code> to verify the emitted <code>dist/</code> bundle and loopback preview on <code>:8080</code>.</li>' +
+              '<li><strong>App Service Builder Handoff:</strong> Validate with <code>builder manifest validate</code> or hand off to the App Service Builder canvas (<em>"Open App Service Builder canvas."</em>).</li>' +
+            '</ul></div>';
+        }
+        if (template.id === "builtin-empty-starter-v1") {
+          return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+            '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+            '<small>Blank workspace shell · Add your own building blocks in Build</small></div>' +
+            templateCapabilityPills(template) + '</div>' +
+            '<div class="template-preview-diagram">' +
+            '<svg viewBox="0 0 560 124" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Empty app workspace with dashed placeholders to add your own building blocks">' +
+              '<rect x="8" y="10" width="544" height="104" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>' +
+              '<text x="24" y="30" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#475569">Empty App Workspace · Add building blocks in Build</text>' +
+              '<rect x="24" y="42" width="122" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+              '<text x="36" y="67" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ Web Surface</text>' +
+              '<text x="36" y="83" font-family="sans-serif" font-size="9" fill="#64748b">App Service Builder</text>' +
+              '<rect x="156" y="42" width="122" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+              '<text x="168" y="67" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ Agent</text>' +
+              '<text x="168" y="83" font-family="sans-serif" font-size="9" fill="#64748b">Any Compute</text>' +
+              '<rect x="288" y="42" width="122" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+              '<text x="300" y="67" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ Skills &amp; Tools</text>' +
+              '<text x="300" y="83" font-family="sans-serif" font-size="9" fill="#64748b">Functions / Sandbox</text>' +
+              '<rect x="420" y="42" width="116" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+              '<text x="432" y="67" font-family="sans-serif" font-size="10" font-weight="600" fill="#475569">+ AI Gateway</text>' +
+              '<text x="432" y="83" font-family="sans-serif" font-size="9" fill="#64748b">Model governance</text>' +
+            '</svg></div>' +
+            '<ul class="template-preview-bullets">' +
+              '<li><strong>Start Clean:</strong> Creates an unopinionated app workspace shell with no pre-baked domain logic.</li>' +
+              '<li><strong>Add Building Blocks on Demand:</strong> Use the App Map and Build tab to add Web surfaces, Agents, Hosted Skills, ACA Sandboxes, or Durable Workflows as you need them.</li>' +
+              '<li><strong>Custom Domain Contract:</strong> Define your own app purpose and initial instructions from day one.</li>' +
+            '</ul></div>';
+        }
+        return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+          '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+          '<small>6 capabilities · End-to-end multi-tier reference sample</small></div>' +
+          templateCapabilityPills(template) + '</div>' +
+          '<div class="template-preview-diagram">' +
+          '<svg viewBox="0 0 560 124" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Full-stack Dealership E2E Reference Sample">' +
+            '<rect x="8" y="32" width="104" height="60" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+            '<text x="16" y="56" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#1e293b">Web Experience</text>' +
+            '<text x="16" y="72" font-family="sans-serif" font-size="9" fill="#475569">Buyer &amp; Dealer UI</text>' +
+            '<line x1="112" y1="62" x2="136" y2="62" stroke="#94a3b8" stroke-width="1.4"/>' +
+            '<rect x="138" y="32" width="118" height="60" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+            '<text x="148" y="56" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#1e3a8a">Deal-Finder Agent</text>' +
+            '<text x="148" y="72" font-family="sans-serif" font-size="9" fill="#475569">Foundry / Local (:8088)</text>' +
+            '<line x1="256" y1="45" x2="288" y2="24" stroke="#94a3b8" stroke-width="1.4"/>' +
+            '<line x1="256" y1="62" x2="288" y2="62" stroke="#94a3b8" stroke-width="1.4"/>' +
+            '<line x1="256" y1="79" x2="288" y2="100" stroke="#94a3b8" stroke-width="1.4"/>' +
+            '<rect x="290" y="4" width="262" height="34" rx="7" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+            '<text x="300" y="25" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#1e3a8a">4 MCP Hosted Skills (Inventory, Trade-In, Rates, Docs)</text>' +
+            '<rect x="290" y="45" width="262" height="34" rx="7" fill="#f5f7ff" stroke="#a5b4fc" stroke-width="1.25"/>' +
+            '<text x="300" y="66" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#312e81">ACA Sandbox Prequal + Durable Loan Approval Workflow</text>' +
+            '<rect x="290" y="86" width="262" height="34" rx="7" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+            '<text x="300" y="107" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#1e293b">AI Gateway Model Routing &amp; Governance</text>' +
+          '</svg></div>' +
+          '<ul class="template-preview-bullets">' +
+            '<li><strong>Complete Multi-Service Reference:</strong> Combines Web UI, Foundry Hosted Agent, 4 Azure Functions MCP Hosted Skills, ACA Sandbox PII pre-qualification, Durable Workflows, and AI Gateway.</li>' +
+            '<li><strong>End-to-End Tool Calling:</strong> Demonstrates multi-tool agent orchestration across inventory search, trade-in valuation, rate sheets, and deal packet generation.</li>' +
+          '</ul></div>';
+      }
+
       function templateHtml() {
         if (!sources) {
           return '<div class="notice">Loading available templates…</div>';
@@ -667,11 +838,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (sources.templates.length === 0) {
           return '<div class="notice">No hydrateable samples were found in the available worktrees.</div>';
         }
+        const activeTemplate = sources.templates.find((item) => item.id === draft.templateRootId) || sources.templates[0];
         return '<div class="choice-list">' + sources.templates.map((template) =>
-          '<label class="choice template"><input type="radio" name="template" value="' + escape(template.id) + '"' +
+          '<label class="choice template" data-template-option="' + escape(template.id) + '"><input type="radio" name="template" value="' + escape(template.id) + '"' +
           (draft.templateRootId === template.id ? " checked" : "") + '><span><strong>' + escape(template.name) +
           '</strong><span class="template-meta">' + escape(template.description) +
-          '</span></span></label>').join("") + '</div>';
+          '</span></span></label>').join("") + '</div>' +
+          '<div id="template-preview-mount">' + renderTemplatePreviewCard(activeTemplate) + '</div>';
       }
 
       async function loadSources(refresh = false) {
@@ -711,6 +884,23 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             const template = sources.templates.find((item) => item.id === input.value);
             applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
+            const previewMount = document.getElementById("template-preview-mount");
+            if (previewMount && template) previewMount.innerHTML = renderTemplatePreviewCard(template);
+          });
+        });
+        document.querySelectorAll('[data-template-option]').forEach((label) => {
+          const updatePreview = () => {
+            const templateId = label.getAttribute("data-template-option");
+            const template = sources?.templates?.find((item) => item.id === templateId);
+            const previewMount = document.getElementById("template-preview-mount");
+            if (previewMount && template) previewMount.innerHTML = renderTemplatePreviewCard(template);
+          };
+          label.addEventListener("mouseenter", updatePreview);
+          label.addEventListener("focusin", updatePreview);
+          label.addEventListener("mouseleave", () => {
+            const selected = sources?.templates?.find((item) => item.id === draft.templateRootId);
+            const previewMount = document.getElementById("template-preview-mount");
+            if (previewMount && selected) previewMount.innerHTML = renderTemplatePreviewCard(selected);
           });
         });
         document.getElementById("app-name")?.addEventListener("input", (event) => {
@@ -766,30 +956,42 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
         const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const heading = isSample
           ? "Configure the Dealership E2E Reference Sample"
-          : (isSandboxGateway ? "Customize the Sandboxes &amp; AI Gateway Starter" : "Customize the Empty app");
+          : (isSandboxGateway
+              ? "Customize the Sandboxes &amp; AI Gateway Starter"
+              : (isAppServiceBuilder ? "Customize the App Service Builder Starter" : "Customize the Empty app"));
         const intro = isSample
           ? "Review the app name and included capabilities for the complete reference sample."
           : (isSandboxGateway
               ? "Name your app and describe what it should do or how the agent should behave. Outbound tool egress is blocked by default."
-              : "The template starts with one intentionally empty Hosted Skill. Name your app and define its initial instructions.");
+              : (isAppServiceBuilder
+                  ? "Name your app and describe what this App Service Builder web surface does. Includes builder.yaml and /health out of the box."
+                  : "Start with an empty workspace shell and define its initial instructions. Add building blocks in Build."));
         const instructionsValue = draft.templateInputs.agentInstructions || draft.purpose ||
-          (isSample ? DEALER_SAMPLE_PURPOSE : "Help users validate documents and answer questions using governed tools and models.");
+          (isSample
+            ? DEALER_SAMPLE_PURPOSE
+            : (isAppServiceBuilder
+                ? "Provide a clean Vite TypeScript frontend ready for App Service Builder deployment."
+                : "Help users validate documents and answer questions using governed tools and models."));
         const instructionsField = isSample
           ? '<label class="field">What this sample does<textarea id="agent-instructions" maxlength="2000">' +
             escape(instructionsValue) + '</textarea></label>'
-          : '<label class="field">What should this app do &amp; agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
-            escape(instructionsValue) + '</textarea></label>';
-        const secondField = (!isSandboxGateway && !isSample)
+          : (isAppServiceBuilder
+              ? '<label class="field">What should this web app do?<textarea id="agent-instructions" maxlength="2000" placeholder="Describe the web experience and any backend or agent capabilities you plan to connect.">' +
+                escape(instructionsValue) + '</textarea></label>'
+              : '<label class="field">What should this app do &amp; agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
+                escape(instructionsValue) + '</textarea></label>');
+        const secondField = (!isSandboxGateway && !isAppServiceBuilder && !isSample)
           ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
           : "";
         const badgeByTier = {
-          web: { label: "App Service / Embr", className: "embr" },
+          web: { label: "App Service Builder", className: "embr" },
           agent: isSandboxGateway
-            ? { label: "ACA Sandboxes", className: "sandbox" }
-            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : null),
+            ? { label: "Any Compute", className: "hosted-agent" }
+            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : { label: "Any Compute", className: "hosted-agent" }),
           gateway: { label: "AI Gateway", className: "gateway" },
           skills: { label: "Azure Functions", className: "hosted-skill" },
           sandbox: { label: "ACA Sandboxes", className: "sandbox" },
@@ -797,23 +999,28 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         };
         const visibleTiers = isSandboxGateway
           ? [
-              { name: "Agent", badge: "ACA Sandboxes", badgeClass: "sandbox", role: "Hosts agent runtime, providing isolated tool execution and secure egress" },
-              { name: "Gateway", badge: "AI Gateway", badgeClass: "gateway", role: "Governed model and tool ingress with policy, routing, and quotas" },
+              { name: "Agent", badge: "Any Compute", badgeClass: "hosted-agent", role: "Orchestrates the workflow on any compute (local, ACA, Functions, or Foundry) without running untrusted tools in-process" },
+              { name: "Tools", badge: "ACA Sandboxes", badgeClass: "sandbox", role: "Runs untrusted document validation and code in isolated sandboxes with default-deny egress and zero secrets" },
+              { name: "Gateway", badge: "AI Gateway", badgeClass: "gateway", role: "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials" },
             ]
-          : draft.tierIds.map((tierId) => {
-              const tier = capabilities.find((item) => item.id === tierId);
-              if (!tier) return null;
-              const badge = badgeByTier[tierId];
-              return {
-                name: tier.name,
-                badge: badge?.label,
-                badgeClass: badge?.className,
-                role: tier.role,
-              };
-            }).filter(Boolean);
+          : (isAppServiceBuilder
+              ? [
+                  { name: "Surface / web", badge: "App Service Builder", badgeClass: "embr", role: "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint" },
+                ]
+              : draft.tierIds.map((tierId) => {
+                  const tier = capabilities.find((item) => item.id === tierId);
+                  if (!tier) return null;
+                  const badge = badgeByTier[tierId];
+                  return {
+                    name: tier.name,
+                    badge: badge?.label,
+                    badgeClass: badge?.className,
+                    role: tier.role,
+                  };
+                }).filter(Boolean));
         const createButtonLabel = isSample
           ? "Create runnable sample"
-          : (isSandboxGateway ? "Create starter app" : "Create empty app");
+          : ((isSandboxGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app");
         buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 2</div><h1>' + heading + '</h1>' +
           '<p>' + intro + '</p>' +
           '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
@@ -854,7 +1061,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             }
             draft.templateInputs.agentInstructions = instructions;
             draft.purpose = instructions.slice(0, 500);
-            if (!isSandboxGateway && !isSample) {
+            if (!isSandboxGateway && !isAppServiceBuilder && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
                 error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.");
@@ -1004,28 +1211,34 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               .find((item) => item.implementation.id === sourceId)
           : null;
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const isSample = sources.templates.find((item) => item.id === draft.templateRootId)?.kind === "sample";
         const badgeByTier = {
-          web: { label: "App Service / Embr", className: "embr" },
+          web: { label: "App Service Builder", className: "embr" },
           agent: isSandboxGateway
-            ? { label: "ACA Sandboxes", className: "sandbox" }
-            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : null),
+            ? { label: "Any Compute", className: "hosted-agent" }
+            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : { label: "Any Compute", className: "hosted-agent" }),
           gateway: { label: "AI Gateway", className: "gateway" },
           skills: { label: "Azure Functions", className: "hosted-skill" },
           sandbox: { label: "ACA Sandboxes", className: "sandbox" },
           workflows: { label: "Durable Functions", className: "durable" },
         };
         const badge = badgeByTier[tierId] || null;
+        const displayTierName = isSandboxGateway && tierId === "sandbox" ? "Tools" : tier.name;
         const detail = selected
           ? selected.root.name + " · " + selected.implementation.projectPath
           : (isSandboxGateway && tierId === "agent"
-              ? "Hosts agent runtime, providing isolated tool execution and secure egress"
-              : (isSandboxGateway && tierId === "gateway"
-                  ? "Governed model and tool ingress with policy, routing, and quotas"
-                  : (isSample
-                      ? tier.role
-                      : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))));
-        return '<div class="review-row"><div class="capability-head"><strong>' + escape(tier.name) + '</strong>' +
+              ? "Orchestrates the workflow on any compute (local, ACA, Functions, or Foundry) without running untrusted tools in-process"
+              : (isSandboxGateway && tierId === "sandbox"
+                  ? "Runs untrusted document validation and code in isolated sandboxes with default-deny egress and zero secrets"
+                  : (isSandboxGateway && tierId === "gateway"
+                      ? "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials"
+                      : (isAppServiceBuilder && tierId === "web"
+                          ? "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint"
+                          : (isSample
+                              ? tier.role
+                              : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))))));
+        return '<div class="review-row"><div class="capability-head"><strong>' + escape(displayTierName) + '</strong>' +
           (badge ? '<span class="badge ' + escape(badge.className) + '">' + escape(badge.label) + '</span>' : '') +
           '</div><small>' + escape(detail) +
           (draft.azureBindings[tierId] ? "<br>Azure resource mapped" : "") + '</small></div>';
@@ -1036,18 +1249,19 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         notices.dispose();
         const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const total = draft.journey === "new" ? 2 : 4;
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
           : selectedTemplate?.name;
         const reviewTiers = isSandboxGateway
-          ? ["agent", "gateway"]
-          : draft.tierIds;
+          ? ["agent", "sandbox", "gateway"]
+          : (isAppServiceBuilder ? ["web"] : draft.tierIds);
         const createButtonLabel = draft.journey === "assemble"
           ? "Create assembled app"
           : (selectedTemplate?.kind === "sample"
               ? "Create runnable sample"
-              : (isSandboxGateway ? "Create starter app" : "Create empty app"));
+              : ((isSandboxGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app"));
         buttons.replace(app, topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong></p>' +
           (draft.purpose ? '<p>' + escape(draft.purpose) + '</p>' : '') +

@@ -149,7 +149,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
-    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Customize", "Run & Debug", "Observe"]);
+    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Run & Debug", "Observe", "Deploy"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
     assert.equal(await page.locator("#studio-workspace-navigation > header h1").count(), 1);
@@ -247,7 +247,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
     await openWorkspaceNavigation(page);
-    await page.getByRole("button", { name: "Customize", exact: true }).press("Tab");
+    await page.getByRole("button", { name: "Build", exact: true }).press("Tab");
     assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     await page.keyboard.press("Enter");

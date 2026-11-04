@@ -19,7 +19,7 @@ const SOURCE_FILES = {
   skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json"],
   workflows: ["function_app.py", "host.json"],
   sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md"],
-  web: ["server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
+  web: ["builder.yaml", "index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
 };
 
 async function existingPath(root, path, directory = false) {
@@ -81,7 +81,7 @@ function sourceArtifact(path, candidate) {
     ? "behavior"
     : file === "contract.json" || file === "agents.config.yaml"
       || (["skills", "workflows"].includes(candidate.tierId) && file === "function_app.py") ? "tools"
-      : file === "agent.yaml" ? "runtime"
+      : file === "agent.yaml" || file === "builder.yaml" || file === "embr.yaml" ? "runtime"
         : file === "egress-policy.md" ? "policies" : undefined;
   let title = `${tier?.mapLabel || tier?.name || "Component"} source`;
   let description = "Implementation discovered in this app. Open it in Files or a supported external editor to make changes.";
@@ -93,6 +93,11 @@ function sourceArtifact(path, candidate) {
     description = "Agent runtime code, including any inline instructions and tool registrations defined here.";
   } else if (file === "agent.yaml") {
     title = "Agent manifest";
+  } else if (file === "builder.yaml" || file === "embr.yaml") {
+    title = "App Service Builder manifest";
+    description = "Component roles, build toolchain, and output directory for App Service Builder deployment.";
+  } else if (file === "index.html") {
+    title = "Web entry HTML";
   } else if (file === "agents.config.yaml") {
     title = "Hosted skill configuration";
   } else if (file === "function_app.py") {

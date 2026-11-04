@@ -58,11 +58,11 @@ test("home and map render explicit initial preference with shared settings and a
   assert.match(renderStudioHtml("studio"), /data-studio-theme="light"/);
   assert.match(renderStudioHtml("studio"), /class="studio-site-nav" aria-label="Navigation"/);
   const workspace = renderInteractiveAppMapHtml(graph);
-  assert.match(workspace, /value: "build", label: "Customize", button: \{ id: "build-app"/);
-  assert.match(workspace, /id="workspace-location">Customize<\/strong>/);
-  assert.match(workspace, /mode === "build" \? "Customize workspace"/);
-  assert.match(workspace, /"aria-label", "About Customize"/);
-  assert.doesNotMatch(workspace, /About Build|return to Build|Build shows recognized|Build only shows/);
+  assert.match(workspace, /value: "build", label: "Build", button: \{ id: "build-app"/);
+  assert.match(workspace, /id="workspace-location">Build<\/strong>/);
+  assert.match(workspace, /mode === "build" \? "Build workspace"/);
+  assert.match(workspace, /"aria-label", "About Build"/);
+  assert.doesNotMatch(workspace, /About Customize|return to Customize|Customize shows recognized|Customize only shows/);
   assert.match(workspace, /"id":"build","label":"Build"/);
   assert.match(workspace, /"Build: edit app structure"/);
   assert.match(workspace, /value: "manage", label: "Run & Debug", button: \{ id: "manage-app"/);

@@ -17,7 +17,7 @@ test("installed payload opens and materializes templates without checkout depend
     await cp(source, payload, {
       recursive: true,
       filter: (path) => !["node_modules", ".git", ".venv", "__pycache__"].includes(basename(path))
-        && !path.endsWith(".test.mjs"),
+        && (!path.endsWith(".test.mjs") || path.includes("templates")),
     });
     await mkdir(workspace);
     await execute("git", ["init", "--quiet", workspace]);
@@ -368,7 +368,7 @@ test("installed payload opens and materializes templates without checkout depend
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /data-studio-presentation="github-app"/);
-        assert.match(mapHtml, /Change your app/);
+        assert.match(mapHtml, /Build your app/);
         assert.match(mapHtml, /aria-label="Preferred external editor"/);
         assert.match(mapHtml, /build-help-tooltip/);
         assert.doesNotMatch(mapHtml, /About these customization points/);
@@ -379,7 +379,7 @@ test("installed payload opens and materializes templates without checkout depend
       }
       const { materializeTemplate } = await import(base + "template-materializer.mjs");
       const { LOCAL_TEMPLATES } = await import(base + "source-catalog.mjs");
-      assert.equal(LOCAL_TEMPLATES.length, 2);
+      assert.equal(LOCAL_TEMPLATES.length, 3);
       for (const template of LOCAL_TEMPLATES) {
         checkpoint("materializing " + template.id);
         const destination = join(process.cwd(), template.id);

@@ -57,6 +57,7 @@ const ALWAYS_READ_FILES = new Set([
   "agent.yaml",
   "agents.config.yaml",
   "azure.yaml",
+  "builder.yaml",
   "embr.yaml",
   "function_app.py",
   "host.json",
@@ -71,6 +72,7 @@ const PROJECT_MARKERS = new Set([
   "agent.yaml",
   "agents.config.yaml",
   "azure.yaml",
+  "builder.yaml",
   "embr.yaml",
   "function_app.py",
   "host.json",
@@ -275,8 +277,8 @@ function collectFileEvidence(file, projectRoots) {
     }
   };
 
-  if (file.name === "embr.yaml") {
-    addMarker("web", "embr-manifest", "high", "Embr web project manifest");
+  if (file.name === "builder.yaml" || file.name === "embr.yaml") {
+    addMarker("web", "embr-manifest", "high", "App Service Builder web project manifest");
   }
   if (file.name === "package.json") {
     addMatch("web", "web-package", "high", /"(next|react|vite|svelte|@angular\/core|nuxt)"/i, "Web framework dependency");

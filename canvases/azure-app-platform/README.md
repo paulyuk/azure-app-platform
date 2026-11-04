@@ -2,6 +2,17 @@
 
 Azure App Platform opens directly to **Home** without a startup animation on launch, using the Unity symbol and compact **Azure App Platform** navigation branding in the user's selected light or dark theme, centered around **ACA Sandboxes** as the focal primitive.
 
+## Quick install (Marketplace)
+
+No manual `npm install` or build step is needed. In GitHub Copilot:
+
+```text
+/plugin marketplace add coreai-microsoft/azure-app-platform
+/plugin install azure-app-platform@azure-app-platform
+```
+
+Then ask Copilot: **"open Azure App Platform"**.
+
 Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
 a 20px Unity mark and a compact, normal-weight Azure App Platform Home button. Its accessible
 name is **App home** (retained for non-breaking compatibility). Docs and the working Settings gear remain at the

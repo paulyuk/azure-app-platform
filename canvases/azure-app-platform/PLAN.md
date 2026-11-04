@@ -112,7 +112,7 @@ Component cards use compact, color-coded badges instead of verbose insight
 sentences. Badge vocabulary is rule-derived and may include:
 
 - Foundry, HostedAgent, MAF, HTTP
-- Embr, Web framework
+- App Service Builder, Web framework
 - HostedSkill, Azure Functions, MCP tool
 - Docker, Sandbox, Durable Functions
 - Connector, Gateway reference, Direct data
@@ -341,8 +341,8 @@ App Map also distinguishes platform intent from concrete bindings with compact,
 evidence-backed badges. The lane remains simply labeled **Agent** for a clear
 pattern-level map, while each qualifying agent card identifies **Foundry Hosted
 Agent** as Unity's opinionated runtime and shows observed **MAF**, **Foundry SDK**,
-and **Foundry deploy target** evidence. Web projects with `embr.yaml` show
-**Embr target**.
+and **Foundry deploy target** evidence. Web projects with `builder.yaml` show
+**App Service Builder target**.
 Persisted gateway selection produces one consolidated **Azure bound** gateway
 card with its concrete resource name, resource group, and source-referenced
 Foundry model bindings. Target badges must not imply a deployment already

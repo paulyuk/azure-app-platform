@@ -490,22 +490,62 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
   };
 }
 
-export async function discoverGatewayOptions(commandRunner, active, requestedSubscriptionId) {
-  const accountsResult = await commandRunner("az", ["account", "list", "-o", "json"]);
+export async function discoverGatewayOptions(commandRunner, active, requestedSubscriptionId, options = {}) {
+  const signal = options?.signal;
+  const accountsResult = await commandRunner("az", ["account", "list", "-o", "json"], { signal });
   if (!accountsResult.ok) throw new Error(accountsResult.stderr || accountsResult.error || "Sign in to Azure to select a subscription.");
   const subscriptions = JSON.parse(accountsResult.stdout)
     .filter((account) => account.state === "Enabled")
     .map(({ id, name, isDefault }) => ({ id, name, isDefault: Boolean(isDefault) }));
-  const subscription = subscriptions.find((item) => item.id === requestedSubscriptionId)
-    ?? (!requestedSubscriptionId && subscriptions.find((item) => item.id === active?.subscriptionId))
-    ?? (!requestedSubscriptionId && subscriptions.find((item) => item.isDefault))
-    ?? (!requestedSubscriptionId && subscriptions[0]);
+  const allSubscriptionsRequested = requestedSubscriptionId === "*";
+  const subscription = allSubscriptionsRequested
+    ? { id: "*", name: "All enabled subscriptions", isDefault: false }
+    : subscriptions.find((item) => item.id === requestedSubscriptionId)
+      ?? (!requestedSubscriptionId && subscriptions.find((item) => item.id === active?.subscriptionId))
+      ?? (!requestedSubscriptionId && subscriptions.find((item) => item.isDefault))
+      ?? (!requestedSubscriptionId && subscriptions[0]);
   if (!subscription) throw new Error("The selected Azure subscription is unavailable. Sign in or choose an enabled subscription.");
-  const result = await commandRunner("az", ["aigateway", "list", "--subscription", subscription.id, "-o", "json"]);
-  if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
-  const gateways = JSON.parse(result.stdout)
-    .map(normalizeGatewayCandidate)
-    .filter((item) => !subscription.id || !item.subscriptionId || item.subscriptionId.toLowerCase() === subscription.id.toLowerCase());
+  let gateways = [];
+  if (allSubscriptionsRequested) {
+    const graphQuery = JSON.stringify({
+      query: "Resources | where type =~ 'microsoft.apimanagement/aigateways' or (type =~ 'microsoft.apimanagement/service' and isnotnull(properties.gatewayUrl)) | project id, name, resourceGroup, location, subscriptionId, properties | limit 200",
+      options: { $top: 200 },
+    });
+    const graphResult = await commandRunner("az", [
+      "rest",
+      "--method",
+      "post",
+      "--uri",
+      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
+      "--headers",
+      "Content-Type=application/json",
+      "--body",
+      graphQuery,
+      "-o",
+      "json",
+    ], { signal });
+    if (graphResult.ok && graphResult.stdout) {
+      try {
+        const parsed = JSON.parse(graphResult.stdout);
+        const rows = Array.isArray(parsed?.data) ? parsed.data : Array.isArray(parsed) ? parsed : [];
+        gateways = rows.map(normalizeGatewayCandidate).filter((item) => item.name && item.endpoint);
+      } catch {
+        gateways = [];
+      }
+    }
+    if (!gateways.length && subscriptions[0]?.id) {
+      const fallback = await commandRunner("az", ["aigateway", "list", "--subscription", subscriptions[0].id, "-o", "json"], { signal });
+      if (fallback.ok && fallback.stdout) {
+        gateways = JSON.parse(fallback.stdout).map(normalizeGatewayCandidate).filter((item) => item.name && item.endpoint);
+      }
+    }
+  } else {
+    const result = await commandRunner("az", ["aigateway", "list", "--subscription", subscription.id, "-o", "json"], { signal });
+    if (!result.ok) throw new Error(result.stderr || result.error || "Unable to list AI Gateways.");
+    gateways = JSON.parse(result.stdout)
+      .map(normalizeGatewayCandidate)
+      .filter((item) => !subscription.id || !item.subscriptionId || item.subscriptionId.toLowerCase() === subscription.id.toLowerCase());
+  }
   const matching = gateways.find((item) => item.name === active?.name
     && item.resourceGroup === active?.resourceGroup && item.subscriptionId === active?.subscriptionId);
   const suggested = matching ?? [...gateways]

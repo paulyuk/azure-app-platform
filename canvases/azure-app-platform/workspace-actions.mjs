@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
-import { EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
+import { APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
@@ -217,8 +217,13 @@ export function buildWorkspaceKickoff(request) {
           "Verify the generated README, loan demo docs, azure-app.yaml, runtime and policy config, agent instructions, and the document validation tool at `src/tools/document-validation`.",
           "Run `./scripts/dev-start.sh --help`. Smoke-test the agent harness with `./scripts/dev-start.sh` and POST /test-document at the ready agent URL. Respect .azure-app-platform/ports.env (8088 is only the default); do not stop unrelated listeners. Use the PowerShell equivalents on Windows. Test /invoke only after configuring AI Gateway, then stop this app with its dev-stop script.",
         ]
+      : templatePlan.templateId === APP_SERVICE_BUILDER_TEMPLATE.id
+      ? [
+          "Verify the generated README, builder.yaml, azure-app.yaml, index.html, src/main.ts, public/health, and static.test.mjs.",
+          "Run `./scripts/dev-start.sh --help`. Build and test the static site or smoke-test with `./scripts/dev-start.sh`, then stop it with `./scripts/dev-stop.sh`.",
+        ]
       : [
-          "Verify the generated README, azure-app.yaml, editable domain config, agent prompt, and exactly one Hosted Skill.",
+          "Verify the generated README, azure-app.yaml, editable domain config, agent prompt, and the starter Hosted Skill slot.",
           "Run `./scripts/dev-start.sh --help`. Smoke-test the local web/agent slice with `./scripts/dev-start.sh --skip-skill`, then stop it with `./scripts/dev-stop.sh`.",
         ];
     return [
@@ -774,7 +779,7 @@ export async function openWorkspaceInVsCode({
 
 function evidenceBadges(evidence) {
   const badges = [];
-  if (evidence.rule === "embr-manifest") badges.push("Embr");
+  if (evidence.rule === "embr-manifest") badges.push("App Service Builder");
   if (evidence.rule === "web-package") badges.push("Web framework");
   if (evidence.rule === "agent-client") badges.push("HTTP");
   if (evidence.rule === "agent-manifest") badges.push("HostedAgent");

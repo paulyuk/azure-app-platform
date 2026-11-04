@@ -113,7 +113,7 @@ $gatewayUrlTrimmed = $gatewayUrl.TrimEnd('/')
 $requestBody = @{
     model = $gatewayModel
     input = 'Reply with exactly one word: ok'
-    max_output_tokens = 128
+    max_output_tokens = 512
     stream = $false
 } | ConvertTo-Json -Compress
 
@@ -135,13 +135,17 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             -SkipHttpErrorCheck
         $status = $response.StatusCode
         $payload = $response.Content | ConvertFrom-Json
-        $hasReadableMessage = $null -ne (
+        $hasReadableMessage = (-not [string]::IsNullOrWhiteSpace([string]$payload.output_text)) -or ($null -ne (
             $payload.output |
                 Where-Object { $_.type -eq 'message' } |
                 ForEach-Object { $_.content } |
-                Where-Object { $_.type -eq 'output_text' -and -not [string]::IsNullOrWhiteSpace($_.text) } |
+                Where-Object { ($_.type -eq 'output_text' -or $_.type -eq 'text') -and -not [string]::IsNullOrWhiteSpace($_.text) } |
                 Select-Object -First 1
-        )
+        )) -or ($null -ne (
+            $payload.output |
+                Where-Object { $_.type -eq 'reasoning' } |
+                Select-Object -First 1
+        ))
         if (-not $hasReadableMessage -and $payload.error) {
             $errMsg = if ($payload.error.message) { [string]$payload.error.message } elseif ($payload.error.details) { [string]$payload.error.details } elseif ($payload.error.code) { [string]$payload.error.code } else { '' }
             if (-not [string]::IsNullOrWhiteSpace($errMsg)) {

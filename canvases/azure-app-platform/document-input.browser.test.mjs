@@ -99,11 +99,14 @@ test("Run shares optional document input with invocation and enforcement across 
     await document.waitFor();
     await message.fill("Summarize these terms.");
     await document.fill("Contact alex@example.test.");
-    assert.equal(await invoke.isDisabled(), true);
-    assert.equal(await enforce.isDisabled(), true);
-    assert.equal(await enforceEgress.isDisabled(), true);
-    await page.locator("#details").getByRole("button", { name: "Run app", exact: true }).click();
-    await page.waitForFunction(() => !document.querySelector("[data-invoke-agent]").disabled);
+    assert.equal(await invoke.isDisabled(), false);
+    assert.equal(await enforce.isDisabled(), false);
+    assert.equal(await enforceEgress.isDisabled(), false);
+    // Clicking Invoke agent when stopped automatically starts the app first
+    await invoke.click();
+    await page.locator(".agent-response").filter({ hasText: "Summary" }).waitFor();
+    assert.equal(invocations.length, 1);
+    assert.equal(state, "running");
     assert.equal(await document.inputValue(), "Contact alex@example.test.");
     await file.setInputFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("Loan terms: contact alex@example.test.") });
     await card.getByText("terms.md", { exact: true }).waitFor();
@@ -126,12 +129,12 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.ok(await page.locator("[data-document-assessment]").getByText(/Identity, income, creditworthiness/).isVisible());
     assert.ok(await card.getByText("Untrusted source", { exact: true }).isVisible());
     assert.deepEqual(tests[0], { root: graph.root, document: expected });
-    assert.equal(invocations.length, 0);
+    assert.equal(invocations.length, 1);
     await invoke.click();
     await page.locator(".agent-response").filter({ hasText: "Summary" }).waitFor();
     await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
-    assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
-    await page.getByRole("button", { name: "Review key files", exact: true }).click();
+    assert.deepEqual(invocations[1], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
+    await selectWorkspace(page, "build-app");
     await page.getByRole("tab", { name: "Runtime", exact: true }).click();
     const preview = page.getByRole("region", { name: "Runtime configuration source preview", exact: true });
     await preview.waitFor();
@@ -141,7 +144,7 @@ test("Run shares optional document input with invocation and enforcement across 
     await preview.evaluate((element) => { element.dataset.previewProbe = "preserved"; });
     await page.getByRole("button", { name: "Model connection", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Settings", exact: true });
-    await settings.getByText("Stop the local app before changing its AI Gateway.", { exact: true }).waitFor();
+    await settings.getByText("Connected: model · gateway · Local simulation", { exact: true }).waitFor();
     assert.equal(await page.locator("#details").getAttribute("data-mode"), "build",
       "Build opens shared model settings without detouring through Run");
     await settings.getByRole("button", { name: "Close settings", exact: true }).click();
@@ -156,7 +159,7 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.locator("[data-document-result]").filter({ hasText: "rejected" }).waitFor();
     await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
     assert.equal(await page.locator("[data-approved-document]").count(), 0);
-    assert.equal(invocations.length, 1);
+    assert.equal(invocations.length, 2);
     await document.fill("é".repeat(40000));
     await card.getByRole("alert").filter({ hasText: "64 KiB" }).waitFor();
     assert.equal(await invoke.isDisabled(), true);
@@ -169,8 +172,8 @@ test("Run shares optional document input with invocation and enforcement across 
     await card.getByRole("button", { name: "Remove document", exact: true }).click();
     await invoke.click();
     await page.waitForFunction(() => !document.querySelector("[data-invoke-agent]").disabled);
-    assert.equal(invocations.length, 2);
-    assert.equal(Object.hasOwn(invocations[1], "document"), false);
+    assert.equal(invocations.length, 3);
+    assert.equal(Object.hasOwn(invocations[2], "document"), false);
     assert.equal(await enforce.isDisabled(), false);
     assert.equal(await enforceEgress.isDisabled(), false);
     await enforceEgress.click();

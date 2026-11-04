@@ -17,6 +17,17 @@ The defining trait of an Azure App Platform app is that **it watches itself**. O
 - [`src/`](src) - application code for Demo #1, organized per platform tier (added as the POC build starts)
 - [`tests/`](tests) - automated tests mirroring `src/` by tier
 
+## Install in GitHub Copilot
+
+This repository ships a self-contained plugin marketplace (`.github/plugin/marketplace.json`) for the **Azure App Platform** canvas (`canvases/azure-app-platform`). No manual `npm install` or build step is required.
+
+1. In GitHub Copilot CLI or Desktop, register the marketplace and install the plugin:
+   ```text
+   /plugin marketplace add coreai-microsoft/azure-app-platform
+   /plugin install azure-app-platform@azure-app-platform
+   ```
+2. Ask Copilot: **"open Azure App Platform"** (or **"create an Azure App Platform app"**).
+
 ## Minimal template
 
 **Sandbox & Gateway (Minimal)** is a headless starter: an agent and its harness,

@@ -20,6 +20,7 @@
     "useAzureIdentityEnv": "AI_GATEWAY_USE_AZURE_IDENTITY",
     "azureIdentityScope": "https://ai.azure.com/.default",
     "allowAnonymous": false,
+    "maxOutputTokens": 4096,
     "timeoutSeconds": 60
   },
   "documentTool": {

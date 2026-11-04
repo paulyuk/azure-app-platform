@@ -76,7 +76,9 @@ test("Preview setup shortcuts show native agent evidence and missing-gateway gui
     await installToolkitRoutes(page);
 
     await page.goto(fixture.origin + "/preview");
-    await page.getByRole("button", { name: "Open agent setup", exact: true }).click();
+    await selectWorkspace(page, "map-app");
+    await page.locator('[data-node-id="agent"]').click();
+    await page.getByRole("button", { name: "Add or change in Agent", exact: true }).click();
     await page.getByRole("heading", { name: "Add to Agent", exact: true }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Existing evidence", exact: true }).isVisible(), true);
     assert.match(await page.locator("#details").textContent(), /Deal finder.*src\/agent/);

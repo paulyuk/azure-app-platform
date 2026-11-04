@@ -68,7 +68,7 @@
     },
     {
       "path": "config/runtime.json",
-      "sha256": "ea5dd401172fcc932de52e3d18ce12f3fdb14b063f01054b2bb931e44a0792d4"
+      "sha256": "df37753286bb82391c162e383fc5c537503a2cfc56d3d474cc76dc2f0c699a4e"
     },
     {
       "path": "docs/demos/loan-application/HOW-IT-WORKS.md",
@@ -120,7 +120,7 @@
     },
     {
       "path": "src/agent/main.py",
-      "sha256": "2934be81bf21273dbb6d1dbf31d25d8f00ad71e1882952afb291426a0b434856"
+      "sha256": "ee5a19a1219a4c8dd3721b1c15be4d0186730e3074322755ba49af682e5ab70c"
     },
     {
       "path": "src/agent/prompts/system.md",
@@ -132,7 +132,7 @@
     },
     {
       "path": "src/agent/tests/test_runtime.py",
-      "sha256": "362423f232993e14b426ca2b4ad2acbb980fb4667b0e964889535986a1be3d19"
+      "sha256": "e7f30a31fe1ae829c8dfae8599a90a43aca8455b8d2ae11dec4ddce9dd9c5772"
     },
     {
       "path": "src/agent/uv.lock",

@@ -17,11 +17,11 @@ export const PLATFORM_TIERS = Object.freeze([
     role: "Human-facing application surface",
     jobToBeDone: "Present application state and turn user intent into governed requests.",
     expectedInterfaces: ["HTTP", "WebSocket or server events", "Accessible UI"],
-    preferredCanvases: [],
+    preferredCanvases: ["app-service-builder"],
     scaffold: {
-      summary: "Create a web surface that calls the agent or application API through a server-side boundary.",
-      markers: ["package.json", "embr.yaml"],
-      nextActions: ["Choose a web runtime", "Define the agent/API contract", "Add health and telemetry endpoints"],
+      summary: "Create a web surface with App Service Builder that serves static or HTTP components and calls governed APIs.",
+      markers: ["package.json", "builder.yaml"],
+      nextActions: ["Choose a web runtime", "Define the builder.yaml component contract", "Add health and telemetry endpoints"],
     },
   },
   {

@@ -19,7 +19,7 @@ export const EMPTY_TEMPLATE = Object.freeze({
   id: "builtin-empty-starter-v1",
   kind: "empty",
   name: "Empty Starter App",
-  description: "Start with an editable app shell and shape it around your own scenario.",
+  description: "Start with an empty workspace shell and add your own building blocks in Build.",
   capabilityIds: ["web", "agent", "gateway", "skills"],
   customization: ["App purpose", "Agent instructions", "Hosted Skill name"],
   readyToRun: true,
@@ -63,11 +63,61 @@ export const EMPTY_TEMPLATE = Object.freeze({
   },
 });
 
+export const APP_SERVICE_BUILDER_TEMPLATE = Object.freeze({
+  id: "builtin-app-service-builder-vite-v1",
+  kind: "empty",
+  name: "App Service Builder (Vite Starter)",
+  description: "Vite + TypeScript static frontend with builder.yaml, /health check, and App Service Builder handoff.",
+  capabilityIds: ["web"],
+  customization: ["App purpose", "Sample greeting"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+    startArgs: [],
+    startPowerShellArgs: [],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "web", port: 8080 },
+    ],
+    startEntrypoints: [
+      { name: "web", port: 8080 },
+    ],
+    reservedPorts: [8080],
+  },
+  requiredPaths: [
+    "README.md",
+    "azure-app.yaml",
+    "builder.yaml",
+    "config/domain.json",
+    "index.html",
+    "package.json",
+    "tsconfig.json",
+    "public/health",
+    "src/main.ts",
+    "static.test.mjs",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "scripts/load-ports.sh",
+    "scripts/load-ports.ps1",
+  ],
+  constraints: {
+    hostedSkillCount: 0,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+    appServiceBuilderTarget: true,
+  },
+});
+
 export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   id: "builtin-sandbox-gateway-minimal-v1",
   kind: "empty",
   name: "Sandboxes & AI Gateway Starter",
-  description: "Minimal starter with an agent runtime in ACA Sandboxes, isolated tool execution, and governed model access through AI Gateway.",
+  description: "Agent on any compute, untrusted tools isolated in ACA Sandboxes, and governed model routing through AI Gateway.",
   capabilityIds: ["agent", "sandbox", "gateway"],
   customization: ["App purpose", "Agent instructions"],
   readyToRun: true,
@@ -126,7 +176,11 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   },
 });
 
-export const LOCAL_TEMPLATES = Object.freeze([SANDBOX_GATEWAY_TEMPLATE, EMPTY_TEMPLATE]);
+export const LOCAL_TEMPLATES = Object.freeze([
+  SANDBOX_GATEWAY_TEMPLATE,
+  APP_SERVICE_BUILDER_TEMPLATE,
+  EMPTY_TEMPLATE,
+]);
 
 const RUNNABLE_SAMPLE_PATHS = Object.freeze([
   "scripts/dev-start.sh",
@@ -280,7 +334,7 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
   const runnableSample = sampleFiles.every((result) => result.ok);
   const approvedSampleAncestry = approvedAncestry.ok;
   let pinnedImplementations = implementations;
-  if (worktree.commit && (normalizedRepository === DEALER_REPOSITORY || normalizedRepository === DEALER_LEGACY_REPOSITORY) && approvedSampleAncestry && runnableSample && (dirty || pinnedDiscovery !== discoverPinnedRepository)) {
+  if (worktree.commit && (normalizedRepository === DEALER_REPOSITORY || normalizedRepository === DEALER_LEGACY_REPOSITORY) && approvedSampleAncestry && runnableSample && pinnedDiscovery !== discoverPinnedRepository) {
     const pinnedRepository = await pinnedDiscovery(root, worktree.commit, commandRunner);
     pinnedImplementations = pinnedRepository.candidates
       .filter((candidate) => isUsefulProject(candidate.projectPath))
@@ -305,7 +359,12 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
     dirty,
     statusKnown: status.ok,
     implementations,
-    pinnedImplementations,
+    get pinnedImplementations() {
+      return pinnedImplementations;
+    },
+    set pinnedImplementations(value) {
+      pinnedImplementations = value;
+    },
     capabilityIds: [...new Set(implementations.map((item) => item.tierId))],
     runnableSample,
     approvedSampleAncestry,
@@ -360,16 +419,42 @@ export async function listSourceCatalog({
       level: "warning",
       message: result.reason instanceof Error ? result.reason.message : String(result.reason),
     }));
-  const sampleRoots = roots
+  const sampleCandidates = roots
     .filter((root) => root.commit
       && (root.repository === DEALER_REPOSITORY || root.repository === DEALER_LEGACY_REPOSITORY)
       && root.approvedSampleAncestry
-      && root.runnableSample
-      && ["web", "agent", "skills", "sandbox", "workflows"].every((tierId) =>
-        root.pinnedImplementations.some((item) => item.tierId === tierId)))
-    .sort((left, right) => right.commitTimestamp - left.commitTimestamp);
+      && root.runnableSample)
+    .sort((left, right) => {
+      if (left.dirty !== right.dirty) return left.dirty ? 1 : -1;
+      return right.commitTimestamp - left.commitTimestamp;
+    });
+  const sampleRoots = [];
+  for (const candidate of sampleCandidates) {
+    if (candidate.dirty && pinnedDiscovery === discoverPinnedRepository) {
+      try {
+        const pinnedRepository = await pinnedDiscovery(candidate.path, candidate.commit, commandRunner);
+        candidate.pinnedImplementations = pinnedRepository.candidates
+          .filter((item) => isUsefulProject(item.projectPath))
+          .map((item) => ({
+            id: sourceId(candidate.path, candidate.commit, item.tierId, item.projectPath),
+            tierId: item.tierId,
+            name: item.name,
+            projectPath: item.projectPath,
+            matchedFiles: item.evidence,
+          }));
+      } catch {
+        continue;
+      }
+    }
+    if (["web", "agent", "skills", "sandbox", "workflows"].every((tierId) =>
+      candidate.pinnedImplementations.some((item) => item.tierId === tierId))) {
+      sampleRoots.push(candidate);
+      break;
+    }
+  }
   const templates = [
     SANDBOX_GATEWAY_TEMPLATE,
+    APP_SERVICE_BUILDER_TEMPLATE,
     ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
       kind: "sample",

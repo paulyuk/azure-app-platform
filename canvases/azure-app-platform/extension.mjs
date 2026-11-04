@@ -866,7 +866,7 @@ async function fetchGatewayApiKey(gateway) {
 async function probeGatewayModelResponses(endpoint, apiKey, model) {
   if (!endpoint || !apiKey || !model) return false;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   timeout.unref?.();
   try {
     const response = await fetch(`${endpoint.replace(/\/+$/, "")}/default/models/openai/v1/responses`, {
@@ -878,17 +878,23 @@ async function probeGatewayModelResponses(endpoint, apiKey, model) {
       body: JSON.stringify({
         model,
         input: "Reply with exactly one word: ok",
-        max_output_tokens: 32,
+        max_output_tokens: 512,
         stream: false,
       }),
       signal: controller.signal,
     });
     if (!response.ok) return false;
     const payload = await response.json();
+    if (typeof payload?.output_text === "string" && payload.output_text.trim()) return true;
     return Array.isArray(payload?.output) && payload.output.some((item) =>
-      item?.type === "message"
-      && Array.isArray(item.content)
-      && item.content.some((content) => content?.type === "output_text" && String(content?.text || "").trim()),
+      item?.type === "reasoning"
+      || (item?.type === "message"
+        && Array.isArray(item.content)
+        && item.content.some(
+          (content) =>
+            (content?.type === "output_text" || content?.type === "text")
+            && String(content?.text || "").trim(),
+        )),
     );
   } catch {
     return false;
@@ -1665,7 +1671,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const active = await loadActiveGateway(root, { refresh: true });
       const runner = trackedAzureRunner(root, { signal: reqAbort.signal, timeout: 12_000 });
       const options = await discoverGatewayOptions(
-        runner, active, url.searchParams.get("subscriptionId"),
+        runner, active, url.searchParams.get("subscriptionId"), { signal: reqAbort.signal },
       );
       const configuredSandboxGroup = active?.sandboxGroup
         ? {
@@ -1674,17 +1680,14 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           }
         : await readAcaCliDefaultConfig();
       const requestedSandboxSub = url.searchParams.get("sandboxSubscriptionId") || "";
-      const initialSandboxSub = requestedSandboxSub
-        || configuredSandboxGroup?.subscriptionId
-        || options.subscription?.id
-        || "";
+      const initialSandboxSub = requestedSandboxSub || "*";
       const [modelOptions, sandboxDiscovery] = await Promise.all([
         loadGatewayModelOptions(runner, options, {
           name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
         }),
         discoverSandboxGroups(runner, initialSandboxSub, configuredSandboxGroup, {
           includeAll: true,
-          fallbackAllSubscriptions: !requestedSandboxSub,
+          fallbackAllSubscriptions: true,
         }),
       ]);
       if (reqAbort.signal.aborted || response.writableEnded) return;

@@ -159,7 +159,7 @@ run_python() {
 }
 
 request_body="$(run_python -c \
-  'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":128,"stream":False}))' \
+  'import json,sys; print(json.dumps({"model":sys.argv[1],"input":"Reply with exactly one word: ok","max_output_tokens":512,"stream":False}))' \
   "$gateway_model")"
 ready=false
 last_error_detail=""
@@ -183,12 +183,18 @@ for attempt in $(seq 1 "$max_attempts"); do
   if [[ "$status" == 2* ]] && printf '%s' "$response_body" | run_python -c '
 import json, sys
 payload = json.load(sys.stdin)
-readable = any(
-    content.get("type") == "output_text" and content.get("text", "").strip()
-    for item in payload.get("output", [])
-    if item.get("type") == "message"
-    for content in item.get("content", [])
-)
+output_text = payload.get("output_text")
+readable = isinstance(output_text, str) and bool(output_text.strip())
+if not readable:
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if isinstance(content, dict) and content.get("type") in {"output_text", "text"} and str(content.get("text", "")).strip():
+                    readable = True
+        elif item.get("type") == "reasoning":
+            readable = True
 raise SystemExit(0 if readable else 1)
 '; then
     ready=true

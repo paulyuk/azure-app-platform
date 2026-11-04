@@ -16,6 +16,12 @@ export const BUILD_PANEL_CONTENT_CSS = `
 #details[data-mode="build"] :is(button,select,summary,.build-source-preview):focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
 #details[data-mode="build"] .build-refresh { flex:none; min-height:28px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font-size:12px; font-weight:500; }
 #details[data-mode="build"] .build-refresh:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
+#details[data-mode="build"] .build-heading-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; flex:none; }
+#details[data-mode="build"] .build-blocks-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; margin:12px 0 16px; padding:12px 14px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
+#details[data-mode="build"] .build-blocks-copy { min-width:0; }
+#details[data-mode="build"] .build-blocks-copy strong { display:block; font-size:13px; line-height:18px; font-weight:600; color:var(--studio-ink); }
+#details[data-mode="build"] .build-blocks-copy span { display:block; font-size:12px; line-height:18px; color:var(--studio-muted); }
+#details[data-mode="build"] .build-blocks-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 #details[data-mode="build"] .build-tabs { margin:16px 0 20px; }
 #details[data-mode="build"] .build-area { margin:0; min-width:0; }
 #details[data-mode="build"] .build-area-header { margin-bottom:16px; }
@@ -85,7 +91,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onOpenStructure, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
   const areas = [
     { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior", description: "Shape what your agent does and how it responds." },
     { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts", description: "Choose a tool to change its implementation or the inputs it accepts." },
@@ -205,7 +211,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         method: "POST", body: JSON.stringify({ root, id: artifact.id }),
       });
       handoffFeedback.set(artifact.id, { message: native
-        ? "Opened in Files. Save there, then return to Customize."
+        ? "Opened in Files. Save there, then return to Build."
         : "Opened the worktree and file in " + (result.editorLabel || selectedEditorLabel()) + "." });
     } catch (cause) {
       handoffFeedback.set(artifact.id, { error: true, message: (native ? "Could not open Files: " : "Could not open editor: ") + cause.message });
@@ -228,11 +234,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       tooltip.hidden = !pinned;
     });
     buttons.update(control, { className: "build-help-button", appearance: "subtle" });
-    control.setAttribute("aria-label", "About Customize");
+    control.setAttribute("aria-label", "About Build");
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
     buttons.update(control, { icon: buttons.icon(helpIcon) });
-    const tooltip = element("span", "Customize shows recognized customization points, not every file. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
+    const tooltip = element("span", "Build shows recognized source, tool, runtime, and policy building blocks. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
       ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";
     tooltip.setAttribute("role", "tooltip");
@@ -315,6 +321,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     external.dataset.editorLaunch = "true";
     external.dataset.artifactId = artifact.id;
     external.dataset.focusKey = "editor-" + artifact.id;
+    if (supportsDocuments && artifact.id === "instructions" && typeof onRun === "function") {
+      const testDoc = button(actions, "Test with a document", onRun);
+      buttons.update(testDoc, { appearance: "secondary" });
+      testDoc.dataset.focusKey = "test-document";
+    }
     if (supportsDocuments && artifact.id === "runtime") {
       const modelButton = button(actions, "Model connection", onModel);
       buttons.update(modelButton, { appearance: "secondary" });
@@ -448,19 +459,36 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const header = element("div", undefined, workspace, "build-heading");
     const intro = element("div", undefined, header);
     const title = element("div", undefined, intro, "build-heading-title");
-    element("h2", "Change your app", title);
+    element("h2", "Build your app", title);
     renderHelp(title);
-    element("p", "Choose an area to preview and open its source in your code editor.", intro);
-    const refresh = button(header, "Refresh source", () => show({ refresh: true }));
+    element("p", "Edit code, add building blocks, and configure tools, runtime, and policies.", intro);
+    const headerActions = element("div", undefined, header, "build-heading-actions");
+    if (typeof onRun === "function") {
+      const quickRun = button(headerActions, "Run & Debug", onRun);
+      buttons.update(quickRun, { className: "build-quick-run", appearance: "primary" });
+      quickRun.dataset.focusKey = "quick-run";
+    }
+    const refresh = button(headerActions, "Refresh source", () => show({ refresh: true }));
     buttons.update(refresh, { className: "build-refresh", appearance: "secondary", disabled: refreshing });
     refresh.dataset.focusKey = "refresh";
+    if (typeof onOpenStructure === "function") {
+      const blocksBar = element("section", undefined, workspace, "build-blocks-bar");
+      blocksBar.setAttribute("aria-label", "Architecture building blocks");
+      const copy = element("div", undefined, blocksBar, "build-blocks-copy");
+      element("strong", "Building blocks & architecture", copy);
+      element("span", "Add capabilities (Agent, Tools, Gateway, Workflows) or wire stage connections on the App Map.", copy);
+      const blockActions = element("div", undefined, blocksBar, "build-blocks-actions");
+      const editArch = button(blockActions, "+ Add building block", onOpenStructure);
+      buttons.update(editArch, { appearance: "secondary" });
+      editArch.dataset.focusKey = "open-structure";
+    }
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
     if (!artifacts.length) {
       const empty = element("section", undefined, workspace, "build-empty");
       element("h3", "No recognized customization points", empty);
-      element("p", "No supported customization points were found. Open the project in your code editor; Customize only shows recognized decision points.", empty);
+      element("p", "No supported customization points were found. Open the project in your code editor; Build only shows recognized decision points.", empty);
       const open = button(empty, "Open in " + selectedEditorLabel(), async () => {
         if (workspaceOpening) return;
         workspaceOpening = true;

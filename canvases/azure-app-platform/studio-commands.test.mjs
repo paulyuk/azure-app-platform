@@ -747,8 +747,9 @@ test("source catalog parses worktrees and excludes internal projects", async () 
     assert.equal(catalog.roots[0].dirty, false);
     assert.equal(catalog.roots[0].repository, "https://example.test/org/app.git");
     assert.deepEqual(catalog.templates.map((template) => template.id), [
-      "builtin-empty-starter-v1",
       "builtin-sandbox-gateway-minimal-v1",
+      "builtin-app-service-builder-vite-v1",
+      "builtin-empty-starter-v1",
     ]);
   });
 });
@@ -872,6 +873,35 @@ test("sandbox & gateway minimal template plan is deterministic and headless", ()
   assert.equal(plan[0].constraints.sandboxToolBoundary, true);
   assert.deepEqual(plan[0].startup.startArgs, []);
   assert.deepEqual(plan[0].startup.reservedPorts, [8088]);
+});
+
+test("app service builder vite template plan and materializer create a static web starter with builder.yaml", async () => {
+  const plan = resolveSourcePlan({
+    roots: [],
+    templates: [{ id: "builtin-app-service-builder-vite-v1", kind: "empty" }],
+  }, {
+    starterKind: "template",
+    templateRootId: "builtin-app-service-builder-vite-v1",
+    tierIds: ["web"],
+  });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].kind, "empty-template");
+  assert.deepEqual(plan[0].capabilityIds, ["web"]);
+  assert.equal(plan[0].constraints.hostedSkillCount, 0);
+  assert.equal(plan[0].constraints.appServiceBuilderTarget, true);
+  assert.deepEqual(plan[0].startup.reservedPorts, [8080]);
+
+  await withFixture({ "unrelated.txt": "__APP_NAME__" }, async (root) => {
+    await materializeTemplate({
+      appName: "Vite Builder Demo",
+      purpose: "Static frontend deployed with App Service Builder",
+      sourcePlan: { kind: "empty-template", templateId: "builtin-app-service-builder-vite-v1" },
+    }, { destination: root });
+    assert.match(await readFile(join(root, "builder.yaml"), "utf8"), /role:\s*static/);
+    assert.match(await readFile(join(root, "public", "health"), "utf8"), /^OK/);
+    assert.match(await readFile(join(root, "src", "main.ts"), "utf8"), /VITE_SAMPLE_GREETING/);
+    assert.match(await readFile(join(root, "README.md"), "utf8"), /Open App Service Builder canvas/);
+  });
 });
 
 test("sandbox & gateway minimal materializer creates a headless agent + sandbox tool starter", async () => {
@@ -1311,7 +1341,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes("local changes excluded"), false);
     assert.equal(html.includes("Preserves the finished dealer domain"), false);
     assert.equal(html.includes("./scripts/dev-start.sh --skip-skills"), false);
-    assert.equal(EMPTY_TEMPLATE.description, "Start with an editable app shell and shape it around your own scenario.");
+    assert.equal(EMPTY_TEMPLATE.description, "Start with an empty workspace shell and add your own building blocks in Build.");
     assert.equal(html.includes("Yes, delete worktree"), true);
     assert.equal(html.includes("No, keep app"), true);
     assert.equal(html.includes("No Azure resources, repositories, or cloud deployments will be deleted."), true);
@@ -1319,7 +1349,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('const apiToken = "test-token"'), true);
     assert.match(html, /commandResult\.outcome === "already-running"/);
     assert.match(html, /commandResult\.outcome === "operation-in-progress"/);
-    assert.match(html, /dealer-sample-"\s*:\s*\(template\.id === "builtin-sandbox-gateway-minimal-v1" \? "sandbox-starter-" : "app-"\)/);
+    assert.match(html, /dealer-sample-"\s*:\s*\(template\.id === "builtin-sandbox-gateway-minimal-v1"\s*\?\s*"sandbox-starter-"\s*:\s*\(template\.id === "builtin-app-service-builder-vite-v1"\s*\?\s*"builder-vite-"\s*:\s*"app-"\)\)/);
     assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
 });
 
@@ -1581,7 +1611,7 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     ]);
     const web = graph.nodes.find((node) => node.tierId === "web");
     assert.equal(web.name, "support-web");
-    assert.deepEqual(web.badges.map((badge) => badge.label), ["Embr target"]);
+    assert.deepEqual(web.badges.map((badge) => badge.label), ["App Service Builder target"]);
     assert.equal(graph.edges.some((edge) => edge.kind === "model-route" || edge.kind === "tool-route"), false);
 
     const rendered = renderAppMapMarkup(graph);
@@ -1590,7 +1620,7 @@ model = os.environ.get("AZURE_AI_GATEWAY_MODEL", DEFAULT_GATEWAY_MODEL)
     assert.match(rendered, /Foundry Hosted Agent/);
     assert.match(rendered, /Foundry deploy target/);
     assert.match(rendered, /Azure bound/);
-    assert.match(rendered, /Embr target/);
+    assert.match(rendered, /App Service Builder target/);
     assert.match(rendered, /gpt-primary/);
     assert.doesNotMatch(rendered, /not-a-gateway-binding/);
     assert.match(rendered, /Foundry Toolbox/);
@@ -1883,7 +1913,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
       name: maliciousName,
       projectPath: "src/web",
       confidence: "high",
-      badges: [{ label: "Embr target", kind: "embr" }],
+      badges: [{ label: "App Service Builder target", kind: "embr" }],
       evidence: [{ path: "src/web/package.json", line: 1, rule: "package", confidence: "high" }],
     }],
     edges: [],
