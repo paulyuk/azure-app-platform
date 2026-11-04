@@ -335,16 +335,17 @@ map/log line icons and the same flat Run-style tabs used by Customize: a shared 
 subtle selected fill, and accent underline rather than individually outlined buttons.
 Keyboard tab navigation remains available across the workspaces.
 Each view fills the workspace rather than sharing it
-with an always-visible map. Guide owns workflow progress and the next useful
-action, independently of the active workspace. Its inline toggle collapses the panel
-to a 46px status rail at the far right instead of disappearing.
-The toggle stays at the same top-right position in both states, including
-when the expanded Guide overlays a narrow workspace.
-The rail retains Build, Connect, Run, and Observe icons with checkmarks,
-attention indicators, and descriptive tooltips. Selecting an icon expands
-Guide at that stage's explanation without changing workspaces.
-There is no separate Guide button in the top navigation;
-switching views never reopens Guide or discards task payloads or the selected Customize preview.
+with an always-visible map. **Guide** is a compact contextual control in the existing
+runtime bar, not a permanent side rail or another toolbar. Its next step uses runtime,
+agent-endpoint, connection and request evidence, with failures taking priority.
+Running the app alone never recommends a successful agent test. Full workflow guidance
+opens on demand without narrowing the workspace; the five stage shortcuts explain
+progress without navigating, while their explicit actions open the corresponding workspace.
+Enter or Arrow Down opens Guide from the keyboard. Escape or **Close Guide** returns
+focus to its trigger; clicking outside dismisses it. The bounded, scrollable nonmodal
+popover starts closed at every viewport size. Polling preserves its focus, expanded
+recommendations and scroll position; workspace changes never reopen it or discard
+task payloads or the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
 It dispatches tasks/events through the existing invocation path; it is not a
@@ -362,10 +363,19 @@ and runtime transitions. A failed retry clears the previous run's raw/tool evide
 keeps its own error visible and never becomes a success just because the runtime
 recovers. Text selection, result scrolling and evidence disclosures are retained.
 Open app and lifecycle controls remain in the header rather than a second tester
-toolbar. Output, Services, Environment and Operations remain in their existing
-support panel; Diagnostics resizing and Guide redesign are separate work.
-Guide visibility is remembered per app in the current browser origin.
-On narrow screens it starts collapsed and opens as a dismissible overlay.
+toolbar. **Show Diagnostics** opens the optional lower support pane containing
+**Output**, **Services**, **Environment** and **Operations**, with Output selected
+initially. The task tester remains above it with independent scrolling; it is not duplicated.
+Drag the separator or focus **Resize Diagnostics** and use Up/Down (24 pixels),
+Shift+Up/Down (48 pixels), Home (minimum) or End (maximum). The pane is bounded to
+55% of the available Run height and 560 pixels, with a 120-pixel minimum reduced
+for short canvases. Resizing the window clamps its displayed size without losing the
+preferred height. Escape inside Diagnostics or **Hide Diagnostics** closes it and
+returns focus to its toggle. Its visibility, height, active tab, content scrolling
+and disclosures survive close/reopen, navigation and lifecycle polling for the current
+visit. Closing it does not stop output polling or hide errors: unavailable logs and
+failed operation counts stay beside the toggle, while Status Brief, task errors,
+prerequisite warnings and safety/document evidence remain in the primary tester.
 A persistent badge beside the app name distinguishes
 **Not running**, **Local preview**, **Running locally**, and active lifecycle
 transitions; selecting it opens the local runtime controls. A neighboring
@@ -380,8 +390,8 @@ badges, or status. Guide stays focused on progress and one required action at a
 time.
 Additional recommendations are collapsed. **Observe → App Map** has one request-flow
 map. Once the app is running, Guide marks Run complete and makes
-**Observe & manage** current. **Open App Map** is offered from the other main
-workspaces, not when the map or its inspector is already visible. Clicking
+**Observe** current for runtime inspection, not proof of a successful task.
+Guide's **Observe: inspect App Map** action remains available on demand. Clicking
 **Connect** opens a read-only connection review in the bottom inspector, with
 source locations, possible destinations, and actions to inspect affected
 components or resolve missing connections.
@@ -406,19 +416,17 @@ The compact palette exposes zoom and **Fit map**; **Search & layout** opens
 downward with search, component/request-path filters, **Show other resources**,
 and reset.
 Wheel and trackpad gestures
-zoom smoothly anywhere over the map surface. **Run/Debug** focuses on trying the
-app: contextual startup or recovery guidance, an available web-app link, the
-agent message, and a readable response. A single **Output**, **Services**,
-**Operations**, **Deploy** tab row sits below this primary area, showing one
-supporting panel at a time. Output is first and selected by default, so command
-stdout/stderr is visible beneath the tester. **Open all logs** hands off to Observe.
+zoom smoothly anywhere over the map surface. **Run** focuses on autonomous tasks:
+contextual startup or recovery guidance, the event/task payload and a readable result.
+Diagnostics shows one supporting panel at a time, only when requested.
+**Open all logs** hands off to Observe.
 Services retains readiness, endpoint actions, and native source links; Operations
 separates recorded command/activity history from output. Error/failure indicators
 remain visible on inactive tabs. Explicit tab choices, input drafts, focus, and
 output scroll state survive refreshes, workspace switches, and lifecycle changes;
 starting or failing an operation does not force the user back to Output.
-There is no additional workspace
-navigation, custom debugger, or resizable diagnostics dock.
+There is no additional workspace navigation or custom debugger; deployment controls
+remain in the existing Deploy workspace and runtime bar, not Diagnostics.
 
 The **Settings** gear opens a fullscreen, scoped dialog without leaving the current
 workspace. **General · Across all apps** contains Appearance and **Preferred external
@@ -857,13 +865,13 @@ troubleshooting—not known-file creation.
   switching to a different map or moving the request-path cards.
   Search or filter nodes, inspect connection evidence, highlight one-hop
   relationships, and open safe navigation actions with one click. Click the
-  selected card again or click empty map space to return to the Guide.
+  selected card again or click empty map space to dismiss its inspector.
   A request-flow stage's **Add component** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
   **Connect** controls between adjacent stages expose existing evidence and a
   confirmation-gated path to create or improve real source wiring.
   The default **Guide** turns current app evidence into a progressive
-  **Build → Connect → Run → Observe & manage** journey. It prioritizes missing
+  **Build → Connect → Run → Observe → Deploy** journey. It prioritizes missing
   foundations, uncertain connections, local readiness, and observability while
   keeping later suggestions collapsed.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
@@ -876,8 +884,8 @@ root-owned web and agent listeners recover the running state even when the
 in-memory launcher record is gone. Listeners from another app are not attributed
 to the selected worktree. Run is idempotent and will not restart an
 already-running or partially starting app.
-While startup is active, Guide shows how many local services are ready instead
-of presenting an indefinite spinner or generic in-progress message.
+While startup is active, Status Brief distinguishes the runtime from the agent
+endpoint; Diagnostics lists individual service readiness on demand.
 Detached lifecycle and configuration commands write to a private
 `azure-app-platform-command-logs` directory under the system temporary directory, so
 closing Studio does not terminate the operation or discard its diagnostics.

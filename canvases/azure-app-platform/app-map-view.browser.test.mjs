@@ -191,7 +191,7 @@ test("one App Map reveals other resources without changing request paths or Guid
     await page.locator("#action-center").click();
     await page.getByRole("button", { name: "Connect: review connections", exact: true }).click();
     assert.equal(await page.locator("#guide-content").isVisible(), false, "Compact Guide yields to the inspector");
-    assert.equal((await page.locator("#guide-rail").boundingBox()).width, 46);
+    assert.equal(await page.locator("#guide-rail").isVisible(), false, "Closed Guide reserves no rail");
     assert.equal(await page.locator("#details h2").textContent(), "Connection review");
     assert.match(await page.locator("#details").innerText(), /Uncertain connections \(2\)/);
     assert.match(await page.locator("#details").innerText(), /Possible destinations: agent, other-agent/);

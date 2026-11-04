@@ -131,6 +131,7 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
       nodeFont: getComputedStyle(document.querySelector(".node-title")).fontSize,
     }));
     await selectWorkspace(page, "manage-app");
+    await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
     await page.waitForFunction(() => document.querySelector("#manage-app").getAttribute("aria-current") === "page");
     assert.deepEqual(await page.locator(".run-tabs [role=tab]").evaluateAll((tabs) =>
       tabs.map((tab) => tab.getAttribute("aria-label"))), ["Output", "Services", "Operations", "Deploy"]);

@@ -161,18 +161,16 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.ok(headerBounds.height <= 64);
     assert.ok((await page.locator("#app-workspace-main").boundingBox()).y >= headerBounds.y + headerBounds.height);
     assert.equal(await page.locator(".header-actions #action-center").count(), 0);
-    assert.equal(await page.locator("#guide-rail button[title='Collapse Guide']").count(), 1);
+    assert.equal(await page.locator("#guide-rail button[title='Close Guide']").count(), 1);
     assert.equal(await page.locator("#collapse-guide").count(), 0);
-    assert.equal(await page.locator("#action-center svg").getAttribute("data-octicon"), "sidebar-collapse");
+    assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
     assert.equal(await page.locator("#graph-shell").isVisible(), false);
     assert.equal(await page.locator(".map-palette").isVisible(), false);
     assert.equal(await page.locator(".map-view-bar").count(), 0);
     const expanded = await page.locator("#workspace").boundingBox();
-    const rail = await page.locator("#guide-rail").boundingBox();
-    assert.ok(expanded.width >= (await page.locator("#app-workspace-main").boundingBox()).width - 300);
-    assert.ok(Math.abs(expanded.x + expanded.width - rail.x) < 1);
-    assert.ok(rail.width <= 280);
+    assert.equal(await page.locator("#guide-rail").isVisible(), false);
+    assert.equal(expanded.width, (await page.locator("#app-workspace-main").boundingBox()).width);
     assert.ok(Math.abs((await page.locator("#details").boundingBox()).width - expanded.width) < 1);
 
     const buttonFormat = (button) => button.evaluate((el) => {

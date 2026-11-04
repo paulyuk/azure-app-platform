@@ -120,6 +120,7 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.equal(await document.isDisabled(), true);
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);
     health = "Health refreshed";
+    await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
     await page.getByRole("tab", { name: "Services", exact: true }).click();
     await page.getByText("Health refreshed", { exact: true }).waitFor();
     assert.equal(await enforce.isDisabled(), true);

@@ -32,6 +32,9 @@ for (const name of ["chromium", "webkit"]) {
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
         for (const width of [1440, 620, 380]) {
           await page.setViewportSize({ width, height: 900 });
+          if (await page.locator("#action-center").getAttribute("aria-expanded") === "false") {
+            await page.locator("#action-center").click();
+          }
           await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
           const glyphs = await page.locator("svg[data-octicon]").evaluateAll((icons) => icons
             .filter((icon) => icon.getBoundingClientRect().width > 0)
@@ -70,11 +73,12 @@ for (const name of ["chromium", "webkit"]) {
           }
         }
       }
-      const toggle = page.getByRole("button", { name: /(?:Expand|Collapse) Guide/, exact: true });
+      const toggle = page.locator("#action-center");
       if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
-      assert.equal(await toggle.locator("svg").getAttribute("data-octicon"), "sidebar-collapse");
-      await toggle.click();
-      assert.equal(await toggle.locator("svg").getAttribute("data-octicon"), "sidebar-expand");
+      const closeGuide = page.getByRole("button", { name: "Close Guide", exact: true });
+      assert.equal(await closeGuide.locator("svg").getAttribute("data-octicon"), "x");
+      await closeGuide.click();
+      assert.equal(await page.locator("#guide-rail").isVisible(), false);
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       const close = page.getByRole("button", { name: "Close settings", exact: true });
       assert.equal(await close.locator("svg").getAttribute("data-octicon"), "x");

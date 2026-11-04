@@ -125,7 +125,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         assert.equal(await customize.evaluate(node => node === document.activeElement), true);
         assert.equal(await history.getByRole("button", { name: "Back", exact: true }).isDisabled(), true);
         assert.equal(await prompt.evaluate(node => node === window.dialogPrompt && node.selectionStart === 2 && node.selectionEnd === 8), true);
-        assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
+        assert.match(await page.locator(".document-input").textContent(), /sample-loan-note\.md/);
       }
       await customize.click();
       await dialog.getByRole("tab", { name: "Behavior", exact: true }).click();
@@ -246,6 +246,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
       assert.equal(await prompt.inputValue(), "Keep the event draft.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
+      await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
       await page.getByRole("tab", { name: "Environment", exact: true }).click();
       await page.getByRole("tabpanel", { name: "Environment", exact: true })
         .getByRole("heading", { name: "Prerequisites & CLI tools", exact: true }).waitFor();
