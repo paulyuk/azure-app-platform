@@ -22,10 +22,24 @@ test("installed payload opens and materializes templates without checkout depend
     await mkdir(workspace);
     await execute("git", ["init", "--quiet", workspace]);
     const manifest = JSON.parse(await readFile(join(payload, ".github/plugin/plugin.json"), "utf8"));
+    assert.equal(manifest.name, "azure-app-platform");
     assert.equal(manifest.extensions, ".");
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
+    assert.equal(packageJson.name, manifest.name);
+    assert.equal(packageJson.version, manifest.version);
     assert.deepEqual(packageJson.dependencies ?? {}, {});
     assert.deepEqual(packageJson.optionalDependencies ?? {}, {});
+    const marketplace = JSON.parse(await readFile(join(source, "..", "..", ".github/plugin/marketplace.json"), "utf8"));
+    assert.equal(marketplace.name, "azure-app-platform");
+    assert.equal(marketplace.plugins.length, 1);
+    assert.deepEqual(marketplace.plugins[0], {
+      name: manifest.name,
+      source: "canvases/azure-app-platform",
+      description: manifest.description,
+      version: manifest.version,
+    });
+    assert.equal((await readFile(join(source, "..", "..", ".github/extensions/azure-app-platform/extension.mjs"), "utf8")).trim(),
+      'import "../../../canvases/azure-app-platform/extension.mjs";');
     assert.equal((await readFile(join(payload, "vendor/toolkit/.gitattributes"), "utf8")).trim(), "* -text",
       "Vendored asset hashes must survive Git newline conversion on Windows");
     for (const path of ["README.md", ...manifest.skills.map((skill) => `${skill}/SKILL.md`)]) {

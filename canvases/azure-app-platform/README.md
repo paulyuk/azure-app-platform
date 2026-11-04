@@ -879,7 +879,15 @@ Then open the canvas with `canvasId` and stable `instanceId` set to
 
 ## Marketplace plugin layout
 
-The canvas also carries a plugin manifest and launcher skill under:
+This repository defines a root marketplace catalog at `.github/plugin/marketplace.json`
+so you can install the canvas plugin directly:
+
+```bash
+copilot plugin marketplace add coreai-microsoft/azure-app-platform
+copilot plugin install azure-app-platform@azure-app-platform
+```
+
+The canvas carries its plugin manifest and launcher skill under:
 
 ```text
 .github/plugin/plugin.json

@@ -4,12 +4,18 @@ on:
   pull_request:
     paths:
       - canvases/azure-app-platform/**
+      - .github/plugin/marketplace.json
+      - .github/extensions/azure-app-platform/**
+      - .github/skills/azure-app-platform-router/**
       - AGENTS.md
       - .github/workflows/azure-app-platform-portability.yml
   push:
     branches: [main]
     paths:
       - canvases/azure-app-platform/**
+      - .github/plugin/marketplace.json
+      - .github/extensions/azure-app-platform/**
+      - .github/skills/azure-app-platform-router/**
       - AGENTS.md
       - .github/workflows/azure-app-platform-portability.yml
 
