@@ -901,7 +901,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
       <div id="workspace-runtime-actions" role="group" aria-label="App controls">
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
-        <button data-studio-button="secondary" id="deploy-app" type="button" aria-controls="workspace-shell" title="Review deployment options">Deploy</button>
       </div>
     </div>
   <main id="app-workspace-main">
@@ -928,6 +927,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             <span>Show other resources (<span id="other-resource-count">${model.requestFlow.otherResourceCount}</span>)</span>
           </label>
           <button data-studio-button="secondary" id="reset-layout" type="button">Reset map</button>
+          <button data-studio-button="secondary" id="review-source-connections" type="button">Review source connections</button>
         </div>
       </details>
       <div class="icon-group" aria-label="Zoom controls">
@@ -1108,6 +1108,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let invokingAgent = false;
     let agentDocument = null;
     let documentInputExpanded = false;
+    let documentEditorExpanded = false;
     let documentError = "";
     let documentLoading = false;
     let documentReadVersion = 0;
@@ -1129,14 +1130,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedModel = "";
     let gatewayApplying = false;
     let panelMode = "manage";
-    let mapWorkspace = "observe";
+    let connectionScroll = 0;
     let observeView = "map";
     const navigationMount = document.querySelector("#workspace-navigation-mount");
     const loadingHeader = document.querySelector("#workspace-loading-header");
     const navigationRetry = document.querySelector("#retry-workspace-navigation");
     const navigationMessage = document.querySelector("#workspace-navigation-message");
     const navigationItems = [
-      { value: "build", label: "Build", button: { id: "build-workspace", "aria-controls": "workspace-shell" } },
+      { value: "build", label: "Build", button: { id: "build-workspace", "aria-controls": "app-customize", "aria-haspopup": "dialog" } },
       { value: "connections", label: "Connect", button: { id: "connect-workspace", "aria-controls": "workspace-shell" } },
       { value: "manage", label: "Run", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
       { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
@@ -1179,8 +1180,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         onBack: () => navigateWorkspaceHistory(-1),
         onForward: () => navigateWorkspaceHistory(1),
       },
-      onNavigate: (_event, value) => {
-        if (value === "build") renderStructureMap();
+      onNavigate: (event, value) => {
+        if (value === "build") openCustomizeApp(event);
         else if (value === "connections") renderConnectionsPanel();
         else if (value === "manage") renderManagePanel();
         else if (value === "deploy") renderDeployPanel();
@@ -1189,7 +1190,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           else renderMapPanel();
         }
       },
-      onCustomize: openCustomizeApp,
       onReady: () => {
         loadingHeader.hidden = true;
         navigationMount.hidden = false;
@@ -1210,8 +1210,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (next < 0 || next >= workspaceHistory.length) return;
       workspaceHistoryIndex = next;
       const mode = workspaceHistory[next];
-      if (mode === "build") renderStructureMap();
-      else if (mode === "connections") renderConnectionsPanel();
+      if (mode === "connections") renderConnectionsPanel();
       else if (mode === "manage") renderManagePanel();
       else if (mode === "deploy") renderDeployPanel();
       else if (mode === "logs") renderLogsPanel();
@@ -1267,7 +1266,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function restoreCustomizeFocus() {
       if (!customizeReturnFocus) return;
       const target = customizeReturnFocus.isConnected && !customizeReturnFocus.disabled &&
-        customizeReturnFocus.getClientRects().length ? customizeReturnFocus : document.querySelector("#build-app");
+        customizeReturnFocus.getClientRects().length ? customizeReturnFocus : document.querySelector("#build-workspace");
       customizeReturnFocus = null;
       target?.focus({ preventScroll: true });
     }
@@ -2054,6 +2053,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function clearElement(element) {
       if (element.contains(agentStatusRoot)) agentStatusRoot.remove();
       if (element === details) runWorkspace.capture();
+      if (element === details && details.dataset.mode === "connections") {
+        connectionScroll = details.scrollTop;
+        gatewayDiscovery.invalidate();
+      }
       buttons.clear(element);
       if (element === details) {
         appLogs?.dispose();
@@ -2120,11 +2123,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function closeMapDetails() {
-      const target = panelMode === "connections" && !guideCollapsed
+      const target = panelMode === "source-connections" && !guideCollapsed
         ? guideContent.querySelector('[data-action-key="review-connections"]')
         : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
-      if (panelMode !== "connections" && mapWorkspace === "build") renderStructureMap();
-      else renderMapPanel();
+      renderMapPanel();
       if (target) target.focus({ preventScroll: true });
       else focusWorkspaceNavigation();
     }
@@ -2139,18 +2141,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function workspaceDestination() {
       if (["manage", "logs", "deploy", "connections"].includes(panelMode)) return panelMode;
-      return mapWorkspace === "build" ? "build" : "map";
+      return "map";
     }
 
     function updateModeHighlight() {
-      const mode = ["manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
+      const mode = ["manage", "logs", "deploy", "connections"].includes(panelMode) ? panelMode : "map";
       const destination = workspaceDestination();
       if (workspaceHistory[workspaceHistoryIndex] !== destination) {
         workspaceHistory.splice(workspaceHistoryIndex + 1);
         workspaceHistory.push(destination);
         workspaceHistoryIndex = workspaceHistory.length - 1;
       }
-      if (mode !== "manage" && !window.appPlatformSettings?.isOpen?.()) {
+      if (!["manage", "connections"].includes(mode) && !window.appPlatformSettings?.isOpen?.()) {
         gatewayDiscovery.invalidate();
       }
       if (panelMode !== "map") setStructureGuidance(false);
@@ -2171,8 +2173,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       workspace.setAttribute("role", observing ? "tabpanel" : "region");
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
-      details.setAttribute("aria-label", destination === "build" ? "Build workspace" :
-        destination === "connections" ? "Connections workspace" : mode === "map" ? "Observe/Map inspector" :
+      details.setAttribute("aria-label", destination === "connections" ? "Connections workspace" : mode === "map" ? "Observe/Map inspector" :
         mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
@@ -2228,7 +2229,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function followGuideStep() {
       const step = currentGuideStep();
       setGuideCollapsed(true);
-      if (step.action === "build") { renderStructureMap(); focusWorkspaceNavigation("build-workspace"); }
+      if (step.action === "build") openCustomizeApp();
       else if (step.action === "connect") { renderConnectionsPanel(); focusWorkspaceNavigation("connect-workspace"); }
       else if (step.action === "deploy") { renderDeployPanel(); focusWorkspaceNavigation("deploy-workspace"); }
       else if (step.action === "observe") { renderMapPanel(); focusWorkspaceNavigation(); }
@@ -2244,12 +2245,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderMapPanel() {
-      renderMapWorkspace("observe");
+      renderMapWorkspace();
     }
 
-    function renderMapWorkspace(stage) {
+    function renderMapWorkspace() {
       setStructureGuidance(false);
-      mapWorkspace = stage;
       panelMode = "map";
       selectedId = null;
       selectedEdgeId = null;
@@ -2264,7 +2264,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderStructureMap() {
-      renderMapWorkspace("build");
+      renderMapWorkspace();
       setStructureGuidance(true);
       structureGuidance.focus({ preventScroll: true });
     }
@@ -2272,6 +2272,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function openCustomizeApp(event) {
       if (customizeDialog.open) return;
       customizeReturnFocus = event?.currentTarget || document.activeElement;
+      setGuideCollapsed(true);
       customizeDialog.showModal();
       void buildPanel.show({ refresh: customizeContent.childElementCount > 0 });
     }
@@ -2514,7 +2515,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function runOpportunityAction(opportunity) {
       if (opportunity.action.kind === "review-connections") {
-        renderConnectionsPanel();
+        renderSourceConnectionsPanel();
         return;
       }
       if (opportunity.action.kind === "add-tier") {
@@ -2550,15 +2551,34 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return card;
     }
 
-    function renderConnectionsPanel() {
+    function renderConnectionsPanel({ focus = true } = {}) {
       panelMode = "connections";
+      setGuideCollapsed(true);
+      selectedId = null;
+      selectedEdgeId = null;
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "connections";
+      applySelection();
+      const heading = appendText(details, "h2", "Gateway connections");
+      heading.tabIndex = -1;
+      appendText(details, "p", "Choose model access and sandbox execution for this app. Changes are saved only when you apply or explicitly create resources.");
+      const content = appendText(details, "div", "", "gateway-connection-page");
+      void Promise.resolve(renderAppSettingsSection("connection", content)).then(() => {
+        if (content.isConnected) details.scrollTop = connectionScroll;
+      });
+      if (focus) heading.focus({ preventScroll: true });
+    }
+
+    function renderSourceConnectionsPanel() {
+      panelMode = "source-connections";
       if (window.innerWidth <= 900) setGuideCollapsed(true);
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      details.dataset.mode = "connections";
+      details.dataset.mode = "source-connections";
       appendPanelBack();
       const heading = appendText(details, "h2", "Connection review");
       heading.tabIndex = -1;
@@ -2650,20 +2670,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           content = document.createElement("button");
           content.type = "button";
           content.dataset.actionKey = stage.id === "build"
-            ? "edit-app-structure"
+            ? "customize-app"
             : stage.id === "connect"
               ? "review-connections"
               : "open-" + stage.id;
           content.className = "journey-stage-action";
           content.setAttribute("aria-label", stage.id === "build"
-            ? "Build: edit app structure"
+            ? "Build: customize app"
             : stage.id === "connect"
-              ? "Connect: review connections"
+              ? "Connect: configure gateway access"
               : stage.id === "run" ? "Run: test an event or task"
                 : stage.id === "observe" ? "Observe: inspect App Map"
                   : "Deploy: review deployment options");
           content.addEventListener("click", stage.id === "build"
-            ? renderStructureMap
+            ? openCustomizeApp
             : stage.id === "connect"
               ? renderConnectionsPanel
               : stage.id === "run" ? renderManagePanel
@@ -3106,6 +3126,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 gatewayApplying = false;
                 window.appPlatformSettings?.refreshApp();
                 if (panelMode === "manage") renderManagePanel();
+                else if (panelMode === "connections" && !window.appPlatformSettings?.isOpen()) renderConnectionsPanel({ focus: false });
               }
             },
             true,
@@ -3121,7 +3142,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
-        appendText(container, "p", error.message, "error");
+        appendText(container, "p", error.message, "error").setAttribute("role", "alert");
+        buttons.append(container, actionButton("Retry scan", () => { void loadGatewayControls(container, true); }));
         const gatewayTier = tierById.get("gateway");
         buttons.append(container, actionButton("Open guided gateway setup", () => {
           window.appPlatformSettings.close();
@@ -3259,6 +3281,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (loadSample) buttons.setDisabled(loadSample, invokingAgent || documentTesting || documentLoading);
       const remove = tester.querySelector("[data-remove-document]");
       if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
+      const add = tester.querySelector("[data-add-document]");
+      if (add) buttons.setDisabled(add, busy);
       for (const preset of tester.querySelectorAll("[data-event-preset]")) preset.disabled = busy;
     }
 
@@ -3309,48 +3333,76 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(section);
     }
 
-    function renderDocumentInput(container) {
+    function renderDocumentInput(container, promptFrame) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
+      const input = appendText(container, "div", "", "document-input");
+      const row = appendText(input, "div", "", "document-attachment");
+      row.hidden = !agentDocument && !documentLoading && !documentError;
       const disclosure = document.createElement("details");
       disclosure.className = "run-document";
-      disclosure.open = documentInputExpanded || Boolean(documentError);
-      const summary = appendText(disclosure, "summary", agentDocument ? "Document · " + agentDocument.name : "Document payload (optional)");
+      disclosure.dataset.runDisclosure = "document-attachment";
+      disclosure.open = documentInputExpanded;
+      const summary = appendText(disclosure, "summary", "");
       summary.setAttribute("aria-label", "Document attachment");
+      const name = appendText(summary, "span", agentDocument?.name || (documentLoading ? "Reading document..." : "No document attached"), "document-name");
+      appendText(summary, "small", "Untrusted source", "document-source-label");
       disclosure.addEventListener("toggle", () => {
         if (disclosure.isConnected) documentInputExpanded = disclosure.open;
       });
-      const input = document.createElement("div");
-      input.className = "document-input document-loader-card";
-      const topRow = appendText(input, "div", "", "document-loader-top");
-      const sourceBadge = appendText(topRow, "span", "Untrusted source", "command-badge");
-      sourceBadge.dataset.state = "unknown";
-      const name = appendText(topRow, "small", agentDocument?.name || "No document attached");
-      appendText(input, "p", "Load a synthetic loan note, upload .txt/.md, or edit below (up to 64 KiB). Validated in isolated sandbox before model execution.");
-      const loaderActions = appendText(input, "div", "", "document-loader-actions");
+      const preview = appendText(disclosure, "pre", agentDocument?.content || "", "document-preview");
+      preview.tabIndex = 0;
+      preview.setAttribute("role", "region");
+      preview.setAttribute("aria-label", "Attached document text");
+      preview.dataset.runScrollKey = "document-preview";
+      row.append(disclosure);
+      const remove = buttons.create({
+        appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
+        "aria-label": "Remove document", title: "Remove document", onClick: () => {
+          documentReadVersion += 1;
+          agentDocument = null;
+          documentError = "";
+          documentInputExpanded = false;
+          clearDocumentAssessment();
+          documentLoading = false;
+          renderManagePanel();
+          details.querySelector("[data-add-document]")?.focus({ preventScroll: true });
+        },
+      });
+      remove.dataset.removeDocument = "true";
+      buttons.append(row, remove);
+      const file = document.createElement("input");
+      file.type = "file";
+      file.hidden = true;
+      file.accept = capability.extensions.join(",");
+      file.setAttribute("aria-label", "Document file");
+      promptFrame.append(file);
+      const tools = appendText(promptFrame, "div", "", "agent-prompt-tools");
+      const add = buttons.create({
+        appearance: "subtle", size: "small", icon: buttons.icon(ICONS.plus),
+        "aria-label": "Add document", title: "Add document", onClick: () => file.click(),
+      });
+      add.dataset.addDocument = "true";
+      add.dataset.actionKey = "add-document";
+      buttons.append(tools, add);
+      const editor = appendText(input, "details", "", "document-edit");
+      editor.dataset.runDisclosure = "document-edit";
+      editor.open = documentEditorExpanded;
+      appendText(editor, "summary", "Paste text or use sample");
+      editor.addEventListener("toggle", () => {
+        if (editor.isConnected) documentEditorExpanded = editor.open;
+      });
+      appendText(editor, "p", "Plain text or Markdown, up to 64 KiB. Preview preserves all source text; document instructions are untrusted.");
       const loadSample = actionButton("Load sample loan note", () => {
         documentReadVersion += 1;
         documentError = "";
-        documentInputExpanded = true;
+        documentInputExpanded = false;
         agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
         clearDocumentAssessment();
         renderManagePanel();
       });
       loadSample.dataset.loadSampleDocument = "true";
-      const remove = actionButton("Remove document", () => {
-        documentReadVersion += 1;
-        agentDocument = null;
-        documentError = "";
-        clearDocumentAssessment();
-        documentLoading = false;
-        renderManagePanel();
-      });
-      remove.dataset.removeDocument = "true";
-      buttons.append(loaderActions, loadSample, remove);
-      const file = document.createElement("input");
-      file.type = "file";
-      file.accept = capability.extensions.join(",");
-      file.setAttribute("aria-label", "Document file");
+      buttons.append(editor, loadSample);
       const text = document.createElement("textarea");
       text.maxLength = capability.maxBytes;
       text.value = agentDocument?.content || "";
@@ -3365,6 +3417,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ? "Use a document no larger than 64 KiB." : "";
         error.textContent = documentError;
         name.textContent = agentDocument?.name || "No document attached";
+        preview.textContent = agentDocument?.content || "";
+        row.hidden = !agentDocument && !documentError;
         clearDocumentAssessment();
         syncAgentInputControls();
       });
@@ -3376,6 +3430,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         clearDocumentAssessment();
         documentError = "";
         documentLoading = true;
+        row.hidden = false;
+        name.textContent = "Reading document...";
+        preview.textContent = "";
         syncAgentInputControls();
         try {
           if (!capability.extensions.some((extension) => selected.name.toLowerCase().endsWith(extension))) {
@@ -3386,20 +3443,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           if (new TextEncoder().encode(content).length > capability.maxBytes) {
             throw new Error("Use UTF-8 document text no larger than 64 KiB.");
           }
-          if (version === documentReadVersion) agentDocument = { name: selected.name, content };
+          if (version === documentReadVersion) {
+            agentDocument = { name: selected.name, content };
+            documentInputExpanded = false;
+          }
         } catch (cause) {
           if (version === documentReadVersion) documentError = "Could not read document: " + cause.message;
         } finally {
           if (version === documentReadVersion) {
             documentLoading = false;
-            if (panelMode === "manage") renderManagePanel();
+            if (panelMode === "manage") {
+              renderManagePanel();
+              details.querySelector(".run-document summary")?.focus({ preventScroll: true });
+            }
           }
         }
       });
-      input.append(file, text);
-      if (documentLoading) appendText(input, "p", "Reading document...");
-      disclosure.append(input);
-      container.append(disclosure);
+      editor.append(text);
     }
 
     const SAMPLE_CLEAN_DOCUMENT = {
@@ -3459,7 +3519,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
         documentReadVersion += 1;
         documentError = "";
-        documentInputExpanded = true;
+        documentInputExpanded = false;
         agentDocument = ensureAdversarialDocument(agentDocument, mode, maxBytes);
         const document = agentDocument;
         clearDocumentAssessment();
@@ -3641,8 +3701,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
       buttons.append(actions, send);
-      tester.append(prompt);
-      renderDocumentInput(tester);
+      const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
+      promptFrame.append(prompt);
+      renderDocumentInput(tester, promptFrame);
       tester.append(actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
@@ -3887,6 +3948,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (section === "ports") { renderPortControls(container); return; }
       if (section === "danger") { renderDeleteSettings(container); return; }
       const appState = operationalState.app?.state;
+      if (appState === "failed" && operationalState.app?.operation === "configuring") {
+        appendText(container, "p", operationalState.app.error, "error").setAttribute("role", "alert");
+      }
       const readiness = operationalState.readiness;
       const configuring = appState === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
       appendText(container, "p", configuring
@@ -3907,7 +3971,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       const controls = appendText(container, "div", "", "gateway-fields");
       appendText(controls, "p", "Loading available AI Gateways & Sandbox Groups...");
-      void loadGatewayControls(controls);
+      return loadGatewayControls(controls);
     }
 
     window.addEventListener("app-platform-settings-ready", () => {
@@ -3921,6 +3985,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         deleteError = "";
         portReview = null;
         gatewayDiscovery.invalidate();
+        if (panelMode === "connections") renderConnectionsPanel({ focus: false });
       });
     });
 
@@ -4082,6 +4147,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         updateAppStatusBadge();
         if (changed) renderActionCenter();
         if (changed && !gatewayApplying) window.appPlatformSettings?.refreshApp();
+        if (changed && panelMode === "connections" && !gatewayApplying &&
+          !window.appPlatformSettings?.isOpen() && !details.querySelector("select:focus")) renderConnectionsPanel({ focus: false });
         if (changed && panelMode === "manage") {
           const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
           const interactionActive = gatewayApplying || details.querySelector("#run-panel-environment select:focus");
@@ -4112,6 +4179,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (changed) renderActionCenter();
         if (changed) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
+        if (changed && panelMode === "connections") renderConnectionsPanel({ focus: false });
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }
     }
@@ -4878,6 +4946,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
+    document.querySelector("#review-source-connections").addEventListener("click", renderSourceConnectionsPanel);
     document.querySelector("#close-guide").addEventListener("click", () => {
       setGuideCollapsed(true);
       guideTrigger.focus({ preventScroll: true });
@@ -4889,8 +4958,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#map-view").addEventListener("click", renderMapPanel);
     const dismissStructureGuidance = () => {
       setStructureGuidance(false);
-      if (mapWorkspace === "build") focusWorkspaceNavigation("build-workspace");
-      else document.querySelector("#map-view").focus({ preventScroll: true });
+      document.querySelector("#map-view").focus({ preventScroll: true });
     };
     document.querySelector("#close-structure-guidance").addEventListener("click", dismissStructureGuidance);
     structureGuidance.addEventListener("keydown", (event) => {
@@ -4900,7 +4968,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       dismissStructureGuidance();
     });
     document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
-    document.querySelector("#deploy-app").addEventListener("click", renderDeployPanel);
     document.querySelector("#header-open-app").addEventListener("click", async () => {
       const web = runtimeEntrypoints.find(entry => entry.ready && normalized(entry.name) === "web");
       if (!web) {

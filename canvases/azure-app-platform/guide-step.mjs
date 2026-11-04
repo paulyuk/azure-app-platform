@@ -18,8 +18,8 @@ export function getGuideStep(status, destination) {
     return step(status.title, status.description, "run");
   }
   if (status.state === "succeeded") return step("Review result evidence", status.description, "result");
-  if (destination === "build") return step("Review app structure", "Map source projects and Azure resources before changing implementations.", "build");
-  if (destination === "connections") return step("Review source connections", "Confirm discovered connections and resolve unmatched references.", "connect");
+  if (destination === "build") return step("Customize the app", "Review behavior, source, model access and runtime configuration.", "build");
+  if (destination === "connections") return step("Configure gateway access", "Choose a subscription, gateway, model and sandbox group, then apply the connection.", "connect");
   if (destination === "deploy") return step("Review deployment readiness", "Review infrastructure and access before provisioning or deploying to Azure.", "deploy");
   if (["map", "logs"].includes(destination)) return step("Inspect runtime evidence", "Compare discovered request paths with service health and logs; running is not proof of safety.", "observe");
   return step(status.availabilityState === "stopped" ? "Start an agent task" : "Dispatch an event or task", status.description, "run");

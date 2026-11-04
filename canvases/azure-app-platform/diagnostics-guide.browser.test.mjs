@@ -36,7 +36,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await toggle.getAttribute("aria-expanded"), "false");
       await page.locator('[data-event-preset="loan.document.submitted"]').click();
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
-      const document = page.getByRole("textbox", { name: "Document text", exact: true });
+      const document = page.locator('textarea[aria-label="Document text"]');
       await prompt.fill("Event [test.task.received]: preserve this payload.");
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await prompt.evaluate(node => node.setSelectionRange(6, 12));
@@ -103,6 +103,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await operations.getAttribute("aria-selected"), "true");
       await page.setViewportSize({ width: 320, height: 480 });
       await page.setViewportSize({ width: 620, height: 800 });
+      await page.waitForFunction(value => Number(document.querySelector(".run-diagnostics-resizer").getAttribute("aria-valuenow")) === value, resized);
       assert.equal(Number(await resizer.getAttribute("aria-valuenow")), resized, "Viewport clamping retains the preferred height.");
       assert.equal(await page.locator(".agent-tester").count(), 1);
       await operations.press("Home");
@@ -189,10 +190,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await guide.isVisible(), false);
       assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
       await trigger.click();
-      await page.locator("#guide-content [data-action-key='edit-app-structure']").click();
+      await page.locator("#guide-content [data-action-key='customize-app']").click();
       assert.equal(await guide.isVisible(), false);
-      assert.equal(await page.locator("#build-workspace").getAttribute("aria-pressed"), "true");
+      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
       assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+      await page.keyboard.press("Escape");
+      assert.equal(await page.locator("#build-workspace").evaluate(node => node === document.activeElement), true);
       await page.locator("#manage-app").click();
       await trigger.click();
       await page.locator("#close-guide").click();

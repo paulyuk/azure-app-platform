@@ -284,7 +284,7 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
       "Completing an operation must preserve its summary focus");
     await output.click();
     await page.getByRole("button", { name: "Open all logs" }).waitFor();
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await selectWorkspace(page, "manage-app");
     assert.equal(await output.getAttribute("aria-selected"), "true");
     assert.equal(await message.inputValue(), "Find an SUV.");

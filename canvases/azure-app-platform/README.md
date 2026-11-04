@@ -292,27 +292,36 @@ The menu row has theme-aware top and bottom borders and compact spacing.
 Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
 the public small-button tokens; no private toolkit styles are overridden.
 There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
-activates them. The selected destination has `aria-current="page"` and
-`aria-pressed="true"`. **Customize** opens the existing source controls in a
+activates them. The selected workspace page has `aria-current="page"` and
+`aria-pressed="true"`. **Build** opens the existing Customize source controls in a
 fullscreen dialog within the canvas pane, without replacing the current workspace.
+It is a dialog action, not another history destination. There is no separate Customize link.
 The header's toolkit **NavigationControls** place **Back** and **Forward** before
-the logo. They traverse workspace visits (Build, Connect, Run, App Map, Logs and
+the logo. They traverse workspace visits (Connect, Run, App Map, Logs and
 Deploy), not browser pages or readiness progression. Repeated polling does not add visits;
 a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
-**Deploy**, immediately beside **Open app** in the runtime bar, opens existing
-deployment options; it does not provision or deploy. Open app appears only when a
+**Deploy** in the five-item main navigation opens existing deployment options;
+it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
+button. **Open app** and the existing runtime start/stop controls remain in the runtime bar.
+Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
 readiness gates.
 Run opens first with the existing autonomous event/task tester; source discovery
-starts only when Customize opens. Build opens the App Map's existing structure
-controls, Connect opens source-derived connection review, and Deploy opens
+starts only when Build opens Customize. Connect opens the complete gateway connection
+page, and Deploy opens
 existing deployment options without execution.
-Customize is independent of workspace history, distinct from the **Build**
-workspace and the Guide's Build readiness stage. Observe contains **App Map**
+Build/Customize is independent of workspace history and retains the underlying page.
+Observe contains **App Map**
 and **Logs** views and remembers the last one used during the current visit,
 including visits through Build or Connect.
+Connect reuses the same connection renderer, discovery tracker and saved state as scoped
+Settings and Run's Environment diagnostics: gateway and sandbox subscription scopes,
+gateway/model/group selection, refresh/cancel/retry, Apply, and explicit create/configure
+actions. Merely opening Connect never applies a connection or creates cloud resources.
+Failed discovery and configuration remain explicit. Navigation invalidates pending
+discoveries; unchanged polling preserves the active controls and selections.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive
 layout changes preserve those exact nodes, focus and task-payload selection. Permanent
@@ -324,10 +333,10 @@ content cannot take focus or dismiss it. **Model connection** opens scoped Setti
 above Customize and returns to the same preview. **Run & Debug** and **Test with a
 document** close Customize and focus the existing task tester; **+ Add building
 block** closes it and opens the existing App Map controls. Source and external-editor
-handoffs keep their existing behavior. The Guide's Build action opens the general map with a dismissible
-hint highlighting the existing add-component and connection controls; it does
-not select a component based on the current file. Connect retains its source
-review and offers **Edit connections on App Map**. These entry points do not
+handoffs keep their existing behavior. The Guide's Build action opens the same
+Customize dialog; its Connect action opens gateway configuration. Source connection
+review remains under Observe's App Map **Search & layout**, with **Edit connections on
+App Map** highlighting the existing diagram controls. These entry points do not
 change files or start the app.
 Every workspace remains accessible regardless of readiness: this is not a
 locked wizard. The two Observe views use a compact tab row with
@@ -684,11 +693,20 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run/Debug**. Choose a `.txt`/`.md` file up to 64 KiB,
-paste text, or remove the document to send only a message. Invalid files and
+document together in **Run/Debug**. The official **+ Add document** action at the
+task textarea's bottom-right opens a `.txt`/`.md` picker (up to 64 KiB).
+An expandable attachment card immediately below the textarea shows the name and
+untrusted-source label; Remove is a separate action and restores focus to Add document.
+Expansion shows all source text with preserved line breaks, paragraphs and wrapping.
+This is a safe text preview, not HTML/Markdown execution: links, images and scripts
+are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
+**Paste text or use sample** retains the secondary paste/edit and synthetic sample controls.
+Remove the document to send only a message; removal or editing clears stale assessments.
+Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.
 Document input appears only for document-capable agents. Drafts survive readiness
-polling and switching between Customize and Run in the same panel, but are not saved
+polling and switching between Build/Customize, Connect, Observe and Run in the same panel,
+including attachment expansion and preview scrolling, but are not saved
 to disk. Customize's **Test with a document** links directly to this shared Run input.
 These HTTP operations appear in Commands without document payloads.
 Local processing is explicitly a subprocess simulation, not an isolation

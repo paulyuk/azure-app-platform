@@ -53,7 +53,7 @@ for (const [name, engine, presentationProfile] of [
       await page.addInitScript(() => localStorage.setItem("unity-workspace:/fixture:guide-collapsed", "true"));
       await installStudioAssetRoutes(page);
       await page.goto("http://build-layout.test/");
-      await page.locator("#build-app").click();
+      await page.locator("#build-workspace").click();
       await page.locator(".build-source-preview").first().waitFor();
       await page.addStyleTag({ content: `
         ::-webkit-scrollbar { width:16px; height:16px; }

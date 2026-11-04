@@ -54,7 +54,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("[data-event-preset]").first().click();
       await prompt.fill("Preserve this unattended event.");
       await prompt.evaluate(node => { window.dialogPrompt = node; node.setSelectionRange(2, 8); });
-      const customize = page.locator("#build-app");
+      const customize = page.locator("#build-workspace");
       const dialog = page.getByRole("dialog", { name: "Customize app", exact: true });
       const close = dialog.getByRole("button", { name: "Close Customize", exact: true });
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
@@ -137,6 +137,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await dialog.waitFor({ state: "hidden" });
       await page.locator("#structure-guidance").waitFor();
       assert.equal(await page.locator("#structure-guidance").evaluate(node => node === document.activeElement), true);
+      assert.equal(await page.locator("#map-app").getAttribute("aria-current"), "page");
       await page.locator("#manage-app").click();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();

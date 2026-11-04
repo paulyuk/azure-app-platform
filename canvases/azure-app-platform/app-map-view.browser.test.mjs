@@ -188,8 +188,8 @@ test("one App Map reveals other resources without changing request paths or Guid
     assert.equal((await visibleIds()).length, graph.nodes.length);
     await toggle.uncheck();
     await page.keyboard.press("Escape");
-    await page.locator("#action-center").click();
-    await page.getByRole("button", { name: "Connect: review connections", exact: true }).click();
+    await openTools();
+    await page.getByRole("button", { name: "Review source connections", exact: true }).click();
     assert.equal(await page.locator("#guide-content").isVisible(), false, "Compact Guide yields to the inspector");
     assert.equal(await page.locator("#guide-rail").isVisible(), false, "Closed Guide reserves no rail");
     assert.equal(await page.locator("#details h2").textContent(), "Connection review");

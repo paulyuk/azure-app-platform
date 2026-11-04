@@ -225,13 +225,16 @@ the repository or subscription.
 
 ### Workspace and Guide
 
-The app interface has three primary pages: Customize, Run & Debug, and Observe.
-Customize presents compact category tabs and one focused customization area, with
-optional source previews instead of a file explorer or vertical catalog. Run and general App Map
-navigation remain in the top bar. Guide's Build stage opens the existing map with brief, dismissible guidance and
-highlights on the stage add/connect controls; it does not create a second
-editor, select a component from the current file, or perform a mutation.
-Connect preserves source-backed review, with an entry point to edit on the map.
+The app interface exposes Build, Connect, Run, Observe, and Deploy in one compact
+navigation group. Build opens the existing full-screen Customize dialog, with no
+separate Customize entrypoint or workspace history visit. It presents compact category
+tabs and source previews rather than a second editor. Connect is a dedicated gateway
+configuration page using the canonical Settings/Environment renderer and shared
+subscription, gateway, model and sandbox discovery/actions. Opening it does not apply
+changes or create resources. Run remains the autonomous event/task tester; Observe owns
+App Map/Logs and source connection review; Deploy reviews explicit deployment actions.
+Guide's Build and Connect actions use those same destinations. Source review and
+Customize's add-building-block handoff can highlight the existing map controls.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
 highlight. Customize's area/project selections and preview expansion are retained across these transitions.
 They share one compact top bar whose Unity logo and name link home, with no
@@ -582,9 +585,15 @@ across polling, workspace switches, and lifecycle transitions without stealing
 focus. Their line icons and active treatment match Customize and Observe while Run's
 useful status summaries remain specific to runtime state. Failure counts, output-read errors, readiness, and deployment activity remain
 discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
-not another custom log console. There is no resizable diagnostics dock.
-An optional document disclosure appears beside the message when readiness advertises
-document support. File reading, pasted-text limits, removal, and in-flight state
+not another custom log console. Diagnostics is optional, closed by default, and
+resizable with pointer or keyboard; failure warnings stay visible when it is hidden.
+A plus action at the task textarea's bottom-right appears only when readiness
+advertises document support. It opens the supported text/Markdown file picker.
+The attachment card directly below the textarea expands to show all original text
+with readable wrapping, line breaks and paragraphs. Content is assigned as text,
+never interpreted as HTML or fetched through links/images. Removal is separate from
+the summary and returns focus to the plus action. A secondary disclosure retains
+paste/edit and sample controls. File reading, UTF-8 byte limits, removal, and in-flight state
 are shared by Invoke agent and Test enforcement; Customize links to this single Run
 surface rather than maintaining a separate test form. Document and message drafts
 remain in panel memory across polling and mode switches, never in command history.

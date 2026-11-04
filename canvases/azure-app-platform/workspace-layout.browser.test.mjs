@@ -118,7 +118,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       if (mode === "map" || mode === "logs") {
         await selectWorkspace(page, "map-app");
         await page.locator(mode === "map" ? "#map-view" : "#logs-app").click();
-      } else await selectWorkspace(page, mode === "manage" ? "manage-app" : "build-app");
+      } else await selectWorkspace(page, mode === "manage" ? "manage-app" : "build-workspace");
     };
     const openStructureFromGuide = async () => {
       const toggle = page.locator("#action-center");
@@ -131,7 +131,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await installStudioAssetRoutes(page);
     await page.goto(url);
     await page.locator("#studio-workspace-navigation").waitFor();
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     const buildRow = page.locator('.build-file[data-artifact="instructions"]');
     const buildDisclosure = buildRow.locator(
       '.build-source-disclosure[data-preview-for="instructions"]');
@@ -256,7 +256,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await openWorkspaceNavigation(page);
     await page.locator("#manage-app").press("Tab");
     assert.equal(await page.locator("#map-app").evaluate((el) => el === document.activeElement), true);
-    await page.locator("#build-app").focus();
+    await page.locator("#build-workspace").focus();
     await page.keyboard.press("Space");
     await openBuildPreview();
     await preview.evaluate((element) => {
@@ -280,7 +280,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator(".flow-add").first().press("Enter");
     assert.equal(await page.locator("#details").isVisible(), true);
     assert.equal(await structureGuidance.isVisible(), false);
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await source.textContent(), "Explain applications.");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -289,7 +289,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await source.textContent(), "Explain applications.");
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
-    assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(230, 237, 243)");
+    assert.equal(await page.locator("#build-workspace").evaluate((el) => getComputedStyle(el).color), "rgb(230, 237, 243)");
     const expandedToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();
     assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Collapsing Guide must not move its toggle");
@@ -316,7 +316,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
     assert.equal(await source.textContent(), "Explain applications.");
     assert.equal(await preview.evaluate((el) => el === window.document.activeElement), true);
-    assert.equal(await page.locator("#build-app").getAttribute("aria-current"), "page");
+    assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
     await page.locator("#action-center").click();
     const reviewShortcut = page.locator('[data-guide-stage="connect"]');
     assert.equal(await reviewShortcut.getAttribute("data-state"), "attention");
@@ -364,7 +364,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").isVisible(), false);
     assert.equal(await connectionReview.evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("#viewport").getAttribute("transform"), reviewCamera);
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
     assert.equal(await source.textContent(), "Explain applications.");
@@ -436,7 +436,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.ok(await page.locator("#studio-workspace-navigation > header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       assert.ok(await page.locator(".map-palette").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
     }
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await source.textContent(), "Explain applications.");
     await selectWorkspace(page, "manage-app");
@@ -458,7 +458,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#logs-app").click();
     await page.locator("#details").filter({ hasText: "Agent service output" }).waitFor();
     assert.equal(await serviceFilter.textContent(), "All services", "The global Logs entry resets component scoping");
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await selectWorkspace(page, "map-app");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "logs", "Observe remembers its last view");
     await page.locator("#logs-app").press("ArrowLeft");
@@ -557,7 +557,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
     await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
-    assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(31, 35, 40)");
+    assert.equal(await page.locator("#build-workspace").evaluate((el) => getComputedStyle(el).color), "rgb(31, 35, 40)");
     assert.equal(await page.locator("#guide-content").isVisible(), false);
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     await page.setViewportSize({ width: 380, height: 1000 });
@@ -566,7 +566,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       await page.mouse.move(0, 0);
       await assertObserveSwitcher();
     }
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     const narrowToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();

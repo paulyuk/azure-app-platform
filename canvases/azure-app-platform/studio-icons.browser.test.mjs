@@ -23,7 +23,7 @@ for (const name of ["chromium", "webkit"]) {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture.origin + "/app-map");
-      await selectWorkspace(page, "build-app");
+      await selectWorkspace(page, "build-workspace");
       await page.locator('.build-help-button svg[data-octicon="info"]').waitFor();
       await selectWorkspace(page, "map-app");
       await page.locator(".node-visual > svg").first().waitFor();

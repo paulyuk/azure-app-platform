@@ -58,7 +58,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator(".run-primary").getByRole("button", { name: "Open app", exact: true }).count(), 0);
       await page.locator('[data-event-preset="loan.document.submitted"]').click();
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
-      const document = page.getByRole("textbox", { name: "Document text", exact: true });
+      const document = page.getByLabel("Document text", { exact: true });
+      assert.equal(await page.locator(".document-name").textContent(), "sample-loan-note.md");
+      assert.equal(await page.locator(".run-document").evaluate(node => node.open), false);
       assert.match(await prompt.inputValue(), /^Event \[loan.document.submitted\]/);
       assert.match(await document.inputValue(), /Residential Auto Loan Intake/);
       await prompt.fill("Event [test.task.received]: verify this document without a conversation.");

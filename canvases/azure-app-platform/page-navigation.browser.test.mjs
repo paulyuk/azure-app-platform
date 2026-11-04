@@ -45,8 +45,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       };
       assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
       assert.equal(await page.locator("#workspace-location").textContent(), "Run");
-      assert.equal(await page.locator("#build-app").getAttribute("aria-haspopup"), "dialog");
-      assert.equal(await page.locator("#build-app").getAttribute("aria-current"), null);
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-haspopup"), "dialog");
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), null);
+      assert.equal(await page.locator("#build-app").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Customize", exact: true }).count(), 0);
+      assert.equal(await page.locator("#deploy-app").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Deploy", exact: true }).count(), 1);
+      assert.deepEqual(await page.locator("#workspace-runtime-actions button").allTextContents(), ["Open app"]);
       assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
       assert.equal(await back.isDisabled(), true);
       assert.equal(await forward.isDisabled(), true);
@@ -54,18 +59,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const positions = await page.evaluate(() => ({
         history: document.querySelector('[aria-label="Workspace history"]').getBoundingClientRect().right,
         logo: document.querySelector(".ct-header-home").getBoundingClientRect().left,
-        open: document.querySelector("#header-open-app").getBoundingClientRect().right,
-        deploy: document.querySelector("#deploy-app").getBoundingClientRect().left,
-        adjacent: document.querySelector("#header-open-app").closest(".studio-button-mount")
-          .nextElementSibling.querySelector("button").id,
       }));
       assert.ok(positions.history <= positions.logo);
-      assert.ok(positions.open <= positions.deploy);
-      assert.equal(positions.adjacent, "deploy-app");
       const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
 
-      // Customize is independent of workspace history and retains its source view.
-      await select("build-app");
+      // Build opens the retained editor without adding a workspace history visit.
+      await select("build-workspace");
       await page.locator(".build-source-preview").first().waitFor();
       await page.getByRole("tab", { name: "Runtime", exact: true }).click();
       const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
@@ -155,7 +154,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("tab", { name: "Logs", exact: true }).click();
       await mode("logs");
       await page.locator("#details").filter({ hasText: "Connected to inventory_search" }).waitFor();
-      await page.locator("#deploy-app").click();
+      await select("deploy-workspace");
       await mode("deploy");
       await page.getByRole("heading", { name: "Deploy to Azure", exact: true }).waitFor();
       await page.getByRole("button", { name: "Set up Azure resources", exact: true }).waitFor();
@@ -172,7 +171,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
       assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
       assert.equal(await back.isDisabled(), true);
-      await select("build-app");
+      await select("build-workspace");
       await mode("manage");
       await buildDisclosure.waitFor({ state: "attached" });
       assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
@@ -213,7 +212,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator(".conversation-list,.chat-bubble").count(), 0);
       fixture.state.app = "stopped";
       await page.locator("#header-open-app").waitFor({ state: "hidden" });
-      await page.locator("#deploy-app").click();
+      await select("deploy-workspace");
       await mode("deploy");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
 
@@ -285,20 +284,22 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       await page.setViewportSize({ width: 380, height: 800 });
       await select("Build");
-      await page.getByRole("region", { name: "App structure guidance", exact: true }).waitFor();
-      assert.equal(await selected("Build"), "page");
-      assert.equal(await page.locator("#observe-views").isVisible(), false);
-      await page.getByRole("button", { name: "Dismiss app structure guidance", exact: true }).click();
+      await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
+      assert.equal(await selected("Run"), "page");
+      assert.equal(await selected("Build"), null);
+      await page.keyboard.press("Escape");
       assert.equal(await page.locator("#build-workspace").evaluate(node => node === document.activeElement), true);
+      assert.equal(await page.locator("#observe-views").isVisible(), false);
       await select("Connect");
-      await page.getByRole("heading", { name: "Connection review", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Gateway connections", exact: true }).waitFor();
+      await page.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor();
       assert.equal(await selected("Connect"), "page");
       assert.equal(await page.locator("#observe-views").isVisible(), false);
-      await page.locator("#build-app").click();
+      await page.locator("#build-workspace").click();
       await page.getByRole("dialog", { name: "Customize app", exact: true }).waitFor();
       await page.getByRole("button", { name: "Close Customize", exact: true }).click();
       assert.equal(await selected("Connect"), "page");
-      assert.equal(await page.getByRole("heading", { name: "Connection review", exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole("heading", { name: "Gateway connections", exact: true }).isVisible(), true);
       await select("Run");
       assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
       await select("Observe");
@@ -312,23 +313,32 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
       const back = history.getByRole("button", { name: "Back", exact: true });
       const forward = history.getByRole("button", { name: "Forward", exact: true });
-      for (const label of ["Observe", "Observe", "Run", "Connect", "Build", "Run"]) {
+      for (const label of ["Observe", "Observe", "Run", "Connect", "Run"]) {
         await back.click();
         assert.equal(await selected(label), "page");
       }
       assert.equal(await back.isDisabled(), true);
       assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
       await forward.click();
-      assert.equal(await selected("Build"), "page");
-      await forward.click();
       assert.equal(await selected("Connect"), "page");
+      await select("Build");
+      await page.keyboard.press("Escape");
+      assert.equal(await forward.isDisabled(), false, "Build preserves the existing forward history");
+      await forward.click();
+      assert.equal(await selected("Run"), "page");
       await select("Observe");
       assert.equal(await page.getByRole("tab", { name: "App Map", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await forward.isDisabled(), true);
       await page.getByRole("tab", { name: "Logs", exact: true }).click();
       await select("Build");
+      await page.keyboard.press("Escape");
       await select("Observe");
       assert.equal(await page.getByRole("tab", { name: "Logs", exact: true }).getAttribute("aria-selected"), "true");
+      await page.getByRole("tab", { name: "App Map", exact: true }).click();
+      await page.locator(".map-tools > summary").click();
+      await page.getByRole("button", { name: "Review source connections", exact: true }).click();
+      await page.getByRole("heading", { name: "Connection review", exact: true }).waitFor();
+      assert.equal(await selected("Observe"), "page", "Source review stays within Observe, not gateway Connect");
       assert.deepEqual(fixture.mutations, []);
     } finally {
       await browser.close();
