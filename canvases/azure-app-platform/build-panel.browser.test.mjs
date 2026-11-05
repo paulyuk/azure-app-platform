@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_EXPLORER_CSS, BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
+import { renderOcticon, VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -52,7 +52,7 @@ test("Build is a focused read-only customization workspace with document and Run
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       onRun: location.search.includes("no-section-handlers") ? undefined : () => { document.body.dataset.runRequested = "true"; },
       onModel: location.search.includes("no-section-handlers") ? undefined : () => { document.body.dataset.modelRequested = "true"; },
@@ -278,7 +278,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
   const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
       container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
       editorSettings: { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
       onRun() {}, onModel() {},

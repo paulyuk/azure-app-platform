@@ -6,7 +6,7 @@ import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { BUILD_BLOCK_TEMPLATES } from "./build-blocks.mjs";
 import { installToolkitRoutes, withToolkitButtons } from "./toolkit-test-fixture.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
+import { renderOcticon, VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -46,7 +46,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
         ${BUILD_SYNTAX_SCRIPT}
         window.panel = (${createBuildPanel.toString()})({
           container: document.querySelector("#details"), root: "/fixture", isActive: () => true,
-          syntax: buildSyntax, buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+          syntax: buildSyntax, buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
           request: async (path, options) => {
             const response = await fetch(path, options);
             const value = await response.json();

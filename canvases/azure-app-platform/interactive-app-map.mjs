@@ -1198,7 +1198,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buildFocusKey = event.target.dataset.focusKey;
     });
     const buildPanel = (${createBuildPanel.toString()})({
-      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info,
+      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info, vsCodeIconMarkup: VSCODE_ICON_MARKUP,
       isActive: () => panelMode === "build",
       onRun: () => {
         if (panelMode !== "manage") renderManagePanel();

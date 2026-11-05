@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
+import { renderOcticon, VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -27,7 +27,7 @@ function pageHtml() {
   return `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
     <aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+    window.buildPanel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       editorSettings: ${JSON.stringify({ editorId: "vscode", editors })},
       onRun() {}, onModel() {},
@@ -109,6 +109,15 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
     assert.equal(await openMenu.getByText("Open with", { exact: true }).count(), 1);
     assert.ok(await openMenu.getByRole("menuitem", { name: "Files", exact: true }).locator('[aria-hidden="true"]').count() > 0);
     assert.equal(await openMenu.getByRole("menuitem", { name: "VS Code", exact: true }).locator("svg").count(), 1);
+    for (const logo of [
+      agentRow.getByRole("button", { name: "Edit in VS Code", exact: true }).locator(".vscode-icon"),
+      openMenu.getByRole("menuitem", { name: "VS Code", exact: true }).locator(".vscode-icon"),
+    ]) {
+      assert.equal(await logo.getAttribute("viewBox"), "0 0 100 100");
+      assert.deepEqual(await logo.locator("path").evaluateAll(paths => paths.map(path => path.getAttribute("fill"))),
+        ["#0065A9", "#007ACC", "#1F9CF0"]);
+      assert.equal(await logo.getAttribute("aria-hidden"), "true");
+    }
     assert.equal(await openMenu.locator(".build-icon-files").evaluate(icon =>
       getComputedStyle(icon).maskImage !== "none" && icon.getBoundingClientRect().width === 16), true,
     "The Files destination retains its visible icon inside the toolkit menu");

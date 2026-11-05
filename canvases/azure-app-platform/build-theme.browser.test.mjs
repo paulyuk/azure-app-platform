@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
+import { renderOcticon, VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
@@ -38,7 +38,7 @@ test(`Build guide and lighter code remain legible in light, dark, compact and fo
       #details { height:100vh; }
     </style><div id="details" data-mode="build"></div><script>
       ${BUILD_SYNTAX_SCRIPT}
-      const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+      const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
         container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
         onRun() {}, onModel() {},
         request: async () => ({ artifacts: [

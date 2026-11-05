@@ -180,7 +180,7 @@ export const BUILD_EXPLORER_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS + BUILD_EXPLORER_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon, vsCodeIconMarkup }) {
   const areas = [
     { id: "web", tab: "User Experience" },
     { id: "triggers", tab: "Triggers" },
@@ -384,7 +384,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   function isVsCodeEditor() {
     return currentEditorSettings.editorId === "vscode" || currentEditorSettings.editorId === "vscode-insiders";
   }
-  const vsCodeIconMarkup = '<svg class="vscode-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11.8 1.1a.9.9 0 0 1 .95.08l2.1 1.56c.3.22.48.57.48.95v8.62c0 .38-.18.73-.48.95l-2.1 1.56a.9.9 0 0 1-1.15-.06L6.42 9.93 3.2 12.4a.75.75 0 0 1-.96-.04l-1.1-1a.75.75 0 0 1 0-1.1L4.6 8 1.14 5.74a.75.75 0 0 1 0-1.1l1.1-1a.75.75 0 0 1 .96-.04l3.22 2.47 5.18-4.83c.06-.05.13-.1.2-.14Zm.45 2.75L8.2 7.5l4.05 3.65V3.85ZM3.1 5.58 2.38 6.2 4.9 8l-2.52 1.8.72.62L6.2 8 3.1 5.58Z"/></svg>';
   function updateEditorControls() {
     const editorIcon = isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : undefined;
     for (const preview of container.querySelectorAll(".build-source-preview")) {
