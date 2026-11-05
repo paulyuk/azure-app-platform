@@ -589,12 +589,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     :where(button:not(.ct-button)), .studio-workspace-content :where(button:not(.ct-button)) { padding: 4px 10px; cursor: pointer; }
-    #header-runtime-action, #app-status-badge {
+    #app-status-badge {
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
       height: 32px; min-height: 32px; padding: 0 10px;
       font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
     }
-    #header-runtime-action { border-radius: 6px; }
     #observe-views {
       --studio-tab-count:2;
       flex:0 0 auto; align-self:stretch; margin:4px 0 0;
