@@ -86,7 +86,7 @@ test("Build is a focused read-only customization workspace with document and Run
     await page.getByRole("heading", { name: "Build your app", exact: true }).waitFor();
 
     const files = page.getByRole("navigation", { name: "Build files", exact: true });
-    assert.deepEqual(await files.locator("summary").allTextContents(), ["Behavior (1)", "Tools (1)", "Runtime (1)", "Source (1)"]);
+    assert.deepEqual(await files.locator("summary").allTextContents(), ["Agents (1)", "Hosted Skills (1)", "Sandboxes & Policies (1)", "Source (1)"]);
     assert.deepEqual(await files.locator("[data-file-choice]").allTextContents(),
       ["Document agent", "Document validation", "Config", "Other"]);
     assert.equal(await files.locator('[aria-current="true"]').getAttribute("data-file-choice"), "instructions");
@@ -146,13 +146,13 @@ test("Build is a focused read-only customization workspace with document and Run
     await files.locator('[data-file-choice="tool"]').click();
     assert.equal(await page.locator(".build-area-title").textContent(), "Document validation",
       "A source-project path supplies the parent name when no display name is provided");
-    const toolsArea = page.locator('.build-area[data-area-id="tools"]');
+    const toolsArea = page.locator('.build-area[data-area-id="skills"]');
     assert.equal(await files.getByText("Document validation", { exact: true }).count(), 1,
       "The categorized list shows the source project name");
     assert.equal(await toolsArea.locator(".build-project-list").count(), 0);
 
     await files.locator('[data-file-choice="runtime"]').click();
-    const runtimeArea = page.locator('.build-area[data-area-id="runtime"]');
+    const runtimeArea = page.locator('.build-area[data-area-id="application"]');
     assert.equal(await runtimeArea.locator(".build-area-title").textContent(), "Config",
       "Files in a shared directory form one collection even without discovery metadata");
     assert.equal(await runtimeArea.locator(".build-area-description").count(), 0);
@@ -172,20 +172,8 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await preview.locator(".build-highlight").textContent(), before);
     assert.equal(requests.some(({ path }) => path === "/api/build-diff" || path === "/api/build-file"), false);
     assert.equal(requests.some(({ method }) => method !== "GET"), false);
-    async function assertWarningSpacing(message) {
-      const spacing = await message.evaluate(node => {
-        const row = node.closest(".build-file");
-        const bounds = node.getBoundingClientRect();
-        return {
-          above: bounds.top - row.querySelector(".build-file-header").getBoundingClientRect().bottom,
-          below: row.querySelector(".build-file-source").getBoundingClientRect().top - bounds.bottom,
-        };
-      });
-      assert.ok(Math.abs(spacing.above - 8) <= 1 && Math.abs(spacing.below - 8) <= 1,
-        "The warning has one condensed spacing step above and below: " + JSON.stringify(spacing));
-    }
     async function assertActionMatrix(sectionHandlers) {
-      const base = ["Open in VS Code", "Open with", "Adjust with AI"];
+      const base = ["Edit in VS Code", "Open with", "Adjust with AI"];
       for (const artifact of artifacts) {
         await page.setViewportSize({ width: 1000, height: 800 });
         await files.locator(`[data-file-choice="${artifact.id === "policy" ? "runtime" : artifact.id}"]`).click();
@@ -208,17 +196,8 @@ test("Build is a focused read-only customization workspace with document and Run
         const direct = await row.locator(".build-file-actions").getByRole("button")
           .evaluateAll(controls => controls.map(control => control.getAttribute("aria-label")));
         assert.deepEqual(direct, expected, `${artifact.customizationArea} exposes only its supported file actions`);
-        const enforcementWarning = row.locator('.build-warning .ct-message[data-intent="warning"]');
-        const hasEnforcementWarning = documentSupport && ["tool", "contract", "policy"].includes(artifact.id);
-        assert.equal(await enforcementWarning.count(), Number(hasEnforcementWarning),
-          "Developer-owned enforcement uses the canonical warning MessageBar only for supported enforcement files");
-        if (hasEnforcementWarning) {
-          assert.equal(await enforcementWarning.getAttribute("role"), "status");
-          assert.equal(await enforcementWarning.textContent(),
-            "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.");
-          assert.equal(await enforcementWarning.locator(".ct-message-icon[aria-hidden=true] svg").count(), 1);
-          await assertWarningSpacing(enforcementWarning);
-        }
+        assert.equal(await row.locator('.build-warning .ct-message[data-intent="warning"]').count(), 0,
+          "Unchanged source previews do not show static enforcement alarms");
         const filePicker = page.getByRole("button", { name: "More files", exact: true });
         if (await filePicker.isVisible()) {
           await filePicker.click();
@@ -234,15 +213,6 @@ test("Build is a focused read-only customization workspace with document and Run
           await page.keyboard.press("Escape");
         }
         await page.setViewportSize({ width: 380, height: 800 });
-        if (hasEnforcementWarning) {
-          await assertWarningSpacing(enforcementWarning);
-          assert.ok(await enforcementWarning.evaluate(message => {
-            const pane = message.closest(".build-content").getBoundingClientRect();
-            const bounds = message.getBoundingClientRect();
-            return bounds.left >= pane.left && bounds.right <= pane.right &&
-              message.scrollWidth <= message.clientWidth + 1;
-          }), "Warning text wraps inside compact source panes");
-        }
         await row.getByRole("button", { name: "Open with", exact: true }).click();
         const openMenu = page.getByRole("menu", { name: "Open with", exact: true });
         assert.deepEqual(await openMenu.getByRole("menuitem").allTextContents(), ["Files", "VS Code"],

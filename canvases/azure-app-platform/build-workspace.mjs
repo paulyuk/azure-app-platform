@@ -5,21 +5,23 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
-  { id: "tool", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
-  { id: "contract", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
-  { id: "policy", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
-  { id: "runtime", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary." },
+  { id: "instructions", blockCategory: "agent", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
+  { id: "tool", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
+  { id: "contract", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
+  { id: "policy", blockCategory: "sandbox", projectPath: "src/tools/document-validation", projectName: "Document validation", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
+  { id: "runtime", blockCategory: "agent", projectPath: "src/agent", projectName: "Agent", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary." },
 ];
 const MAX_BYTES = 96 * 1024;
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const CODE_FILE = /\.(?:py|[cm]?[jt]sx?|cs|go|java|rs)$/i;
 const SOURCE_FILES = {
-  agent: ["prompts/system.md", "main.py", "agent.yaml"],
-  skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json"],
-  workflows: ["function_app.py", "host.json"],
+  agent: ["prompts/system.md", "main.py", "agent.yaml", "runtime.json", "pyproject.toml"],
+  skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json", "pyproject.toml", "requirements.txt"],
+  workflows: ["function_app.py", "host.json", "pyproject.toml", "requirements.txt"],
   sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md"],
   web: ["builder.yaml", "index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
+  connectors: ["connector.json", "README.md"],
+  sre: ["sre-agent.yaml", "README.md"],
 };
 
 async function existingPath(root, path, directory = false) {
@@ -77,6 +79,10 @@ function sourceArtifact(path, candidate) {
   const tier = getTierDefinition(candidate.tierId);
   const name = basename(candidate.projectPath);
   const file = basename(path);
+  const triggerKind = candidate.evidence.find(item => item.rule?.startsWith("function-trigger-"))?.rule.slice("function-trigger-".length);
+  const isTrigger = candidate.tierId === "skills" &&
+    (candidate.projectPath.startsWith("src/triggers/") || Boolean(triggerKind)) &&
+    !candidate.evidence.some(item => ["skill-config", "tool-declaration", "hosted-skill-entrypoint"].includes(item.rule));
   const customizationArea = path.endsWith("/prompts/system.md") || (candidate.tierId === "agent" && CODE_FILE.test(path))
     ? "behavior"
     : file === "contract.json" || file === "agents.config.yaml"
@@ -93,6 +99,8 @@ function sourceArtifact(path, candidate) {
     description = "Agent runtime code, including any inline instructions and tool registrations defined here.";
   } else if (file === "agent.yaml") {
     title = "Agent manifest";
+  } else if (candidate.tierId === "agent" && file === "runtime.json") {
+    title = "Agent runtime configuration";
   } else if (file === "builder.yaml" || file === "embr.yaml") {
     title = "App Service Builder manifest";
     description = "Component roles, build toolchain, and output directory for App Service Builder deployment.";
@@ -101,7 +109,7 @@ function sourceArtifact(path, candidate) {
   } else if (file === "agents.config.yaml") {
     title = "Hosted skill configuration";
   } else if (file === "function_app.py") {
-    title = candidate.tierId === "workflows" ? "Workflow implementation" : "Hosted skill entry point";
+    title = isTrigger ? "Trigger implementation" : candidate.tierId === "workflows" ? "Workflow implementation" : "Hosted skill entry point";
   } else if (file === "Dockerfile") {
     title = "Container build";
   } else if (file === "egress-policy.md") {
@@ -112,14 +120,24 @@ function sourceArtifact(path, candidate) {
     title = "Functions host configuration";
   } else if (file === "package.json") {
     title = "Web app configuration";
+  } else if (file === "connector.json") {
+    title = "Connector contract";
+  } else if (file === "sre-agent.yaml") {
+    title = "Operations configuration";
+  } else if (file === "pyproject.toml") {
+    title = "Python project configuration";
+  } else if (file === "requirements.txt") {
+    title = "Deployment dependencies";
   }
   return {
     id: `source-${sha(path).slice(0, 20)}`, path,
     title: name && name !== "." ? `${title} · ${name}` : title,
     projectPath: candidate.projectPath,
     projectName: candidate.name,
-    blockTemplateId: candidate.tierId === "skills" ? "hosted-skill"
-      : candidate.tierId === "agent" ? "agent-instructions" : undefined,
+    blockCategory: isTrigger ? "triggers" : candidate.tierId,
+    blockTemplateId: candidate.tierId === "skills" ? (isTrigger ? `${triggerKind ?? "http"}-trigger` : "hosted-skill")
+      : candidate.tierId === "agent" ? "agent-instructions"
+        : ({ web: "user-experience", connectors: "connector", workflows: "orchestration", sre: "operations" })[candidate.tierId],
     description,
     customizationArea,
   };
@@ -150,15 +168,20 @@ async function buildCatalog(root, discoveryState = {}) {
   if (files.has("azure-app.yaml")) {
     selected.set("azure-app.yaml", {
       id: "app-inventory", title: "App inventory", path: "azure-app.yaml",
-      customizationArea: "runtime",
+      blockCategory: "application", projectPath: ".", projectName: "Application", customizationArea: "runtime",
       description: "Capability paths, interfaces, and relationships declared by this app.",
     });
   }
   if (files.has("config/domain.json") && discovery.candidates.length) {
     const path = "config/domain.json";
     selected.set(path, { id: `source-${sha(path).slice(0, 20)}`, title: "App configuration", path,
-      customizationArea: "runtime",
+      blockCategory: "application", projectPath: ".", projectName: "Application", customizationArea: "runtime",
       description: "Domain configuration used by the app template." });
+  }
+  const agent = discovery.candidates.find(candidate => candidate.tierId === "agent" && candidate.projectPath === "src/agent");
+  if (agent && inScope(agent.projectPath, scope) && files.has("config/runtime.json")) {
+    const path = "config/runtime.json";
+    selected.set(path, { ...sourceArtifact(path, agent), title: "Agent runtime configuration" });
   }
   if (supportsDocuments) {
     for (const artifact of DOCUMENT_ARTIFACTS) {
@@ -178,7 +201,7 @@ async function buildArtifact(root, id) {
 }
 
 async function appArtifact(root, artifact) {
-  if (!["tool", "contract"].includes(artifact.id)) return artifact;
+  if (!["tool", "contract", "policy"].includes(artifact.id)) return artifact;
   const scope = await appScope(root);
   const directories = ["src/tools/document-validation", "src/sandbox/tool"].filter((directory) => inScope(directory, scope));
   // Choose the whole layout, not individual files, so partial migrations fail visibly.

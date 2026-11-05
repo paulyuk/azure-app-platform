@@ -585,14 +585,23 @@ Missing tiers are scaffoldable rather than inferred from the platform catalog.
 `azure-app.yaml` scope, not one universal template checklist. A categorized list
 on the left shows one item per parent collection, named for its discovered source
 project or parent directory rather than an individual file. Collections appear
-once under **Behavior**, **Tools**, **Runtime**, **Policies**, or **Source**, using
-the first matching category in that order when their files span categories.
-Clicking a collection opens its read-only saved files on the right, with an editor split
+once under architecture-aligned categories: **User Experience**, **Triggers**,
+**Agents**, **Connectors**, **Hosted Skills**, **Orchestrations**,
+**Sandboxes & Policies**, **Operations**, and **App Configuration**.
+Existing **AI Gateway**, **Data**, and uncategorized **Source** implementations
+remain available. Agent manifests, instructions, and runtime configuration stay
+with their agent; App Service Builder files stay with their web project.
+App-wide inventory and domain configuration form an Application collection.
+Clicking a collection opens its saved source previews on the right, with an editor split
 button and **Adjust with AI**. The split button defaults to the configured external
 editor. Its **Open with** menu lists **Files** and that editor with their icons.
 Choosing a destination opens the file and makes that destination the primary
 action for subsequent files in this Build session, without changing global editor
-preferences. Collections with duplicate names show their project paths.
+preferences. If Files cannot open an isolated worktree or the host lacks an
+editor canvas, Build automatically opens the same file in the configured
+external editor, explains the fallback, and resets the primary destination.
+If both handoffs fail, both errors are shown. Collections with duplicate names
+show their project paths.
 File names remain in the right-hand Page selector and file headers. Searching
 by a filename, title, or path finds its parent collection and opens a matching file
 without filtering out its siblings. Category and result counts refer to collections.
@@ -643,22 +652,27 @@ Navigation preserves source nodes, scroll positions, and creation/AI drafts.
 This adapts to the canvas container, not the surrounding desktop window.
 Long filenames wrap in the list.
 Single-file source scrolls inside its preview rather than widening the workspace.
-The file header and source preview fill the right pane edge to edge. Header
+The file header fills the right pane. Source sits inside an evenly inset,
+rounded frame with a lighter code background and a default pointer cursor. Header
 content, guidance, and forms retain internal toolkit spacing, condensed in narrow
 panes, so text and form focus rings stay clear of the divider and scrollbars.
 File actions and AI forms share consistent spacing without nested card padding.
-The compact file header pairs the source identity and toolkit **Read-only**
-badge with a right-aligned editor split button and named AI icon button. **More file actions**
+The compact file header pairs the source identity with an eye icon and **Preview**
+label, a primary **Edit** split button, and a named AI icon button. **More file actions**
 uses the toolkit menu only for document/model actions hidden in narrow source
-panes. The editor split button stays available at every width, with its text
-collapsing to the selected destination's icon in compact panes. Secondary buttons
+panes. The editor split button keeps its visible **Edit** text at every width.
+Secondary buttons
 move into the menu in narrow source panes, including
 when dragging the divider in a wide window. The **More file actions** menu is
 hidden when all actions are already visible. Code follows the file header
 directly, without a repeated **Source preview** disclosure or editing-guidance
-row. The **Read-only** badge stays visible; the source region's accessible
-description retains editing guidance and the detected language. Read-only source
+row. The **Preview** label stays visible; the source region's accessible
+description retains editing guidance and the detected language, and its hover
+hint names the current editing destination. Read-only source
 remains selectable and copyable.
+Unchanged tool, contract, and policy previews do not show static enforcement
+warning banners. Runtime caveats and actual configuration errors remain visible;
+file presence alone never warrants a claim that code runs in an ACA Sandbox.
 Section-specific actions use the same availability rules in the toolbar and
 compact menu: **Test with a document** is limited to the document app's instruction
 file, and **Model connection** to its runtime configuration. Both require their
@@ -678,9 +692,19 @@ source refresh, and workspace switches within the loaded Canvas; it is not saved
 across reloads. Resizing retains source scroll and form drafts, and observers
 and pointer listeners are released when leaving Build.
 
-**+ Add** opens a template-first form inside Build. Choose **Hosted skill**
-(an HTTP-triggered Azure Function starter) or **Agent instructions** (a prompt
-document and manifest), name the block, and choose **Create from template**.
+**+ Add** opens a template-first form inside Build. Choose a starter, name the
+block, and choose **Create from template**:
+
+| Starter | Saved base |
+| --- | --- |
+| User Experience | Static web page, build script, and App Service Builder manifest |
+| Trigger | HTTP, timer, Event Grid, or Storage queue Azure Function, with uv project and host configuration |
+| Agent | Instructions, `agent.yaml`, and an unconfigured `runtime.json` seam |
+| Connector | External API / SaaS / Graph connection contract and implementation guidance |
+| Hosted skill | HTTP-triggered Azure Function with a bounded-operation seam |
+| Orchestration | Durable orchestrator and activity, with a guarded HTTP start route |
+| Operations | Observability / SRE Agent configuration seam and runbook |
+
 Optionally describe the desired behavior in **Instructions (optional)**.
 Blank instructions create only the starter. With instructions, the saved template
 is created first, then Copilot receives a scoped customization request.
@@ -694,8 +718,11 @@ replacing existing entries. Existing metadata and connections are retained.
 Apps without an inventory continue using source discovery.
 The new file is selected immediately, ready to open in Files or an external
 editor, or adjust with AI. These starters are not automatically connected,
-started, or deployed. Hosted skill invocation deliberately returns HTTP 501
-until its operation is implemented; agent instructions need a runtime.
+started, or deployed. HTTP trigger, Hosted skill, and orchestration start routes
+return HTTP 501 until implemented. Timer, queue, and event handlers fail explicitly
+rather than acknowledging unfinished work. Agent configuration still needs a
+runtime; connector and operations starters are design contracts, not live adapters,
+Azure resources, active monitoring, or enforced limits.
 Use **Observe → App Map** to review connections and other capabilities.
 
 **Adjust with AI** asks for the intended change and sends a source-scoped request
@@ -704,7 +731,10 @@ Requests use the same allowlisted file resolution as editor handoffs. Review
 Copilot's saved changes and refresh source before running or deploying.
 Hosted skill and agent blocks use the plugin's registered
 `azure-app-platform-hosted-skill` and `azure-app-platform-agent-instructions`
-authoring skills respectively. The server selects guidance from discovered
+authoring skills respectively. Web, trigger, connector, orchestration, and
+operations blocks use `azure-app-platform-block-authoring`, which includes
+type-specific accessibility, delivery/retry, authentication, Durable replay, and
+approval-bounded operations guidance. The server selects guidance from discovered
 source, not a client-provided path, and includes the shipped skill content in
 the request so a child app session can apply it without plugin-path access.
 The skills cover bounded contracts, validation and explicit errors, untrusted

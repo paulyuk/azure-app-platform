@@ -46,6 +46,10 @@ test("Dealer Build shows inline agent source and actual skills, not document tem
     assert.equal(agent.content, source);
     assert.equal(agent.customizationArea, "behavior");
     assert.equal(agent.projectPath, "src/agent");
+    assert.equal(agent.blockCategory, "agent");
+    assert.ok(state.artifacts.filter(item => item.path === "src/agent/agent.yaml" || item.path === "config/runtime.json")
+      .every(item => item.projectPath === "src/agent" && item.blockCategory === "agent"),
+    "Agent configuration stays with its implementation rather than a Runtime collection");
     assert.equal(agent.projectName, "deal-finder-agent");
     assert.equal(agent.focusLine, 1);
     const skillArtifacts = state.artifacts.filter((item) => item.customizationArea === "tools");
@@ -93,6 +97,8 @@ test("Empty Unity Build includes the prompt, starter runtime and declared skill 
     assert.equal(areaFor("src/skills/look-up/function_app.py"), "tools");
     assert.equal(areaFor("config/domain.json"), "runtime");
     assert.equal(areaFor("azure-app.yaml"), "runtime");
+    const appFiles = state.artifacts.filter(item => ["azure-app.yaml", "config/domain.json"].includes(item.path));
+    assert.ok(appFiles.every(item => item.blockCategory === "application" && item.projectPath === "." && item.projectName === "Application"));
     assert.ok(!state.artifacts.some((item) => item.customizationArea === "policies"));
   });
 });

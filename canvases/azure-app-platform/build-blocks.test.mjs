@@ -22,14 +22,46 @@ for (const template of BUILD_BLOCK_TEMPLATES) {
     const file = await resolveBuildArtifactPath(root, result.artifactId);
     const content = await readFile(file, "utf8");
     assert.doesNotMatch(content, /__(?:SKILL|BLOCK)_NAME__/);
+    const artifact = (await readBuildWorkspace(root)).artifacts.find(item => item.id === result.artifactId);
+    assert.equal(artifact.blockTemplateId, template.id);
+    assert.equal(artifact.blockCategory, template.id.endsWith("-trigger") ? "triggers" : template.tierId);
     await assert.rejects(materializeBuildBlock({ root, templateId: template.id, name: "new-block" }), /already exists/);
     assert.equal(await readFile(file, "utf8"), content);
     if (template.id === "hosted-skill") {
       assert.match(content, /status_code=501/);
       assert.match(await readFile(join(root, block.projectPath, "pyproject.toml"), "utf8"), /azure-functions/);
     }
+    if (template.id === "agent-instructions") {
+      assert.equal(JSON.parse(await readFile(join(root, block.projectPath, "runtime.json"), "utf8")).status, "not_configured");
+      assert.ok(result.paths.includes(`${block.projectPath}/agent.yaml`));
+      assert.ok(result.paths.includes(`${block.projectPath}/runtime.json`));
+    }
+    if (template.id.endsWith("-trigger") || template.id === "orchestration") {
+      const dependencies = await readFile(join(root, block.projectPath, "pyproject.toml"), "utf8");
+      const requirements = await readFile(join(root, block.projectPath, "requirements.txt"), "utf8");
+      for (const dependency of requirements.trim().split("\n")) assert.ok(dependencies.includes(dependency));
+      assert.equal(JSON.parse(await readFile(join(root, block.projectPath, "host.json"), "utf8")).version, "2.0");
+      assert.match(content, /status_code=501|raise NotImplementedError/);
+    }
   }));
 }
+
+test("the complete creation catalog stays scoped and discoverable in one app inventory", () => fixture(async root => {
+  await writeFile(join(root, "azure-app.yaml"), "name: all-blocks\ncomponents:\n");
+  for (const template of BUILD_BLOCK_TEMPLATES) {
+    const block = await materializeBuildBlock({ root, templateId: template.id, name: template.id });
+    const { artifactId } = await createdBuildBlock(root, block.projectPath, block.entry);
+    const state = await readBuildWorkspace(root);
+    const artifact = state.artifacts.find(item => item.id === artifactId);
+    assert.equal(artifact.projectPath, block.projectPath);
+    assert.equal(artifact.blockTemplateId, template.id);
+  }
+  const state = await readBuildWorkspace(root);
+  assert.equal(new Set(state.artifacts.map(item => item.path)).size, state.artifacts.length);
+  assert.ok(state.artifacts.every(item => item.available));
+  assert.equal(state.artifacts.find(item => item.path === "azure-app.yaml").blockCategory, "application");
+  assert.equal(parseUnityManifest({ content: await readFile(join(root, "azure-app.yaml"), "utf8") }).length, BUILD_BLOCK_TEMPLATES.length);
+}));
 
 test("adding several blocks preserves scoped source and inventory metadata in both manifest formats", () => fixture(async root => {
   await mkdir(join(root, "services", "existing"), { recursive: true });

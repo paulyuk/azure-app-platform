@@ -90,7 +90,7 @@ test(`Build guide and lighter code remain legible in light, dark, compact and fo
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
         await assertContrast(page.locator(
           ".build-area-title, .build-file-heading h4, .build-source-path, " +
-          ".build-readonly-badge .ct-badge, .build-help-button"),
+          ".build-preview-badge, .build-help-button"),
         `${theme} guide at ${width}px`);
         await assertContrast(page.locator(
           ".build-line-numbers, .build-highlight, .build-highlight .token, [data-file-open] > button"),
@@ -136,7 +136,7 @@ test(`Build guide and lighter code remain legible in light, dark, compact and fo
     await page.emulateMedia({ forcedColors: "active" });
     assert.equal(await page.getByRole("separator", { name: /Resize key files/i }).count(), 0);
     assert.equal(await preview.isVisible(), true);
-    assert.equal(await page.locator(".build-readonly-badge .ct-badge").isVisible(), true);
+    assert.equal(await page.locator(".build-preview-badge").isVisible(), true);
     assert.notEqual(await preview.locator(".build-highlight").evaluate((element) =>
       getComputedStyle(element).color), "rgba(0, 0, 0, 0)");
     await preview.focus();

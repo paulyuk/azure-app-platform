@@ -85,7 +85,7 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
     reads++;
     await route.fulfill({ json: { artifacts: artifacts(source) } });
   }, async (page) => {
-    const tools = page.locator('.build-area[data-area-id="tools"]');
+    const tools = page.locator('.build-area[data-area-id="skills"]');
     const row = page.locator('.build-file[data-artifact="agent"]');
     const disclosure = row.locator('.build-file-source[data-preview-for="agent"]');
     const preview = row.locator(".build-source-preview");

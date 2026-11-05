@@ -85,6 +85,10 @@ export async function materializeBuildBlock({ root, templateId, name }) {
     throw error;
   }
   try {
+    if (template.baseSource) {
+      await cp(fileURLToPath(new URL("./templates/" + template.baseSource, import.meta.url)), destination,
+        { recursive: true, force: false, errorOnExist: true });
+    }
     const source = fileURLToPath(new URL("./templates/" + template.source, import.meta.url));
     await cp(source, destination, { recursive: true, force: false, errorOnExist: true });
     await replaceTokens(destination, { "__BLOCK_NAME__": name, "__SKILL_NAME__": name });

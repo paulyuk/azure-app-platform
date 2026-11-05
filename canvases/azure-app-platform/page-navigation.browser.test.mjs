@@ -201,6 +201,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.getByRole("toolbar", { name: "File pages", exact: true })
         .getByRole("button", { name: "config.json", exact: true }).getAttribute("aria-pressed"), "true");
       assert.equal(await buildSource.evaluate(node => node === window.retainedBuildSource), true);
+      const divider = page.getByRole("separator", { name: "File list width", exact: true });
+      await divider.focus();
+      const retainedWidth = Number(await divider.getAttribute("aria-valuenow"));
+      await page.keyboard.press("ArrowRight");
+      assert.ok(Number(await divider.getAttribute("aria-valuenow")) > retainedWidth,
+        "Retained Build panes remain resizable after navigation");
       assert.equal(await back.isDisabled(), false);
       assert.equal(await forward.isDisabled(), true, "Build is a new history destination");
       await back.click();

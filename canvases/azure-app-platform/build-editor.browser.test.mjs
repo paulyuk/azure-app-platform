@@ -141,18 +141,20 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
     await agentLaunch.click();
     await page.waitForFunction(() => document.querySelector('[data-files-launch][data-artifact-id="agent"]')?.disabled);
     pending.get("agent").resolve();
-    await agentRow.getByRole("alert").filter({ hasText: "agent Files failed." }).waitFor();
-    assert.equal(await agentLaunch.isEnabled(), true);
+    await agentRow.getByRole("status").filter({ hasText: "Opened the worktree and file in VS Code instead." }).waitFor();
+    assert.equal(await agentRow.locator("[data-editor-launch]").isEnabled(), true);
+    assert.equal(await agentRow.locator("[data-files-launch]").count(), 0,
+      "Unavailable Files falls back to the editor and no longer remains the default");
     await page.locator('[data-file-choice="tool"]').click();
     assert.match(await toolRow.locator('.build-handoff-feedback[data-artifact-id="tool"]').innerText(), /Opened in Files/,
       "Failure feedback cannot leak into another artifact");
     await toolRow.getByRole("button", { name: "Open with", exact: true }).click();
     await page.getByRole("menuitem", { name: "VS Code", exact: true }).click();
-    const external = toolRow.getByRole("button", { name: "Open in VS Code", exact: true });
+    const external = toolRow.getByRole("button", { name: "Edit in VS Code", exact: true });
     await toolRow.getByRole("status").filter({ hasText: /Opened the worktree and file in VS Code/ }).waitFor();
     await external.click();
     await page.waitForFunction(() => !document.querySelector('[data-editor-launch]')?.disabled);
-    assert.deepEqual(editorRequests, [{ root: "/fixture", id: "tool" }, { root: "/fixture", id: "tool" }],
+    assert.deepEqual(editorRequests, [{ root: "/fixture", id: "agent" }, { root: "/fixture", id: "tool" }, { root: "/fixture", id: "tool" }],
       "Choosing an editor opens the exact file and makes it the next primary action");
 
     assert.equal(await page.locator("textarea,[contenteditable=true]").count(), 0);
@@ -163,6 +165,69 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+for (const status of [400, 503]) {
+  test(`Build falls back from unavailable Files (${status}) and reports dual handoff failures`, {
+    skip: !chromium && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const calls = [];
+    let failEditor = false;
+    let gate;
+    const server = createServer((_request, response) => {
+      response.setHeader("Content-Type", "text/html");
+      response.end(withToolkitButtons(pageHtml()));
+    });
+    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+      await installToolkitRoutes(page);
+      await page.route("**/api/**", async route => {
+        const path = new URL(route.request().url()).pathname;
+        if (path === "/api/build-workspace") return route.fulfill({ json: { artifacts: artifacts() } });
+        calls.push({ path, ...route.request().postDataJSON() });
+        if (path === "/api/open-build-file-canvas") {
+          return route.fulfill({ status, json: { error: status === 400 ? "Source is outside the session working tree." : "Editor canvas unavailable." } });
+        }
+        assert.equal(path, "/api/open-build-file");
+        gate = deferred();
+        await gate.promise;
+        return route.fulfill(failEditor ? { status: 500, json: { error: "Editor executable unavailable." } } : { json: { editorLabel: "VS Code" } });
+      });
+      await page.goto(`http://127.0.0.1:${server.address().port}`);
+      const row = page.locator('.build-file[data-artifact="agent"]');
+      const edit = row.getByRole("button", { name: "Edit in VS Code", exact: true });
+      await edit.waitFor();
+      assert.equal(await edit.innerText(), "Edit", "The primary label stays visible in compact panes");
+      assert.equal(await edit.getAttribute("data-appearance"), "primary");
+      assert.equal(await row.locator(".build-preview-badge .build-icon-preview").count(), 1);
+      assert.match(await row.locator(".build-source-preview").getAttribute("title"), /Preview.*Edit.*VS Code/);
+      for (const fail of [false, true]) {
+        failEditor = fail;
+        const prior = calls.length;
+        await row.getByRole("button", { name: "Open with", exact: true }).click();
+        await page.getByRole("menuitem", { name: "Files", exact: true }).click();
+        await page.waitForFunction(() => document.querySelector("[data-editor-launch]")?.disabled === true);
+        assert.equal(calls.length, prior + 2, "A failed Files request starts exactly one external handoff");
+        assert.equal(await edit.isDisabled(), true);
+        assert.equal(await row.getByRole("button", { name: "Open with", exact: true }).isDisabled(), true,
+          "Neither destination can be relaunched during the fallback");
+        gate.resolve();
+        const feedback = row.getByRole(fail ? "alert" : "status");
+        await feedback.filter({ hasText: fail ? "Editor executable unavailable." : "instead." }).waitFor();
+        assert.match(await feedback.textContent(), status === 400 ? /outside the session working tree/ : /Editor canvas unavailable/);
+        assert.equal(await edit.isEnabled(), true);
+        assert.equal(await row.locator("[data-files-launch]").count(), 0);
+        assert.equal(calls.length, prior + 2);
+      }
+      assert.ok(calls.every(call => call.root === "/fixture" && call.id === "agent"));
+    } finally {
+      gate?.resolve();
+      await browser.close();
+      await new Promise(resolve => server.close(resolve));
+    }
+  });
+}
 
 test("Build follows shared editor settings without owning a picker or accepting stale workspace preferences", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
@@ -215,7 +280,7 @@ test("Build follows shared editor settings without owning a picker or accepting 
     const agentRow = page.locator('.build-file[data-artifact="agent"]');
     await launches.first().waitFor();
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
-    assert.deepEqual(await launchLabels(), ["Open in VS Code"]);
+    assert.deepEqual(await launchLabels(), ["Edit in VS Code"]);
 
     workspaceGate = { started: deferred(), reply: deferred(), completed: deferred() };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -223,7 +288,7 @@ test("Build follows shared editor settings without owning a picker or accepting 
     selectedEditor = "cursor";
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
       { editorId: "cursor", editors });
-    assert.deepEqual(await launchLabels(), ["Open in Cursor"]);
+    assert.deepEqual(await launchLabels(), ["Edit in Cursor"]);
     assert.equal(await launches.first().isDisabled(), true);
     assert.equal(await page.getByRole("button", { name: "Open with", exact: true }).isDisabled(), true,
       "The canonical split button is unavailable while its selected editor is being saved");
@@ -232,7 +297,7 @@ test("Build follows shared editor settings without owning a picker or accepting 
     workspaceGate.reply.resolve();
     await workspaceGate.completed.promise;
     workspaceGate = undefined;
-    assert.deepEqual(await launchLabels(), ["Open in Cursor"],
+    assert.deepEqual(await launchLabels(), ["Edit in Cursor"],
       "A stale workspace response cannot replace a newer settings event");
     assert.equal(await launches.first().isEnabled(), true);
     await page.setViewportSize({ width: 380, height: 800 });
@@ -254,13 +319,13 @@ test("Build follows shared editor settings without owning a picker or accepting 
     selectedEditor = "zed";
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
       { editorId: "zed", editors });
-    assert.equal(await toolLaunch.getAttribute("aria-label"), "Open in Zed");
+    assert.equal(await toolLaunch.getAttribute("aria-label"), "Edit in Zed");
     assert.equal(await toolLaunch.isDisabled(), true);
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: false }),
       { editorId: "zed", editors });
     assert.equal(await toolLaunch.isEnabled(), true);
     await page.locator('[data-file-choice="agent"]').click();
-    assert.equal(await page.locator('[data-editor-launch][data-artifact-id="agent"]').getAttribute("aria-label"), "Open in Zed");
+    assert.equal(await page.locator('[data-editor-launch][data-artifact-id="agent"]').getAttribute("aria-label"), "Edit in Zed");
     assert.equal(await agentRow.locator(".build-handoff-feedback").innerText(), "Opened the worktree and file in Cursor.",
       "Tool handoff failure does not replace another artifact's feedback");
     assert.equal(requests.some(({ path }) => path === "/api/editor-settings"), false,

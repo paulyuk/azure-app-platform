@@ -177,13 +177,13 @@ for (const [name, engine, presentationProfile] of [
             }
           }
           assert.ok(await page.locator("#customize-content").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
-          const readonly = page.locator(".build-readonly-badge .ct-badge");
-          assert.equal(await readonly.textContent(), "Read-only");
+          const readonly = page.locator(".build-preview-badge");
+          assert.equal(await readonly.textContent(), "Preview");
           assert.equal(await readonly.isVisible(), true);
           const cues = await page.locator(".build-content").evaluate(pane => {
             const bounds = pane.getBoundingClientRect();
             const header = pane.querySelector(".build-file-header");
-            const badge = pane.querySelector(".build-readonly-badge .ct-badge");
+            const badge = pane.querySelector(".build-preview-badge");
             const style = getComputedStyle(pane);
             const available = pane.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
             const badgeBounds = badge.getBoundingClientRect();
@@ -194,7 +194,7 @@ for (const [name, engine, presentationProfile] of [
                 badgeBounds.bottom <= header.getBoundingClientRect().bottom + 1,
               redundantHeaders: pane.querySelectorAll(".build-preview-help,.build-preview-title,.build-preview-toolbar").length,
               direction: getComputedStyle(pane.querySelector('.build-actions[aria-label="File actions"]')).flexDirection,
-              splitLabelVisible: getComputedStyle(pane.querySelector(".ct-split-label")).display !== "none",
+              splitLabelVisible: pane.querySelector("[data-file-open] button")?.textContent.trim() === "Edit",
               secondaryVisible: [...pane.querySelectorAll("[data-file-secondary]")].some(control => getComputedStyle(control).display !== "none"),
               overflow: pane.scrollWidth - pane.clientWidth,
             };
@@ -203,8 +203,8 @@ for (const [name, engine, presentationProfile] of [
             `${name} ${theme} ${width}px keeps the read-only label inside its pane: ${JSON.stringify(cues)}`);
           assert.equal(cues.redundantHeaders, 0, "Code follows its file header without repeated preview guidance");
           assert.equal(cues.direction, "row", "The file toolbar does not become a stack of full-width buttons");
-          assert.equal(cues.splitLabelVisible, cues.available >= 600,
-            "The toolkit split button collapses its text, not its selected destination or dropdown, in compact panes");
+          assert.equal(cues.splitLabelVisible, true,
+            "The primary Edit label remains visible, including in compact panes");
           assert.equal(cues.secondaryVisible, false, "Generic source has no document-only secondary actions");
           assert.equal(await page.getByRole("button", { name: "More file actions", exact: true }).isVisible(),
             false, "Generic source needs no redundant More menu alongside the split button");
@@ -222,13 +222,23 @@ for (const [name, engine, presentationProfile] of [
           const gutters = await page.locator(".build-content").evaluate(element => {
             const pane = element.getBoundingClientRect();
             const source = element.querySelector(".build-source-preview").getBoundingClientRect();
+            const card = element.querySelector(".build-file-source");
+            const frame = card.getBoundingClientRect();
+            const style = getComputedStyle(card);
             const header = element.querySelector(".build-file-header").getBoundingClientRect();
-            return { left: source.left - pane.left, right: element.clientWidth - source.width,
-              headerLeft: header.left - pane.left, headerWidth: header.width - source.width };
+            return { left: frame.left - pane.left, right: element.clientWidth - frame.width,
+              expected: parseFloat(style.marginLeft), border: parseFloat(style.borderLeftWidth),
+              radius: parseFloat(style.borderTopLeftRadius), cursor: style.cursor,
+              codeInset: source.left - frame.left,
+              headerLeft: header.left - pane.left, headerWidth: header.width - element.clientWidth };
           });
-          assert.ok(Math.abs(gutters.left) <= 1 && Math.abs(gutters.right) <= 1 &&
+          assert.ok(Math.abs(gutters.left - gutters.expected) <= 1 &&
+            Math.abs(gutters.right - 2 * gutters.expected) <= 1 && Math.abs(gutters.codeInset - 1) <= 1 &&
             Math.abs(gutters.headerLeft) <= 1 && Math.abs(gutters.headerWidth) <= 1,
-          "File header and source fill the entire right pane: " + JSON.stringify(gutters));
+          "File header fills the pane while the preview is evenly inset: " + JSON.stringify(gutters));
+          assert.equal(gutters.border, 1);
+          assert.equal(gutters.radius, 8);
+          assert.equal(gutters.cursor, "default");
           if (compact) await filesToggle.click();
           const fixedHeader = await page.locator(".build-explorer-header").boundingBox();
           const list = page.locator(".build-explorer-body");
@@ -251,11 +261,14 @@ for (const [name, engine, presentationProfile] of [
           if (width >= 620) {
             const fill = await page.locator(".build-source-preview").evaluate((element) => ({
               bottom: element.getBoundingClientRect().bottom,
+              expectedInset: parseFloat(getComputedStyle(element.parentElement).marginBottom) +
+                parseFloat(getComputedStyle(element.parentElement).borderBottomWidth),
               workspaceBottom: document.querySelector("#customize-content").getBoundingClientRect().bottom,
               height: element.getBoundingClientRect().height,
               railBottom: document.querySelector(".build-explorer").getBoundingClientRect().bottom,
             }));
-            assert.ok(Math.abs(fill.bottom - fill.workspaceBottom) <= 1, "Code preview fills the workspace height");
+            assert.ok(Math.abs(fill.workspaceBottom - fill.bottom - fill.expectedInset) <= 1,
+              "Code preview fills the workspace height inside its inset frame: " + JSON.stringify(fill));
             assert.ok(Math.abs(fill.railBottom - fill.workspaceBottom) <= 1, "File list fills the workspace height");
             assert.ok(fill.height > 200, "Preview is not capped to the source content height");
           }
@@ -285,7 +298,7 @@ for (const [name, engine, presentationProfile] of [
       const ai = page.locator(".build-ai-form");
       await ai.getByRole("textbox", { name: "What should change?", exact: true }).fill("Keep this draft while resizing.");
       await ai.locator("textarea").evaluate(input => { window.compactDraft = input; });
-      await page.locator("#customize-content").evaluate(pane => { pane.style.width = "380px"; });
+      await page.locator("#app-customize").evaluate(pane => { pane.style.width = "380px"; });
       await filesToggle.waitFor();
       assert.equal(page.viewportSize().width, 1000, "Exercise a narrow embedded canvas inside a wide desktop");
       assert.equal(await divider.isVisible(), false, "The compact layout follows the canvas width, not the viewport");
@@ -297,7 +310,7 @@ for (const [name, engine, presentationProfile] of [
       await filesToggle.click();
       assert.ok(await ai.locator("textarea").evaluate(input => input === window.compactDraft &&
         input.value === "Keep this draft while resizing."), "File navigation preserves the actual AI draft control");
-      await page.locator("#customize-content").evaluate(pane => { pane.style.removeProperty("width"); });
+      await page.locator("#app-customize").evaluate(pane => { pane.style.removeProperty("width"); });
       for (const width of [1000, 620, 380]) {
         await page.setViewportSize({ width, height: 900 });
         await page.waitForFunction(() => document.querySelector(".build-content").getBoundingClientRect().width >= 119);
@@ -305,19 +318,19 @@ for (const [name, engine, presentationProfile] of [
         const spacing = await ai.evaluate(form => {
           const field = form.querySelector(".studio-field-mount").getBoundingClientRect();
           const actions = form.querySelector(".build-actions").getBoundingClientRect();
-          const source = form.closest(".build-file").querySelector(".build-source-preview").getBoundingClientRect();
+          const source = form.closest(".build-file").querySelector(".build-file-source");
           const pane = form.closest(".build-content");
           const input = form.querySelector("textarea").getBoundingClientRect();
           const bounds = pane.getBoundingClientRect();
           return {
-            previewGap: field.top - source.bottom,
+            previewGap: field.top - source.getBoundingClientRect().bottom - parseFloat(getComputedStyle(source).marginBottom),
             actionsGap: actions.top - field.bottom,
             focusGutters: input.left - bounds.left >= 4 && bounds.right - input.right >= 4,
             contained: pane.scrollWidth <= pane.clientWidth + 1,
           };
         });
         assert.ok(Math.abs(spacing.previewGap - 16) <= 1,
-          `${name} ${width}px AI form is separated from source by one normal spacing step: ${JSON.stringify(spacing)}`);
+          `${name} ${width}px AI form adds one normal spacing step after the preview frame: ${JSON.stringify(spacing)}`);
         assert.ok(Math.abs(spacing.actionsGap - 16) <= 1,
           "Form actions do not accumulate extra margins: " + JSON.stringify(spacing));
         assert.ok(spacing.focusGutters && spacing.contained,
@@ -397,7 +410,7 @@ for (const [name, engine, presentationProfile] of [
       assert.ok((await stackView.boundingBox()).x < (await pageView.boundingBox()).x,
         "The stack icon precedes the single-page icon");
       await pageView.click();
-      await page.setViewportSize({ width: 380, height: 900 });
+      await page.setViewportSize({ width: 320, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await filePicker.isVisible(), true, JSON.stringify(await page.locator(".build-block-controls").evaluate(controls => ({
         width: controls.clientWidth,
@@ -567,7 +580,7 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(await filePages.getByRole("button", {
         name: "agents.config.yaml", exact: true, includeHidden: true,
       }).getAttribute("aria-pressed"), "true", "The right-hand file selector tracks the selected sibling");
-      await config.getByRole("button", { name: "Open in VS Code", exact: true }).focus();
+      await config.getByRole("button", { name: "Edit in VS Code", exact: true }).focus();
       await page.getByRole("searchbox", { name: "Filter files", exact: true }).fill("deal-config-no-match");
       assert.equal(await block.locator(".build-file").count(), 2, "File filtering does not remove a sibling preview");
       await page.getByRole("searchbox", { name: "Filter files", exact: true }).press("Escape");
@@ -605,12 +618,14 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(await pageView.getAttribute("aria-pressed"), "true", "The active layout cannot be deselected");
       for (const width of [1000, 620, 380]) {
         await page.setViewportSize({ width, height: 900 });
-        // WebKit can resolve container queries and classic scrollbar gutters on separate frames.
-        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        // Let WebKit update sticky-header hit testing after the resize and scroll.
+        await block.evaluate(files => {
+          files.scrollTop = files.scrollHeight;
+          return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
         const geometry = await block.evaluate(files => {
           const pane = files.closest(".build-content"), header = pane.querySelector(".build-block-header");
           const source = files.querySelector(".build-file:not([hidden]) .build-source-preview");
-          files.scrollTop = files.scrollHeight;
           const fileHeader = files.querySelector(".build-file:not([hidden]) .build-file-header");
           const action = fileHeader.querySelector("[data-file-open] > button").getBoundingClientRect();
           return {
@@ -635,7 +650,7 @@ for (const [name, engine, presentationProfile] of [
         assert.ok(await filePages.isVisible() || await filePicker.isVisible(),
           "Every filename remains reachable inline or through overflow");
       }
-      await implementation.getByRole("button", { name: "Open in VS Code", exact: true }).click();
+      await implementation.getByRole("button", { name: "Edit in VS Code", exact: true }).click();
       await implementation.locator(".build-handoff-feedback [role=status]").waitFor();
       assert.ok(await block.evaluate(files => files.scrollTop > 100),
         "Opening a file from the pinned Page toolbar does not return to the start");
@@ -726,7 +741,7 @@ for (const [name, engine, presentationProfile] of [
       }), "Reselecting a hidden filename from the menu also returns to its stacked file");
       await page.setViewportSize({ width: 1000, height: 900 });
       await implementation.getByRole("button", { name: "Show less", exact: true }).click();
-      await config.getByRole("button", { name: "Open in VS Code", exact: true }).click();
+      await config.getByRole("button", { name: "Edit in VS Code", exact: true }).click();
       await config.locator(".build-handoff-feedback [role=status]").waitFor();
       assert.deepEqual(handoffs, [{ root: "/fixture", id: "deal-implementation" }, { root: "/fixture", id: "deal-config" }],
         "Each sibling toolbar opens its own file; the file picker never launches an editor");

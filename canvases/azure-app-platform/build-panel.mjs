@@ -41,7 +41,6 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-file-heading :is(h4,h5) { margin:0; font-size:13px; line-height:18px; font-weight:600; overflow-wrap:anywhere; }
 :is(#details, #customize-content)[data-mode="build"] .build-source-path { display:block; margin:4px 0 0; font:11px/1.5 var(--font-mono,monospace); color:var(--studio-muted); overflow-wrap:anywhere; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions { margin:var(--canvas-spacing-condensed,8px) 0; }
-:is(#details, #customize-content)[data-mode="build"] .build-file > .build-warning { margin:var(--canvas-spacing-condensed,8px) 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions button { min-height:28px; padding:4px 10px; font-size:12px; line-height:18px; font-weight:500; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions .vscode-icon { width:14px; height:14px; flex:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-header .vscode-icon { width:16px; height:16px; }
@@ -52,14 +51,15 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-icon-more { mask-image:${octiconMask("chevron-down")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-add { mask-image:${octiconMask("plus")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-check { mask-image:${octiconMask("check")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-preview { mask-image:${octiconMask("eye")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-test { mask-image:${octiconMask("play")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-settings { mask-image:${octiconMask("gear")}; }
 :is(#details, #customize-content)[data-mode="build"] :is(button,select):disabled { opacity:.65; cursor:not-allowed; }
 :is(#details, #customize-content)[data-mode="build"] .build-handoff-feedback { margin:4px 0 8px; font-size:12px; }
-:is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; margin:8px var(--build-content-gutter); border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; background:var(--build-code-bg); cursor:default; }
 :is(#details, #customize-content)[data-mode="build"] .build-file > :not(.build-file-source) { flex-shrink:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-source > :not(.build-source-preview) { flex:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-readonly-badge > .ct-provider { display:contents; }
+:is(#details, #customize-content)[data-mode="build"] .build-preview-badge { display:inline-flex; align-items:center; gap:4px; color:var(--studio-muted); font-size:11px; }
 :is(#details, #customize-content)[data-mode="build"] .build-source-preview { position:relative; z-index:0; box-sizing:border-box; display:grid; grid-template-columns:max-content minmax(max-content,1fr); align-items:start; flex:1; min-width:0; min-height:0; max-width:100%; overflow-x:scroll; overflow-y:auto; border:0; border-radius:0; background:var(--build-code-bg); direction:ltr; }
 :is(#details, #customize-content)[data-mode="build"] .build-source-preview pre { box-sizing:border-box; min-height:100%; margin:0; padding:12px; white-space:pre; overflow-wrap:normal; tab-size:4; font:12px/1.6 var(--font-mono,monospace); font-variant-ligatures:none; letter-spacing:normal; text-align:left; }
 :is(#details, #customize-content)[data-mode="build"] .build-source-preview .build-line-numbers { position:sticky; left:0; z-index:1; min-width:5ch; padding-inline:8px; border-inline-end:1px solid var(--studio-line); color:var(--studio-muted); background:var(--build-code-bg); text-align:right; user-select:none; }
@@ -182,12 +182,22 @@ export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS + BUILD
 
 export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon }) {
   const areas = [
-    { id: "behavior", tab: "Behavior", icon: "behavior", label: "Agent behavior" },
-    { id: "tools", tab: "Tools", icon: "tools", label: "Tools & contracts" },
-    { id: "runtime", tab: "Runtime", icon: "runtime", label: "Runtime" },
-    { id: "policies", tab: "Policies", icon: "policies", label: "Policies & limits" },
+    { id: "web", tab: "User Experience" },
+    { id: "triggers", tab: "Triggers" },
+    { id: "agent", tab: "Agents" },
+    { id: "connectors", tab: "Connectors" },
+    { id: "skills", tab: "Hosted Skills" },
+    { id: "workflows", tab: "Orchestrations" },
+    { id: "sandbox", tab: "Sandboxes & Policies" },
+    { id: "gateway", tab: "AI Gateway" },
+    { id: "sre", tab: "Operations" },
+    { id: "data", tab: "Data" },
+    { id: "application", tab: "App Configuration" },
     { id: "source", tab: "Source", label: "Source projects" },
   ];
+  function artifactCategory(artifact) {
+    return artifact.blockCategory ?? ({ behavior: "agent", tools: "skills", policies: "sandbox", runtime: "application" })[artifact.customizationArea] ?? artifact.customizationArea ?? "source";
+  }
   const supportedEditors = [
     { id: "vscode", label: "VS Code" }, { id: "vscode-insiders", label: "VS Code Insiders" },
     { id: "cursor", label: "Cursor" }, { id: "windsurf", label: "Windsurf" },
@@ -377,6 +387,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   const vsCodeIconMarkup = '<svg class="vscode-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11.8 1.1a.9.9 0 0 1 .95.08l2.1 1.56c.3.22.48.57.48.95v8.62c0 .38-.18.73-.48.95l-2.1 1.56a.9.9 0 0 1-1.15-.06L6.42 9.93 3.2 12.4a.75.75 0 0 1-.96-.04l-1.1-1a.75.75 0 0 1 0-1.1L4.6 8 1.14 5.74a.75.75 0 0 1 0-1.1l1.1-1a.75.75 0 0 1 .96-.04l3.22 2.47 5.18-4.83c.06-.05.13-.1.2-.14Zm.45 2.75L8.2 7.5l4.05 3.65V3.85ZM3.1 5.58 2.38 6.2 4.9 8l-2.52 1.8.72.62L6.2 8 3.1 5.58Z"/></svg>';
   function updateEditorControls() {
     const editorIcon = isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : undefined;
+    for (const preview of container.querySelectorAll(".build-source-preview")) {
+      preview.title = "Preview. Click Edit to modify in " + (fileOpenTarget === "files" ? "Files" : selectedEditorLabel()) + ".";
+    }
     for (const control of container.querySelectorAll("[data-file-open]")) {
       const artifact = artifacts.find(item => item.id === control.dataset.fileOpen);
       if (!artifact) continue;
@@ -439,7 +452,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   async function openArtifact(artifact, native) {
     const pending = native ? pendingFilesLaunches : pendingEditorLaunches;
-    if (pending.has(artifact.id)) return;
+    if (pendingFilesLaunches.has(artifact.id) || pendingEditorLaunches.has(artifact.id)) return;
     pending.add(artifact.id);
     handoffFeedback.delete(artifact.id);
     updateEditorControls();
@@ -451,7 +464,21 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         ? "Opened in Files. Save there, then return to Build."
         : "Opened the worktree and file in " + (result.editorLabel || selectedEditorLabel()) + "." });
     } catch (cause) {
-      handoffFeedback.set(artifact.id, { error: true, message: (native ? "Could not open Files: " : "Could not open editor: ") + cause.message });
+      if (native) {
+        fileOpenTarget = "editor";
+        pendingEditorLaunches.add(artifact.id);
+        updateEditorControls();
+        try {
+          const result = await request("/api/open-build-file", {
+            method: "POST", body: JSON.stringify({ root, id: artifact.id }),
+          });
+          handoffFeedback.set(artifact.id, { message: "Files is unavailable: " + cause.message +
+            " Opened the worktree and file in " + (result.editorLabel || selectedEditorLabel()) + " instead." });
+        } catch (editorCause) {
+          handoffFeedback.set(artifact.id, { error: true, message: "Could not open Files: " + cause.message +
+            " Could not open editor: " + editorCause.message });
+        } finally { pendingEditorLaunches.delete(artifact.id); }
+      } else handoffFeedback.set(artifact.id, { error: true, message: "Could not open editor: " + cause.message });
     } finally {
       pending.delete(artifact.id);
       if (isActive()) updateEditorControls();
@@ -550,6 +577,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       source.setAttribute("role", "region");
       source.setAttribute("aria-label", artifact.title + " source preview");
       source.setAttribute("aria-description", "Read-only saved source. Language: " + language.label + ". Edit in Files, open in your editor, or adjust with AI.");
+      source.title = "Preview. Click Edit to modify in " + selectedEditorLabel() + ".";
       const count = (artifact.content.match(/\n/g)?.length ?? 0) + 1;
       element("pre", Array.from({ length: count }, (_, index) => String(index + 1)).join("\n"),
         source, "build-line-numbers").setAttribute("aria-hidden", "true");
@@ -616,7 +644,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   function fileOpenProps(artifact) {
     const native = fileOpenTarget === "files";
-    const label = native ? "Edit in Files" : "Open in " + selectedEditorLabel();
+    const opening = pendingFilesLaunches.has(artifact.id) || pendingEditorLaunches.has(artifact.id);
+    const label = native ? "Edit in Files" : "Edit in " + selectedEditorLabel();
     const editorIcon = isVsCodeEditor() ? buttons.icon(vsCodeIconMarkup) : fileIcon("editor");
     function choose(target) {
       fileOpenTarget = target;
@@ -624,20 +653,20 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       void openArtifact(artifact, target === "files");
     }
     return {
-      heading: "Open with", menuLabel: "Open with", collapseLabel: true,
+      heading: "Open with", menuLabel: "Open with", collapseLabel: false,
       menuButton: { title: "Open with", "data-focus-key": "open-with-" + artifact.id },
       positioning: { position: "below", align: "end" },
       button: {
-        children: label, "aria-label": label, title: label, size: "small", appearance: "secondary",
+        children: "Edit", "aria-label": label, title: label, size: "small", appearance: "primary",
         icon: native ? fileIcon("files") : editorIcon,
-        disabled: native ? pendingFilesLaunches.has(artifact.id) : editorSettingsSaving || pendingEditorLaunches.has(artifact.id),
+        disabled: opening || (!native && editorSettingsSaving),
         onClick: () => openArtifact(artifact, native),
       },
       items: [
         { id: "files", label: "Files", icon: fileIcon("files"),
-          disabled: pendingFilesLaunches.has(artifact.id), onClick: () => choose("files") },
+          disabled: opening, onClick: () => choose("files") },
         { id: "editor", label: selectedEditorLabel(), icon: editorIcon,
-          disabled: editorSettingsSaving || pendingEditorLaunches.has(artifact.id), onClick: () => choose("editor") },
+          disabled: opening || editorSettingsSaving, onClick: () => choose("editor") },
       ],
     };
   }
@@ -648,8 +677,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const identity = element("div", undefined, header, "build-file-identity");
     const heading = element("div", undefined, identity, "build-file-heading");
     element(headingTag, artifactLabel(artifact), heading);
-    buttons.renderComponent(element("span", undefined, heading, "build-readonly-badge"),
-      "Badge", { appearance: "outline", children: "Read-only" });
+    const previewLabel = element("span", undefined, heading, "build-preview-badge");
+    const previewIcon = element("span", undefined, previewLabel, "build-file-action-icon build-icon-preview");
+    previewIcon.setAttribute("aria-hidden", "true");
+    previewLabel.append("Preview");
     element("code", artifact.path, identity, "build-source-path");
     const actions = buttons.actionGroup(header, { className: "build-actions build-file-actions", "aria-label": "File actions" });
     const open = buttons.split(fileOpenProps(artifact));
@@ -676,12 +707,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       buttons.append(actions, more);
     }
     element("div", undefined, row, "build-handoff-feedback").dataset.artifactId = artifact.id;
-    if (supportsDocuments && ["tool", "contract", "policy"].includes(artifact.id)) {
-      buttons.renderComponent(element("div", undefined, row, "build-warning"), "MessageBar", {
-        intent: "warning", role: "status",
-        children: "Developer-owned enforcement. Test changes and rebuild cloud images before deployment.",
-      });
-    }
     if (supportsDocuments && artifact.id === "runtime") {
       try {
         const config = JSON.parse(artifact.content);
@@ -747,7 +772,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     for (const area of areas) {
       const members = matches.filter(project => {
         const primaryArea = areas.find(candidate =>
-          project.artifacts.some(artifact => artifact.customizationArea === candidate.id)) ?? areas.at(-1);
+          project.artifacts.some(artifact => artifactCategory(artifact) === candidate.id)) ?? areas.at(-1);
         return primaryArea.id === area.id;
       });
       if (!members.length) continue;
@@ -859,7 +884,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     updateFileOverflow = undefined;
     if (adding) { renderAddForm(); return; }
     if (!artifact) return;
-    const area = areas.find((item) => item.id === artifact.customizationArea) ?? areas.at(-1);
+    const area = areas.find((item) => item.id === artifactCategory(artifact)) ?? areas.at(-1);
     contentPanel.dataset.areaId = area.id;
     const header = element("div", undefined, contentPanel, "build-area-header");
     const parentName = project && (members.length > 1 || artifact.projectPath || artifact.projectName) ? project.name : undefined;
@@ -1139,7 +1164,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const title = element("div", undefined, intro, "build-heading-title");
     element("h2", "Build your app", title);
     renderHelp(title);
-    element("p", "Edit code, add building blocks, and configure tools, runtime, and policies.", intro);
+    element("p", "Preview code, edit files, and add building blocks.", intro);
     const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
     if (typeof onRun === "function") {
       const quickRun = button(headerActions, "Run & Debug", onRun);
@@ -1251,6 +1276,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   async function show({ refresh = false } = {}) {
     clearTimeout(refreshTimer);
     if (restoreOnShow && workspace?.isConnected) {
+      const browser = workspace.querySelector(".build-browser");
+      const divider = workspace.querySelector(".build-divider");
+      if (browser && divider && !disposeSplitPane) resizePanes(browser, divider);
       container.scrollTop = panelScroll;
       for (const source of workspace.querySelectorAll(".build-source-preview")) {
         const artifact = artifacts.find(item => item.id === source.dataset.artifactId);
@@ -1265,7 +1293,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     let loading;
     if (!refresh || !container.childElementCount) {
       rememberView();
-      restoreOnShow = true;
       disposeSplitPane?.();
       buttons.clear(container);
       container.replaceChildren();
@@ -1280,7 +1307,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       }
       container.querySelector(":scope > .build-error")?.remove();
       const next = state.artifacts.filter((artifact) => artifact.available
-        && (!artifact.customizationArea || areas.some((area) => area.id === artifact.customizationArea)));
+        && areas.some((area) => area.id === artifactCategory(artifact)));
       const signature = JSON.stringify([next, state.supportsDocuments, state.diagnostics]);
       if (refresh && workspace?.isConnected && renderedState === signature) {
         updateEditorControls();
@@ -1325,6 +1352,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     clearTimeout(refreshTimer);
     refreshing = false;
     rememberView();
+    restoreOnShow = true;
     disposeSplitPane?.();
   }
   return { show, hide, setEditorSettings };

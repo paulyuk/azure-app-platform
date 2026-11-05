@@ -82,7 +82,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
     const nav = page.getByRole("navigation", { name: "Build files", exact: true });
     await nav.waitFor();
     assert.equal(await nav.locator("[data-file-choice]").count(), 34);
-    assert.deepEqual(await nav.locator("summary").allTextContents(), ["Behavior (1)", "Tools (32)", "Source (1)"]);
+    assert.deepEqual(await nav.locator("summary").allTextContents(), ["Agents (1)", "Hosted Skills (32)", "Source (1)"]);
     assert.equal(await page.locator(".build-source-preview:visible").count(), 3,
       "The default Stack view shows all files in the collection");
     assert.equal(await nav.getByRole("button", { name: "Agent", exact: true }).count(), 1);
@@ -93,12 +93,12 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
     assert.equal(await filter.getAttribute("aria-controls"), "build-file-results");
     if (mode === "starter only") {
       await page.locator(".build-source-preview").first().evaluate(node => { window.unfilteredPreview = node; });
-      await nav.locator("summary").filter({ hasText: "Tools (32)" }).press("Enter");
+      await nav.locator("summary").filter({ hasText: "Hosted Skills (32)" }).press("Enter");
       await page.waitForFunction(() => !document.querySelectorAll(".build-category")[1].open);
       await filter.fill(" SRC/SKILLS/TOOL-20/ ");
       assert.equal(await nav.locator("[data-file-choice]").count(), 1, "Filtering matches full paths without case or surrounding whitespace");
       assert.equal(await choice("tool-20").isVisible(), true, "Search expands matching collapsed categories");
-      assert.deepEqual(await nav.locator("summary").allTextContents(), ["Tools (1)"]);
+      assert.deepEqual(await nav.locator("summary").allTextContents(), ["Hosted Skills (1)"]);
       assert.equal(await page.locator(".build-filter-status").textContent(), "1 of 34 collections");
       assert.ok(await page.locator(".build-source-preview").first().evaluate(node => node === window.unfilteredPreview),
         "Filtering leaves the selected source node intact even when its file is hidden");
@@ -116,7 +116,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
       assert.equal(await filter.inputValue(), "");
       assert.equal(await nav.locator("[data-file-choice]").count(), 34);
       assert.equal(await choice("tool-20").isVisible(), false, "Clearing search restores category expansion preferences");
-      await nav.locator("summary").filter({ hasText: "Tools (32)" }).press("Enter");
+      await nav.locator("summary").filter({ hasText: "Hosted Skills (32)" }).press("Enter");
       await filter.fill("tool-20");
       artifacts[0].title = "Updated agent instructions";
       await page.getByRole("button", { name: "Refresh source", exact: true }).click();
@@ -134,7 +134,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
       assert.deepEqual(await pages.getByRole("button").allTextContents(), ["system.md", "main.py", "agent.yaml"]);
       await filter.fill("agent.yaml");
       assert.equal(await nav.locator("[data-file-choice]").count(), 1);
-      assert.deepEqual(await nav.locator("summary").allTextContents(), ["Behavior (1)"],
+      assert.deepEqual(await nav.locator("summary").allTextContents(), ["Agents (1)"],
         "Matching a runtime file does not move or duplicate its parent collection");
       await choice("agent").click();
       assert.equal(await pages.getByRole("button", { name: "agent.yaml", exact: true }).getAttribute("aria-pressed"), "true",
@@ -257,7 +257,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
       }
       await page.getByRole("button", { name: "Adjust with AI", exact: true }).click();
     }
-    await page.getByRole("button", { name: "Open in VS Code", exact: true }).click();
+    await page.getByRole("button", { name: "Edit in VS Code", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "Opened the worktree and file" }).waitFor();
     await page.getByRole("textbox", { name: "What should change?", exact: true }).fill("Validate the request.");
     await filter.fill("server.mjs");

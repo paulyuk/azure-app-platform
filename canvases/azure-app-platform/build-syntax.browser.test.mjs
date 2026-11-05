@@ -134,7 +134,7 @@ test("Build renders accessible, scrollable and injection-safe source previews", 
     assert.notEqual(lightKeyword, darkKeyword);
 
     await page.locator('[data-file-choice="json"]').click();
-    const runtime = page.locator('.build-area[data-area-id="runtime"]');
+    const runtime = page.locator('.build-area[data-area-id="application"]');
     const jsonDisclosure = runtime.locator('.build-file-source[data-preview-for="json"]');
     assert.equal(await jsonDisclosure.isVisible(), true);
     const jsonPreview = page.getByRole("region", { name: "App configuration source preview", exact: true });
@@ -144,7 +144,7 @@ test("Build renders accessible, scrollable and injection-safe source previews", 
     assert.ok(await jsonPreview.locator(".property").count() > 0);
 
     await page.locator('[data-file-choice="plain"]').click();
-    const policies = page.locator('.build-area[data-area-id="policies"]');
+    const policies = page.locator('.build-area[data-area-id="sandbox"]');
     const plainDisclosure = policies.locator('.build-file-source[data-preview-for="plain"]');
     assert.equal(await plainDisclosure.isVisible(), true);
     const plainPreview = page.getByRole("region", { name: "Custom source source preview", exact: true });
