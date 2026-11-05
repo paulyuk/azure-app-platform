@@ -986,7 +986,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const logsTrigger = buttons.create({
       id: "run-diagnostics-toggle", appearance: "secondary", size: "small", icon: buttons.icon(ICONS.terminal),
       "aria-label": "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
-      "aria-describedby": "diagnostics-status",
       onClick: () => runWorkspace.toggleDiagnostics(),
     });
     buttons.append(headerActions, logsTrigger);

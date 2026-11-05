@@ -216,8 +216,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator(".agent-status-brief").getAttribute("data-state"), "ready");
       assert.equal(await page.locator("#status").getAttribute("role"), "status");
       assert.match(await page.locator("#status").getAttribute("class"), /visually-hidden/);
-      assert.equal(await page.locator("#diagnostics-status").isVisible(), false);
-      assert.doesNotMatch(await page.locator("#diagnostics-status").textContent(), /failed|timeout/i,
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
+      assert.equal(await page.locator("#run-diagnostics-toggle .logs-warning-badge").count(), 0,
         "Failed HTTP invocation history must not become a global Operations failure.");
       await result.getByRole("button", { name: "View logs", exact: true }).click();
       await page.locator('[data-run-tab="operations"]').click();
@@ -249,9 +249,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       available = false;
       await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
-      await page.waitForFunction(() => document.querySelector("#diagnostics-status")?.textContent.includes("1 failed operation"));
-      assert.match(await page.locator("#diagnostics-status").innerText(), /Synthetic runtime failure/);
-      assert.doesNotMatch(await page.locator("#diagnostics-status").innerText(), /2 failed operations/);
+      await page.waitForFunction(() => {
+        const label = document.querySelector("#run-diagnostics-toggle")?.getAttribute("aria-label") || "";
+        return label.includes("Synthetic runtime failure") && label.includes("1 failed operation");
+      });
+      assert.doesNotMatch(await page.locator("#run-diagnostics-toggle").getAttribute("aria-label"), /2 failed operations/);
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
       assert.match(await result.innerText(), /<script>not executable<\/script>/,
         "An independent runtime problem must not replace the retained invocation error.");
       assert.deepEqual(errors, []);

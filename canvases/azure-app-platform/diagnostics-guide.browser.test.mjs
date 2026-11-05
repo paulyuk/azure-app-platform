@@ -62,7 +62,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       await logs.click();
       assert.equal(await support.isVisible(), true);
-      assert.equal(await page.locator("#diagnostics-status").innerText(), "1 failed operation in Operations.");
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
       await page.locator('[data-run-disclosure="failed"] > summary').click();
       assert.match(await page.locator('[data-run-disclosure="failed"]').innerText(), /Forbidden/);
       await Promise.all([
@@ -76,7 +76,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(scans.length, 1);
       assert.equal(await dock.isVisible(), false);
       await page.locator("#manage-app").click();
-      assert.equal(await page.locator("#diagnostics-status").isVisible(), true, "Run retains its real failure strip");
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
+      assert.equal(await logs.locator(".logs-warning-badge").isVisible(), true,
+        "Run retains the real failure badge without a separate strip");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }
   });
@@ -215,7 +217,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       fixture.state.commands = [];
       fixture.state.outputError = true;
       await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Logs unavailable"));
-      assert.equal(await page.locator("#diagnostics-status").isVisible(), true);
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
       fixture.state.outputError = false;
       await badge.waitFor({ state: "detached" });
       fixture.state.app = "failed";
@@ -361,11 +363,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await toggle.click();
       fixture.state.outputError = true;
       fixture.state.commands[0].status = "failed";
-      await page.waitForFunction(() => document.querySelector("#diagnostics-status").textContent.includes("Logs unavailable"));
-      assert.equal(await page.locator("#diagnostics-status").isVisible(), true);
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Logs unavailable"));
+      assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
       assert.equal(await support.isVisible(), false);
       fixture.state.outputError = false;
-      await page.waitForFunction(() => document.querySelector("#diagnostics-status").textContent.includes("1 failed operation"));
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("1 failed operation"));
       assert.equal(await support.isVisible(), false, "Failures stay explicit without forcing the pane open.");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }

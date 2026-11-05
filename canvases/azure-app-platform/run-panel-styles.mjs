@@ -140,9 +140,6 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .run-workspace { display:flex; flex-direction:column; height:100%; max-width:none; min-height:0; }
 #details[data-mode="manage"] .run-primary { flex:1; min-height:0; min-width:0; overflow:auto; padding:16px 12px; scrollbar-gutter:stable; }
 #details[data-mode="manage"] .run-primary > * { max-width:960px; margin-inline:auto; }
-#details[data-mode="manage"] .run-diagnostics-toolbar { display:flex; flex:none; align-items:center; justify-content:space-between; gap:8px; padding:4px 12px; border-top:1px solid var(--studio-line); background:var(--studio-panel); }
-#details[data-mode="manage"] .run-diagnostics-toolbar button { flex:none; }
-#details[data-mode="manage"] .run-diagnostics-status { min-width:0; color:var(--studio-danger); font-size:11px; overflow-wrap:anywhere; max-height:54px; overflow:auto; }
 #details[data-mode="manage"] .run-diagnostics-resizer { flex:none; height:8px; cursor:row-resize; touch-action:none; background:var(--studio-panel); position:relative; }
 #details[data-mode="manage"] .run-diagnostics-resizer::after { content:""; position:absolute; width:40px; height:2px; top:3px; left:calc(50% - 20px); background:var(--studio-muted); border-radius:2px; }
 #details[data-mode="manage"] .run-diagnostics-resizer:hover, #details[data-mode="manage"] .run-diagnostics-resizer:focus-visible { background:var(--studio-accent-soft); outline:2px solid var(--studio-focus); outline-offset:-2px; }

@@ -439,11 +439,10 @@ Resizing the window clamps its displayed size without losing the
 preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
 and disclosures survive close/reopen, navigation and lifecycle polling for the current
-visit. Closing it does not stop output polling. Unavailable logs and failed operation
-counts stay visible in the lower warning strip outside Build; Build hides the closed
-strip to keep source browsing focused. A red warning-sign badge on Logs still reports
-these issues and runtime/readiness failures in every workspace; its accessible label
-explains them. Invocation errors remain in their result. The badge clears when the reported issues clear,
+visit. Closing it does not stop output polling or hide errors: a red warning-sign
+badge on Logs reports unavailable logs, failed operation counts and runtime/readiness
+failures without a separate lower warning strip; its accessible label explains them.
+Invocation errors remain in their result. The badge clears when the reported issues clear,
 and does not treat an ordinarily stopped app as a failure. Output continues polling
 from every workspace. Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.

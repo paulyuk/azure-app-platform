@@ -44,7 +44,7 @@ export function createRunWorkspace({
     const heightAvailable = Math.max(0, shell.parentElement.getBoundingClientRect().bottom -
       primaryWorkspace.getBoundingClientRect().top);
     const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
-    const chrome = shell.querySelector(".run-diagnostics-toolbar").offsetHeight + 8;
+    const chrome = 8;
     const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55), heightAvailable - chrome - primaryReserve));
     const minimum = Math.min(120, maximum);
     const size = Math.round(Math.max(minimum, Math.min(maximum, height)));
@@ -73,10 +73,6 @@ export function createRunWorkspace({
       outputError && "Logs unavailable: " + outputError,
       failures > 0 && failures + (failures === 1 ? " failed operation" : " failed operations") + " in Operations.",
     ].filter(Boolean).join(" ");
-    const status = shell.querySelector("#diagnostics-status");
-    if (status.textContent !== issues) status.textContent = issues;
-    status.hidden = !issues;
-    status.parentElement.hidden = !issues;
     onDiagnosticsChange({ open: diagnosticsOpen, issues });
     sizeDiagnostics();
   }
@@ -256,10 +252,6 @@ export function createRunWorkspace({
       const shell = diagnosticsContainer;
       const connected = Boolean(readiness?.gatewayConfigured);
 
-      const toolbar = text(shell, "div", "", "run-diagnostics-toolbar");
-      const status = text(toolbar, "span", "", "run-diagnostics-status");
-      status.id = "diagnostics-status";
-      status.setAttribute("role", "status");
       const separator = text(shell, "div", "", "run-diagnostics-resizer");
       separator.setAttribute("role", "separator");
       separator.setAttribute("aria-label", "Resize Diagnostics");
