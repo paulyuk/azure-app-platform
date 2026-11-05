@@ -453,7 +453,8 @@ Superseded or explicitly cancelled Azure scans remain in Operations as **Cancell
 not failed operations; timeouts and real discovery errors still count as failures.
 The Status Brief retains truthful runtime, agent, request and failure information.
 Its bordered summary card places the current state icon, title and explanation
-above a shaded three-column row for **Runtime**, **Agent** and **Connection**.
+above a shaded three-column row for **Runtime**, **Agent** and **Connection**
+(stacking into full-width rows on narrower views of 620px or less).
 The facts remain an accessible definition list, with theme-owned horizontal and
 vertical dividers and wrapping values at compact widths, not a second readiness
 claim or a table of invented checks.

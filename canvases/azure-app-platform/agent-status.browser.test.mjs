@@ -88,7 +88,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await disclosure.evaluate(node => node.open), true);
       assert.equal(await disclosure.locator("pre").evaluate(node => node.scrollTop), 70);
       assert.equal(await connection.evaluate(node => node === document.activeElement), true);
-      for (const width of [320, 380, 620]) {
+      for (const width of [320, 380, 620, 621, 800]) {
         await page.setViewportSize({ width, height: 480 });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
@@ -97,14 +97,21 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const actions = node.querySelector(".agent-status-actions").getBoundingClientRect();
             const shortcut = node.querySelector(".agent-connection-shortcut").getBoundingClientRect();
             const value = node.querySelector(".agent-connection-shortcut").previousElementSibling.getBoundingClientRect();
+            const cells = [...node.querySelectorAll(".agent-status-facts > div")].map(cell => cell.getBoundingClientRect());
             return {
               right: Math.abs(actions.right - (summary.right - 12)) <= 1,
               inlineConnection: shortcut.left >= value.right && Math.abs(shortcut.top + shortcut.height / 2 - (value.top + value.height / 2)) <= 1,
+              stacked: cells.every((cell, i) => Math.abs(cell.left - cells[0].left) < 1 &&
+                Math.abs(cell.width - cells[0].width) < 1 && (!i || cell.top >= cells[i - 1].bottom - 1)),
+              threeColumns: cells.every(cell => Math.abs(cell.top - cells[0].top) < 1) &&
+                cells[1].left >= cells[0].right - 1 && cells[2].left >= cells[1].right - 1,
               fits: node.scrollWidth <= node.clientWidth && document.documentElement.scrollWidth <= innerWidth,
               secondary: [...node.querySelectorAll("button")].every(button => button.dataset.appearance === "secondary"),
             };
           });
-          assert.ok(geometry.right && geometry.inlineConnection && geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.right && geometry.inlineConnection &&
+            (width <= 620 ? geometry.stacked : geometry.threeColumns) &&
+            geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
         }
       }
       await page.setViewportSize({ width: 620, height: 800 });
@@ -492,11 +499,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         assert.equal(await status.locator(".agent-status-icon").getAttribute("data-tone"), tone);
         assert.equal(await status.locator(".agent-status-icon").getAttribute("aria-hidden"), "true");
         if (state === "failed") assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
-        for (const width of [320, 380, 620]) {
+        for (const width of [320, 380, 620, 621, 800, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
             await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-            const geometry = await status.evaluate(node => {
+            const geometry = await status.evaluate((node, stacked) => {
               const style = getComputedStyle(node), box = node.getBoundingClientRect();
               const summary = node.querySelector(".agent-status-summary"), facts = node.querySelector("dl");
               const cells = [...facts.children], boxes = cells.map(cell => cell.getBoundingClientRect());
@@ -504,18 +511,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 bounded: ["Top", "Right", "Bottom", "Left"].every(side => style["border" + side + "Width"] === "1px") &&
                   parseFloat(style.borderRadius) > 0,
                 divided: getComputedStyle(facts).borderTopWidth === "1px" &&
-                  cells.slice(1).every(cell => getComputedStyle(cell).borderInlineStartWidth === "1px"),
+                  cells.slice(1).every(cell => stacked
+                    ? getComputedStyle(cell).borderTopWidth === "1px" && getComputedStyle(cell).borderInlineStartWidth === "0px"
+                    : getComputedStyle(cell).borderInlineStartWidth === "1px" && getComputedStyle(cell).borderTopWidth === "0px"),
                 shaded: getComputedStyle(facts).backgroundColor !== getComputedStyle(summary).backgroundColor,
                 summaryFirst: summary.getBoundingClientRect().bottom <= facts.getBoundingClientRect().top,
-                threeColumns: boxes.every(cell => Math.abs(cell.top - boxes[0].top) < 1 &&
-                  Math.abs(cell.height - boxes[0].height) < 1) && boxes[1].left >= boxes[0].right - 1 &&
-                  boxes[2].left >= boxes[1].right - 1,
+                cellLayout: stacked
+                  ? boxes.every((cell, i) => Math.abs(cell.left - boxes[0].left) < 1 &&
+                    Math.abs(cell.width - boxes[0].width) < 1 && (!i || cell.top >= boxes[i - 1].bottom - 1))
+                  : boxes.every(cell => Math.abs(cell.top - boxes[0].top) < 1 &&
+                    Math.abs(cell.height - boxes[0].height) < 1) && boxes[1].left >= boxes[0].right - 1 &&
+                    boxes[2].left >= boxes[1].right - 1,
                 fits: box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth &&
                   document.documentElement.scrollWidth <= innerWidth &&
                   cells.every(cell => cell.scrollWidth <= cell.clientWidth),
                 icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none",
               };
-            });
+            }, width <= 620);
             assert.ok(Object.values(geometry).every(Boolean), JSON.stringify({ width, theme, state, geometry }));
           }
         }

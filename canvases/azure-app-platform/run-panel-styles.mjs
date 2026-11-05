@@ -34,6 +34,10 @@ export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-facts dt { color:var(--studio-muted); font-weight:600; overflow-wrap:anywhere; }
 #details[data-mode="manage"] .agent-status-facts dd { display:flex; align-items:center; gap:4px; margin:2px 0 0; color:var(--studio-ink); overflow-wrap:anywhere; }
 #details[data-mode="manage"] .agent-status-facts dd > span { min-width:0; }
+@media (max-width:620px) {
+  #details[data-mode="manage"] .agent-status-facts { grid-template-columns:minmax(0,1fr); }
+  #details[data-mode="manage"] .agent-status-facts > div + div { border-inline-start:0; border-top:1px solid var(--studio-line); }
+}
 `;
 
 export const RUN_PANEL_CONTENT_CSS = `
