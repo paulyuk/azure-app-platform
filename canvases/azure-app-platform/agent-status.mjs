@@ -103,12 +103,7 @@ export function createAgentStatusComponent(toolkit) {
         h("span", { className: "agent-status-icon", "data-tone": tone, "aria-hidden": true }),
         h("div", { className: "agent-status-copy" },
           h("h2", { className: "visually-hidden" }, "Status Brief"),
-          h("h3", null,
-            tone === "busy"
-              ? h("span", { className: "ct-spinner agent-status-spinner", "aria-hidden": true },
-                h("span", { className: "ct-spinner-ring", "aria-hidden": true }))
-              : null,
-            title),
+          h("h3", null, title),
           h("p", null, description),
           runtimeError ? h("p", { className: "error" }, "Runtime: " + runtimeError) : null,
           command ? h("pre", { className: "command-code" }, command) : null,

@@ -232,21 +232,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const button = document.querySelector("[data-invoke-agent]");
         const buttonRing = button?.querySelector(".agent-invoke-spinner .ct-spinner-ring");
         const heading = document.querySelector(".agent-status-brief h3");
-        const statusRing = heading?.querySelector(".agent-status-spinner .ct-spinner-ring");
+        const statusIcon = document.querySelector(".agent-status-brief .agent-status-icon");
+        const iconMask = statusIcon ? (getComputedStyle(statusIcon, "::before").maskImage || getComputedStyle(statusIcon, "::before").webkitMaskImage) : "";
         return {
           buttonLabel: button?.textContent.trim(),
           buttonInvoking: button?.dataset.invoking,
           buttonSpin: buttonRing ? getComputedStyle(buttonRing).animationName : "",
           buttonColorMatches: Boolean(button && buttonRing && getComputedStyle(buttonRing).borderTopColor === getComputedStyle(button).color),
-          statusSpin: statusRing ? getComputedStyle(statusRing).animationName : "",
-          statusColorMatches: Boolean(heading && statusRing && getComputedStyle(statusRing).borderTopColor === getComputedStyle(heading).color),
+          statusSpinnerCount: document.querySelectorAll(".agent-status-brief .agent-status-spinner").length,
+          statusIconTimer: decodeURIComponent(iconMask).includes('data-octicon="stopwatch"'),
+          statusColorMatches: Boolean(heading && statusIcon && getComputedStyle(statusIcon).backgroundColor === getComputedStyle(heading).color),
         };
       }), {
         buttonLabel: "Invoking agent…",
         buttonInvoking: "true",
         buttonSpin: "ct-spin",
         buttonColorMatches: true,
-        statusSpin: "ct-spin",
+        statusSpinnerCount: 0,
+        statusIconTimer: true,
         statusColorMatches: true,
       });
       assert.equal(await prompt.isDisabled(), true);
