@@ -474,8 +474,8 @@ status Badge sits immediately after the app name, including **Running locally** 
 running, accent blue checking/active operation, amber preview/partial startup, and
 red failure; explicit labels accompany theme-owned colors in both themes.
 The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
-is top-right on the main-menu row across workspaces: **Start app** / **Start preview**
-when ready or **Stop app** / **Stop preview** when running. The menu wraps within
+is top-right on the main-menu row across workspaces: **Run app** / **Run preview**
+with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running. The menu wraps within
 its own left-side space without displacing the control. Task actions retain only
 **Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy

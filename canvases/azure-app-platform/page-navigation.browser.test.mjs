@@ -43,7 +43,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const mode = async expected => {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
         const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
-        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Start app" : "Stop app");
+        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "Stop app");
+        assert.equal(await action.locator('svg[data-octicon="play"]').count(), fixture.state.app === "stopped" ? 1 : 0);
         assert.equal(await action.getAttribute("data-appearance"), "primary");
         assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
         assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);

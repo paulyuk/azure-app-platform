@@ -1943,7 +1943,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
   assert.match(html, /Running locally/);
-  assert.match(html, /Start preview/);
+  assert.match(html, /Run preview/);
   assert.match(html, /Stop app/);
   assert.match(html, /function updateAppStatusBadge/);
   assert.match(html, /aria-label="Collapse Guide"/);

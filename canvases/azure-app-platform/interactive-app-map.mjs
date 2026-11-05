@@ -965,6 +965,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const appStatusBadge = document.querySelector("#app-status-control");
     let runtimeStatusKey = "";
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
+    const runtimePlayIcon = buttons.icon(ICONS.play);
     buttons.update(headerRuntimeAction, { size: "small" });
     const headerActions = document.createElement("div");
     headerActions.id = "workspace-header-actions";
@@ -1382,12 +1383,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         disabled = true;
       } else if (operationalState.readiness?.ready) {
         actionLabel = operationalState.readiness.mode === "preview"
-          ? "Start preview"
-          : "Start app";
+          ? "Run preview"
+          : "Run app";
         operation = "run-local";
       }
-      buttons.setText(headerRuntimeAction, actionLabel);
-      buttons.setDisabled(headerRuntimeAction, disabled);
+      buttons.update(headerRuntimeAction, {
+        children: actionLabel, icon: operation === "run-local" ? runtimePlayIcon : null, disabled,
+      });
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
       headerRuntimeAction.title = actionLabel;

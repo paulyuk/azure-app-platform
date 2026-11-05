@@ -306,8 +306,8 @@ current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
 button. **Open app** remains in the existing header utilities. The app lifecycle
-control sits at the top right of the same row as the main menu: **Start app** when
-stopped and ready, **Stop app** when running. The menu wraps within its own space on
+control sits at the top right of the same row as the main menu: **Run app** with a
+filled play glyph when stopped and ready, **Stop app** when running. The menu wraps within its own space on
 narrow panes, keeping the lifecycle control aligned with its first row.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
@@ -411,7 +411,7 @@ operations, amber for preview/partial startup, and red for failure, with readabl
 state labels and theme-owned colors in light and dark. Activating it opens Run.
 The same small primary toolkit
 lifecycle control stays to the right of Build / Connect / Run / Observe / Deploy
-across workspace visits: **Start app** / **Start preview** or **Stop app** /
+across workspace visits: **Run app** / **Run preview** or **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
 Task actions contain only **Invoke agent** and **Document**, without duplicate
 Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,

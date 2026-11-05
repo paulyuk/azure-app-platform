@@ -158,7 +158,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     assert.equal(await dialog.getByRole("button", { name: "Pick available ports" }).isDisabled(), true);
     await dialog.locator('[data-settings-target="preferences"]').click();
     fixture.state.app = "stopped";
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
     await ports.click();
     assert.equal(await dialog.getByRole("button", { name: "Pick available ports" }).isEnabled(), true,
       "Reopening a setting uses current lifecycle state");
@@ -167,7 +167,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate((el) => el === document.activeElement), true);
     assert.equal(await message.inputValue(), "Find an SUV under $35,000.");
     fixture.state.app = "stopped";
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await dialog.locator('[data-settings-target="danger"]').click();
     await dialog.getByRole("button", { name: "Delete local app..." }).click();
@@ -305,7 +305,7 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     })), { tag: "BUTTON", label: "Deploy", tab: "deployment" },
     "Auto-revealing Output keeps keyboard focus on the initiating tab");
     fixture.state.app = "stopped";
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
     await deploy.click();
     await page.getByRole("button", { name: "Deploy latest app" }).click();
     await page.waitForFunction(() => document.querySelector("#app-status-badge").textContent.includes("Deploying"));

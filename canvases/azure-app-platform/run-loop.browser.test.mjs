@@ -193,7 +193,7 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"), "Cancel startup");
     assert.equal(await page.locator("#header-runtime-action").isEnabled(), true);
     await page.locator("#header-runtime-action").click();
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Start app");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Run app");
     assert.equal(lifecycleCalls.at(-1), "stop-local");
     await page.getByRole("button", { name: "Run app", exact: true }).first().click();
     await page.waitForFunction(() => document.querySelector(".run-card")?.textContent.includes("Starting your app"));
@@ -227,7 +227,7 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Stop partial startup");
     assert.equal(await page.locator("#app-status-badge").textContent(), "Partial startup");
     await page.locator("#header-runtime-action").click();
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Start app");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Run app");
     assert.equal(lifecycleCalls.at(-1), "stop-local");
     recovered = false;
     appState = "running";

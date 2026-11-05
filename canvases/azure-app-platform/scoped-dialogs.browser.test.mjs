@@ -301,7 +301,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         .getByRole("heading", { name: "Prerequisites & CLI tools", exact: true }).waitFor();
       await page.setViewportSize({ width: 620, height: 800 });
       fixture.state.app = "stopped";
-      await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Start app");
+      await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
       await trigger.click();
       await selectSection(page, "ports");
       assert.equal(await dialog.getByRole("button", { name: "Pick available ports", exact: true }).isEnabled(), true);

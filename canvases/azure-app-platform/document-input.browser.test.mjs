@@ -398,7 +398,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         }
       }
       fixture.state.app = "stopped";
-      await page.getByRole("button", { name: "Start app", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Run app", exact: true }).waitFor();
       await expand();
       await edit.click();
       await text.fill("Draft replaced by a file read");
@@ -411,7 +411,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await text.isDisabled(), true);
       assert.equal(await page.locator("[data-edit-document]").isDisabled(), true);
       assert.equal(await page.getByRole("button", { name: "Add document", exact: true }).isDisabled(), true);
-      const start = page.getByRole("button", { name: "Start app", exact: true });
+      const start = page.getByRole("button", { name: "Run app", exact: true });
       assert.equal(await start.isDisabled(), true, "Global Start retains file-read busy gating");
       await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
       await page.locator("#map-app").click();
@@ -468,7 +468,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await assertDocumentActionPlacement(page);
         assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent", "Document"]);
         assert.equal(await page.locator("#header-runtime-action").innerText(),
-          appState === "running" ? "Stop app" : "Start app");
+          appState === "running" ? "Stop app" : "Run app");
       }
       await invoke.focus();
       await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");

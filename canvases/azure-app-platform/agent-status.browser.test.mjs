@@ -49,7 +49,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await status.count(), 1);
       assert.equal(await page.locator(".run-setup-actions,.run-primary > .run-card").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Connection settings", exact: true }).count(), 0);
-      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("button", { name: "Run app", exact: true }).count(), 1);
       assert.equal(await connection.innerText(), "");
       assert.equal(await connection.locator('svg[data-octicon="link"]').count(), 1);
       assert.equal(await connection.evaluate(node => node.closest("dd").textContent), "gpt-5-mini · dealer-gateway");
@@ -135,7 +135,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await status.getByRole("button", { name: "Stop partial startup", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
       assert.deepEqual(operations.map(item => item.operation), ["run-local", "install-prereq-aca", "stop-local"]);
-      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("button", { name: "Run app", exact: true }).count(), 1);
       fixture.state.app = "failed";
       fixture.state.error = "Simulated ACA installation failure.";
       extraStatus = { command: "curl -fsSL https://aka.ms/aca-cli-install | bash", operation: "configuring" };
@@ -336,6 +336,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await prompt.fill("Retain this event while controlling the app.");
       await prompt.evaluate(node => node.setSelectionRange(3, 10));
       const checkPlacement = async () => {
+        assert.equal(await action.locator('svg[data-octicon="play"]').count(),
+          await action.getAttribute("data-operation") === "run-local" ? 1 : 0);
+        assert.equal(await action.getAttribute("aria-label"), await action.innerText());
+        if (await action.getAttribute("data-operation") === "run-local") {
+          const icon = action.locator('svg[data-octicon="play"]');
+          assert.equal(await icon.getAttribute("aria-hidden"), "true");
+          assert.equal(await icon.getAttribute("focusable"), "false");
+          assert.equal(await icon.getAttribute("fill"), "currentColor");
+          assert.ok(await icon.locator("path").getAttribute("d"));
+          assert.equal(await icon.evaluate(node => getComputedStyle(node).stroke), "none");
+        }
         for (const width of [320, 380, 620, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
@@ -393,12 +404,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
-      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("button", { name: "Run app", exact: true }).count(), 1);
       assert.equal(await prompt.inputValue(), "Retain this event while controlling the app.");
       assert.deepEqual(await prompt.evaluate(node => [node.selectionStart, node.selectionEnd]), [3, 10]);
       await checkPlacement();
       await page.locator("#map-app").click();
-      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("button", { name: "Run app", exact: true }).count(), 1);
       await page.locator("#manage-app").click();
       await action.evaluate(node => { window.retainedRuntimeAction = node; });
       await action.click();
@@ -418,7 +429,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
       assert.equal(await action.innerText(), "Stop preview");
       await action.click();
-      await action.filter({ hasText: "Start preview" }).waitFor();
+      await action.filter({ hasText: "Run preview" }).waitFor();
       assert.deepEqual(operations, ["stop-local", "run-local", "stop-local", "stop-local"]
         .map(operation => ({ root: "/fixture/dealer", operation })));
       fixture.state.app = "failed";
@@ -426,10 +437,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#app-status-badge").filter({ hasText: "Needs attention" }).waitFor();
       assert.match(await page.locator(".run-primary").innerText(), /Simulated lifecycle failure/);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
-      assert.equal(await action.innerText(), "Start preview");
+      assert.equal(await action.innerText(), "Run preview");
       await checkPlacement();
       fixture.state.configured = true;
-      await action.filter({ hasText: "Start app" }).waitFor();
+      await action.filter({ hasText: "Run app" }).waitFor();
       assert.equal(await action.isDisabled(), false);
       await page.route("**/api/local-readiness*", route => route.fulfill({ json: {
         ready: false, gatewayConfigured: false, mode: "full",
