@@ -1442,6 +1442,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const prerequisites = readiness?.prerequisites?.missingTools || [];
       const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
       const actions = [];
+      if (status.state === "failed") {
+        actions.push({ key: "open-logs", label: "Open logs", onClick: () => runWorkspace.openDiagnostics("output") });
+      }
       if (app?.foreignEntrypoints?.length) {
         actions.push({ key: "resolve-ports", label: "Resolve port conflict", onClick: () => openAppSettings("ports") });
       }

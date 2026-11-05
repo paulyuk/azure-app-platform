@@ -79,6 +79,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
       assert.match(await status.innerText(), /Simulated startup failure/);
       assert.match(await status.locator(".command-code").first().innerText(), /aca run --config app.yaml/);
+      const openLogs = status.getByRole("button", { name: "Open logs", exact: true });
+      assert.equal(await openLogs.getAttribute("data-appearance"), "secondary");
       const disclosure = status.locator('[data-run-disclosure="runtime-error"]');
       await disclosure.locator("summary").click();
       await disclosure.locator("pre").evaluate(node => { node.scrollTop = 70; });
@@ -115,6 +117,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         }
       }
       await page.setViewportSize({ width: 620, height: 800 });
+      await openLogs.click();
+      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
+      assert.equal(await page.locator('[data-run-tab="output"]').getAttribute("aria-selected"), "true");
+      await page.locator("#run-diagnostics-toggle").click();
       await status.getByRole("button", { name: "Retry startup", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       assert.deepEqual(operations.at(-1), { root: "/fixture/dealer", operation: "run-local" });
