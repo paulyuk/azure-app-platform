@@ -533,7 +533,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 fits: box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth &&
                   document.documentElement.scrollWidth <= innerWidth &&
                   cells.every(cell => cell.scrollWidth <= cell.clientWidth),
-                icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none",
+                icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none" &&
+                  getComputedStyle(node.querySelector(".agent-status-icon")).backgroundColor !== getComputedStyle(facts).backgroundColor &&
+                  getComputedStyle(node.querySelector(".agent-status-icon")).backgroundColor !== getComputedStyle(summary).backgroundColor,
               };
             }, width <= 620);
             assert.ok(Object.values(geometry).every(Boolean), JSON.stringify({ width, theme, state, geometry }));
