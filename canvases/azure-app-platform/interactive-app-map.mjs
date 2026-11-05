@@ -24,6 +24,7 @@ export const NODE_TIER_ICONS = {
 };
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
+import { createStudioToolkitComponents } from "./studio-toolkit-components.mjs";
 import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
@@ -914,9 +915,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <script>
     (async () => {
     "use strict";
-    let buttons, controlsDisposed = false;
+    let buttons, toolkitComponents, controlsDisposed = false;
     window.addEventListener("pagehide", event => {
-      if (!event.persisted) { controlsDisposed = true; buttons?.dispose(); }
+      if (!event.persisted) {
+        controlsDisposed = true;
+        toolkitComponents?.dispose();
+        buttons?.dispose();
+      }
     });
     let toolkit, toolkitAttempt = 0;
     while (!toolkit && !controlsDisposed) {
@@ -939,6 +944,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     buttons = (${createStudioButtons.toString()})(toolkit);
     window.appPlatformButtons = buttons;
     buttons.mountAll(document);
+    toolkitComponents = (${createStudioToolkitComponents.toString()})(toolkit);
+    window.appPlatformToolkitComponents = toolkitComponents;
     const MODEL = ${safeJson(model)};
     const ICONS = ${safeJson(OCTICON_MARKUP)};
     const TIER_ICONS = ${safeJson(NODE_TIER_ICONS)};
@@ -2088,6 +2095,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         connectionScroll = details.scrollTop;
         gatewayDiscovery.invalidate();
       }
+      toolkitComponents.clear(element);
       buttons.clear(element);
       if (element === details) {
         appLogs?.dispose();
@@ -2161,11 +2169,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function appendField(container, title, control) {
-      const label = document.createElement("label");
-      label.className = "studio-field";
-      appendText(label, "span", title);
-      label.append(control);
-      container.append(label);
+      const field = document.createElement(control.dataset.filterableDropdown === undefined ? "label" : "div");
+      field.className = "studio-field";
+      appendText(field, "span", title);
+      field.append(control);
+      container.append(field);
     }
 
     function workspaceDestination() {
@@ -2497,6 +2505,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       ].join("|");
       const existingFields = container.querySelectorAll("select, button");
       for (const el of existingFields) el.disabled = true;
+      for (const el of container.querySelectorAll("[data-filterable-dropdown]")) el.disabled = true;
       const discovery = gatewayDiscovery.begin(discoveryKey,
         ({ signal } = {}) => apiRequest("/api/gateway-options?" + params, { signal }), refresh);
       let cancelBanner = container.querySelector('[data-discovery-cancel="true"]');
@@ -2516,6 +2525,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           if (!container.isConnected) return;
           cancelBanner.remove();
           for (const el of container.querySelectorAll("select, button")) el.disabled = false;
+          for (const el of container.querySelectorAll("[data-filterable-dropdown]")) el.disabled = false;
           if (!container.querySelector("select")) {
             clearElement(container);
             appendText(container, "p", "Azure scan cancelled.");
@@ -2544,22 +2554,33 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         for (const warning of options.warnings || []) appendText(container, "p", warning, "error");
         const subscriptions = gatewayState.subscriptions || [];
         const subNameById = new Map(subscriptions.map((sub) => [String(sub.id).toLowerCase(), sub.name]));
+        const subscriptionOptions = [
+          {
+            value: "*",
+            label: "All enabled subscriptions",
+            description: "Search gateways or sandbox groups across enabled subscriptions.",
+          },
+          ...subscriptions.map((subscription) => ({
+            value: subscription.id,
+            label: subscription.name + (subscription.isDefault ? " (default)" : "") + " · " + subscription.id,
+          })),
+        ];
 
         const subGroup = appendText(container, "div", "", "field-group");
-        const subscriptionSelect = document.createElement("select");
-        subscriptionSelect.setAttribute("aria-label", "Azure subscription");
-        const allGatewaySubsOption = document.createElement("option");
-        allGatewaySubsOption.value = "*";
-        allGatewaySubsOption.textContent = "All enabled subscriptions";
-        allGatewaySubsOption.selected = gatewayState.subscription?.id === "*";
-        subscriptionSelect.append(allGatewaySubsOption);
-        for (const subscription of subscriptions) {
-          const option = document.createElement("option");
-          option.value = subscription.id;
-          option.textContent = subscription.name + (subscription.isDefault ? " (default)" : "");
-          option.selected = subscription.id === gatewayState.subscription?.id;
-          subscriptionSelect.append(option);
-        }
+        const subscriptionSelect = toolkitComponents.createFilterableDropdown({
+          ariaLabel: "Azure subscription",
+          title: "Azure subscription",
+          searchPlaceholder: "Filter Azure subscriptions by name or ID",
+          placeholder: "Choose an Azure subscription",
+          options: subscriptionOptions,
+          value: gatewayState.subscription?.id || "",
+          onChange: (value) => {
+            selectedSubscriptionId = value;
+            selectedGateway = null;
+            selectedModel = "";
+            void loadGatewayControls(container);
+          },
+        });
         appendField(subGroup, "Azure subscription", subscriptionSelect);
         const subActions = appendText(subGroup, "div", "", "field-actions");
         const refreshGatewayBtn = actionButton("Refresh", () => {
@@ -2567,12 +2588,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         refreshGatewayBtn.setAttribute("aria-label", "Refresh subscriptions & gateways");
         buttons.append(subActions, refreshGatewayBtn);
-        subscriptionSelect.addEventListener("change", () => {
-          selectedSubscriptionId = subscriptionSelect.value;
-          selectedGateway = null;
-          selectedModel = "";
-          void loadGatewayControls(container);
-        });
 
         const gwGroup = appendText(container, "div", "", "field-group");
         const select = document.createElement("select");
@@ -2723,22 +2738,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             }));
           }
         }
-
         const sbSubGroup = appendText(container, "div", "", "field-group");
-        const sandboxSubSelect = document.createElement("select");
-        sandboxSubSelect.setAttribute("aria-label", "Sandbox subscription");
-        const allSubsOption = document.createElement("option");
-        allSubsOption.value = "*";
-        allSubsOption.textContent = "All enabled subscriptions";
-        allSubsOption.selected = selectedSandboxSubscriptionId === "*";
-        sandboxSubSelect.append(allSubsOption);
-        for (const subscription of subscriptions) {
-          const option = document.createElement("option");
-          option.value = subscription.id;
-          option.textContent = subscription.name + (subscription.isDefault ? " (default)" : "");
-          option.selected = subscription.id === selectedSandboxSubscriptionId;
-          sandboxSubSelect.append(option);
-        }
+        const sandboxSubSelect = toolkitComponents.createFilterableDropdown({
+          ariaLabel: "Sandbox subscription",
+          title: "Sandbox subscription",
+          searchPlaceholder: "Filter sandbox subscriptions by name or ID",
+          placeholder: "Choose a sandbox subscription",
+          options: subscriptionOptions,
+          value: selectedSandboxSubscriptionId,
+          onChange: (value) => {
+            selectedSandboxSubscriptionId = value;
+            selectedSandboxChoice = "";
+            void loadGatewayControls(container);
+          },
+        });
         appendField(sbSubGroup, "Sandbox subscription", sandboxSubSelect);
         const sbSubActions = appendText(sbSubGroup, "div", "", "field-actions");
         const refreshSandboxBtn = actionButton("Refresh", () => {
@@ -2746,11 +2759,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
         refreshSandboxBtn.setAttribute("aria-label", "Refresh sandbox groups");
         buttons.append(sbSubActions, refreshSandboxBtn);
-        sandboxSubSelect.addEventListener("change", () => {
-          selectedSandboxSubscriptionId = sandboxSubSelect.value;
-          selectedSandboxChoice = "";
-          void loadGatewayControls(container);
-        });
 
         const sbGroup = appendText(container, "div", "", "field-group");
         const sandboxGroups = options.sandboxGroups || [];

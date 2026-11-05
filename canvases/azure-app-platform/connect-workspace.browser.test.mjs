@@ -22,6 +22,21 @@ function gatewayOptions(url, { models = true } = {}) {
   };
 }
 
+async function chooseSubscription(page, scope, { label, searchLabel, query, option }) {
+  const trigger = scope.getByRole("button", { name: label, exact: true });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const search = page.getByRole("textbox", { name: searchLabel, exact: true });
+  await search.waitFor();
+  await search.fill(query);
+  const panel = search.locator("xpath=ancestor::*[contains(@class, 'ct-select-panel')]");
+  const match = panel.getByRole("option", { name: option });
+  await match.waitFor();
+  assert.equal(await panel.getByRole("option").count(), 1);
+  await search.press("ArrowDown");
+  await page.keyboard.press("Enter");
+}
+
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
   test(`Connect owns gateway configuration, scopes, retained selections and apply in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
@@ -56,20 +71,32 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await connect.click();
       const content = page.locator(".gateway-connection-page");
       const field = label => content.getByRole("combobox", { name: label, exact: true });
+      const subscription = label => content.getByRole("button", { name: label, exact: true });
       await field("AI Gateway").waitFor();
       assert.equal(await page.locator("dialog[open]").count(), 0);
       assert.equal(await page.locator("#graph-shell").isVisible(), false);
       assert.equal(await connect.getAttribute("aria-current"), "page");
       assert.equal(await page.locator("#workspace-location").textContent(), "Connect");
-      for (const label of ["Azure subscription", "AI Gateway", "AI model", "Sandbox subscription", "ACA Sandbox Group"]) {
+      for (const label of ["AI Gateway", "AI model", "ACA Sandbox Group"]) {
         assert.equal(await field(label).isVisible(), true);
       }
+      for (const label of ["Azure subscription", "Sandbox subscription"]) {
+        assert.equal(await subscription(label).isVisible(), true);
+      }
+      assert.equal(await content.locator(
+        'select[aria-label="Azure subscription"], select[aria-label="Sandbox subscription"]',
+      ).count(), 0);
       for (const label of ["Refresh subscriptions & gateways", "Refresh sandbox groups", "Create Gateway", "Create Sandbox Group", "Apply"]) {
         assert.equal(await content.getByRole("button", { name: label, exact: true }).isEnabled(), true);
       }
-      await field("Azure subscription").selectOption("sub-b");
+      await chooseSubscription(page, content, {
+        label: "Azure subscription",
+        searchLabel: "Filter Azure subscriptions by name or ID",
+        query: "sub-b",
+        option: /Subscription B .* sub-b/,
+      });
       await page.waitForFunction(() => document.querySelector('.gateway-connection-page [aria-label="AI Gateway"] option[value="0"]')?.textContent.includes("sub-b"));
-      assert.equal(await field("Sandbox subscription").inputValue(), "sub-a");
+      assert.match(await subscription("Sandbox subscription").textContent(), /Subscription A .* sub-a/);
       await field("AI Gateway").selectOption("1");
       await field("AI model").getByRole("option", { name: "GPT Alternate", exact: true }).waitFor({ state: "attached" });
       await field("AI model").selectOption("gpt-alternate");
@@ -89,7 +116,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await draft.inputValue(), "Keep this document-backed event.");
       await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();
       await field("AI Gateway").waitFor();
-      assert.equal(await field("Azure subscription").inputValue(), "sub-b");
+      assert.match(await subscription("Azure subscription").textContent(), /Subscription B .* sub-b/);
       assert.equal(await field("AI Gateway").inputValue(), "1");
       assert.equal(await field("AI model").inputValue(), "gpt-alternate");
       assert.equal(await field("ACA Sandbox Group").inputValue(), "0");
@@ -99,6 +126,18 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const settings = page.getByRole("dialog", { name: "Settings", exact: true });
       await settings.getByRole("combobox", { name: "AI model", exact: true }).waitFor();
       assert.equal(await settings.getByRole("combobox", { name: "AI model", exact: true }).inputValue(), "gpt-alternate");
+      await chooseSubscription(page, settings, {
+        label: "Azure subscription",
+        searchLabel: "Filter Azure subscriptions by name or ID",
+        query: "Subscription B",
+        option: /Subscription B .* sub-b/,
+      });
+      await chooseSubscription(page, settings, {
+        label: "Sandbox subscription",
+        searchLabel: "Filter sandbox subscriptions by name or ID",
+        query: "sub-a",
+        option: /Subscription A .* sub-a/,
+      });
       await settings.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).selectOption("local-simulation");
       await page.keyboard.press("Escape");
       await settings.waitFor({ state: "hidden" });
@@ -150,6 +189,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       delay = true;
       await content.getByRole("button", { name: "Refresh subscriptions & gateways", exact: true }).click();
       await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).waitFor();
+      assert.equal(await content.getByRole("button", { name: "Azure subscription", exact: true }).isDisabled(), true);
       await page.locator("#manage-app").click();
       delay = false;
       release();
@@ -168,6 +208,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
           assert.equal(await content.evaluate(node => document.documentElement.scrollWidth <= innerWidth &&
             node.scrollWidth <= node.clientWidth + 1), true);
+          await content.getByRole("button", { name: "Azure subscription", exact: true }).click();
+          const search = page.getByRole("textbox", {
+            name: "Filter Azure subscriptions by name or ID", exact: true,
+          });
+          await search.waitFor();
+          assert.equal(await search.evaluate(node => {
+            const panel = node.closest(".ct-select-panel");
+            const box = panel.getBoundingClientRect();
+            return box.left >= 0 && box.right <= innerWidth && panel.scrollWidth <= panel.clientWidth + 1;
+          }), true);
+          await page.keyboard.press("Escape");
         }
       }
       assert.deepEqual(fixture.mutations, []);

@@ -1,4 +1,5 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
+import { STUDIO_FILTERABLE_DROPDOWN_CSS } from "./studio-toolkit-components.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
 import { octiconMask } from "./studio-icons.mjs";
 
@@ -196,6 +197,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
   #details[data-mode="manage"] .run-open-app, #details[data-mode="manage"] .run-section-actions { align-items:flex-start; flex-wrap:wrap; }
   #details[data-mode="manage"] .run-tab-panel { padding-inline:4px; }
 }
+${STUDIO_FILTERABLE_DROPDOWN_CSS}
 `.replaceAll("#details", ":is(#details, #workspace-diagnostics)");
 
 export const RUN_PANEL_CSS = STUDIO_TABS_CSS + RUN_PANEL_CONTENT_CSS + AGENT_STATUS_CSS;

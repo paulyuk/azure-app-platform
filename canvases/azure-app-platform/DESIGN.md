@@ -653,7 +653,10 @@ it never escalates automatically to newly respawned owners.
 AI model connection defaults to the saved/current subscription and a valid
 gateway with models; model discovery uses the workspace-wide ARM models
 collection across providers. Saved selections are preserved, stale discovery
-cannot overwrite user choices, and empty gateways cannot be applied.
+cannot overwrite user choices, and empty gateways cannot be applied. Connect and
+Settings render subscription choices through the bundled toolkit filterable
+dropdown, matching typed subscription names or IDs without adding a runtime
+dependency.
 Explicit Connect/Apply receives the selected model and validates it before the
 Run summary reports the connection. Creation remains an explicit specialist
 action. Source projects without managed endpoints appear in Components & endpoints

@@ -1201,7 +1201,9 @@ is preselected in Settings, then validated and applied only when the user choose
 **Connect gateway** or **Apply or reconfigure** while the app is stopped. Opening
 Run or Settings never applies model configuration. Failures stay visible and
 require an explicit retry. The subscription and gateway remain editable,
-and **Create or manage gateways** opens specialist setup if no gateway exists.
+with bundled toolkit filterable subscription pickers that match by subscription
+name or ID in both Connect and Settings. **Create or manage gateways** opens
+specialist setup if no gateway exists.
 Once validated, Run shows the connected model/gateway summary. No Azure resources
 are created automatically.
 
