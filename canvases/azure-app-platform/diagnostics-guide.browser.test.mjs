@@ -176,11 +176,27 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       fixture.state.app = "stopped";
       await page.locator("#app-status-badge").filter({ hasText: "Not running" }).waitFor();
       assert.equal(await badge.count(), 0, "A stopped runtime is not an issue.");
+      const restWidth = await logs.evaluate(node => node.getBoundingClientRect().width);
       fixture.state.commands = [{ id: "failed", label: "Simulated task", kind: "http", command: "POST /responses",
         status: "failed", startedAt: 1, durationMs: 10, note: "HTTP 503", output: "Simulated upstream failure" }];
       await badge.waitFor();
       assert.equal(await logs.getAttribute("aria-expanded"), "false");
       assert.match(await logs.getAttribute("aria-label"), /1 failed operation/);
+      const overlay = await logs.evaluate(node => {
+        const button = node.getBoundingClientRect();
+        const icon = node.querySelector('svg[data-octicon="terminal"]').getBoundingClientRect();
+        const warning = node.querySelector(".logs-warning-badge").getBoundingClientRect();
+        return {
+          width: button.width,
+          position: getComputedStyle(node.querySelector(".logs-warning-badge")).position,
+          overlapsButton: warning.left < button.right && warning.right > button.left && warning.top < button.bottom && warning.bottom > button.top,
+          overlapsIconCorner: warning.left < icon.right && warning.bottom > icon.top,
+        };
+      });
+      assert.equal(overlay.width, restWidth, "Overlay badge must not widen the console button.");
+      assert.equal(overlay.position, "absolute");
+      assert.equal(overlay.overlapsButton, true);
+      assert.equal(overlay.overlapsIconCorner, true);
       for (const theme of ["light", "dark"]) {
         await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
         assert.equal(await badge.getAttribute("data-color"), "danger");

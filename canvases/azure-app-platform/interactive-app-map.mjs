@@ -513,10 +513,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     .workspace-lifecycle-actions { flex:0 1 auto; min-width:0; max-width:calc(100% - 86px); margin-inline-start:auto; padding-block:3px; }
     #workspace-header-actions { display:flex; align-items:center; gap:8px; min-width:0; }
-    #run-diagnostics-toggle { flex:none; }
     .workspace-action-divider { flex:none; width:1px; height:20px; background:var(--border); }
-    .logs-warning-badge { margin-inline-start:4px; }
-    .logs-warning-badge svg { width:12px; height:12px; fill:currentColor; }
     .build-page { display:flex; flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); }
     .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
     #app-workspace-navigation { flex:1; min-width: 0; max-width: 100%; }
@@ -813,6 +810,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${BUILD_EXPLORER_CSS}
     ${APP_LOGS_CSS}
     #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #run-diagnostics-toggle { position:relative; flex:none; }
+    #run-diagnostics-toggle .logs-warning-badge {
+      position:absolute; top:-4px; inset-inline-end:-4px;
+      width:16px; height:16px; min-width:16px; padding:0;
+      align-items:center; justify-content:center;
+      border:1px solid var(--studio-raised); border-radius:999px;
+      background:color-mix(in srgb, var(--studio-danger) 16%, var(--studio-raised));
+      color:var(--studio-danger); pointer-events:none;
+    }
+    #run-diagnostics-toggle .logs-warning-badge svg { width:10px; height:10px; fill:currentColor; }
     #app-identity { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; }
     #app-status-mount { display:flex; flex:none; }
     .runtime-status-control { appearance:none; display:flex; align-items:center; flex:none; min-height:28px; padding:0; border:0; border-radius:999px; background:none; color:inherit; font:inherit; cursor:pointer; }
