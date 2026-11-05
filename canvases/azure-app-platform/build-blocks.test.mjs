@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,8 +44,59 @@ for (const template of BUILD_BLOCK_TEMPLATES) {
       assert.equal(JSON.parse(await readFile(join(root, block.projectPath, "host.json"), "utf8")).version, "2.0");
       assert.match(content, /status_code=501|raise NotImplementedError/);
     }
+    if (template.id === "sandbox") {
+      for (const name of ["main.py", "contract.json", "Dockerfile", "egress-policy.md", "pyproject.toml", "README.md"]) {
+        assert.ok(result.paths.includes(`${block.projectPath}/${name}`), name + " is available in Build");
+      }
+      const contract = JSON.parse(await readFile(join(root, block.projectPath, "contract.json"), "utf8"));
+      assert.equal(contract.status, "not_implemented");
+      assert.equal(contract.limits.maxInputBytes, 65536);
+      assert.equal(contract.input.additionalProperties, false);
+      assert.equal(contract.input.properties.text.maxLength, 4096);
+      assert.equal(contract.output.properties.result.maxLength, 4096);
+      const dockerfile = await readFile(join(root, block.projectPath, "Dockerfile"), "utf8");
+      assert.match(dockerfile, /uv sync --offline --no-dev/);
+      assert.match(dockerfile, /USER 10001:10001/);
+      assert.doesNotMatch(dockerfile, /COPY \. /);
+      await materializeBuildBlock({ root, templateId: "sandbox", name: "tool" });
+      assert.equal((await readBuildWorkspace(root)).supportsDocuments, false,
+        "A generic Sandbox named tool must not activate the legacy document-app profile");
+    }
   }));
 }
+
+test("Sandbox starter rejects invalid and oversized input and never acknowledges unfinished work", {
+  skip: spawnSync("uv", ["--version"]).error?.code === "ENOENT" && "Install uv to run the generated Sandbox entry point.",
+}, () => fixture(async root => {
+  const block = await materializeBuildBlock({ root, templateId: "sandbox", name: "bounded-tool" });
+  const valid = '{"text":"Synthetic sample"}';
+  const atLimit = valid + " ".repeat(65536 - Buffer.byteLength(valid));
+  for (const [input, status, code] of [
+    [valid, 1, "not_implemented"],
+    [JSON.stringify({ text: "é".repeat(4096) }), 1, "not_implemented"],
+    [atLimit, 1, "not_implemented"],
+    [atLimit + " ", 2, "input_too_large"],
+    [JSON.stringify({ text: "x".repeat(4097) }), 2, "invalid_input"],
+    ["{", 2, "invalid_input"],
+    ["[".repeat(2000) + "]".repeat(2000), 2, "invalid_input"],
+    ["[]", 2, "invalid_input"],
+    ['{"text":123}', 2, "invalid_input"],
+    ['{"text":"sample","extra":true}', 2, "invalid_input"],
+    [Buffer.from([255]), 2, "invalid_input"],
+  ]) {
+    const result = spawnSync("uv", ["run", "--offline", "--quiet", "main.py"], {
+      cwd: join(root, block.projectPath), input, encoding: "utf8", timeout: 30000,
+      env: { ...process.env, UV_PYTHON_DOWNLOADS: "never",
+        UV_INDEX_URL: "https://packagefeedproxy.microsoft.io/pypi/simple/",
+        UV_DEFAULT_INDEX: "https://packagefeedproxy.microsoft.io/pypi/simple/" },
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, status, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.equal(JSON.parse(result.stderr).error.code, code);
+    assert.doesNotMatch(result.stderr, /Synthetic sample|Traceback/);
+  }
+}));
 
 test("the complete creation catalog stays scoped and discoverable in one app inventory", () => fixture(async root => {
   await writeFile(join(root, "azure-app.yaml"), "name: all-blocks\ncomponents:\n");
@@ -154,5 +206,10 @@ test("each block template registers and carries its shipped authoring skill into
     });
     assert.ok(prompt.includes(skill), "The receiving app session gets the actual skill, not an inaccessible plugin path");
     assert.match(prompt, /carry it with the request/);
+    if (template.id === "sandbox") {
+      assert.match(prompt, /Keep the agent loop, gateway calls, and credentials outside/);
+      assert.match(prompt, /deny-by-default egress at the actual ACA Sandbox/);
+      assert.match(prompt, /Local `uv run` checks are not sandbox execution/);
+    }
   }
 }));

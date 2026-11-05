@@ -28,6 +28,11 @@ test("Build is a focused read-only customization workspace with document and Run
       content: "def main(): pass\n", sha: "base",
     },
     {
+      id: "contract", customizationArea: "tools", title: "Document validation contract",
+      path: "src/tools/document-validation/contract.json", projectPath: "src/tools/document-validation",
+      description: "Validation inputs and outputs.", available: true, content: '{"type":"object"}', sha: "base",
+    },
+    {
       id: "runtime", customizationArea: "runtime", title: "Runtime & access",
       path: "config/runtime.json", description: "Choose the model connection and runtime.", available: true,
       content: '{"agentRuntime":"local","other":"preserve"}', sha: "base",
@@ -114,7 +119,7 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await tooltip.isHidden(), true);
     await help.hover();
     await tooltip.waitFor();
-    assert.match(await tooltip.innerText(), /Build shows recognized.*saved source.*external editor/si);
+    assert.match(await tooltip.innerText(), /Browse saved source.*Edit.*Adjust with AI.*template/si);
     await tooltip.hover();
     assert.equal(await tooltip.isVisible(), true, "Pointer can move into the tooltip");
     await page.mouse.move(900, 700);
@@ -176,7 +181,7 @@ test("Build is a focused read-only customization workspace with document and Run
       const base = ["Edit in VS Code", "Open with", "Adjust with AI"];
       for (const artifact of artifacts) {
         await page.setViewportSize({ width: 1000, height: 800 });
-        await files.locator(`[data-file-choice="${artifact.id === "policy" ? "runtime" : artifact.id}"]`).click();
+        await files.locator(`[data-file-choice="${artifact.id === "policy" ? "runtime" : artifact.id === "contract" ? "tool" : artifact.id}"]`).click();
         const row = page.locator(`.build-file[data-artifact="${artifact.id}"]`);
         if (await page.getByRole("toolbar", { name: "File pages", exact: true }).count()) {
           const filename = artifact.path.split("/").pop();
@@ -198,6 +203,10 @@ test("Build is a focused read-only customization workspace with document and Run
         assert.deepEqual(direct, expected, `${artifact.customizationArea} exposes only its supported file actions`);
         assert.equal(await row.locator('.build-warning .ct-message[data-intent="warning"]').count(), 0,
           "Unchanged source previews do not show static enforcement alarms");
+        if (["tool", "contract", "policy"].includes(artifact.id)) {
+          assert.equal(await row.locator(".build-warning").count(), 0);
+          assert.doesNotMatch(await row.innerText(), /Developer-owned enforcement|rebuild cloud images/);
+        }
         const filePicker = page.getByRole("button", { name: "More files", exact: true });
         if (await filePicker.isVisible()) {
           await filePicker.click();
@@ -242,6 +251,17 @@ test("Build is a focused read-only customization workspace with document and Run
     await page.addStyleTag({ content: BUILD_EXPLORER_CSS });
     await files.locator('[data-file-choice="instructions"]').waitFor();
     await assertActionMatrix(true);
+    await page.setViewportSize({ width: 1000, height: 800 });
+    documentSupport = true;
+    artifacts.find(artifact => artifact.id === "runtime").content = '{"agentRuntime":"copilot-sdk-sandbox"}';
+    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+    await files.locator('[data-file-choice="runtime"]').click();
+    const runtime = page.locator('.build-file[data-artifact="runtime"]');
+    await runtime.locator(".build-runtime-info").waitFor();
+    assert.match(await runtime.innerText(), /Target: separate ACA sandboxes/);
+    assert.equal(await runtime.locator(".build-warning").count(), 0,
+      "A configured Sandbox target is neutral information, not an enforcement alarm");
+    assert.doesNotMatch(await runtime.innerText(), /not proof of deployment or isolation/);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

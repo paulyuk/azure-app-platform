@@ -1,0 +1,18 @@
+{
+  "name": "__BLOCK_NAME__",
+  "status": "not_implemented",
+  "transport": "stdin-stdout",
+  "limits": { "maxInputBytes": 65536 },
+  "input": {
+    "type": "object",
+    "required": ["text"],
+    "additionalProperties": false,
+    "properties": { "text": { "type": "string", "maxLength": 4096 } }
+  },
+  "output": {
+    "type": "object",
+    "required": ["result"],
+    "additionalProperties": false,
+    "properties": { "result": { "type": "string", "maxLength": 4096 } }
+  }
+}

@@ -502,8 +502,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     control.setAttribute("aria-describedby", "build-help-tooltip");
     control.dataset.focusKey = "help";
     buttons.update(control, { icon: buttons.icon(helpIcon) });
-    const tooltip = element("span", "Build shows recognized source, tool, runtime, and policy building blocks. Previews show saved source; Files and your external editor own editing. Discovery is best effort, and finding source does not prove runtime readiness." + (supportsDocuments
-      ? " Instructions guide the model; trusted tool code and operator-owned policy enforce the rules." : ""), help, "build-help-tooltip");
+    const tooltip = element("span", "Browse saved source by building block. Use Edit to open a file, Adjust with AI to request a change, or Add to start from a template.", help, "build-help-tooltip");
     tooltip.id = "build-help-tooltip";
     tooltip.setAttribute("role", "tooltip");
     tooltip.hidden = true;
@@ -710,9 +709,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     if (supportsDocuments && artifact.id === "runtime") {
       try {
         const config = JSON.parse(artifact.content);
-        element("p", config.agentRuntime === "copilot-sdk-sandbox"
-          ? "Two separate ACA sandboxes: agent runtime and document validation tool. The agent harness remains local. Configuration is not proof of deployment or isolation."
-          : "Local subprocess simulation. Use synthetic documents only; there is no OS or network isolation.", row, "build-warning");
+        const sandbox = config.agentRuntime === "copilot-sdk-sandbox";
+        element("p", sandbox
+          ? "Target: separate ACA sandboxes for the agent runtime and document tool. Check connections in Run."
+          : "Local subprocess simulation. Use synthetic documents only; there is no OS or network isolation.",
+        row, sandbox ? "build-runtime-info" : "build-warning");
       } catch (cause) { error(row, "Invalid runtime configuration: " + cause.message); }
     }
     const body = element("div", undefined, row, "build-file-source");

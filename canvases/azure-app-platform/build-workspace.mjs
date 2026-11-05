@@ -5,11 +5,11 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
-  { id: "instructions", blockCategory: "agent", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent behavior. The agent harness calls the document validation tool before passing sanitized text to the model." },
-  { id: "tool", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Deterministic document validation and redaction. The running model cannot edit this code." },
-  { id: "contract", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Allowed inputs and bounded outputs. Enforced by code, not by instructions." },
-  { id: "policy", blockCategory: "sandbox", projectPath: "src/tools/document-validation", projectName: "Document validation", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Operator-owned limits and rejection rules. The running model cannot edit this file. Review developer changes, test enforcement, and redeploy." },
-  { id: "runtime", blockCategory: "agent", projectPath: "src/agent", projectName: "Agent", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Choose the agent runtime. Local simulation is not an isolation boundary." },
+  { id: "instructions", blockCategory: "agent", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent instructions and document-validation workflow." },
+  { id: "tool", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Document validation and redaction." },
+  { id: "contract", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Document validation inputs and outputs." },
+  { id: "policy", blockCategory: "sandbox", projectPath: "src/tools/document-validation", projectName: "Document validation", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Validation limits, redaction, and rejection rules." },
+  { id: "runtime", blockCategory: "agent", projectPath: "src/agent", projectName: "Agent", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Runtime selection and connection settings." },
 ];
 const MAX_BYTES = 96 * 1024;
 const sha = (text) => createHash("sha256").update(text).digest("hex");
@@ -18,7 +18,7 @@ const SOURCE_FILES = {
   agent: ["prompts/system.md", "main.py", "agent.yaml", "runtime.json", "pyproject.toml"],
   skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json", "pyproject.toml", "requirements.txt"],
   workflows: ["function_app.py", "host.json", "pyproject.toml", "requirements.txt"],
-  sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md"],
+  sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md", "pyproject.toml", "README.md"],
   web: ["builder.yaml", "index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
   connectors: ["connector.json", "README.md"],
   sre: ["sre-agent.yaml", "README.md"],
@@ -93,7 +93,7 @@ function sourceArtifact(path, candidate) {
   let description = "Implementation discovered in this app. Open it in Files or a supported external editor to make changes.";
   if (path.endsWith("/prompts/system.md")) {
     title = "Agent instructions";
-    description = "Instruction source in this app. Its presence does not prove the runtime loads it.";
+    description = "Saved instructions for this agent.";
   } else if (candidate.tierId === "agent" && CODE_FILE.test(path)) {
     title = "Agent implementation & instructions";
     description = "Agent runtime code, including any inline instructions and tool registrations defined here.";
@@ -137,7 +137,7 @@ function sourceArtifact(path, candidate) {
     blockCategory: isTrigger ? "triggers" : candidate.tierId,
     blockTemplateId: candidate.tierId === "skills" ? (isTrigger ? `${triggerKind ?? "http"}-trigger` : "hosted-skill")
       : candidate.tierId === "agent" ? "agent-instructions"
-        : ({ web: "user-experience", connectors: "connector", workflows: "orchestration", sre: "operations" })[candidate.tierId],
+        : ({ web: "user-experience", connectors: "connector", workflows: "orchestration", sandbox: "sandbox", sre: "operations" })[candidate.tierId],
     description,
     customizationArea,
   };

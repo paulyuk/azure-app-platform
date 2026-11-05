@@ -703,6 +703,7 @@ block, and choose **Create from template**:
 | Connector | External API / SaaS / Graph connection contract and implementation guidance |
 | Hosted skill | HTTP-triggered Azure Function with a bounded-operation seam |
 | Orchestration | Durable orchestrator and activity, with a guarded HTTP start route |
+| Sandbox | Bounded stdin/stdout Python tool, input/output contract, non-root container, and egress-policy guidance |
 | Operations | Observability / SRE Agent configuration seam and runbook |
 
 Optionally describe the desired behavior in **Instructions (optional)**.
@@ -721,7 +722,12 @@ editor, or adjust with AI. These starters are not automatically connected,
 started, or deployed. HTTP trigger, Hosted skill, and orchestration start routes
 return HTTP 501 until implemented. Timer, queue, and event handlers fail explicitly
 rather than acknowledging unfinished work. Agent configuration still needs a
-runtime; connector and operations starters are design contracts, not live adapters,
+runtime. The Sandbox starter validates bounded input and exits with an explicit
+`not_implemented` error until its operation is written. Its files live under
+`src/sandboxes/<name>`; local `uv run --offline main.py` checks use synthetic data,
+not an isolation boundary. Configure the actual ACA Sandbox connection, execution
+timeout, output limit, and egress policy separately.
+Connector and operations starters are design contracts, not live adapters,
 Azure resources, active monitoring, or enforced limits.
 Use **Observe → App Map** to review connections and other capabilities.
 
@@ -731,10 +737,10 @@ Requests use the same allowlisted file resolution as editor handoffs. Review
 Copilot's saved changes and refresh source before running or deploying.
 Hosted skill and agent blocks use the plugin's registered
 `azure-app-platform-hosted-skill` and `azure-app-platform-agent-instructions`
-authoring skills respectively. Web, trigger, connector, orchestration, and
+authoring skills respectively. Web, trigger, connector, orchestration, sandbox, and
 operations blocks use `azure-app-platform-block-authoring`, which includes
-type-specific accessibility, delivery/retry, authentication, Durable replay, and
-approval-bounded operations guidance. The server selects guidance from discovered
+type-specific accessibility, delivery/retry, authentication, Durable replay,
+bounded sandbox execution, and approval-bounded operations guidance. The server selects guidance from discovered
 source, not a client-provided path, and includes the shipped skill content in
 the request so a child app session can apply it without plugin-path access.
 The skills cover bounded contracts, validation and explicit errors, untrusted
@@ -748,42 +754,47 @@ Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and
 runtime configuration. Inline instructions stay
 in the original source file; a recognized declaration supplies the initial preview
-position. Recognized web implementation files, package manifests, container build
-files, and other general source appear under Source without exposing environment
+position. Recognized implementation files, package manifests, container build
+files, and other general source appear under their architecture category, or
+Source when uncategorized, without exposing environment
 secrets or unrestricted filesystem browsing. The catalog and read/open authorization
 remain scoped. Custom component paths reuse App Map discovery.
 An app with no supported customization points gets an explicit explanation and
 an **Open in &lt;editor&gt;** workspace handoff.
-The file list and selected source are borderless panes, separated by a divider,
-that fill the available Build workspace height. The file list and code preview
-scroll independently. The selected file groups its heading, path, edit actions,
-and **Preview source**, open by default for the selected project.
-Users can collapse individual previews; those choices survive refreshes and
-switching files. Source is rendered only for the selected file, and its
-preview fills the remaining pane height without growing the page.
+The file list and selected-source pane fill the available Build workspace height,
+separated by a divider. Each file has a heading, path, edit actions, and an inset
+**Preview** card. Stack view shows the collection's files with expandable previews;
+Page view shows one full-height preview. Layout, selected file, and expansion
+choices survive refreshes and workspace switches.
 The read-only preview highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
 theme and keeps native text selection and copying. A noninteractive 1-based
 line-number gutter includes the final blank line when the source ends with a
-newline. Long lines scroll horizontally inside the preview without moving the
-gutter or widening the Build pane; high-contrast mode uses readable plain text.
+newline. Stack view wraps long lines without internal scrollbars; Page view
+allows horizontal code scrolling without widening the Build pane. Filename
+choices never scroll horizontally: names that do not fit move to **More files**.
+High-contrast mode uses readable plain text.
 A tokenizer failure reports the problem and keeps plain-text preview available.
 The same reading order works in compact and wide panes. Container-aware spacing
 and wrapping keep actions and paths within the available canvas width.
 
-**Edit in Files** is the primary action. It opens the selected, saved source
-file in the app's native Files canvas in the current session, not a scratch
-buffer or copied artifact. The server resolves the artifact through the
+The primary **Edit** split button initially opens the configured external editor.
+Its **Open with** menu offers **Files** and that editor. Choosing a destination
+opens the selected file and retains that destination for subsequent edits in the
+loaded Build session.
+
+**Files** opens saved source in the app's native Files canvas in the current
+session, not a scratch buffer or copied artifact. The server resolves the artifact through the
 allowlisted catalog and passes its path relative to the session worktree to the
 host's repository-scoped editor canvas. Nested app roots retain their complete
-worktree-relative path. Files outside that worktree cannot use this handoff;
-Studio reports the limitation and the external-editor action remains available.
-Missing host support or a failed handoff produces a visible error, not a
-fallback to an unrelated file or editor.
+worktree-relative path. If Files cannot open the app's isolated worktree or the
+host does not provide an editor canvas, Build falls back to the configured
+external editor for the same file, explains the fallback, and resets Edit to that
+editor. If both handoffs fail, both errors are shown.
 
-The secondary **Open in &lt;editor&gt;** action opens the app worktree and
-chosen file in VS Code or the saved preferred editor. The **Preferred external
+The external-editor destination opens the app worktree and chosen file in VS Code
+or the saved preferred editor. The **Preferred external
 editor** picker lives in shared **Settings**, rather than taking space on Build.
 It retains native keyboard
 navigation and a visible focus outline. A **Code editor** field is also available
@@ -805,7 +816,7 @@ visibility changes refresh saved source, as does re-entering Build.
 page. File selection, category/preview expansion, keyboard focus, and page/preview scroll positions
 are retained in the panel. Unchanged refreshes preserve the preview DOM and text
 selection. Late refresh responses cannot replace another workspace or overwrite
-newer results. Handoff feedback belongs to its own customization row, even when
+newer results. Handoff feedback belongs to its own file, even when
 different files open out of order. Refresh failures retain the previous guide
 and show an error.
 

@@ -1,6 +1,6 @@
 ---
 name: azure-app-platform-block-authoring
-description: "Customize saved Azure App Platform web, trigger, connector, orchestration, and operations starters. Use for Build creation instructions or Adjust with AI on these blocks, not for deployments or coding-assistant skills."
+description: "Customize saved Azure App Platform web, trigger, connector, orchestration, sandbox, and operations starters. Use for Build creation instructions or Adjust with AI on these blocks, not for deployments or coding-assistant skills."
 ---
 
 # Author a platform building block
@@ -34,6 +34,15 @@ Claude. Keep changes inside the authorized app root.
   Validate input before scheduling. Make activities idempotent; use bounded
   retries, explicit failures, and compensation for irreversible operations.
   Keep status/history endpoints authenticated and avoid exposing sensitive input.
+- **Sandboxes:** Keep the agent loop, gateway calls, and credentials outside tool
+  execution. Preserve bounded UTF-8 input, schema validation, explicit nonzero
+  failures, and bounded JSON output. Replace `not_implemented` only when the
+  operation works; never echo untrusted input as a success-shaped placeholder.
+  Keep the container non-root and exclude secrets and host mounts. Enforce
+  timeouts, output limits, and deny-by-default egress at the actual ACA Sandbox
+  connection; a Dockerfile or policy document does not apply those controls.
+  Test malformed, oversized, boundary-length, and failing inputs with synthetic
+  data. Local `uv run` checks are not sandbox execution. Do not provision resources.
 - **Operations / SRE Agent:** This starter is a runbook and desired configuration,
   not a deployed agent or active monitor. Base health signals and alerts on real
   telemetry. Keep remediation disabled until permissions, approval gates, scope,
