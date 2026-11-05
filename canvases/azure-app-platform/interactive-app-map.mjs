@@ -24,7 +24,7 @@ export const NODE_TIER_ICONS = {
 };
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
-import { createStudioToolkitComponents } from "./studio-toolkit-components.mjs";
+import { createStudioToolkitComponents, STUDIO_FILTERABLE_DROPDOWN_CSS } from "./studio-toolkit-components.mjs";
 import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
 import { defaultSandboxGroupName } from "./sandbox-group-config.mjs";
 
@@ -812,6 +812,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${AGENT_STATUS_CSS}
     ${BUILD_EXPLORER_CSS}
     ${APP_LOGS_CSS}
+    ${STUDIO_FILTERABLE_DROPDOWN_CSS}
     #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #run-diagnostics-toggle { position:relative; flex:none; }
     #run-diagnostics-toggle .logs-warning-badge {

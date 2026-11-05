@@ -28,8 +28,40 @@ async function chooseSubscription(page, scope, { label, searchLabel, query, opti
   await page.keyboard.press("Enter");
   const search = page.getByRole("textbox", { name: searchLabel, exact: true });
   await search.waitFor();
-  await search.fill(query);
   const panel = search.locator("xpath=ancestor::*[contains(@class, 'ct-select-panel')]");
+  const design = await panel.evaluate((panelEl, triggerLabel) => {
+    const root = panelEl.closest(".studio-filterable-dropdown");
+    const triggerEl = root?.querySelector(`.ct-combobox[aria-label="${triggerLabel}"]`);
+    const triggerStyle = triggerEl ? getComputedStyle(triggerEl) : null;
+    const panelStyle = getComputedStyle(panelEl);
+    const unselectedLabel = panelEl.querySelector(".ct-select-option:not([data-selected]) .ct-option-label");
+    const selectedLabel = panelEl.querySelector(".ct-select-option[data-selected] .ct-option-label");
+    const description = panelEl.querySelector(".ct-option-description");
+    return {
+      triggerMinHeight: triggerStyle?.minHeight,
+      triggerPadding: triggerStyle?.padding,
+      triggerFontWeight: triggerStyle?.fontWeight,
+      triggerFontSize: triggerStyle?.fontSize,
+      triggerWidth: triggerEl?.getBoundingClientRect().width ?? 0,
+      panelPadding: panelStyle.padding,
+      panelFontWeight: panelStyle.fontWeight,
+      panelWidth: panelEl.getBoundingClientRect().width,
+      unselectedWeight: unselectedLabel ? getComputedStyle(unselectedLabel).fontWeight : null,
+      selectedWeight: selectedLabel ? getComputedStyle(selectedLabel).fontWeight : null,
+      descriptionWeight: description ? getComputedStyle(description).fontWeight : null,
+    };
+  }, label);
+  assert.equal(design.triggerMinHeight, "34px");
+  assert.equal(design.triggerPadding, "6px 10px");
+  assert.equal(design.triggerFontWeight, "400");
+  assert.equal(design.triggerFontSize, "13px");
+  assert.equal(design.panelPadding, "0px");
+  assert.equal(design.panelFontWeight, "400");
+  assert.ok(Math.abs(design.panelWidth - design.triggerWidth) <= 1);
+  assert.equal(design.unselectedWeight, "400");
+  assert.equal(design.selectedWeight, "600");
+  assert.equal(design.descriptionWeight, "400");
+  await search.fill(query);
   const match = panel.getByRole("option", { name: option });
   await match.waitFor();
   assert.equal(await panel.getByRole("option").count(), 1);
