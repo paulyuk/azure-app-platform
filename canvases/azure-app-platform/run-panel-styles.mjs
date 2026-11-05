@@ -73,7 +73,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .agent-tester > strong { font-size:13px; }
 #details[data-mode="manage"] .agent-tester > .tool-status { justify-self:start; }
 #details[data-mode="manage"] .agent-tester > h3 { margin:12px 0 0; }
-#details[data-mode="manage"] textarea { width:100%; min-width:0; padding:10px 12px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-raised); color:var(--studio-ink); font:13px/1.6 var(--font-sans, system-ui); min-height:88px; }
+#details[data-mode="manage"] textarea { display:block; width:100%; min-width:0; padding:10px 12px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-raised); color:var(--studio-ink); font:13px/1.6 var(--font-sans, system-ui); min-height:88px; }
 #details[data-mode="manage"] textarea:focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
 #details[data-mode="manage"] .actions { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0; }
 #details[data-mode="manage"] .actions > button { flex:0 1 auto; white-space:normal; }
@@ -92,13 +92,14 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .agent-result-step-spinner > .ct-provider { display:contents; }
 #details[data-mode="manage"] .agent-result-footer { display:flex; }
 #details[data-mode="manage"] .run-document > summary, #details[data-mode="manage"] .run-tool-activity > summary, #details[data-mode="manage"] .agent-tester > details > summary { color:var(--studio-muted); cursor:pointer; font-size:12px; padding:5px 0; overflow-wrap:anywhere; }
-#details[data-mode="manage"] .document-input { display:grid; gap:8px; min-width:0; padding:8px 0; }
+#details[data-mode="manage"] .document-input { display:grid; gap:8px; min-width:0; padding:0; }
+#details[data-mode="manage"] .document-input:not(:has(> :not([hidden]):not(:empty))) { display:none; }
 #details[data-mode="manage"] .document-input p { margin:0; }
 #details[data-mode="manage"] .document-input p:empty { display:none; }
 #details[data-mode="manage"] .document-input input[type="file"] { width:100%; min-width:0; min-height:32px; font:12px var(--font-sans, system-ui); }
 #details[data-mode="manage"] .document-input > button { justify-self:start; }
 #details[data-mode="manage"] .agent-prompt-frame { min-width:0; }
-#details[data-mode="manage"] .agent-task-actions { align-items:center; }
+#details[data-mode="manage"] .agent-task-actions { align-items:center; margin:0; }
 #details[data-mode="manage"] .agent-dispatch-actions { display:flex; align-items:center; gap:8px; max-width:100%; }
 #details[data-mode="manage"] [data-invoke-agent][data-appearance="secondary"] svg[data-octicon="agent"] { color:var(--background-color-button-primary-rest, var(--canvas-button-primary-bg, var(--studio-accent))); }
 #details[data-mode="manage"] .document-attachment { display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-panel); }

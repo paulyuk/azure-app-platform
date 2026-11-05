@@ -141,6 +141,12 @@ test("Run shares optional document input with invocation and enforcement across 
     const invoke = card.getByRole("button", { name: "Invoke agent", exact: true });
     const enforce = card.getByRole("button", { name: "Test unsafe override", exact: true });
     const enforceEgress = card.getByRole("button", { name: "Test unsafe egress", exact: true });
+    const spacing = await card.evaluate(node => {
+      const promptRect = node.querySelector('textarea[aria-label="Agent message"]').getBoundingClientRect();
+      const actionsRect = node.querySelector(".agent-task-actions").getBoundingClientRect();
+      return { topGap: Math.round(actionsRect.top - promptRect.bottom) };
+    });
+    assert.ok(spacing.topGap <= 10, JSON.stringify(spacing));
     await message.fill("Summarize these terms.");
     await pasteDocument(page, "Contact alex@example.test.");
     assert.equal(await invoke.isDisabled(), false);
