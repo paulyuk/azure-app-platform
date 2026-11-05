@@ -70,8 +70,7 @@ const standaloneAliases = `
 const sharedPresentationLayout = `
   :root.studio-shared-presentation { font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); }
   :root.studio-shared-presentation body { background: var(--studio-bg); }
-  :root.studio-shared-presentation .guide-state-icon { font-family: inherit; }
-  :root.studio-shared-presentation :is(#details, #guide-rail) code {
+  :root.studio-shared-presentation #details code {
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
   }
   :root.studio-shared-presentation body,

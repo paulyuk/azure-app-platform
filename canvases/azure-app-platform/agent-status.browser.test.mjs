@@ -95,13 +95,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           const geometry = await status.evaluate(node => {
             const summary = node.querySelector(".agent-status-summary").getBoundingClientRect();
             const actions = node.querySelector(".agent-status-actions").getBoundingClientRect();
+            const shortcut = node.querySelector(".agent-connection-shortcut").getBoundingClientRect();
+            const value = node.querySelector(".agent-connection-shortcut").previousElementSibling.getBoundingClientRect();
             return {
               right: Math.abs(actions.right - (summary.right - 12)) <= 1,
+              inlineConnection: shortcut.left >= value.right && Math.abs(shortcut.top + shortcut.height / 2 - (value.top + value.height / 2)) <= 1,
               fits: node.scrollWidth <= node.clientWidth && document.documentElement.scrollWidth <= innerWidth,
               secondary: [...node.querySelectorAll("button")].every(button => button.dataset.appearance === "secondary"),
             };
           });
-          assert.ok(geometry.right && geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.right && geometry.inlineConnection && geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
         }
       }
       await page.setViewportSize({ width: 620, height: 800 });

@@ -24,6 +24,7 @@ export function createRunWorkspace({
   let diagnosticsHeight = 240;
   let drag;
   const listeners = new AbortController();
+  const primaryWorkspace = diagnosticsContainer.previousElementSibling;
   const roots = () => [container.querySelector(".run-workspace"), diagnosticsContainer].filter(Boolean);
   const nodes = selector => roots().flatMap(root => [...root.querySelectorAll(selector)]);
 
@@ -39,7 +40,8 @@ export function createRunWorkspace({
     const shell = diagnosticsContainer;
     const separator = shell.querySelector(".run-diagnostics-resizer");
     if (!separator) return;
-    const heightAvailable = shell.parentElement.clientHeight - shell.parentElement.querySelector("footer").offsetHeight;
+    const heightAvailable = Math.max(0, shell.parentElement.getBoundingClientRect().bottom -
+      primaryWorkspace.getBoundingClientRect().top);
     const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
     const chrome = shell.querySelector(".run-diagnostics-toolbar").offsetHeight + 8;
     const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55), heightAvailable - chrome - primaryReserve));
@@ -99,7 +101,7 @@ export function createRunWorkspace({
   }
   const resizeObserver = new ResizeObserver(() => sizeDiagnostics());
   resizeObserver.observe(diagnosticsContainer.parentElement);
-  resizeObserver.observe(diagnosticsContainer.parentElement.querySelector("footer"));
+  resizeObserver.observe(primaryWorkspace);
 
   function capture() {
     for (const node of nodes("[data-run-disclosure]")) {

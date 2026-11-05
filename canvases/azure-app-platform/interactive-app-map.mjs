@@ -5,7 +5,6 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
-import { getGuideStep } from "./guide-step.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -475,17 +474,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
-  const guideStageIcons = {
-    build: "code",
-    connect: "link",
-    run: "play",
-    observe: "eye",
-    deploy: "cloud",
-  };
-  const guideShortcutsHtml = model.actionCenter.stages.map((stage) =>
-    `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status">${renderOcticon(guideStageIcons[stage.id], { size: 20 })}<span class="guide-state-icon" aria-hidden="true">${renderOcticon("stopwatch", { size: 12 })}</span></button>`,
-  ).join("");
-
   return `<!doctype html>
 <html lang="en" class="${presentation.className}" data-studio-theme="${escapeHtml(theme)}" data-studio-presentation="${presentation.id}">
 <head>
@@ -511,7 +499,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
-    #workspace-loading-header, #app-workspace-main, #workspace-status-footer { min-width: 0; }
+    #workspace-loading-header, #app-workspace-main { min-width: 0; }
     #workspace-navigation-mount { grid-row: 1 / -1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; height: 100%; }
     #studio-workspace-navigation { height: 100%; }
     #studio-workspace-navigation > main { flex: 1; min-height: 0; overflow: hidden; }
@@ -619,31 +607,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
     #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
-    #workspace-guide { flex:none; overflow:visible; }
-    #action-center[data-attention="true"] { color:var(--studio-danger); }
-    #guide-rail { position:fixed; inset:auto; margin:0; padding:0; width:min(400px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; color:var(--studio-ink); background:var(--studio-raised); box-shadow:0 8px 24px var(--studio-line); font:13px/1.5 var(--font-sans,system-ui); }
-    #guide-rail:popover-open { display:flex; flex-direction:column; }
-    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 5px 6px 14px; border-bottom: 1px solid var(--border); }
-    #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
-    .guide-panel-icon { width:20px; height:20px; flex:none; fill:currentColor; stroke:none; }
-    #guide-context { margin:0 0 12px; }
-    #guide-context > p { overflow-wrap:anywhere; }
-    #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
-    #guide-content h3 { margin-top: 14px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
-    #guide-content > p { font-size: 12px; line-height: 18px; color: var(--muted); }
-    #guide-content .journey { margin: 10px 0; }
-    #guide-content .journey-stage { padding-block: 8px; }
-    #guide-shortcuts { display:flex; flex:none; justify-content:space-around; gap:4px; padding:4px 8px; border-bottom:1px solid var(--studio-line); }
-    .guide-shortcut { position: relative; display: grid; place-items: center; width: 36px; min-height: 40px; padding: 7px; border: 0; background: transparent; color: var(--muted); }
-    .guide-shortcut > svg { width:20px; height:20px; fill:currentColor; stroke:none; }
-    .guide-shortcut:hover { background: var(--surface-muted); color: var(--text); }
-    .guide-shortcut[data-current="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); }
-    .guide-shortcut:focus-visible { outline-offset: -2px; }
-    .guide-state-icon { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; min-width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted); font: 700 10px/1 system-ui; }
-    .guide-state-icon svg { width:12px; height:12px; }
-    .guide-shortcut[data-state="complete"] .guide-state-icon { color: var(--true-color-green); }
-    .guide-shortcut[data-state="attention"] .guide-state-icon { color: var(--true-color-orange); }
-    .guide-shortcut[data-current="true"] .guide-state-icon { color: var(--true-color-blue); }
     #workspace > #details { min-height: 0; }
     body:not([data-workspace="map"]) #graph-shell,
     body:not([data-workspace="map"]) #details-resizer,
@@ -714,14 +677,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     #details-resizer:hover, #details-resizer:focus-visible { background: var(--accent); outline: none; }
     body.resizing-details { cursor: row-resize; user-select: none; }
-    #details, #guide-rail { min-width: 0; background: var(--surface); }
+    #details { min-width: 0; background: var(--surface); }
     #details { overflow: auto; padding: 16px; }
-    :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
-    :is(#details, #guide-rail) h3 { margin: 16px 0 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
-    :is(#details, #guide-rail) p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-    :is(#details, #guide-rail) code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
-    :is(#details, #guide-rail) ul { margin: 4px 0; padding-left: 18px; }
-    :is(#details, #guide-rail) li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
+    #details h2 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
+    #details h3 { margin: 16px 0 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
+    #details p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    #details code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    #details ul { margin: 4px 0; padding-left: 18px; }
+    #details li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .command-output[hidden] { display: none; }
     .map-tools[open] > summary {
@@ -775,17 +738,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .journey-stage.complete:not(:last-child)::after { background: #107c10; }
     .journey-stage.next, .journey-stage.ready, .journey-stage.active { border-radius: 7px; background: var(--accent-soft); }
     .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
-    #guide-rail .journey-stage-action, #guide-rail .journey-stage button.journey-stage-action {
-      display: grid !important; gap: 2px; justify-items: start; align-items: start;
-      width: 100%; height: auto; min-height: 0; padding: 4px 6px !important; margin: -4px -6px !important;
-      border: 0 !important; border-radius: 6px; background: transparent !important; box-shadow: none !important; color: inherit;
-      text-align: left; white-space: normal; cursor: pointer;
-    }
-    #guide-rail .journey-stage-action > .ct-button-label {
-      display: grid; gap: 2px; justify-items: start; width: 100%; white-space: normal; text-align: left;
-    }
-    #guide-rail .journey-stage-action strong { text-decoration: underline; text-underline-offset: 3px; }
-    #guide-rail .journey-stage-action:hover { background: var(--surface-muted) !important; border: 0 !important; }
     .journey-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.4; font-weight: 400; }
     .journey-state { display: block; margin-bottom: 2px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-stage.complete::before { border-color: #107c10; background: #107c10; }
@@ -825,13 +777,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .actions button.setup-action { width: 100%; font-weight: 650; }
     button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
-    #workspace-status-footer {
-      display: flex; align-items:center; justify-content: space-between; gap: 12px; padding: 0 12px; min-height:32px;
-      border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
-    }
-    #workspace-status-footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #workspace-status-footer #status { flex:1; }
-    #workspace-status-footer #workspace-guide { overflow:visible; }
+    #status[role="alert"] { flex:none; max-height:120px; overflow:auto; overflow-wrap:anywhere; padding:8px 12px; border-bottom:1px solid var(--studio-line); background:var(--studio-raised); color:var(--studio-danger); font-size:12px; }
     @media (max-width: 960px) {
       #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr) auto;
@@ -845,9 +791,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         gap: 8px 10px; padding: 8px 12px;
       }
       .heading { padding-left: 0; border-left: 0; }
-    }
-    @media (max-width: 620px) {
-      #workspace-status-footer > :last-child { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
@@ -894,6 +837,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
       </div>
     </div>
+  <div id="status" class="visually-hidden" role="status" aria-atomic="true"></div>
   <main id="app-workspace-main">
     <section id="workspace-shell" role="region" aria-labelledby="workspace-location">
     <section id="app-customize" class="build-page" aria-label="Build workspace" hidden>
@@ -948,20 +892,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <section id="details" aria-label="Workspace content" aria-live="polite" data-empty="false"></section>
     </section>
     </section>
-    <aside id="guide-rail" popover="manual" aria-label="Guide">
-      <div class="guide-heading">
-        <h2>Guide</h2>
-        <button data-studio-button="subtle" id="close-guide" type="button" aria-label="Close Guide" title="Close Guide">${renderOcticon("x")}</button>
-      </div>
-      <div id="guide-shortcuts" role="group" aria-label="Guide progress">${guideShortcutsHtml}</div>
-      <div id="guide-content"></div>
-    </aside>
   </main>
   <div id="workspace-diagnostics" data-mode="manage" data-diagnostics="closed"></div>
-  <footer id="workspace-status-footer">
-    <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
-    <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
-  </footer>
   </div>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
@@ -979,6 +911,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const status = document.getElementById("status");
         status.textContent = "Could not load Studio controls: " + cause.message;
         status.setAttribute("role", "alert");
+        status.classList.remove("visually-hidden");
         document.getElementById("workspace-navigation-message").textContent = "Workspace navigation is unavailable.";
         const retry = document.getElementById("retry-workspace-navigation");
         retry.hidden = false;
@@ -1000,7 +933,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
     const mountAppLogs = (${createAppLogsPanel.toString()});
     let appLogs = null;
-    let launchNotice = new URLSearchParams(location.search).get("notice") || "";
+    const launchNotice = new URLSearchParams(location.search).get("notice") || "";
     const NS = "http://www.w3.org/2000/svg";
     const WORLD_PADDING = 24;
     const LANE_HEADER = 62;
@@ -1021,30 +954,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const detailsResizer = document.querySelector("#details-resizer");
     const details = document.querySelector("#details");
     const workspace = document.querySelector("#workspace");
-    const guideRail = document.querySelector("#guide-rail");
-    const guideContent = document.querySelector("#guide-content");
-    let guideCollapsed = true;
-    const guideTrigger = buttons.create({
-      id: "action-center", appearance: "subtle", size: "small", children: "Guide",
-      "aria-label": "Guide: Checking readiness",
-      "aria-expanded": false, "aria-controls": "guide-rail",
-      onClick: event => {
-        setGuideCollapsed(!guideCollapsed);
-        if (!guideCollapsed && event.detail === 0) focusGuide();
-      },
-    });
-    const guideMount = document.createElement("div");
-    guideMount.id = "workspace-guide";
-    document.querySelector("#map-context").before(guideMount);
-    buttons.append(guideMount, guideTrigger);
     document.querySelector("#workspace-loading-header .studio-theme-control")
       .prepend(document.querySelector("#workspace-runtime-actions"));
-    guideTrigger.addEventListener("keydown", event => {
-      if (event.key !== "ArrowDown") return;
-      event.preventDefault();
-      setGuideCollapsed(false);
-      focusGuide();
-    });
     const status = document.querySelector("#status");
     const runtimeStatusView = toolkit.mountCanvasComponent(document.querySelector("#app-status-mount"), toolkit.Badge, {
       id: "app-status-badge", className: "runtime-badge",
@@ -1072,7 +983,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     buttons.append(headerActions, logsTrigger);
     const diagnosticsContainer = document.querySelector("#workspace-diagnostics");
     let logsTriggerKey = "";
-    const mapContext = document.querySelector("#map-context");
     const structureGuidance = document.querySelector("#structure-guidance");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
@@ -1264,7 +1174,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       clearInterval(outputTimer);
       window.removeEventListener("resize", resizeWorkspace);
       workspaceResizeObserver.disconnect();
-      window.removeEventListener("scroll", placeGuide, { capture: true });
       appLogs?.dispose();
       buildPanel.hide();
       components.dispose();
@@ -1534,7 +1443,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         connectionIcon: buttons.icon(ICONS.link),
         onConnection: () => renderConnectionsPanel(),
       });
-      updateGuideContext(status);
     }
 
     function detailsHeightMaximum() {
@@ -1564,8 +1472,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function setStatus(message, isError = false) {
-      status.textContent = message;
+      status.setAttribute("role", isError ? "alert" : "status");
+      status.classList.toggle("visually-hidden", !isError);
       status.classList.toggle("error", isError);
+      status.textContent = message;
     }
 
     function requestFlowLayout() {
@@ -1970,7 +1880,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function updatePresentation() {
       entryFilter.hidden = MODEL.requestFlow.entrypointIds.length < 2;
-      mapContext.textContent = "Source-derived request flow · not live usage";
       for (const node of MODEL.nodes) {
         const element = nodeElements.get(node.id);
         const kind = element.querySelector('[data-role="kind"]');
@@ -2189,9 +2098,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function closeMapDetails() {
-      const target = panelMode === "source-connections" && !guideCollapsed
-        ? guideContent.querySelector('[data-action-key="review-connections"]')
-        : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
+      const target = nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
       renderMapPanel();
       if (target) target.focus({ preventScroll: true });
       else focusWorkspaceNavigation();
@@ -2244,73 +2151,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       else workspace.removeAttribute("aria-labelledby");
       details.setAttribute("aria-label", destination === "connections" ? "Connections workspace" : mode === "map" ? "Observe/Map inspector" :
         mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
-      mapContext.hidden = mode !== "map";
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
       syncRuntimePlacement();
-      updateGuideContext();
-    }
-
-    function placeGuide() {
-      if (guideCollapsed) return;
-      const rect = guideTrigger.getBoundingClientRect();
-      const top = Math.max(12, document.querySelector("#app-workspace-main").getBoundingClientRect().top + 8);
-      guideRail.style.maxHeight = Math.max(0, rect.top - top - 8) + "px";
-      guideRail.style.left = Math.max(12, Math.min(rect.left, innerWidth - guideRail.offsetWidth - 12)) + "px";
-      guideRail.style.top = Math.max(top, rect.top - 8 - guideRail.offsetHeight) + "px";
-    }
-
-    function focusGuide() {
-      (guideContent.querySelector("#guide-context button") || document.querySelector("#close-guide")).focus({ preventScroll: true });
-    }
-
-    function setGuideCollapsed(collapsed) {
-      guideCollapsed = collapsed;
-      const restoreFocus = collapsed && guideRail.contains(document.activeElement);
-      guideRail.dataset.collapsed = String(collapsed);
-      if (collapsed) guideRail.hidePopover();
-      else if (!guideRail.matches(":popover-open")) guideRail.showPopover();
-      buttons.update(guideTrigger, { "aria-expanded": !collapsed });
-      for (const shortcut of document.querySelectorAll("[data-guide-stage]")) shortcut.setAttribute("aria-expanded", String(!collapsed));
-      if (restoreFocus) guideTrigger.focus({ preventScroll: true });
-      placeGuide();
-      setDetailsPanelHeight(detailsPanelHeight);
-    }
-
-    function currentGuideStep(status = getAgentStatus({
-      ...operationalState, readinessError, requestState: agentRequestState,
-      agentReady: runtimeEntrypoints.some(entry => entry.ready && normalized(entry.name) === "agent"),
-    })) {
-      return (${getGuideStep.toString()})(status, workspaceDestination());
-    }
-
-    function updateGuideContext(status) {
-      const step = currentGuideStep(status);
-      const title = step.title + ". " + step.detail;
-      if (guideTrigger.title !== title) buttons.update(guideTrigger, {
-        title, "aria-label": "Guide: " + step.title, "data-attention": String(step.attention),
-      });
-      const context = guideContent.querySelector("#guide-context");
-      if (!context) return;
-      context.querySelector("strong").textContent = step.title;
-      context.querySelector("p").textContent = step.detail;
-    }
-
-    function followGuideStep() {
-      const step = currentGuideStep();
-      setGuideCollapsed(true);
-      if (step.action === "build") openCustomizeApp();
-      else if (step.action === "connect") { renderConnectionsPanel(); focusWorkspaceNavigation("connect-workspace"); }
-      else if (step.action === "deploy") { renderDeployPanel(); focusWorkspaceNavigation("deploy-workspace"); }
-      else if (step.action === "observe") { renderMapPanel(); focusWorkspaceNavigation(); }
-      else if (["connection", "prereqs", "ports"].includes(step.action)) openAppSettings(step.action);
-      else {
-        renderManagePanel();
-        if (["output", "services"].includes(step.action)) runWorkspace.openDiagnostics(step.action);
-        else {
-          const target = details.querySelector(step.action === "result" ? ".agent-response" : ".agent-prompt");
-          (target || details.querySelector("textarea"))?.focus({ preventScroll: true });
-        }
-      }
     }
 
     function renderMapPanel() {
@@ -2341,7 +2183,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     async function openCustomizeApp() {
       if (panelMode === "build") return;
       if (panelMode === "manage") runWorkspace.capture();
-      setGuideCollapsed(true);
       panelMode = "build";
       updateModeHighlight();
       await buildPanel.show({ refresh: customizeContent.childElementCount > 0 });
@@ -2409,10 +2250,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (node.tierId === "agent" && candidate === "agent") return true;
         return names.some((name) => candidate.includes(name) || name.includes(candidate));
       });
-    }
-
-    function effectiveJourneyStages() {
-      return (${buildJourneyStages.toString()})(MODEL.actionCenter.stages, operationalState, ACTIVE_LIFECYCLE_STATES);
     }
 
     async function runAppOperation(operation, extraBody = {}) {
@@ -2512,7 +2349,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderConnectionsPanel({ focus = true } = {}) {
       panelMode = "connections";
-      setGuideCollapsed(true);
       selectedId = null;
       selectedEdgeId = null;
       clearElement(details);
@@ -2531,7 +2367,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function renderSourceConnectionsPanel() {
       panelMode = "source-connections";
-      if (window.innerWidth <= 900) setGuideCollapsed(true);
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
@@ -2575,132 +2410,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(details, "p", "No source connection issues found.");
       }
       heading.focus({ preventScroll: true });
-    }
-
-    function renderActionCenter() {
-      const details = guideContent;
-      const restoreFocus = details.contains(document.activeElement);
-      const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
-      const focusedStage = restoreFocus ? document.activeElement?.dataset?.stage : null;
-      const previousScrollTop = details.scrollTop;
-      const guidanceOpen = details.querySelector(".more-guidance")?.open;
-      clearElement(details);
-      details.dataset.empty = "false";
-      const context = appendText(details, "section", "", "action-card");
-      context.id = "guide-context";
-      appendText(context, "strong", "");
-      appendText(context, "p", "");
-      buttons.append(context, keyedActionButton("guide-next-step", "Open next step", followGuideStep, true));
-      updateGuideContext();
-      const heading = appendText(details, "h3", "Workflow progress");
-      heading.tabIndex = -1;
-      appendText(details, "p", "Check readiness and run the next step for your app.");
-      if (launchNotice) {
-        const notice = document.createElement("div");
-        notice.className = "action-card attention";
-        appendText(notice, "strong", "App created");
-        appendText(notice, "p", launchNotice);
-        buttons.append(notice, actionButton("Dismiss", () => {
-          launchNotice = "";
-          renderActionCenter();
-        }));
-        details.append(notice);
-      }
-      const stages = effectiveJourneyStages();
-      const currentStage = stages.find((stage) =>
-        stage.state === "next" || stage.state === "ready" ||
-        stage.state === "active" || stage.state === "runtime");
-      updateGuideShortcuts(stages, currentStage);
-      const journey = document.createElement("div");
-      journey.className = "journey";
-      journey.setAttribute("role", "list");
-      journey.setAttribute("aria-label", "App progress");
-      for (const stage of stages) {
-        const item = document.createElement("div");
-        item.className = "journey-stage " + stage.state;
-        item.dataset.stage = stage.id;
-        item.tabIndex = -1;
-        item.setAttribute("role", "listitem");
-        if (stage === currentStage) {
-          item.setAttribute("aria-current", "step");
-        }
-        let content = item;
-        if (["build", "connect", "run", "observe", "deploy"].includes(stage.id)) {
-          content = document.createElement("button");
-          content.type = "button";
-          content.dataset.actionKey = stage.id === "build"
-            ? "customize-app"
-            : stage.id === "connect"
-              ? "review-connections"
-              : "open-" + stage.id;
-          content.className = "journey-stage-action";
-          content.setAttribute("aria-label", stage.id === "build"
-            ? "Build: customize app"
-            : stage.id === "connect"
-              ? "Connect: configure gateway access"
-              : stage.id === "run" ? "Run: test an event or task"
-                : stage.id === "observe" ? "Observe: inspect App Map"
-                  : "Deploy: review deployment options");
-          content.addEventListener("click", stage.id === "build"
-            ? openCustomizeApp
-            : stage.id === "connect"
-              ? renderConnectionsPanel
-              : stage.id === "run" ? renderManagePanel
-                : stage.id === "observe" ? renderMapPanel : renderDeployPanel);
-          item.append(content);
-        }
-        appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
-        appendText(content, "strong", stage.id === "observe" ? "Observe" : stage.label);
-        appendText(
-          content,
-          "span",
-          stage.detail,
-          "journey-detail",
-        );
-        journey.append(item);
-      }
-      details.append(journey);
-
-      const remaining = MODEL.actionCenter.opportunities;
-      if (remaining.length > 0) {
-        const more = document.createElement("details");
-        more.className = "more-guidance";
-        more.open = Boolean(guidanceOpen);
-        const summary = document.createElement("summary");
-        summary.textContent = "Other checks & improvements (" + remaining.length + ")";
-        summary.dataset.actionKey = "guide-more";
-        const moreList = document.createElement("div");
-        moreList.className = "action-list";
-        for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
-        more.append(summary, moreList);
-        details.append(more);
-      }
-      details.scrollTop = previousScrollTop;
-      placeGuide();
-      if (restoreFocus) {
-        const replacement = focusedAction
-          ? [...details.querySelectorAll("[data-action-key]")]
-            .find((element) => element.dataset.actionKey === focusedAction)
-          : focusedStage ? details.querySelector('[data-stage="' + focusedStage + '"]') : null;
-        (replacement || heading).focus({ preventScroll: true });
-      }
-    }
-
-    function journeyStateLabel(state) {
-      return { complete: "Complete", active: "Current", attention: "Review", ready: "Ready",
-        blocked: "Later", runtime: "Checking", next: "Next" }[state] || "Checking";
-    }
-
-    function updateGuideShortcuts(stages, currentStage) {
-      const symbols = { complete: "check", attention: "alert", active: "dot-fill", ready: "check", next: "arrow-right", blocked: "skip", runtime: "stopwatch" };
-      for (const stage of stages) {
-        const button = document.querySelector('[data-guide-stage="' + stage.id + '"]');
-        button.dataset.state = stage.state;
-        button.dataset.current = String(stage === currentStage);
-        button.title = stage.label + ": " + journeyStateLabel(stage.state) + ". " + stage.detail;
-        button.setAttribute("aria-label", button.title);
-        button.querySelector(".guide-state-icon").innerHTML = ICONS[symbols[stage.state] || "stopwatch"];
-      }
     }
 
     async function loadGatewayControls(container, refresh = false) {
@@ -4183,7 +3892,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
-        if (changed) renderActionCenter();
         if (changed && !gatewayApplying) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "connections" && !gatewayApplying &&
           !window.appPlatformSettings?.isOpen() && !details.querySelector("select:focus")) renderConnectionsPanel({ focus: false });
@@ -4216,7 +3924,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         readinessError = "Unable to refresh app readiness: " + error.message;
         runtimeEntrypoints = [];
         updateAppStatusBadge();
-        if (changed) renderActionCenter();
         if (changed) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
         if (changed && panelMode !== "manage") runWorkspace.render({ primary: false });
@@ -4936,7 +4643,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     function resizeWorkspace() {
       if (navigationDisposed) return;
-      placeGuide();
+      setDetailsPanelHeight(detailsPanelHeight);
     }
     window.addEventListener("resize", resizeWorkspace);
     const workspaceResizeObserver = new ResizeObserver(() => {
@@ -4988,14 +4695,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
     document.querySelector("#review-source-connections").addEventListener("click", renderSourceConnectionsPanel);
-    document.querySelector("#close-guide").addEventListener("click", () => {
-      setGuideCollapsed(true);
-      guideTrigger.focus({ preventScroll: true });
-    });
-    guideContent.addEventListener("click", event => {
-      if (event.target.closest("button") && !event.target.closest("#guide-context")) setGuideCollapsed(true);
-    });
-    window.addEventListener("scroll", placeGuide, { capture: true });
     document.querySelector("#map-view").addEventListener("click", renderMapPanel);
     const dismissStructureGuidance = () => {
       setStructureGuidance(false);
@@ -5037,19 +4736,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         items[next].focus({ preventScroll: true });
       });
     }
-    for (const shortcut of document.querySelectorAll("[data-guide-stage]")) {
-      shortcut.addEventListener("click", () => {
-        setGuideCollapsed(false);
-        const stage = guideContent.querySelector('[data-stage="' + shortcut.dataset.guideStage + '"]');
-        guideContent.scrollTop += stage.getBoundingClientRect().top - guideContent.getBoundingClientRect().top - 12;
-        stage.focus({ preventScroll: true });
-      });
-    }
     document.querySelector(".map-tools").addEventListener("toggle", updateModeHighlight);
     document.addEventListener("pointerdown", (event) => {
       const tools = document.querySelector(".map-tools");
       if (tools.open && !tools.contains(event.target)) tools.open = false;
-      if (!guideCollapsed && !guideRail.contains(event.target) && !guideTrigger.contains(event.target)) setGuideCollapsed(true);
     });
     appStatusBadge.addEventListener("click", renderManagePanel);
     headerRuntimeAction.addEventListener("click", () => {
@@ -5086,8 +4776,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (document.querySelector(".map-tools").open) {
         document.querySelector(".map-tools").open = false;
         document.querySelector(".map-tools > summary").focus();
-      } else if (!guideCollapsed) {
-        setGuideCollapsed(true);
       } else if (document.body.dataset.workspace === "map" && panelMode !== "map") {
         closeMapDetails();
       }
@@ -5104,9 +4792,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       entryFilter.append(option);
     }
     applyLayout(false);
-    setGuideCollapsed(guideCollapsed);
-    renderActionCenter();
     renderManagePanel();
+    if (launchNotice) setStatus(launchNotice);
     void refreshOperationalState();
     const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
     const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);
@@ -5119,6 +4806,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const status = document.getElementById("status");
       status.textContent = "Could not load Canvas controls: " + cause.message + ". Reload to retry.";
       status.setAttribute("role", "alert");
+      status.classList.remove("visually-hidden");
     });
   </script>
 </body>

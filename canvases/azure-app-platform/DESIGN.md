@@ -223,7 +223,7 @@ the repository or subscription.
 
 ## Source-derived App Map
 
-### Workspace and Guide
+### Workspace and status
 
 The app interface exposes Build, Connect, Run, Observe, and Deploy in one compact
 navigation group. Build is a normal shell page using the existing Customize renderer,
@@ -235,7 +235,7 @@ configuration page using the canonical Settings/Environment renderer and shared
 subscription, gateway, model and sandbox discovery/actions. Opening it does not apply
 changes or create resources. Run remains the autonomous event/task tester; Observe owns
 App Map/Logs and source connection review; Deploy reviews explicit deployment actions.
-Guide's Build and Connect actions use those same destinations. Source review and
+Source review and
 Build's add-building-block handoff can highlight the existing map controls.
 Leaving the map, opening an inspector, or dismissing the guidance removes the
 highlight. Model connection still opens scoped modal Settings above Build, with focus
@@ -275,26 +275,18 @@ are directly accessible; search/layout options open downward.
 The options scroll within the map's available height; wheel input over them
 does not zoom the graph.
 
-Guide opens from the existing footer, never from a header trigger or dedicated row.
-Its evidence-driven next step and full progress live in an on-demand nonmodal
-popover above the footer, bounded to the workspace so navigation stays accessible.
-Closed Guide reserves no rail or extra row. Enter or Arrow Down opens it; Escape,
-Close or an outside click dismisses it, returning keyboard focus to the footer.
-Progress shortcuts explain stages without navigating. Status refreshes preserve
-focused shortcuts, open recommendations and scrolling without replacing task inputs.
-Open app shares existing header utilities. All runtime states appear in the inline
-app-name badge, without a separate status row; recovery, failure and lifecycle
-labels remain visible across workspaces.
+The shared status/Guide footer and its popover are removed, including their reserved
+geometry, shortcuts, listeners and focus targets. Status Brief supplies evidence-based
+readiness and recovery. All runtime states remain in the inline app-name badge;
+Open app shares existing header utilities. Action feedback uses the existing live
+status region without allocating a row. Errors become explicit visible alerts above
+the workspace, including failures before the shared toolkit loads. They do not depend
+on Logs being open.
 
-Guide starts closed on each page visit; visibility stays in memory across workspace
-changes, separate from map layout and source files. Document-test drafts stay in memory across mode
-switches but are not persisted by this layout. Customize holds no source drafts.
-Live runtime evidence takes precedence over unresolved static source evidence
-in workflow progress. A running app reaches Observe & manage immediately;
-Run is complete, while uncertain Build/Connect evidence remains marked Review.
-Telemetry completeness is an improvement, not the admission rule for viewing
-logs, health, or request paths. Start/stop transitions and failures return the
-current step to Run, and preview-only operation is labeled explicitly.
+Document-test drafts stay in memory across mode switches but are not persisted by
+this layout. Customize holds no source drafts. Telemetry completeness is not an
+admission rule for viewing logs, health or request paths. A running app does not
+establish agent readiness or task success, and preview-only operation is explicit.
 
 ### Customize and enforcement ownership
 
@@ -330,8 +322,7 @@ Duplicate names gain secondary project-path qualifiers. Areas and projects are
 remembered independently, so returning to Tools restores the chosen tool.
 Semantic labels lead and paths remain supporting references. There is no file
 explorer, selected-file model, resizable split, or collapsed navigation rail.
-The active content adapts to the actual canvas width; the Guide remains the only
-right-hand rail.
+The active content adapts to the actual canvas width without a reserved side rail.
 
 **Edit in Files** is the primary row action; a quiet **Open in &lt;editor&gt;**
 action remains secondary. The shared editor picker lives in **Settings** beside
@@ -368,7 +359,7 @@ Plugin startup
 never restores development dependencies, reads a checkout's `node_modules`, or
 downloads browser assets. The preview uses Studio-owned light/dark tokens and
 keeps horizontal overflow inside its compact scroller.
-Top-level workspace navigation and Guide actions remain available during
+Top-level workspace navigation remains available during
 discovery failures and empty states; Customize does not repeat them. Discovery caveats live
 in an expandable footer; file-specific errors remain beside the selected file.
 Only document-capable profiles show a single document-test action and runtime information.
@@ -507,7 +498,7 @@ inspector rather than leaving a hidden selection active.
 
 Selecting a node opens its details and highlights only its immediate graph
 neighborhood. Clicking the selected node again, clicking empty map space, or
-pressing Escape returns to the map without changing Guide visibility. Selecting a
+pressing Escape returns to the map. Selecting a
 connection explains how the request moves between the two components and shows
 the exact source evidence, while explicitly distinguishing architecture
 evidence from a successful live distributed trace.
@@ -564,37 +555,16 @@ an explicit second confirmation, delegates to the existing capability workflow,
 and does not provision or deploy Azure resources. The new card appears only
 after refreshed source discovery produces evidence for it.
 
-The expanded map's default side panel is **Guide**, not an
-infrastructure dashboard. It translates the current graph into a progressive
-**Build → Connect → Run → Observe & manage** journey, presents runtime as the
-immediate action, and shows one evidence-backed improvement at a time. Later
-suggestions remain collapsed. The journey is a vertical progress view, not a
-second workspace navigator: explanatory text stays visible, connected nodes communicate order,
-and only the current stage is highlighted. Its matching **Next action** card
-appears immediately below the stepper; unavailable runtime work and later
-improvements do not compete with that action. For example, an agent without a
-gateway gets model-connection guidance before it can run. Once running, the
-current step is Observe & manage with a direct map/log inspection action;
-uncertain references and missing telemetry remain separate review/improvement
-items, not prerequisites for observing the app. Local readiness and lifecycle
-state update progress through the
-existing APIs, including the stricter gateway validation introduced by later
-Studio changes.
-
-Recommendations are deterministic and recomputed from a fresh trace. Runtime
-progress updates automatically. Work delegated to another session does not
-directly mutate the graph, so its completion screen offers **Check for changes**
-to retrace the app. This is the first progressive-guidance layer; future history
-or preference signals may refine ranking but must not weaken evidence requirements.
-
-The footer Guide control remains reachable at narrow widths and outside Run.
-Its next step uses current evidence, and its Connect action opens gateway configuration.
-Guide visibility remains independent of the selected workspace and component.
+The map uses the full workspace, with a bottom inspector only when a component
+or source connection is selected. Build, Connect, Run, Observe and Deploy remain
+directly accessible. Uncertain references and missing telemetry remain review items,
+not prerequisites for observing the app. Readiness and recovery use the existing
+APIs and appear in Status Brief rather than a separate Guide or footer.
 
 **Run/Debug** is a focused run/test surface, not an embedded IDE or debugger.
 The main area contains state-specific startup/recovery guidance, an available
 web-app action, **Invoke agent**, and its readable result. The connected model
-summary links directly to Settings. A flat **Output**, **Services**, **Environment**,
+summary links directly to Connect. A flat **Output**, **Services**, **Environment**,
 **Operations** tab row preserves the full supporting feature set without stacked
 accordions or nested Diagnostics tabs. Output is first/default, putting command
 stdout/stderr below the tester. Only one supporting panel is visible. Tabs use
@@ -608,7 +578,7 @@ owned by the shared shell below the active workspace, not a second tester.
 Header Logs remains available across all five pages; the pane, selected tab,
 scroll/disclosures, ongoing output polling and keyboard focus survive page visits.
 It is resizable with pointer or keyboard, bounded against the current shell and
-footer height; Escape closes it and returns focus to Logs. Failure warnings stay
+visible alert height; Escape closes it and returns focus to Logs. Failure warnings stay
 visible when it is hidden.
 A compact secondary **+ Document** toolkit menu immediately to the right of **Invoke agent**
 appears only when readiness advertises document support. Its three actions are
@@ -684,7 +654,7 @@ authorization as Customize; no recognized file or unavailable host support produ
 explicit error, never an implicit local-IDE fallback. Customize's external-editor action
 remains available separately. Azure deployment
 remains a secondary disclosure; deletion lives only in app Settings, not Run.
-Home returns to the landing screen, and Guide, Run/Debug, and
+Home returns to the landing screen, and Run/Debug and
 Search & layout use a colored active state. The
 bottom details panel is pointer- and keyboard-resizable at all viewport widths,
 with its per-app height stored locally.

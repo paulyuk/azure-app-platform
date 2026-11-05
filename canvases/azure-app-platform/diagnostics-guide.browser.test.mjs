@@ -56,7 +56,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             await page.setViewportSize({ width, height: 480 });
             await page.waitForFunction(() => {
               const dock = document.querySelector("#workspace-diagnostics");
-              const available = dock.parentElement.clientHeight - dock.parentElement.querySelector("footer").offsetHeight;
+              const available = dock.clientHeight + dock.previousElementSibling.clientHeight;
               return Number(dock.querySelector('[role="separator"]').getAttribute("aria-valuenow")) <= Math.floor(available * .55);
             });
             const geometry = await page.evaluate(() => {
@@ -285,7 +285,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     } finally { await browser.close(); await fixture.close(); }
   });
 
-  test(`Contextual Guide is a dismissible nonmodal view, not a competing rail in ${name}`, {
+  test(`Footer removal reclaims every workspace and retains action and failure announcements in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -302,81 +302,78 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       } }));
       await page.goto(fixture.origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
-      const trigger = page.locator("#action-center"), guide = page.locator("#guide-rail");
-      await page.getByRole("button", { name: "Guide: Check the agent endpoint", exact: true }).waitFor();
-      assert.equal(await trigger.innerText(), "Guide");
-      assert.equal(await page.locator("#workspace-status-footer #action-center").count(), 1);
-      assert.equal(await page.locator("#workspace-runtime-bar #action-center, #studio-workspace-navigation > header #action-center").count(), 0);
+      await page.locator('.agent-status-brief[data-state="agent-unavailable"]').waitFor();
+      assert.equal(await page.locator("#workspace-status-footer,#workspace-guide,#action-center,#guide-rail,[data-guide-stage]").count(), 0);
+      assert.equal(await page.locator('[aria-controls*="guide-"]').count(), 0);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".studio-theme-control #header-open-app").isVisible(), true);
       assert.ok(await page.evaluate(() => Math.abs(document.querySelector("#app-workspace-main").getBoundingClientRect().top -
         document.querySelector(".workspace-navigation-bar").getBoundingClientRect().bottom) <= 1),
       "Healthy Run starts immediately after navigation, with no empty runtime row.");
-      assert.equal(await guide.isVisible(), false);
-      const width = (await page.locator("#workspace").boundingBox()).width;
-      await trigger.press("ArrowDown");
-      assert.equal(await guide.isVisible(), true);
-      assert.equal(await page.locator("#guide-context button").evaluate(node => node === document.activeElement), true);
-      assert.equal((await page.locator("#workspace").boundingBox()).width, width);
-      assert.match(await page.locator("#guide-context").innerText(), /agent is not ready/);
-      await page.locator("#guide-context button").press("Enter");
-      assert.equal(await guide.isVisible(), false);
-      assert.equal(await page.getByRole("tab", { name: "Services", exact: true }).getAttribute("aria-selected"), "true");
-      agentReady = true;
-      await page.getByRole("button", { name: "Guide: Dispatch an event or task", exact: true }).waitFor();
-      await trigger.press("Enter");
-      const more = page.locator("#guide-content .more-guidance");
-      await more.locator("summary").click();
-      await page.locator("#guide-content").evaluate(node => { node.scrollTop = 90; });
-      fixture.state.health = "Updated with Guide open";
-      await page.waitForFunction(() => document.querySelector("#run-panel-services").textContent.includes("Updated with Guide open"));
-      assert.equal(await more.evaluate(node => node.open), true);
-      assert.equal(await more.locator("summary").evaluate(node => node === document.activeElement), true);
-      assert.equal(await page.locator("#guide-content").evaluate(node => node.scrollTop), 90);
-      await page.locator('[data-guide-stage="connect"]').click();
-      assert.equal(await guide.isVisible(), true, "Stage shortcuts explain progress without navigating.");
-      await page.keyboard.press("Escape");
-      assert.equal(await guide.isVisible(), false);
-      assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
-      await trigger.click();
-      await page.locator("#guide-content [data-action-key='customize-app']").click();
-      assert.equal(await guide.isVisible(), false);
-      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
-      assert.equal(await trigger.getAttribute("aria-expanded"), "false");
-      await page.keyboard.press("Escape");
-      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
+      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await prompt.fill("Retain this task without a footer.");
+      const status = page.locator("#status");
+      assert.equal(await status.getAttribute("role"), "status");
+      assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+        for (const [width, height] of [[320, 480], [380, 480], [620, 800]]) {
+          await page.setViewportSize({ width, height });
+          for (const [id, mode] of [["build-workspace", "build"], ["connect-workspace", "connections"],
+            ["manage-app", "manage"], ["map-app", "map"], ["deploy-workspace", "deploy"]]) {
+            await page.locator("#" + id).click();
+            await page.locator('body[data-workspace="' + mode + '"]').waitFor();
+            const geometry = await page.evaluate(() => {
+              const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
+              const dock = document.querySelector("#workspace-diagnostics").getBoundingClientRect();
+              const content = document.querySelector("#workspace-content").getBoundingClientRect();
+              return {
+                noGap: Math.abs(main.bottom - dock.top) <= 1 && Math.abs(dock.bottom - content.bottom) <= 1,
+                fits: document.documentElement.scrollWidth <= innerWidth,
+                footer: document.querySelector("footer,#action-center,#guide-rail"),
+              };
+            });
+            assert.ok(geometry.noGap && geometry.fits && !geometry.footer, JSON.stringify({ width, theme, mode, geometry }));
+            assert.equal(await page.locator("#app-status-badge").isVisible(), true);
+          }
+        }
+      }
+      await page.setViewportSize({ width: 620, height: 800 });
       await page.locator("#manage-app").click();
-      await trigger.click();
-      await page.locator("#close-guide").click();
-      assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
-      await trigger.click();
-      await page.locator("#app-title").click();
-      assert.equal(await guide.isVisible(), false);
+      assert.equal(await prompt.inputValue(), "Retain this task without a footer.");
+      const logs = page.locator("#run-diagnostics-toggle");
+      await logs.click();
+      const separator = page.getByRole("separator", { name: "Resize Diagnostics", exact: true });
+      await separator.focus();
+      await separator.press("ArrowUp");
+      assert.ok(Number(await separator.getAttribute("aria-valuenow")) >= Number(await separator.getAttribute("aria-valuemin")));
+      await separator.press("Escape");
+      assert.equal(await logs.evaluate(node => node === document.activeElement), true);
+      await page.route("**/api/open-entrypoint", route => route.fulfill({ status: 503,
+        json: { error: "Simulated action failure without a footer." } }));
+      await page.locator("#header-open-app").click();
+      await status.filter({ hasText: "Simulated action failure without a footer." }).waitFor();
+      assert.equal(await status.getAttribute("role"), "alert");
+      assert.equal(await status.isVisible(), true);
+      assert.ok(!await status.evaluate(node => node.classList.contains("visually-hidden")));
+      await page.locator("#map-app").click();
+      await page.locator(".map-tools > summary").click();
+      await page.getByRole("button", { name: "Reset map", exact: true }).click();
+      assert.equal(await status.textContent(), "App Map view reset.");
+      assert.equal(await status.getAttribute("role"), "status");
+      assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
+      await page.locator("#manage-app").click();
+      agentReady = true;
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       await page.route("**/api/agent-invoke", route => route.fulfill({ status: 503, json: { error: "Simulated task failure" } }));
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="failed"]').waitFor();
-      await page.getByRole("button", { name: "Guide: Review failed task", exact: true }).waitFor();
-      assert.equal(await guide.isVisible(), false);
       assert.match(await page.locator(".agent-response").innerText(), /Simulated task failure/);
-      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
-      for (const theme of ["light", "dark"]) {
-        await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-        for (const [width, height] of [[320, 480], [620, 800], [1000, 480]]) {
-          await page.setViewportSize({ width, height });
-          await trigger.click();
-          const bounds = await guide.boundingBox();
-          assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width && bounds.y + bounds.height <= height);
-          assert.ok(bounds.y >= (await page.locator("#app-workspace-main").boundingBox()).y,
-            "The footer-anchored Guide must leave header navigation accessible.");
-          assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
-          assert.equal(await trigger.isVisible(), true);
-          assert.ok(await guide.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
-          assert.equal(await page.getByRole("button", { name: "Guide: Review failed task", exact: true }).count(), 1);
-          await page.keyboard.press("Escape");
-        }
-      }
+      assert.equal(await status.getAttribute("role"), "alert");
+      assert.match(await status.textContent(), /Simulated task failure/);
+      assert.equal(await logs.getAttribute("aria-expanded"), "false");
+      assert.equal(await logs.locator(".logs-warning-badge").count(), 1);
       await page.locator("#map-app").click();
-      assert.equal(await trigger.isVisible(), true);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".workspace-lifecycle-actions #header-runtime-action").isVisible(), true,
         "Runtime controls remain on the navigation row outside Run.");
@@ -385,7 +382,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#app-status-badge").filter({ hasText: "Stopping" }).waitFor();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".app-workspace-header #app-status-badge").isVisible(), true,
-        "Active lifecycle status stays visible beside the app name, even with Guide closed.");
+        "Active lifecycle status stays visible beside the app name without a footer.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }

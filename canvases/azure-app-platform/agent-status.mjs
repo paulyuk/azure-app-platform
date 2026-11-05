@@ -124,7 +124,7 @@ export function createAgentStatusComponent(toolkit) {
           }, action.label))) : null),
       h("dl", { className: "agent-status-facts" },
         ...[["Runtime", runtime], ["Agent", agent], ["Connection", connection]].map(([label, value]) =>
-          h("div", { key: label }, h("dt", null, label), h("dd", null, value,
+          h("div", { key: label }, h("dt", null, label), h("dd", null, h("span", null, value),
             label === "Connection" && onConnection ? h(toolkit.Button, {
               className: "agent-connection-shortcut", appearance: "secondary", size: "small",
               icon: connectionIcon, "aria-label": "Open connections", title: "Open connections",

@@ -67,7 +67,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         logo: document.querySelector(".ct-header-home").getBoundingClientRect().left,
       }));
       assert.ok(positions.history <= positions.logo);
-      const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
+      assert.equal(await page.locator("#workspace-status-footer,#action-center,#guide-rail").count(), 0);
 
       // Build is a normal retained source workspace in destination history.
       await select("build-workspace");
@@ -204,7 +204,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await mode("manage");
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
       assert.equal(await page.locator("#studio-workspace-navigation").evaluate(node => node === window.navigationRoot), true);
-      assert.equal(await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage"), guidedStage);
+      assert.equal(await page.locator("#workspace-status-footer,#action-center,#guide-rail").count(), 0);
 
       // Existing settings and source handoff stay independent of destination history.
       await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -240,6 +240,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.route("**/canvas-ui/base.mjs", route => route.abort());
       await page.goto(origin + "/app-map");
       await page.locator("#status").filter({ hasText: "Could not load Studio controls:" }).waitFor();
+      assert.equal(await page.locator("#status").getAttribute("role"), "alert");
+      assert.equal(await page.locator("#status").isVisible(), true);
       assert.equal(await page.locator("#workspace-navigation-message").textContent(), "Workspace navigation is unavailable.");
       await page.locator("#workspace-content").evaluate(node => { window.retryContent = node; });
       await page.unroute("**/canvas-ui/base.mjs");

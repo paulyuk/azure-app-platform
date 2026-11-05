@@ -29,7 +29,7 @@ back to CLI setup, not model connection settings.
 ## Icons
 
 Authored UI icons use official **Octicons 19.41.0**: settings, navigation,
-disclosures, Guide stages/statuses, map tools and capability cards. Labels and
+disclosures, runtime statuses, map tools and capability cards. Labels and
 tooltips retain their meaning; decorative SVGs are hidden from assistive
 technology and inherit the current theme's text color. CSS masks use the same
 official paths, not separately drawn approximations.
@@ -128,14 +128,14 @@ placement.
 | Existing app screen | Back and confirmation-cancel actions migrated; compound app rows and destructive actions retained |
 | Post-creation actions | Gateway, deployment, runtime, endpoints, source, agent invocation and map actions migrated |
 | Customize | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
-| Run/Debug and Guide | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
-| Observe | Map reset/zoom/fit, inspector close and Guide collapse/dismiss actions migrated |
+| Run/Debug | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
+| Observe | Map reset/zoom/fit and inspector close actions migrated |
 | Logs | All-services action, pause/resume and refresh migrated, including the component-log panel |
 | Shared Settings | Open/close and ordinary app-section actions migrated |
 
 This is not a migration of every element with a button tag. Semantic tabs,
 workspace navigation, Customize implementation selection, journey/app cards, the
-two-line model-connection control, Guide progress/status shortcuts, inline log
+inline connection shortcut, inline log
 service filters, SVG graph controls, links and the cinematic intro's Skip action
 remain their existing controls. They need their appropriate component slices,
 not conversion to generic Button. The separate `src/web` demo and generated
@@ -295,7 +295,7 @@ the public small-button tokens; no private toolkit styles are overridden.
 There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
 activates them. The selected workspace page has `aria-current="page"` and
 `aria-pressed="true"`. **Build** shows the existing Customize source controls as a
-normal workspace page inside the shell. Navigation, history, utilities and footer stay
+normal workspace page inside the shell. Navigation, history and utilities stay
 available; there is no overlay, Close action, Escape dismissal or focus trap.
 There is no separate Customize link.
 The header's toolkit **NavigationControls** place **Back** and **Forward** before
@@ -338,8 +338,7 @@ above the Build page and returns to the same control and preview. Settings alone
 modal. **Run & Debug** and **Test with a document** navigate to Run and focus the existing
 task tester; **+ Add building block** opens the existing App Map controls. Task/document
 drafts, selections, results and assessments survive Build visits. Source and external-editor
-handoffs keep their existing behavior. The Guide's Build action opens the same
-Build page; its Connect action opens gateway configuration. Source connection
+handoffs keep their existing behavior. Source connection
 review remains under Observe's App Map **Search & layout**, with **Edit connections on
 App Map** highlighting the existing diagram controls. These entry points do not
 change files or start the app.
@@ -349,20 +348,14 @@ map/log line icons and the same flat Run-style tabs used by Customize: a shared 
 subtle selected fill, and accent underline rather than individually outlined buttons.
 Keyboard tab navigation remains available across the workspaces.
 Each view fills the workspace rather than sharing it
-with an always-visible map. **Guide** opens from the existing footer, not the header,
-a permanent side rail, or another toolbar. Its next step uses runtime,
-agent-endpoint, connection and request evidence, with failures taking priority.
-Running the app alone never recommends a successful agent test. Full workflow guidance
-opens on demand without narrowing the workspace; the five stage shortcuts explain
-progress without navigating, while their explicit actions open the corresponding workspace.
-Enter or Arrow Down opens Guide from the keyboard. Escape or **Close Guide** returns
-focus to its trigger; clicking outside dismisses it. The bounded, scrollable nonmodal
-popover opens above the footer within workspace bounds, leaving header navigation
-accessible, and starts closed at every viewport size. Runtime status is a compact
-badge immediately after the app name, not a separate row. Open app shares existing
-header utilities. Polling preserves Guide focus, expanded
-recommendations and scroll position; workspace changes never reopen it or discard
-task payloads or the selected Customize preview.
+with an always-visible map. There is no shared status/Guide footer, reserved bottom
+row, or Guide popover. Runtime status remains a compact badge immediately after
+the app name, and Status Brief explains runtime, agent, connection and request
+evidence without treating a running app as a successful test. Essential action
+feedback uses the existing live status region without reserving space. Errors
+appear as explicit alerts above workspace content; they are not hidden with Logs.
+Open app shares existing header utilities. Workspace changes retain task payloads
+and the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
 It dispatches tasks/events through the existing invocation path; it is not a
@@ -393,7 +386,7 @@ Drag the separator or focus **Resize Diagnostics** and use Up/Down (24 pixels),
 Shift+Up/Down (48 pixels), Home (minimum) or End (maximum). The pane is bounded to
 55% of the available workspace height and 560 pixels, with a 120-pixel minimum reduced
 for short canvases. It also reserves 160 pixels for the primary workspace (40% on
-short canvases) after accounting for the footer, warning and separator.
+short canvases) after accounting for visible alerts, warnings and the separator.
 Resizing the window clamps its displayed size without losing the
 preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
@@ -430,12 +423,8 @@ contextual **Add component** action. Adjacent request-flow stages expose
 destination selection, and review the source-backed change before delegating
 implementation to the app session. Compact tier illustrations on each component
 card make the architecture easier to scan without replacing source-derived names,
-badges, or status. Guide stays focused on progress and one required action at a
-time.
-Additional recommendations are collapsed. **Observe → App Map** has one request-flow
-map. Once the app is running, Guide marks Run complete and makes
-**Observe** current for runtime inspection, not proof of a successful task.
-Guide's **Observe: inspect App Map** action remains available on demand. Clicking
+badges, or status. **Observe → App Map** has one request-flow map. Runtime inspection
+is available independently of task success. Clicking
 **Review source connections** under App Map's **Search & layout** opens a read-only
 connection review in the bottom inspector, with
 source locations, possible destinations, and actions to inspect affected
@@ -492,9 +481,9 @@ Landing-page Settings exposes appearance and the preferred external editor. Stud
 from app source and runtime configuration.
 
 Map inspection opens a separate resizable
-bottom details panel, keeping the map's full width beside Guide. Drag the
+bottom details panel, keeping the map's full width. Drag the
 horizontal divider or use its Up/Down keys to resize it; **Close details** or
-Escape dismisses it without changing Guide. The inspector's height is
+Escape dismisses it. The inspector's height is
 remembered and bounded to leave the map visible, including in compact panes.
 New inspector content starts at the top. Opening, closing, or resizing the
 inspector does not pan or zoom the map; use the map controls to adjust the view.
@@ -561,7 +550,7 @@ source-discovered implementations; **Tool activity** beneath the response
 contains only calls reported in the last response. A reported call alone is not
 proof of successful execution.
 **Home** returns to the landing screen. The active main view is highlighted
-independently from Guide visibility; Search & layout does not change that view.
+independently from inspector visibility; Search & layout does not change that view.
 **Open app** lists the most recently opened apps first and shows their last-opened
 date and time in the browser's local timezone. Opening an App Map records its
 timestamp in `.azure-app-platform/last-opened.json`, separately from app identity and
@@ -944,10 +933,8 @@ troubleshooting—not known-file creation.
   explicitly request a new source capability without provisioning Azure.
   **Connect** controls between adjacent stages expose existing evidence and a
   confirmation-gated path to create or improve real source wiring.
-  The default **Guide** turns current app evidence into a progressive
-  **Build → Connect → Run → Observe → Deploy** journey. It prioritizes missing
-  foundations, uncertain connections, local readiness, and observability while
-  keeping later suggestions collapsed.
+  **Build → Connect → Run → Observe → Deploy** remain directly accessible destinations.
+  Status Brief surfaces readiness and recovery without a separate Guide or footer.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
   reports repository and Azure discovery health rather than simulated platform
   status.

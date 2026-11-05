@@ -95,9 +95,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           const geometry = await build.evaluate(node => {
             const box = node.getBoundingClientRect();
             const shell = document.querySelector("#app-workspace-main").getBoundingClientRect();
-            const footer = document.querySelector("#workspace-status-footer").getBoundingClientRect();
             return { tag: node.tagName, dialogs: document.querySelectorAll("dialog[open]").length,
-              inside: box.top >= shell.top && box.bottom <= footer.top + 1 && box.left >= 0 && box.right <= innerWidth,
+              inside: box.top >= shell.top && box.bottom <= shell.bottom + 1 && box.left >= 0 && box.right <= innerWidth,
               fits: node.scrollWidth <= node.clientWidth + 1 && document.documentElement.scrollWidth <= innerWidth,
               height: box.height };
           });

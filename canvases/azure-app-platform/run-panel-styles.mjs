@@ -13,7 +13,7 @@ export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-copy details { font-size:12px; margin-top:4px; }
 #details[data-mode="manage"] .agent-status-copy summary { cursor:pointer; }
 #details[data-mode="manage"] .agent-status-prerequisites { margin:4px 0 0; padding-inline-start:18px; font-size:12px; overflow-wrap:anywhere; }
-#details[data-mode="manage"] .agent-connection-shortcut { margin-inline-start:4px; vertical-align:middle; }
+#details[data-mode="manage"] .agent-connection-shortcut { flex:none; }
 #details[data-mode="manage"] .agent-status-icon { display:grid; flex:none; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--studio-muted); background:var(--studio-panel); }
 #details[data-mode="manage"] .agent-status-icon::before { content:""; width:16px; height:16px; background:currentColor; mask:${octiconMask("info")} center/contain no-repeat; }
 #details[data-mode="manage"] .agent-status-icon[data-tone="success"] { color:var(--studio-ok); }
@@ -32,7 +32,8 @@ export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-facts > div { min-width:0; padding:8px 10px; }
 #details[data-mode="manage"] .agent-status-facts > div + div { border-inline-start:1px solid var(--studio-line); }
 #details[data-mode="manage"] .agent-status-facts dt { color:var(--studio-muted); font-weight:600; overflow-wrap:anywhere; }
-#details[data-mode="manage"] .agent-status-facts dd { margin:2px 0 0; color:var(--studio-ink); overflow-wrap:anywhere; }
+#details[data-mode="manage"] .agent-status-facts dd { display:flex; align-items:center; gap:4px; margin:2px 0 0; color:var(--studio-ink); overflow-wrap:anywhere; }
+#details[data-mode="manage"] .agent-status-facts dd > span { min-width:0; }
 `;
 
 export const RUN_PANEL_CONTENT_CSS = `

@@ -43,7 +43,6 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
         if (preview) html = html.replace("</body>", `<script>
           window.addEventListener("app-platform-ready", () => {
             document.querySelector("#manage-app").click();
-            document.querySelector("#workspace-status-footer > :last-child").textContent = "UI preview · simulated actions only";
           }, { once: true });
         </script></body>`);
         response.setHeader("Content-Type", "text/html");
