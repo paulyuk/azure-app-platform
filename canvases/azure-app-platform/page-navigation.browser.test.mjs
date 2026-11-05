@@ -90,6 +90,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByText("Autonomous run result", { exact: true }).waitFor();
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
       await page.locator("[data-event-preset]").first().click();
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       assert.match(await draft.inputValue(), /^Event \[/);
       assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
       await draft.fill("Preserve this event payload.");

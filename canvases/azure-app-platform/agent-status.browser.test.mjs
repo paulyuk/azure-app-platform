@@ -222,6 +222,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const document = page.getByLabel("Document text", { exact: true });
       assert.equal(await page.locator(".document-name").textContent(), "sample-loan-note.md");
       assert.equal(await page.locator(".run-document").evaluate(node => node.open), false);
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       assert.match(await prompt.inputValue(), /^Event \[loan.document.submitted\]/);
       assert.match(await document.inputValue(), /Residential Auto Loan Intake/);
       await prompt.fill("Event [test.task.received]: verify this document without a conversation.");
@@ -330,6 +331,69 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await prompt.inputValue(), payload);
       assert.equal(await document.inputValue(), documentText);
+      available = true;
+      fixture.state.app = "running";
+      fail = false;
+      await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
+      await page.evaluate(() => {
+        window.__promptValueTrace = [];
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+        Object.defineProperty(HTMLTextAreaElement.prototype, "value", {
+          configurable: true,
+          get() {
+            return descriptor.get.call(this);
+          },
+          set(next) {
+            descriptor.set.call(this, next);
+            if (this.getAttribute("aria-label") === "Agent message") {
+              window.__promptValueTrace.push(String(next));
+            }
+          },
+        });
+      });
+      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await page.waitForFunction(() => {
+        const node = document.querySelector('[aria-label="Agent message"]');
+        return node && node.dataset.typing === "true" && node.value.length > 0;
+      });
+      await page.locator('[data-event-preset="compliance.audit.scheduled"]').click();
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
+      const interruptedTrace = await page.evaluate(() => window.__promptValueTrace.slice());
+      const auditTarget = await prompt.inputValue();
+      assert.match(auditTarget, /^Event \[compliance\.audit\.scheduled\]/);
+      assert.equal(interruptedTrace[0], "", "Clicking a preset button must clear the textarea first.");
+      const secondClearIndex = interruptedTrace.lastIndexOf("");
+      assert.ok(secondClearIndex > 0, "Clicking another preset mid-animation must clear the textarea again.");
+      const auditFrames = interruptedTrace.slice(secondClearIndex + 1);
+      const expectedAuditChars = Array.from(auditTarget);
+      assert.equal(auditFrames.length, expectedAuditChars.length);
+      assert.deepEqual(
+        auditFrames,
+        expectedAuditChars.map((_, index) => expectedAuditChars.slice(0, index + 1).join("")),
+        "Preset prompt must animate character by character after clearing.",
+      );
+      await page.evaluate(() => { window.__promptValueTrace = []; });
+      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
+      const loanTrace = await page.evaluate(() => window.__promptValueTrace.slice());
+      const loanTarget = await prompt.inputValue();
+      assert.match(loanTarget, /^Event \[loan\.document\.submitted\]/);
+      assert.equal(loanTrace[0], "", "Clicking loan.document.submitted must clear the textarea first.");
+      const expectedLoanChars = Array.from(loanTarget);
+      assert.deepEqual(
+        loanTrace.slice(1),
+        expectedLoanChars.map((_, index) => expectedLoanChars.slice(0, index + 1).join("")),
+        "loan.document.submitted preset must animate in character by character.",
+      );
+      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await page.waitForFunction(() => {
+        const node = document.querySelector('[aria-label="Agent message"]');
+        return node && node.dataset.typing === "true" && node.value.length > 0;
+      });
+      await invoke.click();
+      await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
+      assert.match(requests.at(-1).message, /^Event \[applicant\.intake\.received\].*missing borrower attestations\.$/);
+      assert.equal(await prompt.inputValue(), requests.at(-1).message);
       assert.equal(await page.locator(".conversation-list,.chat-bubble,[data-conversation]").count(), 0);
       assert.equal(await brief.count(), 1);
       for (const [width, height] of [[320, 480], [620, 800]]) {

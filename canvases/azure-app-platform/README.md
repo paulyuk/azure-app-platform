@@ -382,6 +382,9 @@ Open app shares existing header utilities. Workspace changes retain task payload
 and the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
+Selecting an event trigger clears the payload textarea first and animates the new
+preset text in character by character while immediately storing the full target
+payload for retention and invocation.
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
 Before the first invocation, the result box shows a static decorative task

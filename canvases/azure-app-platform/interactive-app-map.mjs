@@ -1042,6 +1042,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ? "Process document"
         : "Summarize how you can help and run a sample check";
     let agentPromptTouched = false;
+    let agentPromptTyping = null;
     let agentResponseText = "No task has run yet.";
     let agentRequestState = "idle";
     let agentResponsePhase = "preparing";
@@ -1197,6 +1198,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     window.addEventListener("pagehide", event => {
       if (event.persisted) return;
       navigationDisposed = true;
+      cancelAgentPromptTyping();
       clearInterval(operationalTimer);
       clearInterval(outputTimer);
       clearTimeout(agentResponseWaitTimer);
@@ -3076,6 +3078,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function openDocumentEditor(editing = false) {
+      finishAgentPromptTyping();
       documentPasteOpen = true;
       documentEditMode = editing;
       documentPasteDraft = agentDocument?.content || "";
@@ -3084,6 +3087,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function replaceDocument(next, { expanded = false } = {}) {
+      finishAgentPromptTyping();
       documentReadVersion += 1;
       agentDocument = next;
       clearDocumentTestNotice();
@@ -3325,6 +3329,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderDocumentTest(container, _actions) {
       if (!operationalState.readiness?.documentInput) return;
       async function runAdversarialTest(mode) {
+        finishAgentPromptTyping();
         const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
         documentReadVersion += 1;
         documentError = "";
@@ -3390,33 +3395,114 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons.append(egressCard, testEgress);
     }
 
-    function renderEventPresetChips(tester, promptInput) {
+    function cancelAgentPromptTyping() {
+      if (!agentPromptTyping) return;
+      clearInterval(agentPromptTyping.timerId);
+      agentPromptTyping = null;
+      const activePrompt = details.querySelector('[aria-label="Agent message"]');
+      if (activePrompt) delete activePrompt.dataset.typing;
+    }
+
+    function finishAgentPromptTyping() {
+      if (!agentPromptTyping) return;
+      const targetText = agentPromptTyping.targetText;
+      clearInterval(agentPromptTyping.timerId);
+      agentPromptTyping = null;
+      agentPromptDraft = targetText;
+      const activePrompt = details.querySelector('[aria-label="Agent message"]');
+      if (activePrompt) {
+        delete activePrompt.dataset.typing;
+        activePrompt.value = targetText;
+        if (document.activeElement === activePrompt) {
+          activePrompt.setSelectionRange(targetText.length, targetText.length);
+        }
+      }
+    }
+
+    function animateAgentPrompt(targetText, onBeforeRender, presetId = "") {
+      cancelAgentPromptTyping();
+      const nextText = String(targetText ?? "");
+      agentPromptTouched = true;
+      agentPromptDraft = nextText;
+      const existingPrompt = details.querySelector('[aria-label="Agent message"]');
+      if (existingPrompt) {
+        if (document.activeElement === existingPrompt) existingPrompt.blur();
+        existingPrompt.value = "";
+      }
+      const chars = Array.from(nextText);
+      const state = {
+        chars,
+        index: 0,
+        currentValue: "",
+        targetText: nextText,
+        timerId: null,
+      };
+      agentPromptTyping = chars.length ? state : null;
+      if (typeof onBeforeRender === "function") onBeforeRender();
+      const activeChip = presetId ? details.querySelector('[data-event-preset="' + presetId + '"]') : null;
+      if (activeChip) activeChip.focus({ preventScroll: true });
+      const activePrompt = details.querySelector('[aria-label="Agent message"]');
+      if (activePrompt) {
+        if (document.activeElement === activePrompt) activePrompt.blur();
+        if (activePrompt.value !== "") activePrompt.value = "";
+        activePrompt.scrollTop = 0;
+      }
+      if (!chars.length) return;
+      if (activePrompt) activePrompt.dataset.typing = "true";
+      state.timerId = setInterval(() => {
+        if (agentPromptTyping !== state) return;
+        const promptNode = details.querySelector('[aria-label="Agent message"]');
+        if (!promptNode || panelMode !== "manage") {
+          finishAgentPromptTyping();
+          return;
+        }
+        if (document.activeElement === promptNode) {
+          cancelAgentPromptTyping();
+          return;
+        }
+        const step = Math.max(1, Math.ceil(state.chars.length / 24));
+        for (let count = 0; count < step && state.index < state.chars.length; count += 1) {
+          state.index += 1;
+          state.currentValue = state.chars.slice(0, state.index).join("");
+          promptNode.value = state.currentValue;
+        }
+        promptNode.dataset.typing = "true";
+        promptNode.scrollTop = promptNode.scrollHeight;
+        if (state.index >= state.chars.length) {
+          cancelAgentPromptTyping();
+          if (document.activeElement === document.body || document.activeElement?.hasAttribute?.("data-event-preset")) {
+            promptNode.focus({ preventScroll: true });
+            promptNode.setSelectionRange(promptNode.value.length, promptNode.value.length);
+          }
+        }
+      }, 6);
+    }
+
+    function renderEventPresetChips(tester, _promptInput) {
       const bar = appendText(tester, "div", "", "event-preset-bar");
       appendText(bar, "span", "Event triggers:", "event-preset-label");
       for (const preset of AUTONOMOUS_EVENT_PRESETS) {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "event-preset-chip";
+        chip.tabIndex = 0;
         chip.dataset.eventPreset = preset.id;
         chip.textContent = preset.label;
         chip.addEventListener("click", () => {
-          agentPromptTouched = true;
-          agentPromptDraft = preset.prompt;
-          promptInput.value = preset.prompt;
-          if (preset.attachSample && operationalState.readiness?.documentInput && !agentDocument) {
-            documentReadVersion += 1;
-            clearDocumentTestNotice();
-            documentError = "";
-            documentPasteOpen = false;
-            documentEditMode = false;
-            documentPasteDraft = "";
-            documentInputExpanded = true;
-            agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
-            clearDocumentAssessment();
-            renderManagePanel();
-            return;
-          }
-          promptInput.focus();
+          animateAgentPrompt(preset.prompt, () => {
+            if (preset.attachSample && operationalState.readiness?.documentInput && !agentDocument) {
+              documentReadVersion += 1;
+              clearDocumentTestNotice();
+              documentError = "";
+              documentPasteOpen = false;
+              documentEditMode = false;
+              documentPasteDraft = "";
+              documentInputExpanded = true;
+              agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
+              clearDocumentAssessment();
+              renderManagePanel();
+            }
+          }, preset.id);
         });
         bar.append(chip);
       }
@@ -3424,6 +3510,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     async function executeAgentInvocation(promptInput) {
       if (invokingAgent) return;
+      finishAgentPromptTyping();
       const message = promptInput.value.trim();
       if (!message) {
         setStatus("Enter an event payload or task for the local agent.", true);
@@ -3528,12 +3615,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(tester, "strong", "Autonomous event / task payload");
       renderEventPresetChips(tester, prompt);
       prompt.maxLength = 2000;
-      prompt.value = agentPromptDraft;
+      prompt.value = agentPromptTyping ? agentPromptTyping.currentValue : agentPromptDraft;
+      if (agentPromptTyping) prompt.dataset.typing = "true";
       prompt.placeholder = agentEntrypoint
         ? "Dispatch an event payload or unattended task to the running agent"
         : "Select an event trigger or describe an unattended task";
       prompt.setAttribute("aria-label", "Agent message");
+      prompt.addEventListener("focus", () => {
+        cancelAgentPromptTyping();
+      });
       prompt.addEventListener("input", () => {
+        cancelAgentPromptTyping();
         agentPromptTouched = true;
         agentPromptDraft = prompt.value;
       });
