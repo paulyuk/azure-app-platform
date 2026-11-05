@@ -312,6 +312,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await invoke.press("Enter");
       await page.locator('.agent-response[data-state="failed"]').waitFor();
       assert.equal(await status.getAttribute("data-state"), "ready");
+      assert.equal(await page.locator("#status").getAttribute("role"), "status");
+      assert.equal(await page.locator("#status").evaluate(node => node.classList.contains("visually-hidden")), true,
+        "Failed task execution must not render duplicate error text above the Status Brief.");
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true,
         "A temporarily disabled invocation action keeps focus in its result, not the page body.");

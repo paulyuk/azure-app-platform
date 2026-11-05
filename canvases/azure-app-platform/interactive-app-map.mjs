@@ -1459,7 +1459,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const prerequisites = readiness?.prerequisites?.missingTools || [];
       const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
       const actions = [];
-      if (status.state === "failed") {
+      if (status.state === "runtime-failed") {
         actions.push({ key: "open-logs", label: "Open logs", onClick: () => runWorkspace.openDiagnostics("output") });
       }
       if (app?.foreignEntrypoints?.length) {
@@ -3431,6 +3431,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       invokingAgent = true;
+      setStatus("");
       agentRequestState = "invoking";
       agentResponsePhase = "preparing";
       agentResponseSlow = false;
@@ -3497,7 +3498,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         agentRequestState = "failed";
         if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
         updateResponseNode(error.message);
-        setStatus("The last invocation had a problem. Review its result.");
+        setStatus("");
       } finally {
         clearTimeout(agentResponseWaitTimer);
         invokingAgent = false;
