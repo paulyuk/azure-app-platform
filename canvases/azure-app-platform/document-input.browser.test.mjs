@@ -336,9 +336,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           });
           await page.locator(".document-name").filter({ hasText: "uploaded-review.md" }).waitFor();
         } else if (source === "paste") await pasteDocument(page, "# Pasted source\n\nOriginal paste.");
-        else if (source === "sample") await documentAction(page, "Add sample");
-        else if (source === "event") await page.locator('[data-event-preset="loan.document.submitted"]').click();
-        else {
+        else if (source === "sample") {
+          await documentAction(page, "Add sample");
+          await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
+        } else if (source === "event") {
+          await page.locator('[data-event-preset="loan.document.submitted"]').click();
+          await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
+        } else {
           await runBoundaryTest(page, source === "egress" ? "Test unsafe egress" : "Test unsafe override");
           await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
           await notice.filter({ hasText: "Created a synthetic document" }).waitFor();
@@ -731,6 +735,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await notice.getAttribute("aria-live"), "polite");
       assert.equal(await notice.getAttribute("aria-atomic"), "true");
       assert.equal(await notice.getAttribute("data-intent"), "info");
+      const noticePlacement = await page.evaluate(() => {
+        const promptBox = document.querySelector('[aria-label="Agent message"]').getBoundingClientRect();
+        const noticeBox = document.querySelector("[data-document-test-notice] .ct-message").getBoundingClientRect();
+        const docBox = document.querySelector(".document-attachment").getBoundingClientRect();
+        return {
+          afterPrompt: noticeBox.top >= promptBox.bottom - 1,
+          beforeDocs: noticeBox.bottom <= docBox.top + 1,
+        };
+      });
+      assert.deepEqual(noticePlacement, { afterPrompt: true, beforeDocs: true },
+        "MessageBar sits between the Agent message textarea and the document attachment.");
       await notice.evaluate(node => { window.documentNoticeRoot = node; });
       assert.equal(await page.locator("[data-document-assessment][data-state='rejected']").count(), 0,
         "Insertion is explained before any result is returned");
@@ -776,9 +791,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await notice.waitFor();
       await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
       await documentAction(page, "Add sample");
-      assert.equal(await notice.count(), 0);
+      await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
+      assert.equal(await notice.getAttribute("data-intent"), "info");
+      assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
       await runBoundaryTest(page, "Test unsafe egress");
-      await notice.waitFor();
+      await notice.filter({ hasText: "outbound credential/PII probe" }).waitFor();
       await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
       await page.getByRole("button", { name: "Remove document", exact: true }).click();
       assert.equal(await notice.count(), 0);
@@ -787,6 +804,25 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
       await page.getByRole("button", { name: "Remove document", exact: true }).click();
       await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
+      assert.equal(await notice.getAttribute("data-intent"), "info");
+      assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
+      const presetPlacement = await page.evaluate(() => {
+        const promptBox = document.querySelector('[aria-label="Agent message"]').getBoundingClientRect();
+        const noticeBox = document.querySelector("[data-document-test-notice] .ct-message").getBoundingClientRect();
+        const docBox = document.querySelector(".document-attachment").getBoundingClientRect();
+        return {
+          afterPrompt: noticeBox.top >= promptBox.bottom - 1,
+          beforeDocs: noticeBox.bottom <= docBox.top + 1,
+        };
+      });
+      assert.deepEqual(presetPlacement, { afterPrompt: true, beforeDocs: true });
+      await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("User-authored task prompt.");
+      await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
+      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await notice.filter({ hasText: "Added the applicant.intake.received event prompt" }).waitFor();
+      assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
+      await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("User-authored intake prompt.");
       assert.equal(await notice.count(), 0);
       assert.equal(fixture.mutations.some(item => item.path === "/api/agent-invoke"), false);
       assert.deepEqual(errors, []);

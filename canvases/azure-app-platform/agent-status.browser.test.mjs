@@ -220,12 +220,27 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('[data-event-preset="loan.document.submitted"]').click();
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       const document = page.getByLabel("Document text", { exact: true });
+      const notice = page.locator("[data-document-test-notice] .ct-message");
+      await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
+      assert.equal(await notice.getAttribute("data-intent"), "info");
       assert.equal(await page.locator(".document-name").textContent(), "sample-loan-note.md");
       assert.equal(await page.locator(".run-document").evaluate(node => node.open), false);
+      const noticeBetween = await page.evaluate(() => {
+        const promptBox = globalThis.document.querySelector('[aria-label="Agent message"]').getBoundingClientRect();
+        const noticeBox = globalThis.document.querySelector("[data-document-test-notice] .ct-message").getBoundingClientRect();
+        const docBox = globalThis.document.querySelector(".document-attachment").getBoundingClientRect();
+        return {
+          afterPrompt: noticeBox.top >= promptBox.bottom - 1,
+          beforeDocs: noticeBox.bottom <= docBox.top + 1,
+        };
+      });
+      assert.deepEqual(noticeBetween, { afterPrompt: true, beforeDocs: true },
+        "MessageBar sits between the Agent message textarea and the document attachment.");
       await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       assert.match(await prompt.inputValue(), /^Event \[loan.document.submitted\]/);
       assert.match(await document.inputValue(), /Residential Auto Loan Intake/);
       await prompt.fill("Event [test.task.received]: verify this document without a conversation.");
+      await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="invoking"]').waitFor();

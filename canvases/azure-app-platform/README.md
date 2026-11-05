@@ -960,10 +960,12 @@ wait for Save or Cancel; UTF-8 limits and busy/read gating apply to edits too.
 Unsafe override/egress tests are launched from the compact **Try a boundary test** row
 (with its value tagline explaining why to verify prompt-override and sensitive-data leak
 protections before untrusted input reaches the model, plus **Choose test** opening a modal
-for **Test unsafe override** and **Test unsafe egress**) and show an informational message beside the attachment:
-what test text was added (or a synthetic document supplied) and which protections
-it probes. This is not a test result. The message survives polling/navigation and
-clears when the document is edited, replaced, removed or reset to a sample.
+for **Test unsafe override** and **Test unsafe egress**). When any non-user-authored text or document is added (clicking an event trigger
+preset, choosing **Add sample**, or running **Test unsafe override** / **Test unsafe egress**),
+a default-style informational MessageBar appears between the **Agent message**
+textarea and the document attachment with a brief explanation of what was added
+and what it tests. This is not a test result. The message survives polling/navigation
+and updates or clears when the user edits, replaces, or removes the prompt or document.
 This is a safe text preview, not HTML/Markdown execution: links, images and scripts
 are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
 Choose **Paste a document** to attach pasted text; use **Edit document** to change an attachment.

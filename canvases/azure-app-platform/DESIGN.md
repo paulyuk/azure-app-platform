@@ -597,10 +597,13 @@ or reserved bottom padding.
 Its tooltip explains analysis and safety-policy testing. Below the task actions, a compact
 **Try a boundary test** row explains why to verify prompt-override and sensitive-data leak
 protections before untrusted input reaches the model and opens a modal via **Choose test**
-housing the **Test unsafe override** and **Test unsafe egress** security tests. Override/egress additions
-show a polite informational MessageBar describing the inserted test text and its
-purpose, separate from the test outcome. It updates with the test mode, survives
-polling/navigation and clears on document editing, replacement, removal or sample reset.
+housing the **Test unsafe override** and **Test unsafe egress** security tests. Whenever text or documents
+are added that the user did not author directly (event trigger presets, **Add sample**,
+or override/egress safety probes), a polite default-style informational MessageBar
+placed between the **Agent message** textarea and the document attachment explains
+what was added and its purpose, separate from the test outcome. It updates in place,
+survives polling/navigation, and clears or updates when the user edits, replaces,
+or removes the prompt or document.
 The attachment summary keeps its native disclosure marker, a truncating filename
 and a muted neutral **Untrusted source** badge immediately to its right; Remove
 remains separate from the summary. The full filename is available in its tooltip.
