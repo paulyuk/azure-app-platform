@@ -379,20 +379,25 @@ and runtime transitions. A failed retry clears the previous run's raw/tool evide
 keeps its own error visible and never becomes a success just because the runtime
 recovers. Text selection, result scrolling and evidence disclosures are retained.
 Open app and lifecycle controls remain in the header rather than a second tester
-toolbar. **Show Diagnostics** opens the optional lower support pane containing
+toolbar. **Logs**, to the right of Start/Stop with a divider, opens the shared lower
+support pane without leaving Build, Connect, Run, Observe or Deploy. It contains
 **Output**, **Services**, **Environment** and **Operations**, with Output selected
-initially. The task tester remains above it with independent scrolling; it is not duplicated.
+initially. The current workspace remains above it with independent scrolling; the task tester is not duplicated.
 Drag the separator or focus **Resize Diagnostics** and use Up/Down (24 pixels),
 Shift+Up/Down (48 pixels), Home (minimum) or End (maximum). The pane is bounded to
-55% of the available Run height and 560 pixels, with a 120-pixel minimum reduced
-for short canvases. It also reserves 160 pixels for the primary tester (40% of Run
-height on short canvases) after accounting for the toggle, warning and separator.
+55% of the available workspace height and 560 pixels, with a 120-pixel minimum reduced
+for short canvases. It also reserves 160 pixels for the primary workspace (40% on
+short canvases) after accounting for the footer, warning and separator.
 Resizing the window clamps its displayed size without losing the
-preferred height. Escape inside Diagnostics or **Hide Diagnostics** closes it and
+preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
 and disclosures survive close/reopen, navigation and lifecycle polling for the current
 visit. Closing it does not stop output polling or hide errors: unavailable logs and
-failed operation counts stay beside the toggle, while Status Brief, task errors,
+failed operation counts stay visible in the lower warning strip. A red warning-sign
+badge on Logs also reports these issues, runtime/readiness failures and failed agent
+requests; its accessible label explains them. It clears when the reported issues clear,
+and does not treat an ordinarily stopped app as a failure. Output continues polling
+from every workspace. Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
 The Status Brief retains truthful runtime, agent, request and failure information.
 Its bordered summary card places the current state icon, title and explanation

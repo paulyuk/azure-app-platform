@@ -28,6 +28,7 @@ export const AGENT_STATUS_CSS = `
 `;
 
 export const RUN_PANEL_CONTENT_CSS = `
+#workspace-diagnostics { flex:none; min-width:0; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.5 var(--font-sans,system-ui,sans-serif); }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) {
   color:var(--studio-ink); background:var(--studio-raised);
   font:13px/1.5 var(--font-sans, system-ui, sans-serif); padding:24px;
@@ -154,6 +155,6 @@ export const RUN_PANEL_CONTENT_CSS = `
   #details[data-mode="manage"] .run-open-app, #details[data-mode="manage"] .run-section-actions { align-items:flex-start; flex-wrap:wrap; }
   #details[data-mode="manage"] .run-tab-panel { padding-inline:4px; }
 }
-`;
+`.replaceAll("#details", ":is(#details, #workspace-diagnostics)");
 
 export const RUN_PANEL_CSS = STUDIO_TABS_CSS + RUN_PANEL_CONTENT_CSS + AGENT_STATUS_CSS;

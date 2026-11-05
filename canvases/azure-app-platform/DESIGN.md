@@ -486,7 +486,11 @@ its own left-side space without displacing the control. Task actions retain only
 **Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
 gating reuse the same control and lifecycle operations. Navigation alone does not run
-or stop the app. Each
+or stop the app. **Logs** sits immediately to its right, separated by a divider, and
+toggles the shared bottom Diagnostics pane without changing the current workspace.
+A red warning-sign Badge indicates reported runtime/readiness or agent-request
+failures, unavailable logs, or failed operations; its accessible name explains the
+issue, and it clears with the evidence. Stopped alone is not an error. Each
 request-flow stage exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
@@ -587,8 +591,8 @@ Guide visibility remains independent of the selected workspace and component.
 **Run/Debug** is a focused run/test surface, not an embedded IDE or debugger.
 The main area contains state-specific startup/recovery guidance, an available
 web-app action, **Invoke agent**, and its readable result. The connected model
-summary links directly to Settings. A flat **Output**, **Services**, **Operations**,
-**Deploy** tab row preserves the full supporting feature set without stacked
+summary links directly to Settings. A flat **Output**, **Services**, **Environment**,
+**Operations** tab row preserves the full supporting feature set without stacked
 accordions or nested Diagnostics tabs. Output is first/default, putting command
 stdout/stderr below the tester. Only one supporting panel is visible. Tabs use
 ARIA tab/tabpanel semantics and keyboard navigation, retaining explicit selection
@@ -597,7 +601,12 @@ focus. Their line icons and active treatment match Customize and Observe while R
 useful status summaries remain specific to runtime state. Failure counts, output-read errors, readiness, and deployment activity remain
 discoverable when their panel is inactive. Deeper investigation uses the existing Observe logs workspace,
 not another custom log console. Diagnostics is optional, closed by default, and
-resizable with pointer or keyboard; failure warnings stay visible when it is hidden.
+owned by the shared shell below the active workspace, not a second tester.
+Header Logs remains available across all five pages; the pane, selected tab,
+scroll/disclosures, ongoing output polling and keyboard focus survive page visits.
+It is resizable with pointer or keyboard, bounded against the current shell and
+footer height; Escape closes it and returns focus to Logs. Failure warnings stay
+visible when it is hidden.
 A compact secondary **+ Document** toolkit menu immediately to the right of **Invoke agent**
 appears only when readiness advertises document support. Its three actions are
 **Upload document**, **Paste a document** and **Add sample**. The public MenuButton
@@ -606,7 +615,7 @@ confirmable editor, not a second permanent control row; Cancel preserves the att
 and assessment. Its draft/selection survive polling and navigation. Invocation and safety
 tests wait for Add or Cancel; no clipboard-read permission is assumed.
 Invoke and Document share a non-wrapping pair inside the wrapping task actions,
-with Start before the pair and Stop after it. The textarea has no document overlay
+separate from the menu-row lifecycle controls. The textarea has no document overlay
 or reserved bottom padding.
 Its tooltip explains analysis and safety-policy testing. Override/egress additions
 show a polite informational MessageBar describing the inserted test text and its

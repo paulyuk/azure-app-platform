@@ -200,7 +200,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const style = getComputedStyle(node);
               return {
                 sameRow: Math.abs(button.top - first.top) <= 1,
-                rightAligned: Math.abs(button.right - (bar.right - 12)) <= 1,
+                rightAligned: Math.abs(document.querySelector("#run-diagnostics-toggle").getBoundingClientRect().right - (bar.right - 12)) <= 1,
                 separated: button.left >= menu.right + 7,
                 fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,

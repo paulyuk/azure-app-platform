@@ -154,7 +154,7 @@ test("Run shares optional document input with invocation and enforcement across 
     assert.equal(await page.getByRole("button", { name: "Add document", exact: true }).isDisabled(), true);
     assert.equal(await page.locator('[data-document-assessment][data-state="approved"]').count(), 0);
     health = "Health refreshed";
-    await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
+    await page.locator("#run-diagnostics-toggle").click();
     await page.getByRole("tab", { name: "Services", exact: true }).click();
     await page.getByText("Health refreshed", { exact: true }).waitFor();
     assert.equal(await enforce.isDisabled(), true);
@@ -467,7 +467,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.locator('.agent-status-brief[data-state="' + (appState === "running" ? "ready" : "stopped") + '"]').waitFor();
         await assertDocumentActionPlacement(page);
         assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent", "Document"]);
-        assert.equal(await page.locator(".workspace-lifecycle-actions button").innerText(),
+        assert.equal(await page.locator("#header-runtime-action").innerText(),
           appState === "running" ? "Stop app" : "Start app");
       }
       await invoke.focus();

@@ -296,7 +296,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
       assert.equal(await prompt.inputValue(), "Keep the event draft.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
-      await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
+      await page.locator("#run-diagnostics-toggle").click();
       await page.getByRole("tab", { name: "Environment", exact: true }).click();
       await page.getByRole("tabpanel", { name: "Environment", exact: true })
         .getByRole("heading", { name: "Prerequisites & CLI tools", exact: true }).waitFor();

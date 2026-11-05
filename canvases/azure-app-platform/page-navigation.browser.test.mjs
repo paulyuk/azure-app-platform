@@ -133,7 +133,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
           assert.ok(geometry.menuHeight <= (width < 480 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
-          assert.equal(geometry.buttons.length, 6);
+          assert.equal(geometry.buttons.length, 7);
           assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
           for (const button of geometry.buttons) {
             assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });

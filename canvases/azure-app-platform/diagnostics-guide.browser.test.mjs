@@ -8,6 +8,144 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
+  test(`Header Logs shares one bottom pane across workspaces and reports real issues in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.documentInput = true;
+    fixture.state.lines = Array.from({ length: 180 }, (_, i) => `[agent] Evidence ${i}`);
+    const browser = await engine.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(10000);
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}::-webkit-scrollbar-thumb{background:var(--studio-muted)}" });
+      const logs = page.locator("#run-diagnostics-toggle"), dock = page.locator("#run-diagnostics");
+      const badge = logs.locator(".logs-warning-badge");
+      assert.equal(await logs.innerText(), "Logs");
+      assert.equal(await badge.count(), 0);
+      await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Retain this task while reviewing logs.");
+      await page.evaluate(() => { window.logsButton = document.querySelector("#run-diagnostics-toggle"); });
+      for (const id of ["build-workspace", "connect-workspace", "manage-app", "map-app", "deploy-workspace"]) {
+        await page.locator("#" + id).click();
+        await logs.focus();
+        await logs.press("Enter");
+        assert.equal(await dock.isVisible(), true);
+        assert.equal(await page.locator("#" + id).getAttribute("aria-current"), "page", "Logs must not navigate.");
+        assert.equal(await logs.evaluate(node => node === window.logsButton), true);
+        assert.equal(await dock.count(), 1);
+        assert.equal(await page.locator("#app-workspace-main #run-diagnostics").count(), 0);
+        await page.locator("[data-runtime-output]").evaluate(node => { node.scrollTop = 90; });
+        fixture.state.lines.push("[agent] Still polling on " + id);
+        await page.waitForFunction(value => document.querySelector("[data-runtime-output]").textContent.includes(value), id);
+        assert.equal(await page.locator("[data-runtime-output]").evaluate(node => node.scrollTop), 90);
+        const resizer = page.getByRole("separator", { name: "Resize Diagnostics", exact: true });
+        await resizer.focus();
+        fixture.state.health = "Updated with " + id + " and Logs open";
+        await page.waitForFunction(value => document.querySelector("#run-panel-services").textContent.includes(value), fixture.state.health);
+        assert.equal(await resizer.evaluate(node => node === document.activeElement), true);
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          for (const width of [320, 380, 620]) {
+            await page.setViewportSize({ width, height: 480 });
+            await page.waitForFunction(() => {
+              const dock = document.querySelector("#workspace-diagnostics");
+              const available = dock.parentElement.clientHeight - dock.parentElement.querySelector("footer").offsetHeight;
+              return Number(dock.querySelector('[role="separator"]').getAttribute("aria-valuenow")) <= Math.floor(available * .55);
+            });
+            const geometry = await page.evaluate(() => {
+              const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+              const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+              const divider = document.querySelector(".workspace-action-divider").getBoundingClientRect();
+              const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
+              const dock = document.querySelector("#workspace-diagnostics").getBoundingClientRect();
+              return {
+                fits: document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth,
+                divided: action.right < divider.left && divider.right < logs.left && divider.height === 20,
+                sameRow: Math.abs(action.top - logs.top) <= 1,
+                below: main.bottom <= dock.top + 1,
+                mainHeight: main.height,
+              };
+            });
+            assert.ok(geometry.fits && geometry.divided && geometry.sameRow && geometry.below && geometry.mainHeight > 60,
+              JSON.stringify({ id, theme, width, geometry }));
+          }
+        }
+        await page.locator("#run-tab-output").focus();
+        await page.keyboard.press("Escape");
+        assert.equal(await dock.isVisible(), false);
+        assert.equal(await logs.evaluate(node => node === document.activeElement), true);
+        assert.equal(await logs.getAttribute("aria-expanded"), "false");
+        await logs.press("Space");
+        assert.equal(await dock.isVisible(), true);
+        await logs.press("Space");
+        assert.equal(await dock.isVisible(), false);
+        await page.setViewportSize({ width: 620, height: 800 });
+      }
+      await page.locator("#manage-app").click();
+      assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(),
+        "Retain this task while reviewing logs.");
+      fixture.state.app = "stopped";
+      await page.locator("#app-status-badge").filter({ hasText: "Not running" }).waitFor();
+      assert.equal(await badge.count(), 0, "A stopped runtime is not an issue.");
+      fixture.state.commands = [{ id: "failed", label: "Simulated task", kind: "http", command: "POST /responses",
+        status: "failed", startedAt: 1, durationMs: 10, note: "HTTP 503", output: "Simulated upstream failure" }];
+      await badge.waitFor();
+      assert.equal(await logs.getAttribute("aria-expanded"), "false");
+      assert.match(await logs.getAttribute("aria-label"), /1 failed operation/);
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+        assert.equal(await badge.getAttribute("data-color"), "danger");
+        assert.equal(await badge.getAttribute("aria-hidden"), "true");
+        assert.equal(await badge.locator("svg").count(), 1);
+        const color = await badge.evaluate(node => getComputedStyle(node).color);
+        const channels = color.match(/[\d.]+/g).map(Number);
+        assert.ok(channels[0] > channels[1] && channels[0] > channels[2], color);
+      }
+      await page.route("**/api/app-status*", async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, json: { ...await response.json(), recovered: true } });
+      });
+      fixture.state.app = "starting";
+      await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
+      for (const width of [320, 380, 620]) {
+        await page.setViewportSize({ width, height: 480 });
+        const geometry = await page.evaluate(() => {
+          const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
+          const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+          const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+          return { separated: action.left >= menu.right + 7, fits: logs.right <= innerWidth,
+            label: document.querySelector("#header-runtime-action").getAttribute("aria-label") };
+        });
+        assert.ok(geometry.separated && geometry.fits, JSON.stringify({ width, geometry }));
+        assert.equal(geometry.label, "Stop partial startup");
+      }
+      await page.unroute("**/api/app-status*");
+      fixture.state.app = "stopped";
+      fixture.state.commands = [];
+      fixture.state.outputError = true;
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Logs unavailable"));
+      assert.equal(await page.locator("#diagnostics-status").isVisible(), true);
+      fixture.state.outputError = false;
+      await badge.waitFor({ state: "detached" });
+      fixture.state.app = "failed";
+      fixture.state.error = "Simulated runtime failure";
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Runtime failed"));
+      fixture.state.app = "running";
+      fixture.state.error = "";
+      await badge.waitFor({ state: "detached" });
+      await page.route("**/api/agent-invoke", route => route.fulfill({ status: 503, json: { error: "Simulated agent failure" } }));
+      await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Agent request failed"));
+      assert.equal(await dock.isVisible(), false, "Issues do not force the pane open.");
+      assert.equal(fixture.mutations.filter(item => item.path === "/api/app-command").length, 0);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
+  });
+
   test(`Optional Diagnostics preserves task and support state through resize, polling and navigation in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -60,7 +198,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.mouse.up();
       const resized = Number(await resizer.getAttribute("aria-valuenow"));
       assert.ok(resized > beforeDrag);
-      assert.equal(await page.locator("#details").evaluate(node => node.classList.contains("resizing-diagnostics")), false);
+      assert.equal(await page.locator("#workspace-diagnostics").evaluate(node => node.classList.contains("resizing-diagnostics")), false);
       const log = page.locator("[data-runtime-output]");
       await log.evaluate(node => { node.scrollTop = 90; });
       await page.waitForResponse(response => response.url().includes("/api/app-output"));
@@ -118,7 +256,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         for (const [width, height] of [[320, 480], [380, 480], [620, 800], [1000, 480]]) {
           await page.setViewportSize({ width, height });
           await resizer.press("End");
-          const geometry = await page.locator(".run-workspace").evaluate(node => {
+          const geometry = await page.locator("#workspace-content").evaluate(node => {
             const primary = node.querySelector(".run-primary"), support = node.querySelector(".run-support");
             const shell = node.getBoundingClientRect(), main = primary.getBoundingClientRect(), dock = support.getBoundingClientRect();
             return { fits: node.scrollWidth <= node.clientWidth + 1, mainHeight: main.height,

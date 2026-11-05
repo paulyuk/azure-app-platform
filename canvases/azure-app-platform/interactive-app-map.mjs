@@ -522,7 +522,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: flex; flex: none; align-items: flex-start; gap: 8px; padding: 4px 12px;
       border-block: 1px solid var(--border); background: var(--surface);
     }
-    .workspace-lifecycle-actions { flex:none; margin-inline-start:auto; padding-block:3px; }
+    .workspace-lifecycle-actions { flex:0 1 auto; min-width:0; max-width:calc(100% - 86px); margin-inline-start:auto; padding-block:3px; }
+    #workspace-header-actions { display:flex; align-items:center; gap:8px; min-width:0; }
+    #run-diagnostics-toggle { flex:none; }
+    .workspace-action-divider { flex:none; width:1px; height:20px; background:var(--border); }
+    .logs-warning-badge { margin-inline-start:4px; }
+    .logs-warning-badge svg { width:12px; height:12px; fill:currentColor; }
     .build-page { display:flex; flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); }
     .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
     #app-workspace-navigation { flex:1; min-width: 0; max-width: 100%; }
@@ -856,6 +861,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${STUDIO_TABS_CSS}
     ${AGENT_STATUS_CSS}
     ${APP_LOGS_CSS}
+    #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #app-identity { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; }
     #app-status-mount { display:flex; flex:none; }
     .runtime-status-control { appearance:none; display:flex; align-items:center; flex:none; min-height:28px; padding:0; border:0; border-radius:999px; background:none; color:inherit; font:inherit; cursor:pointer; }
@@ -951,6 +957,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       <div id="guide-content"></div>
     </aside>
   </main>
+  <div id="workspace-diagnostics" data-mode="manage" data-diagnostics="closed"></div>
   <footer id="workspace-status-footer">
     <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
     <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
@@ -1048,6 +1055,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let runtimeStatusKey = "";
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
     buttons.update(headerRuntimeAction, { size: "small" });
+    const headerActions = document.createElement("div");
+    headerActions.id = "workspace-header-actions";
+    document.querySelector("#workspace-runtime-bar").append(headerActions);
+    buttons.append(headerActions, headerRuntimeAction);
+    const logsDivider = document.createElement("span");
+    logsDivider.className = "workspace-action-divider";
+    logsDivider.setAttribute("aria-hidden", "true");
+    headerActions.append(logsDivider);
+    const logsTrigger = buttons.create({
+      id: "run-diagnostics-toggle", appearance: "subtle", size: "small", children: "Logs",
+      "aria-label": "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
+      "aria-describedby": "diagnostics-status",
+      onClick: () => runWorkspace.toggleDiagnostics(),
+    });
+    buttons.append(headerActions, logsTrigger);
+    const diagnosticsContainer = document.querySelector("#workspace-diagnostics");
+    let logsTriggerKey = "";
     const mapContext = document.querySelector("#map-context");
     const structureGuidance = document.querySelector("#structure-guidance");
     const search = document.querySelector("#search");
@@ -1180,7 +1204,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const navigationProps = {
       items: navigationItems, appTitle: document.querySelector("#app-identity"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
-      runtimeActions: buttons.host(headerRuntimeAction),
+      runtimeActions: headerActions,
       history: {
         onBack: () => navigateWorkspaceHistory(-1),
         onForward: () => navigateWorkspaceHistory(1),
@@ -1277,6 +1301,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
+      diagnosticsContainer,
+      toggle: logsTrigger,
+      onDiagnosticsChange: ({ open, issues }) => {
+        const key = JSON.stringify([open, issues]);
+        if (key === logsTriggerKey) return;
+        logsTriggerKey = key;
+        buttons.update(logsTrigger, {
+          "aria-expanded": open,
+          "aria-label": issues ? "Logs: " + issues : "Logs",
+          title: issues || (open ? "Hide logs" : "Show logs"),
+          children: toolkit.createElement(toolkit.Fragment, null, "Logs", issues
+            ? toolkit.createElement(toolkit.Badge, {
+              className: "logs-warning-badge", color: "danger", appearance: "tint", size: "small",
+              "aria-hidden": true,
+            }, buttons.icon(ICONS.alert)) : null),
+        });
+      },
       buttons,
       onClear: container => {
         if (container.contains(agentStatusRoot)) agentStatusRoot.remove();
@@ -1441,6 +1482,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons.setDisabled(headerRuntimeAction, disabled);
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
+      headerRuntimeAction.title = actionLabel;
       syncRuntimePlacement();
       document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
         entry.ready && normalized(entry.name) === "web");
@@ -3090,7 +3132,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               gatewayDiscovery.invalidate();
               buttons.setDisabled(apply, true);
               buttons.setText(apply, "Applying…");
-              const envTabSummary = details.querySelector('[data-run-tab="environment"] .run-tab-summary');
+              const envTabSummary = diagnosticsContainer.querySelector('[data-run-tab="environment"] .run-tab-summary');
               if (envTabSummary) {
                 envTabSummary.textContent = "Applying…";
                 envTabSummary.dataset.attention = "false";
@@ -4101,8 +4143,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (openGateway) openAppSettings("connection");
     }
 
+    function diagnosticsIssue() {
+      return [
+        readinessError,
+        (operationalState.app?.state === "failed" || operationalState.app?.error) &&
+          ("Runtime failed: " + (operationalState.app.error || "Review startup output.")),
+        agentRequestState === "failed" && ("Agent request failed: " + agentResponseText),
+      ].filter(Boolean).join(" ");
+    }
+
     async function refreshRunOutput() {
-      if (panelMode !== "manage" || outputRefreshing) return;
+      if (outputRefreshing) return;
       outputRefreshing = true;
       try {
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
@@ -4111,27 +4162,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed").length,
           operations: latestCommands.length,
+          issue: diagnosticsIssue(),
         });
         renderCommandFeed();
-        const output = details.querySelector("[data-runtime-output]");
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
           const following = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
           output.textContent = latestOutput;
           if (following) output.scrollTop = output.scrollHeight;
         }
       } catch (error) {
-        const output = details.querySelector("[data-runtime-output]");
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed").length,
           operations: latestCommands.length,
           error: error.message,
+          issue: diagnosticsIssue(),
         });
         if (output) output.textContent = "Unable to load output: " + error.message;
       } finally { outputRefreshing = false; }
     }
 
     function renderCommandFeed(target) {
-      const container = target || details.querySelector("[data-command-feed]");
+      const container = target || diagnosticsContainer.querySelector("[data-command-feed]");
       if (!container) return;
       const fingerprint = JSON.stringify(latestCommands);
       if (container.dataset.fingerprint === fingerprint) return;
@@ -4186,7 +4239,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         container.append(row);
       }
-      if (focusedRecord) (focusedSummary || details.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
+      if (focusedRecord) (focusedSummary || diagnosticsContainer.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
       container.scrollTop = following ? container.scrollHeight : scrollTop;
     }
 
@@ -4246,11 +4299,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (changed && !gatewayApplying) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "connections" && !gatewayApplying &&
           !window.appPlatformSettings?.isOpen() && !details.querySelector("select:focus")) renderConnectionsPanel({ focus: false });
-        if (changed && panelMode === "manage") {
+        if (changed) {
           const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
-          const interactionActive = gatewayApplying || details.querySelector("#run-panel-environment select:focus");
+          const interactionActive = gatewayApplying || diagnosticsContainer.querySelector("#run-panel-environment select:focus");
           if (onEnvironmentTab && interactionActive) {
-            const envTab = details.querySelector('[data-run-tab="environment"]');
+            const envTab = diagnosticsContainer.querySelector('[data-run-tab="environment"]');
             if (envTab) {
               const prereqReady = readiness?.prerequisites ? readiness.prerequisites.ready : true;
               const configuring = app.state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
@@ -4262,8 +4315,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 summaryNode.dataset.attention = String(!configuring && (!prereqReady || !connected));
               }
             }
-          } else {
+          } else if (panelMode === "manage") {
             renderManagePanel();
+          } else {
+            runWorkspace.render({ state: app.state, readiness, services: runtimeEntrypoints, primary: false });
           }
         }
       } catch (error) {
@@ -4276,6 +4331,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (changed) renderActionCenter();
         if (changed) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
+        if (changed && panelMode !== "manage") runWorkspace.render({ primary: false });
         if (changed && panelMode === "connections") renderConnectionsPanel({ focus: false });
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }

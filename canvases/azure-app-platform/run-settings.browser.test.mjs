@@ -220,7 +220,7 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     const output = page.getByRole("tab", { name: "Output", exact: true });
     const operations = page.getByRole("tab", { name: "Operations", exact: true });
     const deploy = page.getByRole("tab", { name: "Deploy", exact: true });
-    await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
+    await page.locator("#run-diagnostics-toggle").click();
     assert.equal(await output.getAttribute("aria-selected"), "true");
     await services.click();
     assert.equal(await services.getAttribute("aria-selected"), "true");
@@ -331,7 +331,7 @@ test("Run tabs are single-panel, responsive, themed, and support roving keyboard
 
     await page.goto(fixture.origin + "/app-map");
     await selectWorkspace(page, "manage-app");
-    await page.getByRole("button", { name: "Show Diagnostics", exact: true }).click();
+    await page.locator("#run-diagnostics-toggle").click();
     await page.getByRole("tab", { name: "Services", exact: true }).waitFor();
     const runTabs = page.locator(".run-tabs");
     assert.equal(await runTabs.locator('.studio-tab-icon[aria-hidden="true"]').count(), 4);
