@@ -337,7 +337,7 @@ class GatewaySettings:
             headers[header] = api_key
             if include_provider_auth and header.lower() == "authorization":
                 headers[header] = f"Bearer {self._bare_token(api_key)}"
-        if subscription_key:
+        if subscription_key and subscription_key != api_key:
             header = self.config.get("subscriptionKeyHeader", "Ocp-Apim-Subscription-Key")
             if not isinstance(header, str) or not header:
                 raise ConfigurationError("gateway.subscriptionKeyHeader must be a non-empty string")
@@ -367,7 +367,7 @@ class GatewaySettings:
                 provider["bearer_token"] = self._bare_token(api_key)
             else:
                 provider_headers[api_key_header] = api_key
-        if subscription_key:
+        if subscription_key and subscription_key != api_key:
             subscription_header = self.config.get(
                 "subscriptionKeyHeader", "Ocp-Apim-Subscription-Key"
             )

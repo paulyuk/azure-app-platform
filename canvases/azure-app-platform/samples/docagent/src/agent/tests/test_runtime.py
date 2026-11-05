@@ -302,6 +302,26 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["max_output_tokens"], 4096)
         self.assertEqual(calls[0][1]["input"][0]["content"], "Use approved data")
 
+    def test_duplicate_gateway_key_uses_only_the_api_key_header(self):
+        environment = {
+            "AI_GATEWAY_BASE_URL": "https://gateway.example/default/models/openai/v1",
+            "AI_GATEWAY_API_KEY": "shared-key",
+            "AI_GATEWAY_SUBSCRIPTION_KEY": "shared-key",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            settings = agent.GatewaySettings(self.config["gateway"], lambda _: "")
+            self.assertEqual(
+                settings.headers(),
+                {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "api-key": "shared-key",
+                },
+            )
+            self.assertEqual(
+                settings.provider()["headers"],
+                {"api-key": "shared-key"},
+            )
+
     def test_reasoning_budget_exhaustion_retries_and_surfaces_incomplete_diagnostics(self):
         calls = []
 
