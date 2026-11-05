@@ -272,8 +272,8 @@ test("installed payload opens and materializes templates without checkout depend
         ]);
         for (const template of blockTemplates.filter(item => !["hosted-skill", "agent-instructions"].includes(item.id))) {
           const created = await api("/api/build-block", { root: ".", templateId: template.id, name: template.id });
-          assert.equal(created.status, 201);
           const block = await created.json();
+          assert.equal(created.status, 201, template.id + ": " + JSON.stringify(block));
           const entry = ({ "user-experience": "index.html", connector: "connector.json", sandbox: "main.py", operations: "sre-agent.yaml" })[template.id] ?? "function_app.py";
           assert.ok(block.paths.includes(block.projectPath + "/" + entry), template.id + " entry must be discovered");
           assert.ok((await api("/api/build-workspace?root=.")).ok);

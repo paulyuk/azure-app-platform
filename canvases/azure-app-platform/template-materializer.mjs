@@ -85,12 +85,14 @@ export async function materializeBuildBlock({ root, templateId, name }) {
     throw error;
   }
   try {
-    if (template.baseSource) {
-      await cp(fileURLToPath(new URL("./templates/" + template.baseSource, import.meta.url)), destination,
-        { recursive: true, force: false, errorOnExist: true });
+    // Copy entries into the reserved directory; Node 24 rejects copying onto it.
+    for (const templateSource of [template.baseSource, template.source].filter(Boolean)) {
+      const source = fileURLToPath(new URL("./templates/" + templateSource, import.meta.url));
+      for (const entry of await readdir(source)) {
+        await cp(join(source, entry), join(destination, entry),
+          { recursive: true, force: false, errorOnExist: true });
+      }
     }
-    const source = fileURLToPath(new URL("./templates/" + template.source, import.meta.url));
-    await cp(source, destination, { recursive: true, force: false, errorOnExist: true });
     await replaceTokens(destination, { "__BLOCK_NAME__": name, "__SKILL_NAME__": name });
     if (manifest !== undefined) {
       if ((await lstat(manifestPath)).isSymbolicLink() || await readFile(manifestPath, "utf8") !== manifest) {
