@@ -514,9 +514,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-navigation-mount { grid-row: 1 / -1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; height: 100%; }
     #studio-workspace-navigation { height: 100%; }
     #studio-workspace-navigation > main { flex: 1; min-height: 0; overflow: hidden; }
-    .workspace-navigation-bar { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px; background: var(--surface); }
+    .workspace-navigation-bar {
+      --canvas-button-small-min-height: 1.75rem;
+      --canvas-button-small-padding-block: .1875rem;
+      --canvas-button-small-padding-inline: .5rem;
+      display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 12px;
+      border-block: 1px solid var(--border); background: var(--surface);
+    }
     #app-workspace-navigation { min-width: 0; }
-    .workspace-view-switch { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    .workspace-view-switch { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     #app-workspace-navigation ul { display: flex; gap: 2px; padding: 0; margin: 0; list-style: none; }
     #app-workspace-navigation li { flex: none; }
     #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }

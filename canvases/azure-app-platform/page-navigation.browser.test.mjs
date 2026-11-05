@@ -93,17 +93,38 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const header = document.querySelector("#studio-workspace-navigation > header");
             const nav = document.querySelector("#app-workspace-navigation").getBoundingClientRect();
             const group = document.querySelector(".workspace-view-switch").getBoundingClientRect();
+            const menu = document.querySelector(".workspace-navigation-bar");
+            const menuStyle = getComputedStyle(menu);
             return {
               overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
               mainHeight: main.height, barBottom: bar.bottom, mainTop: main.top,
               headerFits: header.scrollWidth <= header.clientWidth + 1,
               navRight: nav.right, groupWidth: group.width,
+              menuHeight: menu.getBoundingClientRect().height,
+              menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
+                menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
+              menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
+              themeBorder: getComputedStyle(document.querySelector("#workspace-runtime-bar")).borderBottomColor,
+              buttons: [...menu.querySelectorAll("button")].map(button => {
+                const style = getComputedStyle(button);
+                return {
+                  toolkit: button.classList.contains("ct-button"), size: button.dataset.size,
+                  height: button.getBoundingClientRect().height, padding: style.padding,
+                };
+              }),
             };
           });
           assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.headerFits, true, JSON.stringify({ width, tone, geometry }));
           assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
           assert.ok(geometry.navRight <= width && geometry.groupWidth < 300, "Destinations stay content-width");
+          assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
+          assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
+          assert.ok(geometry.menuHeight <= 44, JSON.stringify({ width, tone, geometry }));
+          assert.equal(geometry.buttons.length, 3);
+          for (const button of geometry.buttons) {
+            assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
+          }
         }
       }
       assert.equal(await draft.evaluate(node => node === window.navigationDraft && node === document.activeElement &&

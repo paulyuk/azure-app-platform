@@ -286,6 +286,9 @@ An optional editor launch failure does not roll back the new worktree; the works
 opens with a clear warning so the user can continue.
 The primary destinations are **Test agent** and **Inspect app**, presented as a
 content-width segmented group of shipped toolkit Buttons at every canvas width.
+The menu row has theme-aware top and bottom borders and compact spacing.
+Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
+the public small-button tokens; no private toolkit styles are overridden.
 There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
 activates them. The selected destination has `aria-current="page"` and
 `aria-pressed="true"`. **Customize** remains a separate action opening the existing
