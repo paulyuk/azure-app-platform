@@ -957,7 +957,10 @@ updates the exact text sent to invocation/tests, and clears stale document asses
 results and insertion notices. Cancel preserves the committed attachment and evidence.
 Edit drafts, selection and scrolling survive polling/navigation. Invocation/tests
 wait for Save or Cancel; UTF-8 limits and busy/read gating apply to edits too.
-Unsafe override/egress tests show an informational message beside the attachment:
+Unsafe override/egress tests are launched from the compact **Try a boundary test** row
+(with its value tagline explaining why to verify prompt-override and sensitive-data leak
+protections before untrusted input reaches the model, plus **Choose test** opening a modal
+for **Test unsafe override** and **Test unsafe egress**) and show an informational message beside the attachment:
 what test text was added (or a synthetic document supplied) and which protections
 it probes. This is not a test result. The message survives polling/navigation and
 clears when the document is edited, replaced, removed or reset to a sample.

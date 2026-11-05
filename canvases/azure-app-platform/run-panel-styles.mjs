@@ -125,16 +125,29 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .event-preset-label { font-size:11px; font-weight:600; color:var(--studio-muted); margin-right:2px; }
 #details[data-mode="manage"] button.event-preset-chip:not(.ct-button) { min-height:24px; padding:2px 8px; border-radius:999px; font:600 11px/1.3 var(--font-mono, ui-monospace, monospace); background:var(--studio-panel); border:1px solid var(--studio-line); color:var(--studio-ink); }
 #details[data-mode="manage"] button.event-preset-chip:not(.ct-button):hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-accent-soft, var(--studio-panel)); }
-#details[data-mode="manage"] .safety-trust-section { display:grid; gap:10px; margin:12px 0 4px; padding:12px 14px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); }
-#details[data-mode="manage"] .safety-trust-header { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; }
-#details[data-mode="manage"] .safety-trust-header strong { font-size:13px; font-weight:600; color:var(--studio-ink); }
-#details[data-mode="manage"] .safety-trust-header span { font-size:11px; color:var(--studio-muted); }
-#details[data-mode="manage"] .safety-cards-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap:10px; }
-#details[data-mode="manage"] .safety-card { display:grid; align-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-raised); }
-#details[data-mode="manage"] .safety-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; }
-#details[data-mode="manage"] .safety-card-head strong { font-size:12px; font-weight:600; color:var(--studio-ink); }
-#details[data-mode="manage"] .safety-card-pill { font-size:10px; font-weight:600; padding:1px 6px; border-radius:999px; border:1px solid var(--studio-line); background:var(--studio-panel); color:var(--studio-muted); }
-#details[data-mode="manage"] .safety-card p { margin:0; font-size:11px; line-height:1.45; color:var(--studio-muted); }
+#details[data-mode="manage"] .safety-trust-section { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; margin:2px 0; padding:9px 0; border-top:1px solid var(--studio-line); border-bottom:1px solid var(--studio-line); }
+#details[data-mode="manage"] .safety-trust-copy { display:flex; align-items:flex-start; gap:8px; flex:1 1 180px; min-width:0; }
+#details[data-mode="manage"] .safety-trust-icon { display:inline-flex; flex:none; margin-top:2px; color:var(--studio-muted); }
+#details[data-mode="manage"] .safety-trust-icon svg { width:16px; height:16px; fill:currentColor; }
+#details[data-mode="manage"] .safety-trust-text { display:grid; gap:1px; min-width:0; }
+#details[data-mode="manage"] .safety-trust-text strong { font-size:12px; font-weight:600; color:var(--studio-ink); }
+#details[data-mode="manage"] .safety-trust-text p { margin:0; font-size:11px; line-height:1.5; color:var(--studio-muted); }
+.safety-boundary-dialog { box-sizing:border-box; width:min(calc(100vw - 24px), 560px); max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); margin:auto; padding:0; border:1px solid var(--studio-line); border-radius:var(--studio-dialog-radius, 10px); color:var(--studio-ink); background:var(--studio-raised); box-shadow:0 12px 32px rgb(0 0 0 / .28); font:13px/1.5 var(--font-sans, system-ui, sans-serif); overflow:hidden; }
+.safety-boundary-dialog[open] { display:flex; flex-direction:column; }
+.safety-boundary-dialog::backdrop { background:rgb(0 0 0 / .4); }
+.safety-boundary-dialog-heading { flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 16px 12px; border-bottom:1px solid var(--studio-line); background:var(--studio-raised); }
+.safety-boundary-dialog-copy { display:grid; gap:2px; min-width:0; }
+.safety-boundary-dialog-copy h2 { margin:0; font-size:15px; font-weight:600; line-height:1.35; color:var(--studio-ink); }
+.safety-boundary-dialog-subtitle { margin:0; font-size:12px; line-height:1.45; color:var(--studio-muted); }
+.safety-boundary-dialog-close { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; min-height:32px; padding:4px; border:0; background:transparent; color:var(--studio-muted); border-radius:6px; flex:none; }
+.safety-boundary-dialog-close:hover { background:var(--studio-panel); color:var(--studio-ink); }
+.safety-boundary-dialog-body { overflow:auto; overscroll-behavior:contain; min-width:0; min-height:0; padding:14px 16px 16px; background:var(--studio-panel); }
+.safety-boundary-dialog .safety-cards-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap:10px; }
+.safety-boundary-dialog .safety-card { display:grid; align-content:space-between; gap:10px; padding:12px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-raised); }
+.safety-boundary-dialog .safety-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; }
+.safety-boundary-dialog .safety-card-head strong { font-size:12px; font-weight:600; color:var(--studio-ink); }
+.safety-boundary-dialog .safety-card-pill { font-size:10px; font-weight:600; padding:1px 6px; border-radius:999px; border:1px solid var(--studio-line); background:var(--studio-panel); color:var(--studio-muted); }
+.safety-boundary-dialog .safety-card p { margin:0; font-size:11px; line-height:1.45; color:var(--studio-muted); }
 #details[data-mode="manage"] .document-assessment { display:grid; gap:8px; padding:10px 12px; border:1px solid var(--studio-line); border-radius:7px; }
 #details[data-mode="manage"] .document-assessment > summary { display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:12px; color:var(--studio-ink); }
 #details[data-mode="manage"] .document-assessment > summary > .command-badge { justify-self:end; }

@@ -594,7 +594,10 @@ tests wait for Add or Cancel; no clipboard-read permission is assumed.
 Invoke and Document share a non-wrapping pair inside the wrapping task actions,
 separate from the menu-row lifecycle controls. The textarea has no document overlay
 or reserved bottom padding.
-Its tooltip explains analysis and safety-policy testing. Override/egress additions
+Its tooltip explains analysis and safety-policy testing. Below the task actions, a compact
+**Try a boundary test** row explains why to verify prompt-override and sensitive-data leak
+protections before untrusted input reaches the model and opens a modal via **Choose test**
+housing the **Test unsafe override** and **Test unsafe egress** security tests. Override/egress additions
 show a polite informational MessageBar describing the inserted test text and its
 purpose, separate from the test outcome. It updates with the test mode, survives
 polling/navigation and clears on document editing, replacement, removal or sample reset.

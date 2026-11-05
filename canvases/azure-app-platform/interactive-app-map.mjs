@@ -2188,6 +2188,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       document.body.dataset.workspace = mode;
       document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
+      if (mode !== "manage" && safetyBoundaryDialog?.open) safetyBoundaryDialog.close();
       const current = observing ? "observe" : destination;
       document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
@@ -3000,10 +3001,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       for (const input of tester.querySelectorAll("textarea, input")) input.disabled = busy;
       const send = tester.querySelector("[data-invoke-agent]");
       if (send) buttons.setDisabled(send, !canRun || busy || (supportsDocuments && (Boolean(documentError) || documentPasteOpen)));
-      const test = tester.querySelector("[data-test-document]");
-      if (test) buttons.setDisabled(test, !canRun || busy || Boolean(documentError) || documentPasteOpen);
-      const egress = tester.querySelector("[data-test-egress]");
-      if (egress) buttons.setDisabled(egress, !canRun || busy || Boolean(documentError) || documentPasteOpen);
+      const boundaryDisabled = !canRun || busy || Boolean(documentError) || documentPasteOpen;
+      const chooseTest = tester.querySelector("[data-choose-boundary-test]");
+      if (chooseTest) buttons.setDisabled(chooseTest, boundaryDisabled);
+      if (testOverrideBtn) buttons.setDisabled(testOverrideBtn, boundaryDisabled);
+      if (testEgressBtn) buttons.setDisabled(testEgressBtn, boundaryDisabled);
       const remove = tester.querySelector("[data-remove-document]");
       if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
       const edit = tester.querySelector("[data-edit-document]");
@@ -3326,73 +3328,164 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       };
     }
 
-    function renderDocumentTest(container, _actions) {
+    let safetyBoundaryDialog = null;
+    let safetyDialogCloseBtn = null;
+    let testOverrideBtn = null;
+    let testEgressBtn = null;
+    let restoreBoundaryDialogFocus = true;
+
+    async function runAdversarialTest(mode) {
       if (!operationalState.readiness?.documentInput) return;
-      async function runAdversarialTest(mode) {
-        finishAgentPromptTyping();
-        const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
-        documentReadVersion += 1;
-        documentError = "";
-        documentInputExpanded = false;
-        const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
-        agentDocument = prepared.document;
-        const addition = mode === "egress" ? "an outbound credential/PII probe" : "override text";
-        const purpose = mode === "egress" ? "egress protections" : "redaction and approval-bypass protections";
-        documentTestNotice = (prepared.synthetic ? "Created a synthetic document with " : "Added to the document: ") +
-          addition + " to test " + purpose + ". See the separate test result for the outcome.";
-        const document = agentDocument;
-        clearDocumentAssessment();
-        const epoch = documentAssessmentEpoch;
-        documentTesting = true;
+      finishAgentPromptTyping();
+      const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
+      documentReadVersion += 1;
+      documentError = "";
+      documentInputExpanded = false;
+      const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
+      agentDocument = prepared.document;
+      const addition = mode === "egress" ? "an outbound credential/PII probe" : "override text";
+      const purpose = mode === "egress" ? "egress protections" : "redaction and approval-bypass protections";
+      documentTestNotice = (prepared.synthetic ? "Created a synthetic document with " : "Added to the document: ") +
+        addition + " to test " + purpose + ". See the separate test result for the outcome.";
+      const document = agentDocument;
+      clearDocumentAssessment();
+      const epoch = documentAssessmentEpoch;
+      documentTesting = true;
+      documentResultText = "Running document checks without a model call...";
+      renderManagePanel();
+      try {
+        await ensureAgentReadyForAction((msg) => {
+          documentResultText = msg;
+          if (panelMode === "manage") renderManagePanel();
+        });
         documentResultText = "Running document checks without a model call...";
-        renderManagePanel();
-        try {
-          await ensureAgentReadyForAction((msg) => {
-            documentResultText = msg;
-            if (panelMode === "manage") renderManagePanel();
-          });
-          documentResultText = "Running document checks without a model call...";
-          if (panelMode === "manage") renderManagePanel();
-          const result = await apiRequest("/api/document-test", {
-            method: "POST", body: JSON.stringify({ root: MODEL.root, document }),
-          });
-          documentResultText = JSON.stringify(result, null, 2);
-          if (epoch === documentAssessmentEpoch) documentAssessment = result.documentAssessment ?? { state: "unverified" };
-          setStatus(result.verdict === "rejected" ? "Document rejected by enforcement." : "Document enforcement completed.",
-            result.verdict === "rejected");
-        } catch (error) {
-          documentResultText = error.message;
-          if (epoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
-          setStatus(error.message, true);
-        } finally {
-          documentTesting = false;
-          if (panelMode === "manage") renderManagePanel();
-        }
+        if (panelMode === "manage") renderManagePanel();
+        const result = await apiRequest("/api/document-test", {
+          method: "POST", body: JSON.stringify({ root: MODEL.root, document }),
+        });
+        documentResultText = JSON.stringify(result, null, 2);
+        if (epoch === documentAssessmentEpoch) documentAssessment = result.documentAssessment ?? { state: "unverified" };
+        setStatus(result.verdict === "rejected" ? "Document rejected by enforcement." : "Document enforcement completed.",
+          result.verdict === "rejected");
+      } catch (error) {
+        documentResultText = error.message;
+        if (epoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
+        setStatus(error.message, true);
+      } finally {
+        documentTesting = false;
+        if (panelMode === "manage") renderManagePanel();
       }
-      const trustSection = appendText(container, "section", "", "safety-trust-section");
-      trustSection.setAttribute("aria-label", "Safety trust verification");
-      const trustHeader = appendText(trustSection, "div", "", "safety-trust-header");
-      appendText(trustHeader, "strong", "How much do I trust it?");
-      appendText(trustHeader, "span", "Verify sandbox boundaries before model execution");
-      const cardsGrid = appendText(trustSection, "div", "", "safety-cards-grid");
+    }
+
+    function ensureSafetyBoundaryDialog() {
+      if (safetyBoundaryDialog) return safetyBoundaryDialog;
+      safetyBoundaryDialog = document.createElement("dialog");
+      safetyBoundaryDialog.id = "safety-boundary-dialog";
+      safetyBoundaryDialog.className = "safety-boundary-dialog";
+      safetyBoundaryDialog.setAttribute("aria-labelledby", "safety-boundary-dialog-title");
+      safetyBoundaryDialog.setAttribute("aria-describedby", "safety-boundary-dialog-description");
+      const head = appendText(safetyBoundaryDialog, "div", "", "safety-boundary-dialog-heading");
+      const copy = appendText(head, "div", "", "safety-boundary-dialog-copy");
+      const title = appendText(copy, "h2", "Try a boundary test");
+      title.id = "safety-boundary-dialog-title";
+      const subtitle = appendText(
+        copy,
+        "p",
+        "Verify your sandbox blocks prompt overrides and sensitive data leaks before untrusted input reaches the model.",
+        "safety-boundary-dialog-subtitle",
+      );
+      subtitle.id = "safety-boundary-dialog-description";
+      safetyDialogCloseBtn = document.createElement("button");
+      safetyDialogCloseBtn.type = "button";
+      safetyDialogCloseBtn.dataset.studioButton = "subtle";
+      safetyDialogCloseBtn.dataset.safetyDialogClose = "true";
+      safetyDialogCloseBtn.className = "safety-boundary-dialog-close";
+      safetyDialogCloseBtn.setAttribute("aria-label", "Close boundary tests");
+      safetyDialogCloseBtn.title = "Close boundary tests";
+      safetyDialogCloseBtn.innerHTML = ICONS.x;
+      safetyDialogCloseBtn.addEventListener("click", () => safetyBoundaryDialog.close());
+      head.append(safetyDialogCloseBtn);
+      buttons.mountAll(head);
+
+      const body = appendText(safetyBoundaryDialog, "div", "", "safety-boundary-dialog-body");
+      const cardsGrid = appendText(body, "div", "", "safety-cards-grid");
 
       const overrideCard = appendText(cardsGrid, "div", "", "safety-card");
       const overrideHead = appendText(overrideCard, "div", "", "safety-card-head");
       appendText(overrideHead, "strong", "Prompt Injection Override");
       appendText(overrideHead, "span", "Pre-model policy gate", "safety-card-pill");
       appendText(overrideCard, "p", "Injects a hostile <system> override attempting to bypass redaction and force 0.00% APR approval.");
-      const testOverride = actionButton("Test unsafe override", () => runAdversarialTest("override"));
-      testOverride.dataset.testDocument = "true";
-      buttons.append(overrideCard, testOverride);
+      testOverrideBtn = actionButton("Test unsafe override", () => {
+        restoreBoundaryDialogFocus = false;
+        if (safetyBoundaryDialog.open) safetyBoundaryDialog.close();
+        void runAdversarialTest("override");
+      });
+      testOverrideBtn.dataset.testDocument = "true";
+      testOverrideBtn.dataset.actionKey = "test-document";
+      buttons.append(overrideCard, testOverrideBtn);
 
       const egressCard = appendText(cardsGrid, "div", "", "safety-card");
       const egressHead = appendText(egressCard, "div", "", "safety-card-head");
       appendText(egressHead, "strong", "Secret & PII Egress Probe");
       appendText(egressHead, "span", "--egress-default Deny", "safety-card-pill");
       appendText(egressCard, "p", "Injects an exfiltration webhook probe targeting AZURE_AI_GATEWAY_API_KEY, GITHUB_TOKEN, and borrower SSN.");
-      const testEgress = actionButton("Test unsafe egress", () => runAdversarialTest("egress"));
-      testEgress.dataset.testEgress = "true";
-      buttons.append(egressCard, testEgress);
+      testEgressBtn = actionButton("Test unsafe egress", () => {
+        restoreBoundaryDialogFocus = false;
+        if (safetyBoundaryDialog.open) safetyBoundaryDialog.close();
+        void runAdversarialTest("egress");
+      });
+      testEgressBtn.dataset.testEgress = "true";
+      testEgressBtn.dataset.actionKey = "test-egress";
+      buttons.append(egressCard, testEgressBtn);
+
+      safetyBoundaryDialog.addEventListener("click", (event) => {
+        if (event.target === safetyBoundaryDialog) safetyBoundaryDialog.close();
+      });
+      safetyBoundaryDialog.addEventListener("close", () => {
+        if (!restoreBoundaryDialogFocus) {
+          restoreBoundaryDialogFocus = true;
+          return;
+        }
+        const trigger = details.querySelector("[data-choose-boundary-test]");
+        if (trigger && !trigger.disabled) trigger.focus({ preventScroll: true });
+      });
+      (document.querySelector("#workspace-shell") || document.body).append(safetyBoundaryDialog);
+      return safetyBoundaryDialog;
+    }
+
+    function openBoundaryTestModal() {
+      if (!operationalState.readiness?.documentInput) return;
+      const dialog = ensureSafetyBoundaryDialog();
+      syncAgentInputControls();
+      if (dialog.open) return;
+      restoreBoundaryDialogFocus = true;
+      dialog.showModal();
+      const target = testOverrideBtn && !testOverrideBtn.disabled ? testOverrideBtn : safetyDialogCloseBtn;
+      target?.focus({ preventScroll: true });
+    }
+
+    function renderDocumentTest(container, _actions) {
+      if (!operationalState.readiness?.documentInput) return;
+      ensureSafetyBoundaryDialog();
+      const trustSection = appendText(container, "section", "", "safety-trust-section");
+      trustSection.setAttribute("aria-label", "Sandbox boundary tests");
+      const trustCopy = appendText(trustSection, "div", "", "safety-trust-copy");
+      const trustIcon = appendText(trustCopy, "span", "", "safety-trust-icon");
+      trustIcon.setAttribute("aria-hidden", "true");
+      trustIcon.innerHTML = ICONS["shield-lock"];
+      const trustText = appendText(trustCopy, "div", "", "safety-trust-text");
+      appendText(trustText, "strong", "Try a boundary test");
+      appendText(
+        trustText,
+        "p",
+        "Verify your sandbox blocks prompt overrides and sensitive data leaks before untrusted input reaches the model.",
+      );
+      const chooseTest = actionButton("Choose test", () => openBoundaryTestModal());
+      chooseTest.dataset.chooseBoundaryTest = "true";
+      chooseTest.dataset.actionKey = "choose-boundary-test";
+      chooseTest.setAttribute("aria-haspopup", "dialog");
+      chooseTest.setAttribute("aria-controls", "safety-boundary-dialog");
+      buttons.append(trustSection, chooseTest);
     }
 
     function cancelAgentPromptTyping() {
@@ -3647,9 +3740,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       promptFrame.append(prompt);
       renderDocumentInput(tester, dispatchActions);
       tester.append(actions);
+      renderDocumentTest(tester, actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
-      renderDocumentTest(tester, actions);
       renderDocumentAssessment(tester);
       if (agentRequestState !== "idle") renderTools(tester);
       if (agentRawResponse) {
