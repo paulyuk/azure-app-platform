@@ -519,12 +519,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       --canvas-button-small-min-height: 1.75rem;
       --canvas-button-small-padding-block: .1875rem;
       --canvas-button-small-padding-inline: .5rem;
-      display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 12px;
+      display: flex; flex: none; align-items: flex-start; gap: 8px; padding: 4px 12px;
       border-block: 1px solid var(--border); background: var(--surface);
     }
+    .workspace-lifecycle-actions { flex:none; margin-inline-start:auto; padding-block:3px; }
     .build-page { display:flex; flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); }
     .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
-    #app-workspace-navigation { min-width: 0; max-width: 100%; }
+    #app-workspace-navigation { flex:1; min-width: 0; max-width: 100%; }
     .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
     #app-workspace-navigation ul { display: flex; flex-wrap: wrap; gap: 2px; padding: 0; margin: 0; list-style: none; }
     #app-workspace-navigation li { flex: none; }
@@ -554,11 +555,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
     .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
     .runtime-badge[data-tone="error"] { border-color: var(--danger); color: var(--danger); background: rgb(164 38 44 / .1); }
-    .runtime-action {
-      flex: 0 0 auto; min-height: 24px; padding: 2px 8px;
-      border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
-    }
-    .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -894,7 +890,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <div id="workspace-runtime-bar">
       <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
       <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
-      <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
+      <button data-studio-button="secondary" id="header-runtime-action" type="button" disabled>Checking…</button>
       <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
       </div>
@@ -1052,6 +1048,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const status = document.querySelector("#status");
     const appStatusBadge = document.querySelector("#app-status-badge");
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
+    buttons.update(headerRuntimeAction, { size: "small" });
     const mapContext = document.querySelector("#map-context");
     const structureGuidance = document.querySelector("#structure-guidance");
     const search = document.querySelector("#search");
@@ -1184,6 +1181,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const navigationProps = {
       items: navigationItems, appTitle: document.querySelector("#app-title"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
+      runtimeActions: buttons.host(headerRuntimeAction),
       history: {
         onBack: () => navigateWorkspaceHistory(-1),
         onForward: () => navigateWorkspaceHistory(1),
@@ -1416,8 +1414,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         actionLabel = "Checking…";
         disabled = true;
       } else if (appState === "running") {
-        actionLabel = "Runtime controls";
-        operation = "open-runtime";
+        actionLabel = operationalState.readiness?.mode === "preview" ? "Stop preview" : "Stop app";
+        operation = "stop-local";
       } else if (appState === "starting") {
         actionLabel = operationalState.app.recovered ? "Stop partial startup" : "Cancel startup";
         operation = "stop-local";
@@ -1445,18 +1443,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       updateAgentStatusBrief();
     }
 
-    function canStartApp() {
-      return ["stopped", "failed"].includes(operationalState.app?.state) &&
-        Boolean(operationalState.readiness?.ready);
-    }
-
     function syncRuntimePlacement() {
       const state = operationalState.app?.state;
       const healthyStopped = state === "stopped" && !operationalState.app.error &&
         !operationalState.app.recovered && !readinessError;
       appStatusBadge.hidden = healthyStopped || state === "running" && operationalState.readiness?.mode !== "preview";
-      headerRuntimeAction.hidden = panelMode === "manage" && (["running", "stopping"].includes(state) || canStartApp());
-      document.querySelector("#workspace-runtime-bar").hidden = appStatusBadge.hidden && headerRuntimeAction.hidden;
+      if (headerRuntimeAction.dataset.operation === "run-local") {
+        buttons.setDisabled(headerRuntimeAction, invokingAgent || documentTesting || documentLoading || Boolean(lifecycleOperation));
+      }
+      document.querySelector("#workspace-runtime-bar").hidden = appStatusBadge.hidden;
     }
 
     function updateAgentStatusBrief() {
@@ -3272,6 +3267,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function syncAgentInputControls() {
+      syncRuntimePlacement();
       const tester = details.querySelector(".agent-tester");
       if (!tester) return;
       const busy = invokingAgent || documentTesting || documentLoading;
@@ -3296,8 +3292,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         Boolean(documentTextError(documentPasteDraft, operationalState.readiness.documentInput.maxBytes)));
       const cancel = tester.querySelector("[data-cancel-document]");
       if (cancel) buttons.setDisabled(cancel, busy);
-      const start = tester.querySelector("[data-task-start-app]");
-      if (start) buttons.setDisabled(start, busy || Boolean(lifecycleOperation));
       for (const preset of tester.querySelectorAll("[data-event-preset]")) preset.disabled = busy;
     }
 
@@ -3799,12 +3793,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
-      if (canStartApp()) {
-        const label = operationalState.readiness.mode === "preview" ? "Start preview" : "Start app";
-        const start = keyedActionButton("start-app", label, () => runAppOperation("run-local"));
-        start.dataset.taskStartApp = "true";
-        buttons.append(actions, start);
-      }
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
@@ -3813,15 +3801,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
       promptFrame.append(prompt);
       renderDocumentInput(tester, dispatchActions);
-      const appState = operationalState.app?.state;
-      if (appState === "running" || appState === "stopping") {
-        const label = appState === "stopping" ? "Stopping…"
-          : operationalState.readiness?.mode === "preview" ? "Stop preview" : "Stop app";
-        const stop = keyedActionButton("stop-app", label, () => runAppOperation("stop-local"));
-        stop.dataset.taskRuntimeAction = "true";
-        buttons.setDisabled(stop, appState === "stopping");
-        buttons.append(actions, stop);
-      }
       tester.append(actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
@@ -5132,10 +5111,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     headerRuntimeAction.addEventListener("click", () => {
       if (headerRuntimeAction.disabled) return;
       const operation = headerRuntimeAction.dataset.operation;
-      if (operation === "open-runtime") {
-        renderManagePanel();
-        return;
-      }
       if (operation) {
         void runAppOperation(operation);
         return;

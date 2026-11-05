@@ -236,8 +236,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       await page.locator("#map-app").click();
       assert.equal(await trigger.isVisible(), true);
-      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true,
-        "Runtime controls remain available outside Run.");
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+      assert.equal(await page.locator(".workspace-lifecycle-actions #header-runtime-action").isVisible(), true,
+        "Runtime controls remain on the navigation row outside Run.");
       await page.locator("#manage-app").click();
       fixture.state.app = "stopping";
       await page.locator("#app-status-badge").filter({ hasText: "Stopping" }).waitFor();

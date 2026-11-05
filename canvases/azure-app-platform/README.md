@@ -304,8 +304,10 @@ a new destination after Back discards forward visits. This history lasts for the
 current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
-button. **Open app** remains in the existing header utilities; **Start app** sits immediately
-before **Invoke agent** when stopped and ready, while **Stop app** follows Invoke when running.
+button. **Open app** remains in the existing header utilities. The app lifecycle
+control sits at the top right of the same row as the main menu: **Start app** when
+stopped and ready, **Stop app** when running. The menu wraps within its own space on
+narrow panes, keeping the lifecycle control aligned with its first row.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
@@ -394,15 +396,15 @@ failed operation counts stay beside the toggle, while Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
 The Status Brief retains truthful runtime, agent, request and failure information.
 The redundant **Running locally** and healthy **Not running** header badges are hidden.
-Healthy stopped Run has no empty runtime row; **Start app** (or **Start preview**)
-is immediately before **Invoke agent**, with the existing readiness and busy gating.
-Header notices still
-show previews, startup/recovery, stopping, failures and cloud operations.
-**Stop app** (or **Stop preview**) follows **Invoke agent**, using the same lifecycle
-operation and disabled stopping state. On other workspace pages, **Runtime controls**
-returns to Run without stopping anything; stopped pages retain their Start action.
-Header startup/cancel and partial-startup
-recovery controls remain accessible. Each request-flow stage exposes a
+Healthy stopped Run has no empty runtime row. The same small secondary toolkit
+lifecycle control stays to the right of Build / Connect / Run / Observe / Deploy
+across workspace visits: **Start app** / **Start preview** or **Stop app** /
+**Stop preview**, with existing readiness, busy and stopping-state gating.
+Task actions contain only **Invoke agent** and **Document**, without duplicate
+Start/Stop buttons. Header notices still show previews, startup/recovery, stopping,
+failures and cloud operations; startup cancellation, partial-startup recovery and
+setup use the same navigation-row control. Navigation alone never performs a lifecycle
+operation. Each request-flow stage exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating

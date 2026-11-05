@@ -42,6 +42,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const select = id => selectWorkspace(page, id);
       const mode = async expected => {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
+        const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
+        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Start app" : "Stop app");
+        assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
+        assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
       assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
       assert.equal(await page.locator("#workspace-location").textContent(), "Run");
@@ -52,6 +56,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#deploy-app").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Deploy", exact: true }).count(), 1);
       assert.deepEqual(await page.locator("#workspace-runtime-actions button").allTextContents(), ["Open app"]);
+      await page.locator("#header-runtime-action").evaluate(node => { window.navigationRuntimeAction = node; });
       assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
       assert.equal(await back.isDisabled(), true);
       assert.equal(await forward.isDisabled(), true);

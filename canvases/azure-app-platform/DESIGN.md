@@ -471,12 +471,14 @@ search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
 row. Status Brief retains runtime availability and failures. The redundant
 **Running locally** and healthy **Not running** header badges are hidden. Healthy
-stopped Run has no runtime row; **Start app** precedes **Invoke agent** in task actions
-when ready. Preview, startup/recovery, failure and active-operation notices remain
-visible. **Stop app** follows **Invoke agent** in the
-task action row, with the same stop-local operation and stopping-state gating.
-Other pages expose **Runtime controls** to return to Run; startup/cancel and
-partial-startup recovery remain available in the header. Each
+stopped Run has no runtime row. A single small secondary toolkit lifecycle control
+is top-right on the main-menu row across workspaces: **Start app** / **Start preview**
+when ready or **Stop app** / **Stop preview** when running. The menu wraps within
+its own left-side space without displacing the control. Task actions retain only
+**Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
+notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
+gating reuse the same control and lifecycle operations. Navigation alone does not run
+or stop the app. Each
 request-flow stage exposes a contextual **Add component** action. Single-tier locations open
 their setup directly; multi-tier locations narrow the chooser to valid
 component types. **Connect** controls between adjacent stages list existing
@@ -627,8 +629,9 @@ Operations tab; separate command-example and troubleshooting cards are omitted. 
 and readable response typography without changing the App Map. Agent answers are separate from raw
 responses. Source-discovered Hosted Skills and sandbox implementations are not
 presented as successful tool calls; only response-reported tool evidence is shown.
-Runtime notices and the outside-Run **Runtime controls** action open this panel
-directly without executing an operation. Starting an operation keeps Run visible.
+Runtime notices open this panel without executing an operation. The shared lifecycle
+control on the main-menu row performs only its explicit Start/Stop/setup action;
+starting an operation keeps Run visible.
 The top-right Settings gear opens a native modal with Studio-wide appearance and
 preferred external editor, plus app-scoped
 model connection, local ports, and a separated Danger zone. Focus stays in the

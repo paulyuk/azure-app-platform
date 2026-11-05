@@ -1,6 +1,6 @@
 export function createWorkspaceNavigationComponent(toolkit) {
   const { createElement: h, useEffect, useRef, Fragment, CanvasShell, CanvasHeader, NavigationControls, Button } = toolkit;
-  function RetainedContent({ element, className }) {
+  function RetainedContent({ element, ...props }) {
     const host = useRef(null);
     useEffect(() => {
       const parent = element.parentNode;
@@ -11,10 +11,10 @@ export function createWorkspaceNavigationComponent(toolkit) {
         anchor.replaceWith(element);
       };
     }, [element]);
-    return h("div", { ref: host, className });
+    return h("div", { ref: host, ...props });
   }
   return function WorkspaceNavigation({
-    current, items, appTitle, utilities, content, history,
+    current, items, appTitle, utilities, content, history, runtimeActions,
     onNavigate, onReady, onHome,
   }) {
     useEffect(() => { onReady(); }, [onReady]);
@@ -38,7 +38,11 @@ export function createWorkspaceNavigationComponent(toolkit) {
                 "aria-pressed": item.button["aria-haspopup"] ? undefined : current === item.value,
                 "aria-current": current === item.value ? "page" : undefined,
                 onClick: event => onNavigate(event, item.value),
-              }, item.label)))))))),
+              }, item.label)))))),
+        h(RetainedContent, {
+          element: runtimeActions, className: "workspace-lifecycle-actions",
+          role: "group", "aria-label": "App runtime controls",
+        }))),
     }, h(RetainedContent, { element: content, className: "studio-workspace-content" }));
   };
 }

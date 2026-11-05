@@ -151,7 +151,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     }
   });
 
-  test(`Task action row owns Start and Stop without losing runtime notices or recovery in ${name}`, {
+  test(`Navigation row owns lifecycle actions without losing task state, notices or recovery in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
@@ -183,72 +183,90 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.goto(fixture.origin + "/app-map");
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
-      const stop = page.locator("[data-task-runtime-action]");
+      const action = page.locator("#header-runtime-action");
+      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await prompt.fill("Retain this event while controlling the app.");
+      await prompt.evaluate(node => node.setSelectionRange(3, 10));
+      const checkPlacement = async () => {
+        for (const width of [320, 380, 620, 1280]) {
+          await page.setViewportSize({ width, height: 480 });
+          for (const theme of ["light", "dark"]) {
+            await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+            const geometry = await action.evaluate(node => {
+              const button = node.getBoundingClientRect();
+              const bar = node.closest(".workspace-navigation-bar").getBoundingClientRect();
+              const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
+              const first = document.querySelector("#build-workspace").getBoundingClientRect();
+              const style = getComputedStyle(node);
+              return {
+                sameRow: Math.abs(button.top - first.top) <= 1,
+                rightAligned: Math.abs(button.right - (bar.right - 12)) <= 1,
+                separated: button.left >= menu.right + 7,
+                fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
+                taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
+                toolkit: node.classList.contains("ct-button"), size: node.dataset.size,
+                height: button.height, padding: style.padding,
+              };
+            });
+            assert.ok(geometry.sameRow && geometry.rightAligned && geometry.separated &&
+              geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
+            assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
+              [true, "small", 28, "3px 8px"]);
+          }
+        }
+      };
       assert.equal(await page.locator("#app-status-badge").isVisible(), false);
-      assert.equal(await page.locator("#header-runtime-action").isVisible(), false);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.match(await page.getByRole("region", { name: "Status Brief", exact: true }).innerText(), /Running locally/);
       assert.equal(await page.getByRole("button", { name: "Stop app", exact: true }).count(), 1);
-      assert.equal(await stop.evaluate(node => node.closest(".actions").querySelectorAll("button")[1] === node), true);
-      await invoke.focus();
+      assert.equal(await action.innerText(), "Stop app");
+      assert.equal(await page.locator("[data-task-runtime-action],[data-task-start-app]").count(), 0);
+      assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent"]);
+      await checkPlacement();
+      await page.locator("#deploy-workspace").focus();
       await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
-      assert.equal(await stop.evaluate(node => node === document.activeElement), true);
-      for (const width of [320, 380, 620]) {
-        await page.setViewportSize({ width, height: 480 });
-        assert.ok(await stop.evaluate(node => node.getBoundingClientRect().right <= innerWidth &&
-          node.closest(".actions").scrollWidth <= node.closest(".actions").clientWidth + 1));
-      }
+      assert.equal(await action.evaluate(node => node === document.activeElement), true);
       await page.locator("#map-app").click();
-      await page.getByRole("button", { name: "Runtime controls", exact: true }).click();
-      await stop.waitFor();
+      assert.equal(await action.innerText(), "Stop app");
       assert.equal(await page.locator("dialog[open]").count(), 0);
-      assert.deepEqual(operations, [], "Returning to Run must not stop or configure anything.");
-      await stop.click();
+      assert.deepEqual(operations, [], "Navigation alone never starts or stops the app.");
+      await action.focus();
+      await page.keyboard.press("Enter");
       await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
-      assert.equal(await stop.innerText(), "Stopping…");
-      assert.equal(await stop.isDisabled(), true);
+      assert.equal(await action.innerText(), "Stopping…");
+      assert.equal(await action.isDisabled(), true);
       assert.equal(await invoke.isDisabled(), true);
       release();
       holdStop = false;
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
-      assert.equal(await stop.count(), 0);
-      const start = page.locator("[data-task-start-app]");
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator("#app-status-badge").isVisible(), false);
       assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
-      assert.deepEqual(await start.evaluate(node => [...node.closest(".actions").querySelectorAll("button")]
-        .map(button => button.textContent)), ["Start app", "Invoke agent"]);
-      await start.focus();
-      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
-      assert.equal(await invoke.evaluate(node => node === document.activeElement), true);
-      for (const width of [320, 380, 620]) {
-        await page.setViewportSize({ width, height: 480 });
-        for (const theme of ["light", "dark"]) {
-          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-          assert.ok(await start.evaluate(node => node.getBoundingClientRect().left >= 0 &&
-            node.closest(".actions").scrollWidth <= node.closest(".actions").clientWidth + 1));
-        }
-      }
+      assert.equal(await prompt.inputValue(), "Retain this event while controlling the app.");
+      assert.deepEqual(await prompt.evaluate(node => [node.selectionStart, node.selectionEnd]), [3, 10]);
+      await checkPlacement();
       await page.locator("#map-app").click();
       assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
-      assert.equal(await page.locator("#header-runtime-action").isVisible(), true);
       await page.locator("#manage-app").click();
-      await start.click();
+      await action.evaluate(node => { window.retainedRuntimeAction = node; });
+      await action.click();
       await page.getByRole("button", { name: "Cancel startup", exact: true }).waitFor();
-      assert.equal(await start.count(), 0);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
       assert.equal(operations.at(-1).operation, "run-local");
+      await checkPlacement();
       recovered = true;
-      await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
+      await action.filter({ hasText: "Stop partial startup" }).waitFor();
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
-      await page.locator("#header-runtime-action").click();
+      await checkPlacement();
+      await action.click();
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
       fixture.state.configured = false;
       fixture.state.app = "running";
       await page.locator('.agent-status-brief[data-state="preview"]').waitFor();
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
-      assert.equal(await stop.innerText(), "Stop preview");
-      await stop.click();
-      await stop.waitFor({ state: "detached" });
+      assert.equal(await action.innerText(), "Stop preview");
+      await action.click();
+      await action.filter({ hasText: "Start preview" }).waitFor();
       assert.deepEqual(operations, ["stop-local", "run-local", "stop-local", "stop-local"]
         .map(operation => ({ root: "/fixture/dealer", operation })));
       fixture.state.app = "failed";
@@ -256,16 +274,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#app-status-badge").filter({ hasText: "Needs attention" }).waitFor();
       assert.match(await page.locator(".run-primary").innerText(), /Simulated lifecycle failure/);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
-      assert.equal(await start.innerText(), "Start preview");
+      assert.equal(await action.innerText(), "Start preview");
+      await checkPlacement();
       fixture.state.configured = true;
-      await start.filter({ hasText: "Start app" }).waitFor();
-      assert.equal(await start.isDisabled(), false);
+      await action.filter({ hasText: "Start app" }).waitFor();
+      assert.equal(await action.isDisabled(), false);
       await page.route("**/api/local-readiness*", route => route.fulfill({ json: {
         ready: false, gatewayConfigured: false, mode: "full",
       } }));
-      await start.waitFor({ state: "detached" });
-      assert.equal(await page.locator("#header-runtime-action").innerText(), "Set up");
-      assert.equal(await page.locator("#header-runtime-action").isVisible(), true);
+      await action.filter({ hasText: "Set up" }).waitFor();
+      assert.equal(await action.isVisible(), true);
+      assert.equal(await action.evaluate(node => node === window.retainedRuntimeAction), true);
       assert.deepEqual(errors, []);
     } finally { release?.(); await browser.close(); await fixture.close(); }
   });

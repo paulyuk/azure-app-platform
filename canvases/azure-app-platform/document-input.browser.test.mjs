@@ -397,6 +397,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.deepEqual(invocations.at(-1).document, { name: documentName, content });
         }
       }
+      fixture.state.app = "stopped";
+      await page.getByRole("button", { name: "Start app", exact: true }).waitFor();
       await expand();
       await edit.click();
       await text.fill("Draft replaced by a file read");
@@ -409,10 +411,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await text.isDisabled(), true);
       assert.equal(await page.locator("[data-edit-document]").isDisabled(), true);
       assert.equal(await page.getByRole("button", { name: "Add document", exact: true }).isDisabled(), true);
+      const start = page.getByRole("button", { name: "Start app", exact: true });
+      assert.equal(await start.isDisabled(), true, "Global Start retains file-read busy gating");
+      await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
+      await page.locator("#map-app").click();
+      assert.equal(await start.isDisabled(), true, "Navigation/polling cannot enable Start during a read");
+      await page.locator("#manage-app").click();
       await page.getByRole("button", { name: "Remove document", exact: true }).click();
       await page.evaluate(() => window.finishDocumentRead("Pending upload"));
       assert.equal(await page.locator(".document-attachment").isVisible(), false);
       assert.equal(await invoke.isDisabled(), false);
+      assert.equal(await start.isDisabled(), false);
       assert.equal(await page.evaluate(() => window.documentExecuted), undefined);
       assert.deepEqual(errors, []);
       assert.deepEqual(external, []);
@@ -457,8 +466,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         fixture.state.app = appState;
         await page.locator('.agent-status-brief[data-state="' + (appState === "running" ? "ready" : "stopped") + '"]').waitFor();
         await assertDocumentActionPlacement(page);
-        assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(),
-          appState === "running" ? ["Invoke agent", "Document", "Stop app"] : ["Start app", "Invoke agent", "Document"]);
+        assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent", "Document"]);
+        assert.equal(await page.locator(".workspace-lifecycle-actions button").innerText(),
+          appState === "running" ? "Stop app" : "Start app");
       }
       await invoke.focus();
       await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
