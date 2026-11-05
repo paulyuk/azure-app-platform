@@ -405,7 +405,7 @@ in the app-name row through navigation and polling. The public toolkit Badge use
 neutral gray for stopped, green for running, blue/accent for checking and active
 operations, amber for preview/partial startup, and red for failure, with readable
 state labels and theme-owned colors in light and dark. Activating it opens Run.
-The same small secondary toolkit
+The same small primary toolkit
 lifecycle control stays to the right of Build / Connect / Run / Observe / Deploy
 across workspace visits: **Start app** / **Start preview** or **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.

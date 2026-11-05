@@ -883,7 +883,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   <div id="workspace-content">
     <div id="workspace-runtime-bar" hidden>
       <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
-      <button data-studio-button="secondary" id="header-runtime-action" type="button" disabled>Checking…</button>
+      <button data-studio-button="primary" id="header-runtime-action" type="button" disabled>Checking…</button>
       <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
       </div>

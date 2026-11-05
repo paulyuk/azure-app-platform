@@ -479,7 +479,7 @@ status Badge sits immediately after the app name, including **Running locally** 
 **Not running**, with no separate runtime row. Neutral gray means stopped, green
 running, accent blue checking/active operation, amber preview/partial startup, and
 red failure; explicit labels accompany theme-owned colors in both themes.
-The badge retains its keyboard-accessible Run shortcut. A single small secondary toolkit lifecycle control
+The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
 is top-right on the main-menu row across workspaces: **Start app** / **Start preview**
 when ready or **Stop app** / **Stop preview** when running. The menu wraps within
 its own left-side space without displacing the control. Task actions retain only

@@ -205,13 +205,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
                 toolkit: node.classList.contains("ct-button"), size: node.dataset.size,
-                height: button.height, padding: style.padding,
+                height: button.height, padding: style.padding, appearance: node.dataset.appearance,
+                prominent: style.backgroundColor !== getComputedStyle(document.querySelector("#build-workspace")).backgroundColor,
               };
             });
             assert.ok(geometry.sameRow && geometry.rightAligned && geometry.separated &&
               geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
             assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
               [true, "small", 28, "3px 8px"]);
+            assert.equal(geometry.appearance, "primary");
+            assert.equal(geometry.prominent, true);
           }
         }
       };
@@ -235,6 +238,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
       assert.equal(await action.innerText(), "Stopping…");
       assert.equal(await action.isDisabled(), true);
+      assert.equal(await action.getAttribute("data-appearance"), "primary");
       assert.equal(await invoke.isDisabled(), true);
       release();
       holdStop = false;
@@ -284,6 +288,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       } }));
       await action.filter({ hasText: "Set up" }).waitFor();
       assert.equal(await action.isVisible(), true);
+      assert.equal(await action.getAttribute("data-appearance"), "primary");
       assert.equal(await action.evaluate(node => node === window.retainedRuntimeAction), true);
       assert.deepEqual(errors, []);
     } finally { release?.(); await browser.close(); await fixture.close(); }
@@ -378,6 +383,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const badge = page.locator("#app-status-badge");
       await badge.filter({ hasText: "Checking status" }).waitFor();
       assert.equal(await badge.getAttribute("data-color"), "brand");
+      assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"), "primary");
       assert.equal(await badge.evaluate(node => node.tagName), "SPAN");
       assert.equal(await page.locator("#app-status-control").evaluate(node => node.tagName), "BUTTON");
       await badge.evaluate(node => { window.retainedBadge = node; });
@@ -404,6 +410,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         recovered = recovery;
         await page.waitForFunction(value => document.querySelector("#app-status-badge").textContent === value, label);
         assert.equal(await badge.getAttribute("data-color"), color);
+        assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"), "primary");
         assert.equal(await badge.getAttribute("aria-live"), "polite");
         assert.match(await page.locator("#app-status-control").getAttribute("aria-label"), new RegExp(label));
         for (const width of [320, 380, 620, 1280]) {

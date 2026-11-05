@@ -44,6 +44,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
         const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
         assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Start app" : "Stop app");
+        assert.equal(await action.getAttribute("data-appearance"), "primary");
         assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
         assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
@@ -111,6 +112,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               headerFits: header.scrollWidth <= header.clientWidth + 1,
               navRight: nav.right, groupWidth: group.width,
               menuHeight: menu.getBoundingClientRect().height,
+              primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
               menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
@@ -132,6 +134,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
           assert.ok(geometry.menuHeight <= (width < 480 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.buttons.length, 6);
+          assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
           for (const button of geometry.buttons) {
             assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
           }
