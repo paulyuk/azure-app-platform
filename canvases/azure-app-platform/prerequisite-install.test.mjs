@@ -43,5 +43,5 @@ INSTALLER
 
 test("ACA install failures offer CLI setup instead of model connection settings", async () => {
   const ui = await readFile(new URL("./interactive-app-map.mjs", import.meta.url), "utf8");
-  assert.match(ui, /command\?\.includes\("aka\.ms\/aca-cli-install"\)[\s\S]*?"Review CLI setup", \(\) => openAppSettings\("prereqs"\)/);
+  assert.match(ui, /command\?\.includes\("aka\.ms\/aca-cli-install"\)[\s\S]*?label: "Review CLI setup", onClick: \(\) => openAppSettings\("prereqs"\)/);
 });

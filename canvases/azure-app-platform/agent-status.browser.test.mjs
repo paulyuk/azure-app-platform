@@ -8,6 +8,151 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
+  test(`Combined Status Brief retains recovery, prerequisites and document drafts through icon navigation in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.documentInput = true;
+    fixture.state.app = "stopped";
+    let extraStatus = {}, missingTools = [];
+    const operations = [], errors = [];
+    const browser = await engine.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(10000);
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/app-status*", async route => {
+        const response = await route.fetch();
+        await route.fulfill({ json: { ...await response.json(), ...extraStatus } });
+      });
+      await page.route("**/api/local-readiness*", async route => {
+        const response = await route.fetch();
+        await route.fulfill({ json: { ...await response.json(),
+          prerequisites: { ready: !missingTools.length, missingTools },
+        } });
+      });
+      await page.route("**/api/app-command", route => {
+        const input = route.request().postDataJSON();
+        operations.push(input);
+        fixture.state.app = input.operation === "run-local" ? "running" : "stopped";
+        fixture.state.error = "";
+        extraStatus = {};
+        if (input.operation === "install-prereq-aca") missingTools = [];
+        return route.fulfill({ json: { outcome: "command-started" } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
+      const status = page.getByRole("region", { name: "Status Brief", exact: true });
+      const connection = status.getByRole("button", { name: "Open connections", exact: true });
+      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
+      assert.equal(await status.count(), 1);
+      assert.equal(await page.locator(".run-setup-actions,.run-primary > .run-card").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Connection settings", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      assert.equal(await connection.innerText(), "");
+      assert.equal(await connection.locator('svg[data-octicon="link"]').count(), 1);
+      assert.equal(await connection.evaluate(node => node.closest("dd").textContent), "gpt-5-mini · dealer-gateway");
+      await prompt.fill("Retain this task and editable attachment through connection review.");
+      await page.getByRole("button", { name: "Add document", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Add sample", exact: true }).click();
+      await page.locator(".run-document > summary").click();
+      await page.locator("[data-edit-document]").click();
+      const document = page.getByRole("textbox", { name: "Document text", exact: true });
+      await document.fill("Unsaved document edit retained during connection review.");
+      await document.evaluate(node => node.setSelectionRange(4, 12));
+      await connection.focus();
+      await connection.press("Enter");
+      await page.locator('#details[data-mode="connections"]').waitFor();
+      assert.equal(await page.locator("#connect-workspace").getAttribute("aria-current"), "page");
+      assert.equal(await page.locator("dialog[open]").count(), 0);
+      assert.deepEqual(operations, [], "Connection inspection never starts the app or configures a gateway.");
+      const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
+      await history.getByRole("button", { name: "Back", exact: true }).click();
+      await document.waitFor();
+      assert.equal(await prompt.inputValue(), "Retain this task and editable attachment through connection review.");
+      assert.equal(await document.inputValue(), "Unsaved document edit retained during connection review.");
+      assert.deepEqual(await document.evaluate(node => [node.selectionStart, node.selectionEnd]), [4, 12]);
+      fixture.state.app = "failed";
+      fixture.state.error = "Simulated startup failure.";
+      extraStatus = { command: "aca run --config app.yaml", errorDetail: "Retained command detail\n".repeat(80) };
+      await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
+      assert.match(await status.innerText(), /Simulated startup failure/);
+      assert.match(await status.locator(".command-code").first().innerText(), /aca run --config app.yaml/);
+      const disclosure = status.locator('[data-run-disclosure="runtime-error"]');
+      await disclosure.locator("summary").click();
+      await disclosure.locator("pre").evaluate(node => { node.scrollTop = 70; });
+      await connection.focus();
+      fixture.state.error = "Simulated startup failure. Updated polling evidence.";
+      await status.locator(".error").filter({ hasText: "Updated polling evidence" }).waitFor();
+      assert.equal(await disclosure.evaluate(node => node.open), true);
+      assert.equal(await disclosure.locator("pre").evaluate(node => node.scrollTop), 70);
+      assert.equal(await connection.evaluate(node => node === document.activeElement), true);
+      for (const width of [320, 380, 620]) {
+        await page.setViewportSize({ width, height: 480 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          const geometry = await status.evaluate(node => {
+            const summary = node.querySelector(".agent-status-summary").getBoundingClientRect();
+            const actions = node.querySelector(".agent-status-actions").getBoundingClientRect();
+            return {
+              right: Math.abs(actions.right - (summary.right - 12)) <= 1,
+              fits: node.scrollWidth <= node.clientWidth && document.documentElement.scrollWidth <= innerWidth,
+              secondary: [...node.querySelectorAll("button")].every(button => button.dataset.appearance === "secondary"),
+            };
+          });
+          assert.ok(geometry.right && geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
+        }
+      }
+      await page.setViewportSize({ width: 620, height: 800 });
+      await status.getByRole("button", { name: "Retry startup", exact: true }).click();
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      assert.deepEqual(operations.at(-1), { root: "/fixture/dealer", operation: "run-local" });
+      assert.equal(await document.inputValue(), "Unsaved document edit retained during connection review.");
+      fixture.state.app = "stopped";
+      missingTools = [{ id: "aca", label: "ACA CLI", command: "Install the ACA Sandbox CLI.",
+        actionOperation: "install-prereq-aca", actionLabel: "Install ACA CLI" }];
+      await page.locator('.agent-status-brief[data-state="prerequisites"]').waitFor();
+      assert.match(await status.getByRole("list", { name: "Missing local prerequisites" }).innerText(), /ACA CLI: Install the ACA Sandbox CLI/);
+      assert.equal(await page.locator(".run-primary > .run-card").count(), 0);
+      const install = status.getByRole("button", { name: "Install ACA CLI", exact: true });
+      assert.equal(await install.getAttribute("data-appearance"), "secondary");
+      await install.click();
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      assert.deepEqual(operations.at(-1), { root: "/fixture/dealer", operation: "install-prereq-aca" });
+      extraStatus = { foreignEntrypoints: [{ port: 8088 }] };
+      await page.locator('.agent-status-brief[data-state="ports"]').waitFor();
+      await status.getByRole("button", { name: "Resolve port conflict", exact: true }).click();
+      const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+      await settings.getByRole("button", { name: "Pick available ports", exact: true }).waitFor();
+      await settings.getByRole("button", { name: "Close settings", exact: true }).click();
+      fixture.state.app = "starting";
+      extraStatus = { recovered: true };
+      await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
+      await status.getByRole("button", { name: "Stop partial startup", exact: true }).click();
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      assert.deepEqual(operations.map(item => item.operation), ["run-local", "install-prereq-aca", "stop-local"]);
+      assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
+      fixture.state.app = "failed";
+      fixture.state.error = "Simulated ACA installation failure.";
+      extraStatus = { command: "curl -fsSL https://aka.ms/aca-cli-install | bash", operation: "configuring" };
+      await status.getByRole("button", { name: "Review CLI setup", exact: true }).click();
+      await settings.getByRole("button", { name: "Re-check prerequisites", exact: true }).waitFor();
+      await settings.getByRole("button", { name: "Close settings", exact: true }).click();
+      fixture.state.error = "Simulated model configuration failure.";
+      extraStatus = { command: "aigateway configure", operation: "configuring" };
+      await status.getByRole("button", { name: "Review model connection", exact: true }).click();
+      await page.locator('#details[data-mode="connections"]').waitFor();
+      assert.equal(await page.locator("dialog[open]").count(), 0);
+      await history.getByRole("button", { name: "Back", exact: true }).click();
+      await document.waitFor();
+      assert.equal(await document.inputValue(), "Unsaved document edit retained during connection review.");
+      assert.equal(operations.length, 3, "Reviewing CLI or model recovery never starts another operation.");
+      assert.equal(fixture.mutations.some(item => item.path === "/api/active-gateway"), false);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
+  });
+
   test(`Autonomous tester retains event payload, result evidence and focus across lifecycle updates in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -316,7 +461,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const status = page.getByRole("region", { name: "Status Brief", exact: true });
       assert.deepEqual(await status.locator("dl dt").allTextContents(), ["Runtime", "Agent", "Connection"]);
       assert.equal(await status.locator("dl dd").nth(2).textContent(), connection.model + " · " + connection.name);
-      assert.equal(await status.getByRole("button").count(), 0);
+      assert.equal(await status.getByRole("button").count(), 1);
+      assert.equal(await status.getByRole("button", { name: "Open connections", exact: true }).count(), 1);
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await prompt.fill("Retain this task while runtime facts change.");
       for (const [state, expected, tone] of [["stopped", "stopped", "neutral"], ["failed", "runtime-failed", "danger"], ["running", "ready", "success"]]) {

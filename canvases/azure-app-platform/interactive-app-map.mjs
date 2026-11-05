@@ -1064,7 +1064,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     logsDivider.setAttribute("aria-hidden", "true");
     headerActions.append(logsDivider);
     const logsTrigger = buttons.create({
-      id: "run-diagnostics-toggle", appearance: "subtle", size: "small", children: "Logs",
+      id: "run-diagnostics-toggle", appearance: "secondary", size: "small", icon: buttons.icon(ICONS.terminal),
       "aria-label": "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
       "aria-describedby": "diagnostics-status",
       onClick: () => runWorkspace.toggleDiagnostics(),
@@ -1311,11 +1311,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           "aria-expanded": open,
           "aria-label": issues ? "Logs: " + issues : "Logs",
           title: issues || (open ? "Hide logs" : "Show logs"),
-          children: toolkit.createElement(toolkit.Fragment, null, "Logs", issues
-            ? toolkit.createElement(toolkit.Badge, {
+          children: issues ? toolkit.createElement(toolkit.Badge, {
               className: "logs-warning-badge", color: "danger", appearance: "tint", size: "small",
               "aria-hidden": true,
-            }, buttons.icon(ICONS.alert)) : null),
+            }, buttons.icon(ICONS.alert)) : null,
         });
       },
       buttons,
@@ -1497,11 +1496,44 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function updateAgentStatusBrief() {
+      const { app, readiness } = operationalState;
       const status = getAgentStatus({
         ...operationalState, readinessError, requestState: agentRequestState,
         agentReady: runtimeEntrypoints.some(entry => entry.ready && normalized(entry.name) === "agent"),
       });
-      agentStatusView.update(status);
+      const prerequisites = readiness?.prerequisites?.missingTools || [];
+      const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
+      const actions = [];
+      if (app?.foreignEntrypoints?.length) {
+        actions.push({ key: "resolve-ports", label: "Resolve port conflict", onClick: () => openAppSettings("ports") });
+      }
+      if (app?.state === "failed" || (app?.state === "starting" && app.recovered)) {
+        if (app.recovered || runtimeEntrypoints.some(entry => entry.ready)) {
+          actions.push({ key: "stop-partial-app", label: "Stop partial startup",
+            disabled: Boolean(lifecycleOperation), onClick: () => runAppOperation("stop-local") });
+        } else if (app.command?.includes("aka.ms/aca-cli-install")) {
+          actions.push({ key: "review-cli", label: "Review CLI setup", onClick: () => openAppSettings("prereqs") });
+        } else if (app.operation === "configuring") {
+          actions.push({ key: "review-connection", label: "Review model connection", onClick: () => renderConnectionsPanel() });
+        } else {
+          actions.push({ key: "retry-app", label: "Retry startup", disabled: busy, onClick: () => runAppOperation("run-local") });
+        }
+      }
+      for (const item of prerequisites) {
+        if (item.actionOperation && item.actionLabel) {
+          actions.push({ key: "prerequisite-" + (item.id || item.label), label: item.actionLabel,
+            disabled: busy || ACTIVE_LIFECYCLE_STATES.includes(app?.state),
+            onClick: () => runAppOperation(item.actionOperation) });
+        }
+      }
+      agentStatusView.update({
+        ...status, prerequisites, actions,
+        command: app?.state === "failed" ? app.command : "",
+        errorDetail: app?.state === "failed"
+          ? app.errorDetail || latestCommands.find(item => item.status === "failed")?.error : "",
+        connectionIcon: buttons.icon(ICONS.link),
+        onConnection: () => renderConnectionsPanel(),
+      });
       updateGuideContext(status);
     }
 
@@ -2440,122 +2472,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
-    function renderRuntimeAction(parent) {
-      const card = document.createElement("div");
-      const appState = operationalState.app?.state;
-      const foreignEntrypoints = operationalState.app?.foreignEntrypoints || [];
-      card.className = "action-card run-card " +
-        (appState === "running" ? "recommended" : foreignEntrypoints.length ? "attention" : "optional");
-      appendText(card, "span", "Run", "action-priority");
-      if (appState === "running") {
-        appendText(card, "strong", "Your app is running");
-        appendText(card, "p", "Open a ready endpoint to try it, or stop the local app when you are finished.");
-        const web = runtimeEntrypoints.find((entrypoint) =>
-          entrypoint.ready && normalized(entrypoint.name) === "web");
-        if (web) {
-          buttons.append(card, keyedActionButton("open-app", "Open app", async () => {
-            try {
-              await apiRequest("/api/open-entrypoint", {
-                method: "POST",
-                body: JSON.stringify({ root: MODEL.root, port: web.port }),
-              });
-              setStatus("Opened the local app.");
-            } catch (error) {
-              setStatus(error.message, true);
-            }
-          }, true));
-        }
-        buttons.append(card, keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
-      } else if (foreignEntrypoints.length) {
-        appendText(card, "strong", "Another app is using the local ports");
-        appendText(
-          card,
-          "p",
-          "Stop the other local app before starting this one. Ports in use: " +
-            foreignEntrypoints.map((entrypoint) => String(entrypoint.port)).join(", ") + ".",
-        );
-        buttons.append(card, actionButton("Back to apps", () => location.assign("/"), true));
-      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        if (operationalState.app?.recovered) {
-          appendText(card, "strong", "Startup needs attention");
-          appendText(card, "p", "Some app services are still running, but the original startup command is no longer active. Stop them before trying again.");
-          buttons.append(card, keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
-        } else if (appState === "starting") {
-          const expectedEntrypoints = runtimeEntrypoints.filter((entrypoint) => entrypoint.expected !== false);
-          const readyCount = expectedEntrypoints.filter((entrypoint) => entrypoint.ready).length;
-          const totalCount = expectedEntrypoints.length;
-          appendText(card, "strong", "Starting your app");
-          appendText(card, "p", totalCount
-            ? String(readyCount) + " of " + String(totalCount) + " services are ready. First startup can take about a minute."
-            : "Starting local services. First startup can take about a minute.");
-          if (totalCount) {
-            const progress = document.createElement("progress");
-            progress.max = totalCount;
-            progress.value = readyCount;
-            progress.setAttribute("aria-label", String(readyCount) + " of " + String(totalCount) + " services ready");
-            card.append(progress);
-          }
-          buttons.append(card, keyedActionButton("cancel-startup", "Cancel startup", () => runAppOperation("stop-local")));
-        } else {
-          const activeLabels = {
-            stopping: "Stopping your app",
-            configuring: "Configuring model access",
-            provisioning: "Provisioning Azure resources",
-            deploying: "Deploying your app",
-          };
-          appendText(card, "strong", activeLabels[appState] || "Updating your app");
-          appendText(card, "p", "Completing this operation. Readiness updates automatically.");
-        }
-      } else if (appState === "failed") {
-        appendText(card, "strong", "Last operation failed");
-        appendText(card, "p", operationalState.app.error || "Review command output before retrying.", "error");
-        if (operationalState.app.command) {
-          appendText(card, "pre", operationalState.app.command, "command-code");
-        }
-        const errorDetail = operationalState.app.errorDetail || latestCommands.find((item) => item.status === "failed")?.error;
-        if (errorDetail && errorDetail !== operationalState.app.error) {
-          const errorDisclosure = document.createElement("details");
-          errorDisclosure.className = "command-error-details";
-          appendText(errorDisclosure, "summary", "Error details");
-          appendText(errorDisclosure, "pre", errorDetail, "command-code command-error-output");
-          card.append(errorDisclosure);
-        }
-        if (runtimeEntrypoints.some((entry) => entry.ready)) {
-          buttons.append(card, keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
-        } else if (operationalState.app.command?.includes("aka.ms/aca-cli-install")) {
-          buttons.append(card, actionButton("Review CLI setup", () => openAppSettings("prereqs"), true));
-        } else if (operationalState.app.operation === "configuring") {
-          buttons.append(card, actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
-        } else {
-          buttons.append(card, keyedActionButton("retry-app", "Retry startup", () => runAppOperation("run-local"), true));
-        }
-      } else if (operationalState.readiness?.ready) {
-        const previewMode = operationalState.readiness.mode === "preview";
-        appendText(card, "strong", previewMode ? "Ready to preview" : "Ready to try");
-        appendText(
-          card,
-          "p",
-          previewMode
-            ? "Start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
-            : "Required local configuration was found. Start the app locally to try it.",
-        );
-        buttons.append(card, keyedActionButton(
-          "run-app",
-          previewMode ? "Run preview" : "Run app",
-          () => runAppOperation("run-local"),
-          true,
-        ));
-      } else if (operationalState.readiness) {
-        appendText(card, "strong", "Finish setup before running");
-        appendText(card, "p", operationalState.readiness.guidance || "Complete the remaining connection setup before running.");
-        buttons.append(card, keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
-      } else {
-        appendText(card, "strong", "Checking app status");
-        appendText(card, "p", "Checking what is ready and what still needs setup.");
-      }
-      parent.append(card);
-    }
-
     function runOpportunityAction(opportunity) {
       if (opportunity.action.kind === "review-connections") {
         renderSourceConnectionsPanel();
@@ -3310,6 +3226,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function syncAgentInputControls() {
       syncRuntimePlacement();
+      updateAgentStatusBrief();
       const tester = details.querySelector(".agent-tester");
       if (!tester) return;
       const busy = invokingAgent || documentTesting || documentLoading;
@@ -3986,36 +3903,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     function renderTryApp(container) {
       updateAgentStatusBrief();
       container.append(agentStatusRoot);
-      const actions = appendText(container, "div", "", "run-setup-actions");
-      buttons.append(actions, actionButton(operationalState.readiness && !operationalState.readiness.gatewayConfigured
-        ? "Connect AI Gateway" : "Connection settings", () => openAppSettings("connection")));
-      if (operationalState.app?.foreignEntrypoints?.length) {
-        buttons.append(actions, actionButton("Resolve port conflict", () => openAppSettings("ports")));
-      }
-      if (operationalState.app?.state === "failed" || operationalState.app?.recovered) {
-        renderRuntimeAction(container);
-      }
-      renderPrerequisiteBanner(container);
       renderAgentTester(container);
-    }
-
-    function renderPrerequisiteBanner(parent) {
-      const missingTools = operationalState.readiness?.prerequisites?.missingTools || [];
-      if (!missingTools.length) return;
-      const card = document.createElement("div");
-      card.className = "action-card run-card attention";
-      appendText(card, "span", "Prerequisites", "action-priority");
-      appendText(card, "strong", "Missing local prerequisites (" + missingTools.length + ")");
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      for (const item of missingTools) {
-        appendText(card, "p", item.label + ": " + item.command);
-        if (item.actionOperation && item.actionLabel) {
-          buttons.append(actions, actionButton(item.actionLabel, () => runAppOperation(item.actionOperation)));
-        }
-      }
-      if (actions.childElementCount) card.append(actions);
-      parent.append(card);
     }
 
     function renderPrerequisitesSettings(container) {

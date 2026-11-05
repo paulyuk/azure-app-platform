@@ -95,7 +95,8 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
 
 export function createAgentStatusComponent(toolkit) {
   const h = toolkit.createElement;
-  return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError }) {
+  return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError,
+    command, errorDetail, prerequisites = [], actions = [], onConnection, connectionIcon }) {
     const tone = state === "ready" ? "success"
       : ["failed", "runtime-failed", "unavailable"].includes(state) ? "danger"
       : ["ports", "prerequisites", "preview", "connection", "agent-unavailable"].includes(state) ? "warning"
@@ -104,13 +105,30 @@ export function createAgentStatusComponent(toolkit) {
     return h("section", { className: "agent-status-brief", "data-state": state, "aria-label": "Status Brief" },
       h("div", { className: "agent-status-summary" },
         h("span", { className: "agent-status-icon", "data-tone": tone, "aria-hidden": true }),
-        h("div", null,
+        h("div", { className: "agent-status-copy" },
           h("h2", { className: "visually-hidden" }, "Status Brief"),
           h("h3", null, title),
           h("p", null, description),
-          runtimeError ? h("p", { className: "error" }, "Runtime: " + runtimeError) : null)),
+          runtimeError ? h("p", { className: "error" }, "Runtime: " + runtimeError) : null,
+          command ? h("pre", { className: "command-code" }, command) : null,
+          errorDetail && errorDetail !== runtimeError ? h("details", { "data-run-disclosure": "runtime-error" },
+            h("summary", null, "Error details"),
+            h("pre", { className: "command-code", "data-run-scroll-key": "runtime-error" }, errorDetail)) : null,
+          prerequisites.length ? h("ul", { className: "agent-status-prerequisites", "aria-label": "Missing local prerequisites" },
+            ...prerequisites.map(item => h("li", { key: item.id || item.label },
+              h("strong", null, item.label + ": "), item.command))) : null),
+        actions.length ? h("div", { className: "agent-status-actions", "aria-label": "Readiness actions" },
+          ...actions.map(action => h(toolkit.Button, {
+            key: action.key, "data-action-key": action.key, appearance: "secondary", size: "small",
+            disabled: action.disabled, onClick: action.onClick,
+          }, action.label))) : null),
       h("dl", { className: "agent-status-facts" },
         ...[["Runtime", runtime], ["Agent", agent], ["Connection", connection]].map(([label, value]) =>
-          h("div", { key: label }, h("dt", null, label), h("dd", null, value)))));
+          h("div", { key: label }, h("dt", null, label), h("dd", null, value,
+            label === "Connection" && onConnection ? h(toolkit.Button, {
+              className: "agent-connection-shortcut", appearance: "secondary", size: "small",
+              icon: connectionIcon, "aria-label": "Open connections", title: "Open connections",
+              "data-action-key": "status-connections", onClick: onConnection,
+            }) : null)))));
   };
 }

@@ -474,7 +474,10 @@ row. Status Brief retains runtime availability and failures. A bounded
 summary card groups its state icon, title and explanation above shaded, divided
 **Runtime**, **Agent** and **Connection** cells. The facts retain definition-list
 semantics and wrap within compact panes; no merge actions or progress bars are
-invented. A compact public toolkit
+invented. Prerequisite commands, error details and recovery guidance live inside
+that same card, with secondary contextual actions aligned right. The connection
+cell's small icon button opens Connect, replacing the separate Connection settings
+button without applying configuration. A compact public toolkit
 status Badge sits immediately after the app name, including **Running locally** and
 **Not running**, with no separate runtime row. Neutral gray means stopped, green
 running, accent blue checking/active operation, amber preview/partial startup, and
@@ -486,7 +489,7 @@ its own left-side space without displacing the control. Task actions retain only
 **Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
 gating reuse the same control and lifecycle operations. Navigation alone does not run
-or stop the app. **Logs** sits immediately to its right, separated by a divider, and
+or stop the app. The icon-only **Logs** button sits immediately to its right, separated by a divider, and
 toggles the shared bottom Diagnostics pane without changing the current workspace.
 A red warning-sign Badge indicates reported runtime/readiness or agent-request
 failures, unavailable logs, or failed operations; its accessible name explains the

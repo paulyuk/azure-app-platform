@@ -4,9 +4,17 @@ import { octiconMask } from "./studio-icons.mjs";
 
 export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-brief { min-width:0; border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; background:var(--studio-raised); color:var(--studio-ink); }
-#details[data-mode="manage"] .agent-status-summary { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:start; gap:10px; padding:12px; }
+#details[data-mode="manage"] .agent-status-summary { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px; padding:12px; }
 #details[data-mode="manage"] .agent-status-summary > div { min-width:0; }
-#details[data-mode="manage"] .agent-status-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--studio-muted); background:var(--studio-panel); }
+#details[data-mode="manage"] .agent-status-copy { flex:1 1 180px; }
+#details[data-mode="manage"] .agent-status-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; max-width:100%; margin-inline-start:auto; }
+#details[data-mode="manage"] .agent-status-actions button { max-width:100%; white-space:normal; }
+#details[data-mode="manage"] .agent-status-copy .command-code { max-height:160px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; margin:4px 0; }
+#details[data-mode="manage"] .agent-status-copy details { font-size:12px; margin-top:4px; }
+#details[data-mode="manage"] .agent-status-copy summary { cursor:pointer; }
+#details[data-mode="manage"] .agent-status-prerequisites { margin:4px 0 0; padding-inline-start:18px; font-size:12px; overflow-wrap:anywhere; }
+#details[data-mode="manage"] .agent-connection-shortcut { margin-inline-start:4px; vertical-align:middle; }
+#details[data-mode="manage"] .agent-status-icon { display:grid; flex:none; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--studio-muted); background:var(--studio-panel); }
 #details[data-mode="manage"] .agent-status-icon::before { content:""; width:16px; height:16px; background:currentColor; mask:${octiconMask("info")} center/contain no-repeat; }
 #details[data-mode="manage"] .agent-status-icon[data-tone="success"] { color:var(--studio-ok); }
 #details[data-mode="manage"] .agent-status-icon[data-tone="success"]::before { mask-image:${octiconMask("check")}; }
@@ -51,7 +59,6 @@ export const RUN_PANEL_CONTENT_CSS = `
 #details:is([data-mode="manage"], [data-mode="connections"]) .field-actions, .studio-settings .field-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 #details[data-mode="manage"] .env-section-card { padding:16px; border:1px solid var(--studio-line); border-radius:8px; background:var(--studio-panel); margin-bottom:16px; }
 #details[data-mode="manage"] .env-section-card > h3 { margin-top:0; }
-#details[data-mode="manage"] .run-setup-actions { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; }
 #details[data-mode="manage"] .run-open-app, #details[data-mode="manage"] .run-section-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 #details[data-mode="manage"] .run-open-app p, #details[data-mode="manage"] .run-section-actions p, #details[data-mode="manage"] .run-section-actions h3 { margin:0; }
 #details[data-mode="manage"] .run-section-actions button { flex-shrink:0; }

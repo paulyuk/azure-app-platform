@@ -25,7 +25,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}::-webkit-scrollbar-thumb{background:var(--studio-muted)}" });
       const logs = page.locator("#run-diagnostics-toggle"), dock = page.locator("#run-diagnostics");
       const badge = logs.locator(".logs-warning-badge");
-      assert.equal(await logs.innerText(), "Logs");
+      assert.equal(await logs.innerText(), "");
+      assert.equal(await logs.getAttribute("aria-label"), "Logs");
+      assert.equal(await logs.getAttribute("data-appearance"), "secondary");
+      assert.equal(await logs.locator('svg[data-octicon="terminal"]').count(), 1);
       assert.equal(await badge.count(), 0);
       await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Retain this task while reviewing logs.");
       await page.evaluate(() => { window.logsButton = document.querySelector("#run-diagnostics-toggle"); });

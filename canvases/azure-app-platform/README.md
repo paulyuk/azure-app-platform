@@ -373,6 +373,11 @@ establishes agent availability or successful policy enforcement. Stopped, starti
 preview, missing prerequisites/connection and unavailable agent states explain the
 next step; invoking, result received and failed invocation states describe the
 current or last task independently of those facts. Readiness-fetch errors are explicit.
+Readiness, prerequisite commands, runtime errors and recovery details share this
+single card instead of separate readiness banners. Contextual recovery/setup actions
+are secondary buttons aligned to the right, wrapping within compact panes. The small
+connection icon immediately after the model/gateway value opens **Connect** without
+changing configuration; there is no separate **Connection settings** button.
 **Invoke agent** retains the existing auto-start/wait/dispatch contract and optional
 document request shape. The payload, sample-document presets, document assessment,
 last result, reported tool activity and raw response survive polling, workspace visits
@@ -380,7 +385,7 @@ and runtime transitions. A failed retry clears the previous run's raw/tool evide
 keeps its own error visible and never becomes a success just because the runtime
 recovers. Text selection, result scrolling and evidence disclosures are retained.
 Open app and lifecycle controls remain in the header rather than a second tester
-toolbar. **Logs**, to the right of Start/Stop with a divider, opens the shared lower
+toolbar. The icon-only **Logs** button, to the right of Start/Stop with a divider, opens the shared lower
 support pane without leaving Build, Connect, Run, Observe or Deploy. It contains
 **Output**, **Services**, **Environment** and **Operations**, with Output selected
 initially. The current workspace remains above it with independent scrolling; the task tester is not duplicated.
@@ -538,9 +543,9 @@ are targeted, including known launchers from other workspaces. This is not a
 machine-wide stop command. Reviews expire after one minute and reject changed
 process identities; Studio and its host ancestors are protected. The operation
 verifies that ports remain free and reports permission errors or respawning apps.
-The outlined **Connection settings** button shows the current model/gateway and
-opens **Settings → Model connection**. Before a gateway is configured it reads
-**Connect AI Gateway**, with **No AI Gateway connected** beneath it. A local
+The connection fact shows the current model/gateway with a small **Open connections**
+icon button that navigates to **Connect**. Before a gateway is configured the fact
+reads **Not configured**; the same shortcut opens the connection setup page. A local
 web preview remains available when the app supports it; agent invocation stays
 disabled until its endpoint is ready. If gateway discovery finds none, Settings
 offers **Create or manage gateways** rather than an empty apply action. Run/Debug uses

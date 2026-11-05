@@ -227,7 +227,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       await page.goto(fixture.origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
-      await page.getByRole("button", { name: "Connection settings", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Open connections", exact: true }).waitFor();
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await prompt.fill("Keep the event draft.");
       const trigger = page.getByRole("button", { name: "Settings", exact: true });
