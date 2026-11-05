@@ -1938,7 +1938,8 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.doesNotMatch(mapTools, /request-flow-view|implementation-view/);
   assert.match(html, /class="studio-brand" href="\/" aria-label="App home"/);
   assert.doesNotMatch(html, /id="back-apps"/);
-  assert.match(html, /id="app-status-badge"/);
+  assert.match(html, /id: "app-status-badge", className: "runtime-badge"/);
+  assert.match(html, /id="app-status-control" class="runtime-status-control"/);
   assert.match(html, /id="header-runtime-action"/);
   assert.match(html, /Local preview/);
   assert.match(html, /Running locally/);

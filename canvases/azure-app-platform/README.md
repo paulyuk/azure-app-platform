@@ -357,9 +357,9 @@ progress without navigating, while their explicit actions open the corresponding
 Enter or Arrow Down opens Guide from the keyboard. Escape or **Close Guide** returns
 focus to its trigger; clicking outside dismisses it. The bounded, scrollable nonmodal
 popover opens above the footer within workspace bounds, leaving header navigation
-accessible, and starts closed at every viewport size. Healthy Run has no runtime row:
-Open app shares existing header utilities, while meaningful startup/recovery, failure
-and lifecycle notices retain their row. Polling preserves Guide focus, expanded
+accessible, and starts closed at every viewport size. Runtime status is a compact
+badge immediately after the app name, not a separate row. Open app shares existing
+header utilities. Polling preserves Guide focus, expanded
 recommendations and scroll position; workspace changes never reopen it or discard
 task payloads or the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
@@ -395,13 +395,17 @@ visit. Closing it does not stop output polling or hide errors: unavailable logs 
 failed operation counts stay beside the toggle, while Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
 The Status Brief retains truthful runtime, agent, request and failure information.
-The redundant **Running locally** and healthy **Not running** header badges are hidden.
-Healthy stopped Run has no empty runtime row. The same small secondary toolkit
+All runtime states, including **Running locally** and **Not running**, remain visible
+in the app-name row through navigation and polling. The public toolkit Badge uses
+neutral gray for stopped, green for running, blue/accent for checking and active
+operations, amber for preview/partial startup, and red for failure, with readable
+state labels and theme-owned colors in light and dark. Activating it opens Run.
+The same small secondary toolkit
 lifecycle control stays to the right of Build / Connect / Run / Observe / Deploy
 across workspace visits: **Start app** / **Start preview** or **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
 Task actions contain only **Invoke agent** and **Document**, without duplicate
-Start/Stop buttons. Header notices still show previews, startup/recovery, stopping,
+Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,
 failures and cloud operations; startup cancellation, partial-startup recovery and
 setup use the same navigation-row control. Navigation alone never performs a lifecycle
 operation. Each request-flow stage exposes a

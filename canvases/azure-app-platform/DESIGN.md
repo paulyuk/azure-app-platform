@@ -282,8 +282,9 @@ Closed Guide reserves no rail or extra row. Enter or Arrow Down opens it; Escape
 Close or an outside click dismisses it, returning keyboard focus to the footer.
 Progress shortcuts explain stages without navigating. Status refreshes preserve
 focused shortcuts, open recommendations and scrolling without replacing task inputs.
-Open app shares existing header utilities. The healthy Run runtime row collapses
-entirely, but meaningful lifecycle/recovery/failure notices and outside-Run controls remain.
+Open app shares existing header utilities. All runtime states appear in the inline
+app-name badge, without a separate status row; recovery, failure and lifecycle
+labels remain visible across workspaces.
 
 Guide starts closed on each page visit; visibility stays in memory across workspace
 changes, separate from map layout and source files. Document-test drafts stay in memory across mode
@@ -469,9 +470,12 @@ The map uses directional evidence-backed edges, pan and zoom controls, search,
 and tier filters. A floating palette keeps zoom and fit directly accessible;
 search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
-row. Status Brief retains runtime availability and failures. The redundant
-**Running locally** and healthy **Not running** header badges are hidden. Healthy
-stopped Run has no runtime row. A single small secondary toolkit lifecycle control
+row. Status Brief retains runtime availability and failures. A compact public toolkit
+status Badge sits immediately after the app name, including **Running locally** and
+**Not running**, with no separate runtime row. Neutral gray means stopped, green
+running, accent blue checking/active operation, amber preview/partial startup, and
+red failure; explicit labels accompany theme-owned colors in both themes.
+The badge retains its keyboard-accessible Run shortcut. A single small secondary toolkit lifecycle control
 is top-right on the main-menu row across workspaces: **Start app** / **Start preview**
 when ready or **Stop app** / **Stop preview** when running. The menu wraps within
 its own left-side space without displacing the control. Task actions retain only

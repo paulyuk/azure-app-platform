@@ -242,8 +242,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#manage-app").click();
       fixture.state.app = "stopping";
       await page.locator("#app-status-badge").filter({ hasText: "Stopping" }).waitFor();
-      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true,
-        "Active lifecycle notices are never removed as empty chrome.");
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+      assert.equal(await page.locator(".app-workspace-header #app-status-badge").isVisible(), true,
+        "Active lifecycle status stays visible beside the app name, even with Guide closed.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }

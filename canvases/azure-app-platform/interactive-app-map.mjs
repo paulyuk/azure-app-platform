@@ -540,21 +540,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-loading-header > .studio-site-nav { grid-area: brand; gap: 8px; }
     #workspace-loading-header > .studio-theme-control { grid-area: utilities; justify-self: end; }
     #workspace-navigation-loading { grid-area: loading; }
-    .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
+    #workspace-loading-header .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
     #workspace-runtime-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
     #workspace-runtime-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    #app-title { min-width: 0; max-width: 100%; font-weight: 600; }
+    #app-title { flex:0 1 auto; min-width: 0; max-width: 100%; font-weight: 600; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
-    .runtime-badge {
-      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
-      border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
-      color: var(--muted); background: var(--surface-muted); font-size: 10px; font-weight: 700;
-    }
-    .runtime-badge::before { width:12px; height:12px; background:currentColor; content:""; mask:${octiconMask("dot-fill")} center/contain no-repeat; }
-    .runtime-badge[data-tone="success"] { border-color: #107c10; color: #107c10; background: rgb(16 124 16 / .1); }
-    .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
-    .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-    .runtime-badge[data-tone="error"] { border-color: var(--danger); color: var(--danger); background: rgb(164 38 44 / .1); }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -589,11 +579,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     :where(button:not(.ct-button)), .studio-workspace-content :where(button:not(.ct-button)) { padding: 4px 10px; cursor: pointer; }
-    #app-status-badge {
-      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-      height: 32px; min-height: 32px; padding: 0 10px;
-      font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
-    }
     #observe-views {
       --studio-tab-count:2;
       flex:0 0 auto; align-self:stretch; margin:4px 0 0;
@@ -871,6 +856,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${STUDIO_TABS_CSS}
     ${AGENT_STATUS_CSS}
     ${APP_LOGS_CSS}
+    #app-identity { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; }
+    #app-status-mount { display:flex; flex:none; }
+    .runtime-status-control { appearance:none; display:flex; align-items:center; flex:none; min-height:28px; padding:0; border:0; border-radius:999px; background:none; color:inherit; font:inherit; cursor:pointer; }
+    .runtime-badge { border:0; cursor:pointer; white-space:nowrap; }
+    .runtime-badge[data-color="informative"] { color:var(--studio-muted); background:var(--studio-panel); }
+    .runtime-badge[data-color="brand"] { color:var(--studio-accent); background:var(--studio-accent-soft); }
+    @media (max-width:600px) {
+      .app-workspace-header[data-navigation] { grid-template-columns:minmax(0,1fr); gap:0; }
+    }
   </style>
 </head>
 <body>
@@ -879,16 +873,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <div class="studio-site-nav" role="navigation" aria-label="Navigation">
       ${renderStudioBrand()}
     </div>
-    <div class="heading">
+    <div class="heading" id="app-identity">
       <h1 id="app-title" title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
+      <button type="button" id="app-status-control" class="runtime-status-control" title="Open local runtime controls" aria-label="App status: Checking status. Open Run/Debug."><span id="app-status-mount"></span></button>
     </div>
     ${renderThemeToggle(theme, presentation.id)}
     <div id="workspace-navigation-loading" role="status"><span id="workspace-navigation-message">Loading workspace navigation…</span> <button id="retry-workspace-navigation" type="button" hidden>Retry navigation</button></div>
   </header>
   <div id="workspace-content">
-    <div id="workspace-runtime-bar">
+    <div id="workspace-runtime-bar" hidden>
       <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
-      <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
       <button data-studio-button="secondary" id="header-runtime-action" type="button" disabled>Checking…</button>
       <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
         <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
@@ -1045,7 +1039,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       focusGuide();
     });
     const status = document.querySelector("#status");
-    const appStatusBadge = document.querySelector("#app-status-badge");
+    const runtimeStatusView = toolkit.mountCanvasComponent(document.querySelector("#app-status-mount"), toolkit.Badge, {
+      id: "app-status-badge", className: "runtime-badge",
+      appearance: "tint", color: "brand", size: "small", "data-tone": "busy",
+      "aria-live": "polite", children: "Checking status",
+    });
+    const appStatusBadge = document.querySelector("#app-status-control");
+    let runtimeStatusKey = "";
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
     buttons.update(headerRuntimeAction, { size: "small" });
     const mapContext = document.querySelector("#map-context");
@@ -1178,7 +1178,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const agentStatusView = toolkit.mountCanvasComponent(agentStatusRoot,
       (${createAgentStatusComponent.toString()})(toolkit), getAgentStatus());
     const navigationProps = {
-      items: navigationItems, appTitle: document.querySelector("#app-title"),
+      items: navigationItems, appTitle: document.querySelector("#app-identity"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
       runtimeActions: buttons.host(headerRuntimeAction),
       history: {
@@ -1245,6 +1245,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buildPanel.hide();
       components.dispose();
       agentStatusView.dispose();
+      runtimeStatusView.dispose();
       runWorkspace.dispose();
     });
     ${BUILD_SYNTAX_SCRIPT}
@@ -1401,10 +1402,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         label = "Needs attention";
         tone = "error";
       }
-      appStatusBadge.textContent = label;
-      appStatusBadge.dataset.tone = tone;
-      appStatusBadge.title = "Open local runtime controls";
-      appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run/Debug.");
+      const statusKey = label + ":" + tone;
+      if (runtimeStatusKey !== statusKey) {
+        runtimeStatusKey = statusKey;
+        runtimeStatusView.update({
+          children: label, "data-tone": tone,
+          color: { neutral: "informative", success: "success", warning: "warning", busy: "brand", error: "danger" }[tone],
+        });
+        appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run/Debug.");
+      }
 
       let actionLabel = "Set up";
       let operation = "";
@@ -1443,14 +1449,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function syncRuntimePlacement() {
-      const state = operationalState.app?.state;
-      const healthyStopped = state === "stopped" && !operationalState.app.error &&
-        !operationalState.app.recovered && !readinessError;
-      appStatusBadge.hidden = healthyStopped || state === "running" && operationalState.readiness?.mode !== "preview";
       if (headerRuntimeAction.dataset.operation === "run-local") {
         buttons.setDisabled(headerRuntimeAction, invokingAgent || documentTesting || documentLoading || Boolean(lifecycleOperation));
       }
-      document.querySelector("#workspace-runtime-bar").hidden = appStatusBadge.hidden;
     }
 
     function updateAgentStatusBrief() {

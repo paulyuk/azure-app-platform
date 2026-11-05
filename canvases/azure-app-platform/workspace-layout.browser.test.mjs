@@ -155,7 +155,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
     assert.equal(await page.locator("#studio-workspace-navigation > header h1").count(), 1);
-    assert.equal(await page.locator("#workspace-runtime-bar .runtime-badge").count(), 1);
+    assert.equal(await page.locator("#workspace-runtime-bar .runtime-badge").count(), 0);
+    assert.equal(await page.locator("#app-identity .runtime-badge").count(), 1);
     assert.equal(await page.locator("#workspace-runtime-bar .runtime-action").count(), 1);
     const headerBounds = await page.locator("#studio-workspace-navigation > header").boundingBox();
     assert.ok(headerBounds.height <= 64);

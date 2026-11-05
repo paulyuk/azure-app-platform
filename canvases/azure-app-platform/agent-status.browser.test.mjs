@@ -215,7 +215,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           }
         }
       };
-      assert.equal(await page.locator("#app-status-badge").isVisible(), false);
+      assert.equal(await page.locator("#app-status-badge").isVisible(), true);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.match(await page.getByRole("region", { name: "Status Brief", exact: true }).innerText(), /Running locally/);
       assert.equal(await page.getByRole("button", { name: "Stop app", exact: true }).count(), 1);
@@ -240,7 +240,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       holdStop = false;
       await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
-      assert.equal(await page.locator("#app-status-badge").isVisible(), false);
+      assert.equal(await page.locator("#app-status-badge").isVisible(), true);
       assert.equal(await page.getByRole("button", { name: "Start app", exact: true }).count(), 1);
       assert.equal(await prompt.inputValue(), "Retain this event while controlling the app.");
       assert.deepEqual(await prompt.evaluate(node => [node.selectionStart, node.selectionEnd]), [3, 10]);
@@ -251,7 +251,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await action.evaluate(node => { window.retainedRuntimeAction = node; });
       await action.click();
       await page.getByRole("button", { name: "Cancel startup", exact: true }).waitFor();
-      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(operations.at(-1).operation, "run-local");
       await checkPlacement();
       recovered = true;
@@ -273,7 +273,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       fixture.state.error = "Simulated lifecycle failure.";
       await page.locator("#app-status-badge").filter({ hasText: "Needs attention" }).waitFor();
       assert.match(await page.locator(".run-primary").innerText(), /Simulated lifecycle failure/);
-      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), true);
+      assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await action.innerText(), "Start preview");
       await checkPlacement();
       fixture.state.configured = true;
@@ -287,6 +287,103 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await action.evaluate(node => node === window.retainedRuntimeAction), true);
       assert.deepEqual(errors, []);
     } finally { release?.(); await browser.close(); await fixture.close(); }
+  });
+
+  test(`Header badge retains all runtime statuses beside the app name with semantic colors in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    const browser = await engine.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+    let recovered = false, release, page;
+    try {
+      page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(10000);
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      const initial = new Promise(resolve => { release = resolve; });
+      await page.route("**/api/app-status*", async route => {
+        await initial;
+        const response = await route.fetch();
+        await route.fulfill({ response, json: { ...await response.json(), recovered } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.waitForFunction(() => window.appPlatformReady);
+      const badge = page.locator("#app-status-badge");
+      await badge.filter({ hasText: "Checking status" }).waitFor();
+      assert.equal(await badge.getAttribute("data-color"), "brand");
+      assert.equal(await badge.evaluate(node => node.tagName), "SPAN");
+      assert.equal(await page.locator("#app-status-control").evaluate(node => node.tagName), "BUTTON");
+      await badge.evaluate(node => { window.retainedBadge = node; });
+      release();
+      const states = [
+        ["stopped", false, false, "Not running", "informative", "--studio-muted"],
+        ["running", false, false, "Running locally", "success", "--canvas-success"],
+        ["running", true, false, "Local preview", "warning", "--canvas-attention"],
+        ["starting", false, false, "Starting locally", "brand", "--studio-accent"],
+        ["starting", false, true, "Partial startup", "warning", "--canvas-attention"],
+        ["stopping", false, false, "Stopping", "brand", "--studio-accent"],
+        ["configuring", false, false, "Configuring", "brand", "--studio-accent"],
+        ["provisioning", false, false, "Provisioning Azure", "brand", "--studio-accent"],
+        ["deploying", false, false, "Deploying to Azure", "brand", "--studio-accent"],
+        ["failed", false, false, "Needs attention", "danger", "--canvas-danger"],
+      ];
+      await page.locator("#app-title").evaluate(node => {
+        node.textContent = node.title = "An intentionally very long application name for compact header layout";
+      });
+      await page.locator("#app-status-control").focus();
+      for (const [state, preview, recovery, label, color, token] of states) {
+        fixture.state.app = state;
+        fixture.state.configured = !preview;
+        recovered = recovery;
+        await page.waitForFunction(value => document.querySelector("#app-status-badge").textContent === value, label);
+        assert.equal(await badge.getAttribute("data-color"), color);
+        assert.equal(await badge.getAttribute("aria-live"), "polite");
+        assert.match(await page.locator("#app-status-control").getAttribute("aria-label"), new RegExp(label));
+        for (const width of [320, 380, 620, 1280]) {
+          await page.setViewportSize({ width, height: 480 });
+          for (const theme of ["light", "dark"]) {
+            await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+            const geometry = await badge.evaluate((node, token) => {
+              const badge = node.getBoundingClientRect();
+              const title = document.querySelector("#app-title").getBoundingClientRect();
+              const probe = document.createElement("span");
+              probe.style.color = "var(" + token + ")";
+              document.body.append(probe);
+              const expected = getComputedStyle(probe).color;
+              probe.remove();
+              return {
+                canonical: node.classList.contains("ct-badge"), color: getComputedStyle(node).color, expected,
+                inline: Math.abs(badge.y + badge.height / 2 - title.y - title.height / 2) <= 1,
+                after: badge.left >= title.right + 5, titleWidth: title.width,
+                fits: badge.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
+                headerFits: document.querySelector(".app-workspace-header").scrollWidth <= innerWidth,
+                retained: node === window.retainedBadge,
+              };
+            }, token);
+            assert.ok(geometry.canonical && geometry.inline && geometry.after && geometry.titleWidth > 0 &&
+              geometry.fits && geometry.headerFits && geometry.retained, JSON.stringify({ width, theme, label, geometry }));
+            assert.equal(geometry.color, geometry.expected);
+          }
+        }
+        assert.equal(await page.locator("#app-status-control").evaluate(node => node === document.activeElement), true);
+        assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
+      }
+      for (const id of ["build-workspace", "connect-workspace", "manage-app", "map-app", "deploy-workspace"]) {
+        await page.locator("#" + id).click();
+        assert.equal(await badge.isVisible(), true);
+        assert.equal(await page.locator(".app-workspace-header #app-identity #app-status-badge").count(), 1);
+      }
+      await page.locator("#app-status-control").focus();
+      await page.locator("#app-status-control").press("Enter");
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
+      assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
+      assert.deepEqual(errors, []);
+    } finally {
+      release?.();
+      await page?.unrouteAll({ behavior: "ignoreErrors" });
+      await browser.close();
+      await fixture.close();
+    }
   });
 
   test(`Status Brief exposes preview, missing agent, prerequisites and readiness errors in ${name}`, {

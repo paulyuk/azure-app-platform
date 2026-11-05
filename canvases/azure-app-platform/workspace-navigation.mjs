@@ -21,7 +21,7 @@ export function createWorkspaceNavigationComponent(toolkit) {
     return h(CanvasShell, {
       id: "studio-workspace-navigation",
       header: h(Fragment, null, h(CanvasHeader, {
-        variant: "workbench", title: "Azure App Platform",
+        variant: "workbench", title: "Azure App Platform", className: "app-workspace-header",
         icon: h("img", { src: "/assets/app-platform-symbol.png", alt: "" }),
         onHome, homeButton: { "aria-label": "App home" },
         context: h(RetainedContent, { element: appTitle }),
