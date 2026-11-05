@@ -1,267 +1,376 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { serveStudioAsset } from "./studio-assets.mjs";
-import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
-import { openWorkspaceNavigation } from "./workspace-navigation-test-helpers.mjs";
+import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Canonical responsive workspace navigation preserves production state in ${name}`, {
+  test(`Compact navigation and history preserve task-driven workspaces in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
-    const graph = {
-      root: "/fixture", nodes: [{
-        id: "agent", kind: "project", tierId: "agent", name: "Claims agent", projectPath: "src/agent",
-        evidence: [], badges: [],
-      }], edges: [], unresolved: [], diagnostics: [],
-      summary: { projectNodes: 1, operationNodes: 0, edges: 0, unresolved: 0 },
-    };
-    let theme = "light";
-    const server = createServer((request, response) => void (async () => {
-      const url = new URL(request.url, "http://localhost");
-      if (await serveStudioAsset(request, response, url.pathname)) return;
-      response.setHeader("Content-Type", "text/html");
-      response.end(renderInteractiveAppMapHtml(graph, { apiToken: "fixture", theme, appName: "Claims application with a long name" }));
-    })().catch(error => { response.writeHead(500); response.end(error.message); }));
-    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+    const fixture = await createRunSettingsFixture();
+    fixture.state.documentInput = true;
     const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
       page.setDefaultTimeout(7000);
-      const errors = [], requests = [], operations = [];
+      const errors = [], requests = [];
       page.on("pageerror", error => errors.push(error.message));
       page.on("request", request => requests.push(request.url()));
-      await page.route("**/api/**", async route => {
-        const request = route.request(), path = new URL(request.url()).pathname;
-        if (request.method() !== "GET" && path !== "/api/preferences") operations.push(path);
-        const responses = {
-          "/api/build-workspace": { artifacts: [{
-            id: "instructions", customizationArea: "behavior", title: "Agent instructions",
-            path: "src/agent/prompts/system.md", projectPath: "src/agent", projectName: "Claims agent",
-            description: "Agent behavior", available: true, content: "Use verified evidence.", sha: "fixture",
-          }, {
-            id: "configuration", customizationArea: "runtime", title: "App configuration",
-            path: "src/agent/config.json", projectPath: "src/agent", projectName: "Claims agent",
-            description: "Runtime configuration", available: true, content: '{"port":8088}', sha: "fixture",
-          }] },
-          "/api/app-status": { state: "stopped", recovered: false, foreignEntrypoints: [], entrypoints: [] },
-          "/api/local-readiness": { ready: false, gatewayConfigured: false },
-          "/api/app-output": { lines: [], commands: [] },
-          "/api/editor-settings": DEFAULT_EDITOR_SETTINGS,
-          "/api/app-logs": {
-            root: "/fixture", scope: { label: "All services", groupedByService: true }, catalog: [], services: [],
-            clipping: { clipped: false, notices: [] },
-          },
-        };
-        if (path === "/api/preferences") {
-          if (request.method() === "POST") theme = request.postDataJSON().theme;
-          return route.fulfill({ json: { theme } });
-        }
-        assert.ok(responses[path], "Unexpected workflow request " + path);
-        await route.fulfill({ json: responses[path] });
-      });
-      const origin = `http://127.0.0.1:${server.address().port}`;
-      await page.goto(origin);
-      const nav = page.getByRole("navigation", { name: "App workspaces", exact: true, includeHidden: true });
-      const browse = page.getByRole("button", { name: "Browse app workspaces", exact: true });
-      const surface = page.locator("#app-workspace-navigation");
-      await nav.waitFor();
-      await page.locator(".build-source-preview").first().waitFor();
-      await page.locator("#app-status-badge").filter({ hasText: "Not running" }).waitFor();
-      const guidedStage = await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage");
-      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Run & Debug", "Observe", "Deploy"]);
-      assert.equal(await page.locator("#workspace-location").textContent(), "Build");
-      assert.equal(await page.locator("#details").getAttribute("aria-label"), "Build workspace");
-      assert.equal(await nav.getByRole("button", { name: "Customize", exact: true, includeHidden: true }).count(), 0);
-      assert.equal(await page.locator(".header-actions").count(), 0);
-      assert.equal(await page.locator("#workspace-navigation-mount > .ct-provider > .ct-shell").count(), 1);
-      const select = async label => {
-        await openWorkspaceNavigation(page);
-        await nav.getByRole("button", { name: label, exact: true }).click();
-        assert.equal(await nav.getByRole("button", { name: label, exact: true, includeHidden: true }).getAttribute("aria-current"), "page");
-        assert.equal(await nav.locator('[aria-current="page"]').count(), 1);
-        assert.equal(await page.locator("#workspace-location").textContent(), label);
+      await page.route("**/api/build-workspace*", route => route.fulfill({ json: { artifacts: [{
+        id: "instructions", customizationArea: "behavior", title: "Agent instructions",
+        path: "src/agent/prompts/system.md", projectPath: "src/agent", projectName: "Deal finder",
+        available: true, content: "Use verified evidence.", sha: "fixture",
+      }, {
+        id: "configuration", customizationArea: "runtime", title: "App configuration",
+        path: "src/agent/config.json", projectPath: "src/agent", projectName: "Deal finder",
+        available: true, content: '{"port":8088}', sha: "fixture",
+      }] } }));
+      const origin = fixture.origin;
+      await page.goto(origin + "/app-map");
+      await page.waitForFunction(() => window.appPlatformReady);
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
+      await page.locator("#header-open-app").waitFor();
+      const nav = page.getByRole("navigation", { name: "App workspaces", exact: true });
+      const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
+      const back = history.getByRole("button", { name: "Back", exact: true });
+      const forward = history.getByRole("button", { name: "Forward", exact: true });
+      const select = id => selectWorkspace(page, id);
+      const mode = async expected => {
+        await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
+        const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
+        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "Stop app");
+        assert.equal(await action.locator('svg[data-octicon="play"]').count(), fixture.state.app === "stopped" ? 1 : 0);
+        assert.equal(await action.getAttribute("data-appearance"), "primary");
+        assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
+        assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
-      for (const width of [1280, 1180, 1179, 800, 620, 380, 320]) {
-        await page.setViewportSize({ width, height: 480 });
-        await page.waitForFunction(wide => document.querySelector("#studio-workspace-navigation").dataset.navigationExpanded === String(wide), width >= 1180);
-        assert.equal(await browse.isVisible(), width < 1180);
-        const fallbackColors = {};
-        for (const tone of ["light", "dark"]) {
-          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, tone);
-          for (const label of ["Build", "Run & Debug", "Observe"]) {
-            await select(label);
-            assert.equal(await surface.getAttribute("data-mode"), width >= 1180 ? "sidebar" : "preview");
-            await page.mouse.move(width - 1, 479);
-            await page.getByRole("button", { name: "Settings", exact: true }).focus();
-            if (width < 1180) await surface.waitFor({ state: "hidden" });
-          }
-          const geometry = await page.evaluate(() => {
-            const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
-            const bar = document.querySelector("#workspace-runtime-bar").getBoundingClientRect();
-            const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
-            const header = document.querySelector("#studio-workspace-navigation > header").getBoundingClientRect();
-            return {
-              overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
-              mainHeight: main.height, barBottom: bar.bottom, mainTop: main.top,
-              actionRight: action.right, headerRight: header.right,
-            };
-          });
-          assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
-          assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
-          assert.ok(geometry.actionRight <= width && geometry.headerRight <= width);
-          const fallback = await nav.evaluate(node => ({
-            color: getComputedStyle(node).color, scheme: getComputedStyle(node).colorScheme,
-          }));
-          assert.equal(fallback.scheme, tone);
-          fallbackColors[tone] = fallback.color;
-        }
-        assert.notEqual(fallbackColors.light, fallbackColors.dark);
-      }
-      // Keyboard disclosure transfers focus, does not lock destinations, and restores it on dismissal.
-      await page.setViewportSize({ width: 620, height: 800 });
-      await browse.focus();
-      await page.keyboard.press("ArrowDown");
-      assert.equal(await nav.getByRole("button", { name: "Build", exact: true }).evaluate(node => node === document.activeElement), true);
-      await page.keyboard.press("Tab");
-      await page.keyboard.press("Enter");
-      assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
-      assert.equal(await browse.evaluate(node => node === document.activeElement), true);
-      await browse.press("Space");
-      assert.equal(await surface.getAttribute("data-mode"), "held");
-      await page.getByRole("button", { name: "Close workspace menu", exact: true }).click();
-      assert.equal(await browse.evaluate(node => node === document.activeElement), true);
-      await browse.press("Space");
-      await browse.press("ArrowDown");
-      await page.keyboard.press("Escape");
-      assert.equal(await surface.isVisible(), false);
-      assert.equal(await browse.evaluate(node => node === document.activeElement), true);
-      await browse.press("Space");
-      const runtimeBounds = await page.locator("#workspace-runtime-bar").boundingBox();
-      await page.mouse.click(runtimeBounds.x + runtimeBounds.width - 4, runtimeBounds.y + runtimeBounds.height / 2);
-      assert.equal(await surface.isVisible(), false);
-      // A narrow embedded container in a wide viewport still uses the canonical disclosure.
-      await page.setViewportSize({ width: 1440, height: 800 });
-      await page.locator("#workspace-navigation-mount").evaluate(node => { node.style.width = "600px"; });
-      await browse.waitFor();
-      assert.equal(await page.locator("#studio-workspace-navigation").getAttribute("data-navigation-expanded"), "false");
-      await page.locator("#workspace-navigation-mount").evaluate(node => { node.style.removeProperty("width"); });
-      await nav.waitFor();
-      await page.getByRole("button", { name: "Collapse workspace sidebar", exact: true }).click();
-      assert.equal(await browse.isVisible(), true);
-      assert.equal(await page.evaluate(() => localStorage.getItem("unity-workspace:/fixture:navigation-collapsed")), "true");
-      await browse.click();
-      assert.equal(await surface.getAttribute("data-mode"), "sidebar");
-      // Stable canonical roots, exact draft nodes and Build selections survive updates and resizing.
-      await select("Build");
+      assert.deepEqual(await nav.locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
+      assert.equal(await page.locator("#workspace-location").textContent(), "Run");
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-haspopup"), null);
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), null);
+      assert.equal(await page.locator("#build-app").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Customize", exact: true }).count(), 0);
+      assert.equal(await page.locator("#deploy-app").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Deploy", exact: true }).count(), 1);
+      assert.deepEqual(await page.locator("#workspace-runtime-actions button").allTextContents(), ["Open app"]);
+      await page.locator("#header-runtime-action").evaluate(node => { window.navigationRuntimeAction = node; });
+      assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
+      assert.equal(await back.isDisabled(), true);
+      assert.equal(await forward.isDisabled(), true);
+      assert.equal(await page.locator("#workspace-navigation-mount > .ct-provider > .ct-shell").count(), 1);
+      const positions = await page.evaluate(() => ({
+        history: document.querySelector('[aria-label="Workspace history"]').getBoundingClientRect().right,
+        logo: document.querySelector(".ct-header-home").getBoundingClientRect().left,
+      }));
+      assert.ok(positions.history <= positions.logo);
+      assert.equal(await page.locator("#workspace-status-footer,#action-center,#guide-rail").count(), 0);
+
+      // Build is a normal retained source workspace in destination history.
+      await select("build-workspace");
+      await mode("build");
+      assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
+      assert.equal(await page.locator("dialog[open]").count(), 0);
+      await page.locator(".build-source-preview").first().waitFor();
       await page.getByRole("tab", { name: "Runtime", exact: true }).click();
       const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
       if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
-      await select("Run & Debug");
+      await back.click();
+      await mode("manage");
+      assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
+      await page.getByText("Event triggers:", { exact: true }).waitFor();
+      await page.getByText("Autonomous run result", { exact: true }).waitFor();
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
-      await draft.fill("Preserve this message.");
+      await page.locator("[data-event-preset]").first().click();
+      assert.match(await draft.inputValue(), /^Event \[/);
+      assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
+      await draft.fill("Preserve this event payload.");
       await draft.evaluate(node => {
         window.navigationDraft = node;
         window.navigationRoot = document.querySelector("#studio-workspace-navigation");
         node.setSelectionRange(3, 8);
       });
-      await page.setViewportSize({ width: 380, height: 800 });
-      await page.waitForFunction(() => document.querySelector("#studio-workspace-navigation").dataset.navigationExpanded === "false");
-      assert.equal(await draft.evaluate(node => node === window.navigationDraft && node === document.activeElement && node.selectionStart === 3 && node.selectionEnd === 8), true);
+      for (const width of [1280, 1180, 1179, 800, 620, 380, 320]) {
+        await page.setViewportSize({ width, height: 480 });
+        for (const tone of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, tone);
+          const geometry = await page.evaluate(() => {
+            const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
+            const bar = document.querySelector("#workspace-runtime-bar").getBoundingClientRect();
+            const header = document.querySelector("#studio-workspace-navigation > header");
+            const nav = document.querySelector("#app-workspace-navigation").getBoundingClientRect();
+            const group = document.querySelector(".workspace-view-switch").getBoundingClientRect();
+            const menu = document.querySelector(".workspace-navigation-bar");
+            const menuStyle = getComputedStyle(menu);
+            const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+            const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+            const first = document.querySelector("#build-workspace").getBoundingClientRect();
+            return {
+              overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
+              mainHeight: main.height, barBottom: bar.bottom, mainTop: main.top,
+              headerFits: header.scrollWidth <= header.clientWidth + 1,
+              navRight: nav.right, groupWidth: group.width,
+              menuHeight: menu.getBoundingClientRect().height,
+              belowMenu: action.top >= group.bottom + 4,
+              besideMenu: action.left >= group.right + 7 && Math.abs(action.top - first.top) <= 1,
+              actionsTogether: Math.abs(action.top - logs.top) <= 1 && action.right < logs.left,
+              rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 12)) <= 1,
+              primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
+              menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
+                menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
+              menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
+              themeBorder: getComputedStyle(document.querySelector("#workspace-runtime-bar")).borderBottomColor,
+              buttons: [...menu.querySelectorAll("button")].map(button => {
+                const style = getComputedStyle(button);
+                return {
+                  toolkit: button.classList.contains("ct-button"), size: button.dataset.size,
+                  height: button.getBoundingClientRect().height, padding: style.padding,
+                };
+              }),
+            };
+          });
+          assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
+          assert.equal(geometry.headerFits, true, JSON.stringify({ width, tone, geometry }));
+          assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
+          assert.ok(geometry.navRight <= width && geometry.groupWidth < 400, "Destinations stay content-width");
+          assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
+          assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
+          assert.ok(geometry.menuHeight <= (width <= 680 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
+          assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
+            geometry.actionsTogether && geometry.rightAligned, JSON.stringify({ width, tone, geometry }));
+          assert.equal(geometry.buttons.length, 7);
+          assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
+          for (const button of geometry.buttons) {
+            assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
+          }
+        }
+      }
+      assert.equal(await draft.evaluate(node => node === window.navigationDraft && node === document.activeElement &&
+        node.selectionStart === 3 && node.selectionEnd === 8), true);
       await page.evaluate(() => {
-        const nav = document.querySelector("#app-workspace-navigation");
         window.navigationMutations = 0;
         window.navigationObserver = new MutationObserver(records => { window.navigationMutations += records.length; });
-        window.navigationObserver.observe(nav, { subtree: true, childList: true, attributes: true, characterData: true });
+        window.navigationObserver.observe(document.querySelector("#app-workspace-navigation"),
+          { subtree: true, childList: true, attributes: true, characterData: true });
       });
       await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
       assert.equal(await page.evaluate(() => window.navigationMutations), 0);
       assert.equal(await draft.evaluate(node => node === document.activeElement), true);
       await page.evaluate(() => window.navigationObserver.disconnect());
-      await select("Build");
+
+      await page.setViewportSize({ width: 620, height: 800 });
+      await page.locator("#manage-app").focus();
+      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+      assert.equal(await page.locator("#map-app").evaluate(node => node === document.activeElement), true);
+      await page.keyboard.press("Enter");
+      await mode("map");
+      await page.waitForFunction(() => document.querySelector("#viewport").hasAttribute("transform"));
+      const camera = await page.locator("#viewport").getAttribute("transform");
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await mode("logs");
+      await page.locator("#details").filter({ hasText: "Connected to inventory_search" }).waitFor();
+      await select("deploy-workspace");
+      await mode("deploy");
+      await page.getByRole("heading", { name: "Deploy to Azure", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Set up Azure resources", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Deploy latest app", exact: true }).waitFor();
+      assert.deepEqual(fixture.mutations, [], "Navigation and Deploy entry never execute runtime/cloud operations");
+      await back.click();
+      await mode("logs");
+      assert.equal(await page.getByRole("tab", { name: "Logs", exact: true }).getAttribute("aria-selected"), "true");
+      await back.click();
+      await mode("map");
+      assert.equal(await page.locator("#viewport").getAttribute("transform"), camera);
+      await back.click();
+      await mode("manage");
+      assert.equal(await draft.inputValue(), "Preserve this event payload.");
+      assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
+      assert.equal(await back.isDisabled(), true);
+      await select("build-workspace");
+      await mode("build");
       await buildDisclosure.waitFor({ state: "attached" });
       assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
       assert.equal(await buildDisclosure.evaluate(node => node.open), false);
-      await select("Observe");
-      await page.getByRole("tab", { name: "Logs", exact: true }).click();
-      await select("Run & Debug");
-      assert.equal(await draft.inputValue(), "Preserve this message.");
-      await select("Observe");
-      assert.equal(await page.getByRole("tab", { name: "Logs", exact: true }).getAttribute("aria-selected"), "true");
-      assert.equal(await page.locator("body").getAttribute("data-workspace"), "logs");
+      assert.equal(await back.isDisabled(), false);
+      assert.equal(await forward.isDisabled(), true, "Build is a new history destination");
+      await back.click();
+      await mode("manage");
+      assert.equal(await forward.isDisabled(), false);
+      await forward.click();
+      await mode("build");
+      await select("manage-app");
+      await mode("manage");
+      assert.equal(await forward.isDisabled(), true, "New destinations discard only forward history");
+      await select("map-app");
+      await mode("map");
+      await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
+      await back.click();
+      await mode("manage");
+      assert.equal(await draft.inputValue(), "Preserve this event payload.");
       assert.equal(await page.locator("#studio-workspace-navigation").evaluate(node => node === window.navigationRoot), true);
-      // Guide tracks readiness independently from the selected page.
-      assert.equal(await page.locator('[data-guide-stage][data-current="true"]').getAttribute("data-guide-stage"), guidedStage);
-      assert.notEqual(guidedStage, "observe");
-      assert.equal(await page.locator("#map-app").getAttribute("aria-current"), "page");
-      // Late synthetic tokens test cascade/focus, not native host delivery.
-      await browse.focus();
-      await browse.press("ArrowDown");
-      const currentFocus = await page.evaluate(() => { window.navigationFocus = document.activeElement; return document.activeElement.id; });
-      await page.evaluate(() => {
-        const root = document.documentElement;
-        root.style.setProperty("--background-color-default", "rgb(22, 33, 44)");
-        root.style.setProperty("--text-color-default", "rgb(211, 224, 237)");
-        root.style.setProperty("--border-color-default", "rgb(111, 132, 153)");
-        root.style.setProperty("--background-color-muted", "rgb(39, 51, 63)");
-        root.style.setProperty("--text-color-accent", "rgb(191, 155, 233)");
-        root.style.setProperty("--color-focus-outline", "rgb(120, 201, 242)");
-        root.style.setProperty("--font-sans", '"Courier New", monospace');
-        root.style.setProperty("--text-body-medium", "17px");
-        root.style.setProperty("--leading-body-medium", "26px");
-      });
-      await page.mouse.move(1100, 820);
-      const tokens = await nav.evaluate(node => {
-        const button = node.querySelector('[aria-current="page"]'), style = getComputedStyle(button);
-        return { color: style.color, background: style.backgroundColor, font: style.fontFamily, size: style.fontSize,
-          stableFocus: document.activeElement === window.navigationFocus };
-      });
-      assert.equal(tokens.color, "rgb(211, 224, 237)");
-      assert.equal(tokens.background, "rgb(39, 51, 63)");
-      assert.match(tokens.font, /Courier New/);
-      assert.equal(tokens.size, "17px");
-      assert.equal(tokens.stableFocus, true, currentFocus);
-      await page.keyboard.press("Escape");
+      assert.equal(await page.locator("#workspace-status-footer,#action-center,#guide-rail").count(), 0);
+
+      // Existing settings and source handoff stay independent of destination history.
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("combobox", { name: "Appearance", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Close settings", exact: true }).click();
+      assert.equal(await draft.inputValue(), "Preserve this event payload.");
+      await Promise.all([
+        page.waitForResponse(response => new URL(response.url()).pathname === "/api/open-entrypoint"),
+        page.locator("#header-open-app").click(),
+      ]);
+      assert.deepEqual(fixture.mutations.map(item => item.path), ["/api/open-entrypoint"]);
+      assert.equal(fixture.mutations[0].body.port, 3000);
+      await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();
+      assert.equal(fixture.mutations.at(-1).path, "/api/agent-invoke");
+      assert.equal(fixture.mutations.at(-1).body.message, "Preserve this event payload.");
+      assert.equal(fixture.mutations.at(-1).body.document.name, "sample-loan-note.md");
+      assert.equal(await page.locator(".conversation-list,.chat-bubble").count(), 0);
+      fixture.state.app = "stopped";
+      await page.locator("#header-open-app").waitFor({ state: "hidden" });
+      await select("deploy-workspace");
+      await mode("deploy");
+      assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
+
       await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
       assert.equal(await page.locator("#studio-workspace-navigation").count(), 1);
-      await page.setViewportSize({ width: 1280, height: 800 });
-      await page.waitForFunction(() => document.querySelector("#studio-workspace-navigation").dataset.navigationExpanded === "true");
-      await page.getByRole("button", { name: "Collapse workspace sidebar", exact: true }).click();
-      await browse.waitFor();
-      assert.equal(await surface.getAttribute("data-mode"), "preview");
-      assert.equal(await page.locator("#workspace-location").textContent(), "Observe");
-      await select("Run & Debug");
-      assert.equal(await draft.inputValue(), "Preserve this message.");
       await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false })));
       assert.equal(await page.locator("#studio-workspace-navigation").count(), 0);
       await page.evaluate(() => window.dispatchEvent(new Event("resize")));
-      assert.equal(await page.locator("#studio-workspace-navigation").count(), 0, "Permanent disposal cannot revive the navigation");
-      // Shared controls and navigation fail visibly and retry without replacing the workspace.
+      assert.equal(await page.locator("#studio-workspace-navigation").count(), 0);
+
+      // A shared toolkit failure stays visible and retries without replacing content.
       await page.route("**/canvas-ui/base.mjs", route => route.abort());
-      await page.goto(origin);
+      await page.goto(origin + "/app-map");
       await page.locator("#status").filter({ hasText: "Could not load Studio controls:" }).waitFor();
+      assert.equal(await page.locator("#status").getAttribute("role"), "alert");
+      assert.equal(await page.locator("#status").isVisible(), true);
       assert.equal(await page.locator("#workspace-navigation-message").textContent(), "Workspace navigation is unavailable.");
       await page.locator("#workspace-content").evaluate(node => { window.retryContent = node; });
       await page.unroute("**/canvas-ui/base.mjs");
       await page.getByRole("button", { name: "Retry navigation", exact: true }).click();
       await page.locator("#studio-workspace-navigation").waitFor();
-      await page.locator(".build-source-preview").first().waitFor();
+      await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       assert.equal(await page.locator("#workspace-content").evaluate(node => node === window.retryContent), true);
       assert.equal(await page.locator("#workspace-loading-header").isVisible(), false);
       assert.deepEqual(errors, []);
-      assert.deepEqual(operations, [], "Free navigation must not invoke runtime or cloud operations");
       assert.ok(requests.some(url => url.endsWith("/canvas-ui/react-runtime.mjs")));
       assert.ok(requests.every(url => new URL(url).origin === origin), "Only same-origin shipped assets are used");
     } finally {
       await browser.close();
-      await new Promise(resolve => server.close(resolve));
+      await fixture.close();
+    }
+  });
+
+  test(`All five workflow destinations stay reachable with correct history in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+      page.setDefaultTimeout(7000);
+      await page.goto(fixture.origin + "/app-map");
+      await page.waitForFunction(() => window.appPlatformReady);
+      const nav = page.getByRole("navigation", { name: "App workspaces", exact: true });
+      const labels = ["Build", "Connect", "Run", "Observe", "Deploy"];
+      const select = label => nav.getByRole("button", { name: label, exact: true }).click();
+      const selected = label => nav.getByRole("button", { name: label, exact: true })
+        .getAttribute("aria-current");
+      const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await draft.fill("Keep this unattended event payload.");
+      for (const width of [320, 380, 620, 1280]) {
+        await page.setViewportSize({ width, height: 480 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          assert.deepEqual(await nav.getByRole("button").allTextContents(), labels);
+          const geometry = await nav.evaluate(element => ({
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            targets: [...element.querySelectorAll("button")].map(button => {
+              const rect = button.getBoundingClientRect();
+              return {
+                label: button.textContent, width: rect.width, height: rect.height,
+                inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+                reachable: button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)),
+              };
+            }),
+          }));
+          assert.equal(geometry.overflow, false, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.targets.every(target => target.inViewport && target.reachable &&
+            target.width >= 28 && target.height >= 28), JSON.stringify({ width, theme, geometry }));
+        }
+      }
+      await page.setViewportSize({ width: 380, height: 800 });
+      await select("Build");
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
+      assert.equal(await selected("Run"), null);
+      assert.equal(await selected("Build"), "page");
+      await page.keyboard.press("Escape");
+      assert.equal(await selected("Build"), "page", "Escape does not close a page");
+      assert.equal(await page.locator("#observe-views").isVisible(), false);
+      await select("Connect");
+      await page.getByRole("heading", { name: "Gateway connections", exact: true }).waitFor();
+      await page.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor();
+      assert.equal(await selected("Connect"), "page");
+      assert.equal(await page.locator("#observe-views").isVisible(), false);
+      await page.locator("#build-workspace").click();
+      await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
+      await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();
+      assert.equal(await selected("Connect"), "page");
+      assert.equal(await page.getByRole("heading", { name: "Gateway connections", exact: true }).isVisible(), true);
+      await select("Run");
+      assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
+      await select("Observe");
+      await page.getByRole("tab", { name: "App Map", exact: true }).waitFor();
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await page.locator("#details[data-mode='logs']").waitFor();
+      await select("Deploy");
+      await page.getByRole("heading", { name: "Deploy to Azure", exact: true }).waitFor();
+      assert.equal(await selected("Deploy"), "page");
+      assert.deepEqual(fixture.mutations, [], "Workflow navigation never starts local or cloud execution");
+      const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
+      const back = history.getByRole("button", { name: "Back", exact: true });
+      const forward = history.getByRole("button", { name: "Forward", exact: true });
+      for (const label of ["Observe", "Observe", "Run", "Connect", "Build", "Run"]) {
+        await back.click();
+        assert.equal(await selected(label), "page");
+      }
+      assert.equal(await back.isDisabled(), true);
+      assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
+      await forward.click();
+      assert.equal(await selected("Build"), "page");
+      await select("Build");
+      await page.keyboard.press("Escape");
+      assert.equal(await forward.isDisabled(), false, "Re-selecting Build does not add a visit");
+      await forward.click();
+      assert.equal(await selected("Connect"), "page");
+      await select("Build");
+      assert.equal(await forward.isDisabled(), true, "Build navigation after Back discards forward visits");
+      await select("Observe");
+      assert.equal(await page.getByRole("tab", { name: "App Map", exact: true }).getAttribute("aria-selected"), "true");
+      assert.equal(await forward.isDisabled(), true);
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await select("Build");
+      await page.keyboard.press("Escape");
+      await select("Observe");
+      assert.equal(await page.getByRole("tab", { name: "Logs", exact: true }).getAttribute("aria-selected"), "true");
+      await page.getByRole("tab", { name: "App Map", exact: true }).click();
+      await page.locator(".map-tools > summary").click();
+      await page.getByRole("button", { name: "Review source connections", exact: true }).click();
+      await page.getByRole("heading", { name: "Connection review", exact: true }).waitFor();
+      assert.equal(await selected("Observe"), "page", "Source review stays within Observe, not gateway Connect");
+      assert.deepEqual(fixture.mutations, []);
+    } finally {
+      await browser.close();
+      await fixture.close();
     }
   });
 }

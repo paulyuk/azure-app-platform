@@ -15,25 +15,25 @@ export const STUDIO_TAB_ICONS = {
 };
 
 export const STUDIO_TABS_CSS = `
-:is(#details,#workspace-shell) .studio-tabs {
+:is(#details,#workspace-shell,#customize-content) .studio-tabs {
   --studio-tab-count:4;
   display:grid; grid-template-columns:repeat(var(--studio-tab-count),minmax(0,1fr));
   gap:2px; box-sizing:border-box; width:100%; max-width:100%; min-width:0;
   padding:0 2px; border:0; border-bottom:1px solid var(--studio-line,#d2d0ce);
 }
-:is(#details,#workspace-shell) .studio-tabs > button.studio-tab {
+:is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab {
   min-width:0; min-height:48px; display:grid; align-content:center; justify-items:center; gap:1px;
   padding:7px 5px; border:0; border-bottom:3px solid transparent; border-radius:6px 6px 0 0;
   background:transparent; color:var(--studio-muted,#59636e); text-align:center; cursor:pointer;
 }
-:is(#details,#workspace-shell) .studio-tabs > button.studio-tab:hover:not(:disabled) {
+:is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab:hover:not(:disabled) {
   border-color:transparent; border-bottom-color:var(--studio-line,#d2d0ce); background:var(--studio-panel,rgb(0 0 0/.04));
 }
-:is(#details,#workspace-shell) .studio-tabs > button.studio-tab[aria-selected="true"] {
+:is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab[aria-selected="true"] {
   border-bottom-color:var(--studio-accent,#0969da); background:var(--studio-panel,rgb(0 0 0/.04)); color:var(--studio-ink,currentColor);
 }
-:is(#details,#workspace-shell) .studio-tabs > button.studio-tab:focus-visible { outline:2px solid var(--studio-focus,#0078d4); outline-offset:-2px; }
-:is(#details,#workspace-shell) .studio-tabs > button.studio-tab:disabled { opacity:.55; cursor:not-allowed; }
+:is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab:focus-visible { outline:2px solid var(--studio-focus,#0078d4); outline-offset:-2px; }
+:is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab:disabled { opacity:.55; cursor:not-allowed; }
 .studio-tab-main { min-width:0; max-width:100%; display:flex; align-items:center; justify-content:center; gap:6px; }
 .studio-tab-icon {
   width:16px; height:16px; flex:none; background:currentColor;
@@ -54,8 +54,8 @@ export const STUDIO_TABS_CSS = `
 .studio-tab-panel:focus-visible { outline:2px solid var(--studio-focus,#0078d4); outline-offset:-2px; }
 ${Object.entries(STUDIO_TAB_ICONS).map(([tab, icon]) => `.studio-tab-icon--${tab} { --studio-tab-icon:${octiconMask(icon)}; }`).join("\n")}
 @media (max-width:620px) {
-  :is(#details,#workspace-shell) .studio-tabs { padding:0; }
-  :is(#details,#workspace-shell) .studio-tabs > button.studio-tab { min-height:52px; padding-inline:2px; }
+  :is(#details,#workspace-shell,#customize-content) .studio-tabs { padding:0; }
+  :is(#details,#workspace-shell,#customize-content) .studio-tabs > button.studio-tab { min-height:52px; padding-inline:2px; }
   .studio-tab-main { gap:4px; }
   .studio-tab-icon { width:14px; height:14px; }
   .studio-tab-label { font-size:11px; }

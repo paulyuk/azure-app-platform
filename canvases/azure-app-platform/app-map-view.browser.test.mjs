@@ -9,7 +9,7 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("one App Map reveals other resources without changing request paths or Guide controls", {
+test("one App Map reveals other resources without changing request paths or reserving footer space", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const node = (id, tierId, kind = "project") => ({
@@ -188,10 +188,9 @@ test("one App Map reveals other resources without changing request paths or Guid
     assert.equal((await visibleIds()).length, graph.nodes.length);
     await toggle.uncheck();
     await page.keyboard.press("Escape");
-    await page.locator("#action-center").click();
-    await page.getByRole("button", { name: "Connect: review connections", exact: true }).click();
-    assert.equal(await page.locator("#guide-content").isVisible(), false, "Compact Guide yields to the inspector");
-    assert.equal((await page.locator("#guide-rail").boundingBox()).width, 46);
+    await openTools();
+    await page.getByRole("button", { name: "Review source connections", exact: true }).click();
+    assert.equal(await page.locator("#guide-content,#guide-rail,#workspace-status-footer").count(), 0, "Removed Guide reserves no rail or footer");
     assert.equal(await page.locator("#details h2").textContent(), "Connection review");
     assert.match(await page.locator("#details").innerText(), /Uncertain connections \(2\)/);
     assert.match(await page.locator("#details").innerText(), /Possible destinations: agent, other-agent/);
@@ -226,11 +225,7 @@ test("one App Map reveals other resources without changing request paths or Guid
     await page.keyboard.press("Escape");
     await page.locator("#zoom-in").click();
     assert.notEqual(await page.locator("#viewport").getAttribute("transform"), camera);
-    await page.locator("#action-center").click();
-    assert.equal(await page.locator("#guide-rail").isVisible(), true);
-    assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "true");
-    await page.locator("#action-center").click();
-    assert.equal(await page.locator("#guide-content").isVisible(), false);
+    assert.equal(await page.locator("#action-center,#guide-content").count(), 0);
     assert.deepEqual(mutations, []);
     assert.deepEqual(errors, []);
   } finally {

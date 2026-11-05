@@ -208,7 +208,8 @@ test("Unity branding and opening animation work in the browser", {
             assert.equal(await settings.getByRole("combobox", {
               name: "Preferred external editor",
             }).inputValue(), "vscode");
-            assert.equal(await settings.locator("[data-settings-section]").count(), 0);
+            assert.deepEqual(await settings.locator("[data-settings-section]").evaluateAll(nodes =>
+              nodes.map(node => node.dataset.settingsSection)), ["preferences"]);
             await page.keyboard.press("Escape");
           }
           const utilities = await page.locator(".studio-theme-control").boundingBox();

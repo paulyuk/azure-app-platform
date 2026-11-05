@@ -1,19 +1,123 @@
 export function createRunWorkspace({
   container,
+  diagnosticsContainer,
+  toggle,
+  onDiagnosticsChange,
   renderTry,
   renderServices,
   renderEnvironment,
   renderOutput,
   renderOperations,
-  onConnection,
+  buttons,
   onClear = () => {},
 }) {
-  const expanded = new Map();
+  const disclosures = new Map();
+  const scrolling = new Map();
+  const selections = new Map();
   let selectedTab = "output";
   let lastState;
   let failures = 0;
   let operationCount = 0;
   let outputError = "";
+  let attention = "";
+  let diagnosticsOpen = false;
+  let diagnosticsHeight = 240;
+  let drag;
+  const listeners = new AbortController();
+  const primaryWorkspace = diagnosticsContainer.previousElementSibling;
+  const roots = () => [container.querySelector(".run-workspace"), diagnosticsContainer].filter(Boolean);
+  const nodes = selector => roots().flatMap(root => [...root.querySelectorAll(selector)]);
+
+  function restoreScrolling(root) {
+    for (const [id, [top, following]] of scrolling) {
+      const selector = '[data-run-scroll-key="' + id + '"]';
+      const node = root ? root.querySelector(selector) : nodes(selector)[0];
+      if (node?.getClientRects().length) node.scrollTop = following ? node.scrollHeight : top;
+    }
+  }
+
+  function sizeDiagnostics(height = diagnosticsHeight, remember = false) {
+    const shell = diagnosticsContainer;
+    const separator = shell.querySelector(".run-diagnostics-resizer");
+    if (!separator) return;
+    const heightAvailable = Math.max(0, shell.parentElement.getBoundingClientRect().bottom -
+      primaryWorkspace.getBoundingClientRect().top);
+    const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
+    const chrome = shell.querySelector(".run-diagnostics-toolbar").offsetHeight + 8;
+    const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55), heightAvailable - chrome - primaryReserve));
+    const minimum = Math.min(120, maximum);
+    const size = Math.round(Math.max(minimum, Math.min(maximum, height)));
+    if (remember) diagnosticsHeight = size;
+    shell.style.setProperty("--diagnostics-height", size + "px");
+    separator.setAttribute("aria-valuemin", String(minimum));
+    separator.setAttribute("aria-valuemax", String(maximum));
+    separator.setAttribute("aria-valuenow", String(size));
+    separator.setAttribute("aria-valuetext", size + " pixels high");
+  }
+
+  function syncDiagnostics() {
+    const shell = diagnosticsContainer;
+    const support = shell.querySelector(".run-support");
+    if (!support) return;
+    const separator = shell.querySelector(".run-diagnostics-resizer");
+    if (!diagnosticsOpen && (support.contains(document.activeElement) || separator === document.activeElement)) {
+      toggle.focus({ preventScroll: true });
+    }
+    support.hidden = !diagnosticsOpen;
+    separator.hidden = !diagnosticsOpen;
+    shell.dataset.diagnostics = diagnosticsOpen ? "open" : "closed";
+    const issues = [
+      attention,
+      outputError && "Logs unavailable: " + outputError,
+      failures > 0 && failures + (failures === 1 ? " failed operation" : " failed operations") + " in Operations.",
+    ].filter(Boolean).join(" ");
+    const status = shell.querySelector("#diagnostics-status");
+    if (status.textContent !== issues) status.textContent = issues;
+    status.hidden = !issues;
+    status.parentElement.hidden = !issues;
+    onDiagnosticsChange({ open: diagnosticsOpen, issues });
+    sizeDiagnostics();
+  }
+
+  function setDiagnosticsOpen(open) {
+    capture();
+    diagnosticsOpen = open;
+    syncDiagnostics();
+    if (open) restoreScrolling();
+  }
+
+  function finishResize(event) {
+    if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+    const pointerId = drag.pointerId;
+    drag = null;
+    diagnosticsContainer.classList.remove("resizing-diagnostics");
+    if (diagnosticsContainer.hasPointerCapture(pointerId)) diagnosticsContainer.releasePointerCapture(pointerId);
+  }
+  diagnosticsContainer.addEventListener("pointermove", event => {
+    if (drag?.pointerId === event.pointerId) sizeDiagnostics(drag.height + drag.startY - event.clientY, true);
+  }, { signal: listeners.signal });
+  for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    diagnosticsContainer.addEventListener(name, finishResize, { signal: listeners.signal });
+  }
+  const resizeObserver = new ResizeObserver(() => sizeDiagnostics());
+  resizeObserver.observe(diagnosticsContainer.parentElement);
+  resizeObserver.observe(primaryWorkspace);
+
+  function capture() {
+    for (const node of nodes("[data-run-disclosure]")) {
+      disclosures.set(node.dataset.runDisclosure, node.open);
+    }
+    for (const node of nodes("[data-run-scroll-key]")) {
+      if (!node.getClientRects().length) continue;
+      scrolling.set(node.dataset.runScrollKey, [
+        node.scrollTop,
+        node.dataset.runScrollKey === "output" && node.scrollHeight - node.scrollTop - node.clientHeight < 40,
+      ]);
+    }
+    for (const node of nodes("textarea[aria-label]")) {
+      selections.set(node.getAttribute("aria-label"), [node.selectionStart, node.selectionEnd, node.scrollTop]);
+    }
+  }
 
   function text(parent, tag, content, className = "") {
     const node = document.createElement(tag);
@@ -47,8 +151,9 @@ export function createRunWorkspace({
     tab.setAttribute("aria-describedby", summaryNode.id);
   }
 
-  function activateTab(shell, id, { focus = false } = {}) {
+  function activateTab(shell, id, { focus = false, captureState = true } = {}) {
     if (!["services", "environment", "output", "operations"].includes(id)) return;
+    if (captureState) capture();
     selectedTab = id;
     for (const tab of shell.querySelectorAll('[role="tab"]')) {
       const selected = tab.dataset.runTab === id;
@@ -59,6 +164,7 @@ export function createRunWorkspace({
     for (const panel of shell.querySelectorAll('[role="tabpanel"]')) {
       panel.hidden = panel.dataset.runPanel !== id;
     }
+    restoreScrolling(shell);
   }
 
   function createTab(tablist, id, label, iconId = id) {
@@ -97,6 +203,7 @@ export function createRunWorkspace({
     panel.id = "run-panel-" + id;
     panel.className = "run-tab-panel studio-tab-panel";
     panel.dataset.runPanel = id;
+    panel.dataset.runScrollKey = "panel-" + id;
     panel.setAttribute("role", "tabpanel");
     panel.setAttribute("aria-labelledby", "run-tab-" + id);
     panel.tabIndex = 0;
@@ -106,52 +213,80 @@ export function createRunWorkspace({
   }
 
   return {
-    render({ state, readiness, services = [] }) {
+    render({ state, readiness, services = [], primary = true }) {
       const active = document.activeElement;
-      const hadFocus = container.contains(active);
+      const hadFocus = roots().some(root => root.contains(active));
+      const focusedTester = hadFocus && Boolean(active?.closest?.(".agent-tester"));
       const focusedPanel = active?.closest?.("[data-run-panel]")?.dataset.runPanel;
       const focusedTab = active?.closest?.("[data-run-tab]")?.dataset.runTab;
       const label = active?.getAttribute("aria-label");
       const key = active?.getAttribute("data-action-key");
+      const scrollKey = active?.getAttribute("data-run-scroll-key");
       const content = ["BUTTON", "SUMMARY"].includes(active?.tagName) ? active.textContent : null;
       const selection = hadFocus && typeof active.selectionStart === "number"
         ? [active.selectionStart, active.selectionEnd] : null;
       const scrollTop = container.scrollTop;
-      const nested = [...container.querySelectorAll("[data-run-disclosure]")]
-        .map((node) => [node.dataset.runDisclosure, node.open]);
-      const scrolling = [...container.querySelectorAll("[data-run-scroll-key]")].map((node) => [
-        node.dataset.runScrollKey,
-        node.scrollTop,
-        node.scrollHeight - node.scrollTop - node.clientHeight < 40,
-      ]);
+      capture();
+      finishResize();
       lastState = state;
 
-      onClear(container);
-      container.replaceChildren();
-      const shell = text(container, "div", "", "run-workspace");
-      const heading = text(shell, "div", "", "run-heading");
-      text(heading, "h2", "Run & debug");
+      if (primary) {
+        onClear(container);
+        container.replaceChildren();
+        const workspace = text(container, "div", "", "run-workspace");
+        const main = text(workspace, "div", "", "run-primary");
+        main.dataset.runScrollKey = "primary";
+        renderTry(main);
+      }
+      onClear(diagnosticsContainer);
+      diagnosticsContainer.replaceChildren();
+      const shell = diagnosticsContainer;
       const connected = Boolean(readiness?.gatewayConfigured);
-      const configuring = state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring";
-      const action = readiness && !connected && !configuring ? "Connect AI Gateway" : "Connection settings";
-      const connection = text(heading, "button", "", "run-connection");
-      text(connection, "span", action, "run-connection-action");
-      const sandboxLabel = readiness?.sandboxGroup?.name ? " · " + readiness.sandboxGroup.name : "";
-      const value = text(connection, "span", configuring
-        ? "Applying " + (readiness?.activeGateway?.name || "AI Gateway") + "…"
-        : connected
-          ? (readiness.model || "Model connected") + " · " + (readiness.activeGateway?.name || "AI Gateway") + sandboxLabel
-          : readiness ? "No AI Gateway connected" : "Checking model connection...", "run-connection-value");
-      value.id = "run-connection-value";
-      connection.type = "button";
-      connection.setAttribute("aria-label", action);
-      connection.setAttribute("aria-describedby", value.id);
-      connection.title = action + ": " + value.textContent;
-      connection.dataset.connected = String(connected || configuring);
-      connection.addEventListener("click", onConnection);
-      renderTry(text(shell, "div", "", "run-primary"));
+
+      const toolbar = text(shell, "div", "", "run-diagnostics-toolbar");
+      const status = text(toolbar, "span", "", "run-diagnostics-status");
+      status.id = "diagnostics-status";
+      status.setAttribute("role", "status");
+      const separator = text(shell, "div", "", "run-diagnostics-resizer");
+      separator.setAttribute("role", "separator");
+      separator.setAttribute("aria-label", "Resize Diagnostics");
+      separator.setAttribute("aria-orientation", "horizontal");
+      separator.setAttribute("aria-controls", "run-diagnostics");
+      separator.tabIndex = 0;
+      separator.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        separator.focus({ preventScroll: true });
+        drag = { pointerId: event.pointerId, startY: event.clientY, height: Number(separator.getAttribute("aria-valuenow")) };
+        diagnosticsContainer.setPointerCapture(event.pointerId);
+        diagnosticsContainer.classList.add("resizing-diagnostics");
+      });
+      separator.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          setDiagnosticsOpen(false);
+          return;
+        }
+        const height = Number(separator.getAttribute("aria-valuenow"));
+        const next = event.key === "ArrowUp" ? height + (event.shiftKey ? 48 : 24)
+          : event.key === "ArrowDown" ? height - (event.shiftKey ? 48 : 24)
+            : event.key === "Home" ? 0 : event.key === "End" ? Infinity : null;
+        if (next === null) return;
+        event.preventDefault();
+        sizeDiagnostics(next, true);
+      });
 
       const support = text(shell, "div", "", "run-support");
+      support.id = "run-diagnostics";
+      support.setAttribute("role", "region");
+      support.setAttribute("aria-label", "Diagnostics");
+      support.addEventListener("keydown", event => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDiagnosticsOpen(false);
+      });
       const tablist = text(support, "div", "", "run-tabs studio-tabs");
       tablist.setAttribute("role", "tablist");
       tablist.setAttribute("aria-label", "Run details");
@@ -184,39 +319,62 @@ export function createRunWorkspace({
       createPanel(panels, "services", renderServices);
       if (renderEnvironment) createPanel(panels, "environment", renderEnvironment);
       createPanel(panels, "operations", renderOperations);
-      activateTab(shell, selectedTab);
+      activateTab(shell, selectedTab, { captureState: false });
+      syncDiagnostics();
 
-      for (const [id, open] of nested) {
-        const node = container.querySelector('[data-run-disclosure="' + id + '"]');
+      for (const [id, open] of disclosures) {
+        const node = nodes('[data-run-disclosure="' + id + '"]')[0];
         if (node) node.open = open;
       }
-      for (const [id, top, following] of scrolling) {
-        const node = container.querySelector('[data-run-scroll-key="' + id + '"]');
-        if (node) node.scrollTop = following ? node.scrollHeight : top;
+      restoreScrolling();
+      if (primary) container.scrollTop = scrollTop;
+      for (const node of nodes("textarea[aria-label]")) {
+        const previous = selections.get(node.getAttribute("aria-label"));
+        if (previous) {
+          node.setSelectionRange(previous[0], previous[1]);
+          node.scrollTop = previous[2];
+        }
       }
-      container.scrollTop = scrollTop;
       if (hadFocus) {
-        const replacement = [...container.querySelectorAll("button, input, textarea, select, summary")]
+        const replacement = nodes("button, input, textarea, select, summary, [data-run-scroll-key][tabindex], [role='separator']")
           .find((node) => !node.disabled && !node.closest("[hidden]") && (key ? node.dataset.actionKey === key
-            : label ? node.getAttribute("aria-label") === label : content && node.textContent === content));
+            : label ? node.getAttribute("aria-label") === label
+              : scrollKey ? node.dataset.runScrollKey === scrollKey : content && node.textContent === content));
         if (replacement) {
           replacement.focus({ preventScroll: true });
           if (selection && replacement.setSelectionRange) replacement.setSelectionRange(...selection);
+        } else if (focusedTester) {
+          container.querySelector(".agent-response")?.focus({ preventScroll: true });
         } else if (focusedTab || focusedPanel) {
-          const fallback = container.querySelector('[data-run-tab="' + (focusedTab || focusedPanel || selectedTab) + '"]');
+          const fallback = diagnosticsContainer.querySelector('[data-run-tab="' + (focusedTab || focusedPanel || selectedTab) + '"]');
           fallback?.focus({ preventScroll: true });
           queueMicrotask(() => fallback?.isConnected && fallback.focus({ preventScroll: true }));
         }
       }
     },
-    diagnostics({ failures: count = 0, operations = operationCount, error = "" } = {}) {
+    capture,
+    diagnostics({ failures: count = 0, operations = operationCount, error = "", issue = "" } = {}) {
       failures = count;
       operationCount = operations;
       outputError = error;
-      const outputTab = container.querySelector('[data-run-tab="output"]');
-      const operationsTab = container.querySelector('[data-run-tab="operations"]');
+      attention = issue;
+      const outputTab = diagnosticsContainer.querySelector('[data-run-tab="output"]');
+      const operationsTab = diagnosticsContainer.querySelector('[data-run-tab="operations"]');
       if (outputTab) setTabSummary(outputTab, outputSummary(lastState), Boolean(outputError));
       if (operationsTab) setTabSummary(operationsTab, operationsSummary(), false);
+      syncDiagnostics();
+    },
+    openDiagnostics(tab = selectedTab) {
+      setDiagnosticsOpen(true);
+      activateTab(diagnosticsContainer, tab, { focus: true });
+    },
+    toggleDiagnostics() {
+      setDiagnosticsOpen(!diagnosticsOpen);
+    },
+    dispose() {
+      finishResize();
+      listeners.abort();
+      resizeObserver.disconnect();
     },
     selectedTab() {
       return selectedTab;

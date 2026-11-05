@@ -42,6 +42,9 @@ for (const [name, engine, presentationProfile] of [
           "/api/app-status": { state: "stopped", recovered: false, foreignEntrypoints: [], entrypoints: [] },
           "/api/local-readiness": { ready: false, gatewayConfigured: false },
           "/api/app-output": { lines: [], commands: [] },
+          "/api/gateway-options": { subscriptions: [], gateways: [], models: [], active: null },
+          "/api/preferences": { theme: "light" },
+          "/api/editor-settings": { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
         };
         if (responses[path]) return route.fulfill({ json: responses[path] });
         if (path.startsWith("/assets/")) return route.fulfill({ status: 204 });
@@ -50,6 +53,7 @@ for (const [name, engine, presentationProfile] of [
       await page.addInitScript(() => localStorage.setItem("unity-workspace:/fixture:guide-collapsed", "true"));
       await installStudioAssetRoutes(page);
       await page.goto("http://build-layout.test/");
+      await page.locator("#build-workspace").click();
       await page.locator(".build-source-preview").first().waitFor();
       await page.addStyleTag({ content: `
         ::-webkit-scrollbar { width:16px; height:16px; }
@@ -83,7 +87,7 @@ for (const [name, engine, presentationProfile] of [
               assert.equal(item.horizontalOverflow, true);
             }
           }
-          assert.ok(await page.locator("#details").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+          assert.ok(await page.locator("#customize-content").evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
         }
       }
       const disclosure = page.locator(".build-source-disclosure").first();

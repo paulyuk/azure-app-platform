@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
-import { RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
+import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
+import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -473,18 +474,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
-  const guideIcon = renderOcticon("sidebar-collapse", { size: 20, className: "guide-panel-icon" });
-  const guideStageIcons = {
-    build: "code",
-    connect: "link",
-    run: "play",
-    observe: "eye",
-    deploy: "cloud",
-  };
-  const guideShortcutsHtml = model.actionCenter.stages.map((stage) =>
-    `<button type="button" class="guide-shortcut" data-guide-stage="${stage.id}" aria-controls="guide-content" aria-expanded="false" aria-label="${escapeHtml(stage.label)}: checking status">${renderOcticon(guideStageIcons[stage.id], { size: 20 })}<span class="guide-state-icon" aria-hidden="true">${renderOcticon("stopwatch", { size: 12 })}</span></button>`,
-  ).join("");
-
   return `<!doctype html>
 <html lang="en" class="${presentation.className}" data-studio-theme="${escapeHtml(theme)}" data-studio-presentation="${presentation.id}">
 <head>
@@ -510,8 +499,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
       background: var(--bg); color: var(--text);
     }
-    #workspace-loading-header, #app-workspace-main, #workspace-status-footer { min-width: 0; }
+    #workspace-loading-header, #app-workspace-main { min-width: 0; }
     #workspace-navigation-mount { grid-row: 1 / -1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; height: 100%; }
+    #studio-workspace-navigation { height: 100%; }
+    #studio-workspace-navigation > main { flex: 1; min-height: 0; overflow: hidden; }
+    .workspace-navigation-bar {
+      --canvas-button-small-min-height: 1.75rem;
+      --canvas-button-small-padding-block: .1875rem;
+      --canvas-button-small-padding-inline: .5rem;
+      display: flex; flex: none; align-items: flex-start; gap: 8px; padding: 4px 12px;
+      border-block: 1px solid var(--border); background: var(--surface);
+    }
+    .workspace-lifecycle-actions { flex:0 1 auto; min-width:0; max-width:calc(100% - 86px); margin-inline-start:auto; padding-block:3px; }
+    #workspace-header-actions { display:flex; align-items:center; gap:8px; min-width:0; }
+    #run-diagnostics-toggle { flex:none; }
+    .workspace-action-divider { flex:none; width:1px; height:20px; background:var(--border); }
+    .logs-warning-badge { margin-inline-start:4px; }
+    .logs-warning-badge svg { width:12px; height:12px; fill:currentColor; }
+    .build-page { display:flex; flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); }
+    .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
+    #app-workspace-navigation { flex:1; min-width: 0; max-width: 100%; }
+    .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    #app-workspace-navigation ul { display: flex; flex-wrap: wrap; gap: 2px; padding: 0; margin: 0; list-style: none; }
+    #app-workspace-navigation li { flex: none; }
     #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
     .studio-workspace-content { height: 100%; min-height: 0; color: var(--text); font: 16px/normal "Segoe UI", system-ui, sans-serif; }
     #workspace-loading-header {
@@ -523,26 +533,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-loading-header > .studio-site-nav { grid-area: brand; gap: 8px; }
     #workspace-loading-header > .studio-theme-control { grid-area: utilities; justify-self: end; }
     #workspace-navigation-loading { grid-area: loading; }
-    .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
+    #workspace-loading-header .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
     #workspace-runtime-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
-    .workspace-location { flex: 1; min-width: 60px; font-size: 12px; }
-    #app-title { min-width: 0; max-width: 100%; font-weight: 600; }
+    #workspace-runtime-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    #app-title { flex:0 1 auto; min-width: 0; max-width: 100%; font-weight: 600; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
-    .runtime-badge {
-      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
-      border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
-      color: var(--muted); background: var(--surface-muted); font-size: 10px; font-weight: 700;
-    }
-    .runtime-badge::before { width:12px; height:12px; background:currentColor; content:""; mask:${octiconMask("dot-fill")} center/contain no-repeat; }
-    .runtime-badge[data-tone="success"] { border-color: #107c10; color: #107c10; background: rgb(16 124 16 / .1); }
-    .runtime-badge[data-tone="warning"] { border-color: #ca5010; color: #ca5010; background: rgb(202 80 16 / .1); }
-    .runtime-badge[data-tone="busy"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-    .runtime-badge[data-tone="error"] { border-color: var(--danger); color: var(--danger); background: rgb(164 38 44 / .1); }
-    .runtime-action {
-      flex: 0 0 auto; min-height: 24px; padding: 2px 8px;
-      border-color: var(--accent); color: var(--accent); font-size: 10px; font-weight: 700;
-    }
-    .runtime-action[data-operation="stop-local"] { border-color: var(--danger); color: var(--danger); }
     .map-palette {
       position: absolute; z-index: 3; top: 12px; right: 12px;
       display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); padding: 4px;
@@ -577,12 +572,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     input { min-width: 210px; padding: 4px 9px; }
     select { padding: 4px 28px 4px 9px; }
     :where(button:not(.ct-button)), .studio-workspace-content :where(button:not(.ct-button)) { padding: 4px 10px; cursor: pointer; }
-    #header-runtime-action, #app-status-badge {
-      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-      height: 32px; min-height: 32px; padding: 0 10px;
-      font: 600 12px/1 var(--font-sans, system-ui); white-space: nowrap;
-    }
-    #header-runtime-action { border-radius: 6px; }
     #observe-views {
       --studio-tab-count:2;
       flex:0 0 auto; align-self:stretch; margin:4px 0 0;
@@ -618,31 +607,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-shell { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
     #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
-    #guide-rail { flex: 0 0 280px; width: 280px; padding: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-    #guide-rail[data-collapsed="true"] { flex-basis: 46px; width: 46px; }
-    #guide-rail[data-collapsed="true"] .guide-heading { padding: 6px 5px; border-bottom: 0; }
-    #guide-rail[data-collapsed="true"] .guide-heading h2 { display: none; }
-    .guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 5px 6px 14px; border-bottom: 1px solid var(--border); }
-    #guide-rail .guide-heading h2 { margin: 0; font-size: 15px; }
-    .guide-panel-icon { width:20px; height:20px; flex:none; fill:currentColor; stroke:none; }
-    #action-center { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-left: auto; padding: 6px; border: 0; background: transparent; flex: none; }
-    #action-center:hover { background: var(--surface-muted); }
-    #guide-content { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 16px; }
-    #guide-content h3 { margin-top: 14px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
-    #guide-content > p { font-size: 12px; line-height: 18px; color: var(--muted); }
-    #guide-content .journey { margin: 10px 0; }
-    #guide-content .journey-stage { padding-block: 8px; }
-    #guide-shortcuts { display: grid; gap: 8px; padding: 4px 4px 12px; overflow: auto; }
-    .guide-shortcut { position: relative; display: grid; place-items: center; width: 36px; min-height: 40px; padding: 7px; border: 0; background: transparent; color: var(--muted); }
-    .guide-shortcut > svg { width:20px; height:20px; fill:currentColor; stroke:none; }
-    .guide-shortcut:hover { background: var(--surface-muted); color: var(--text); }
-    .guide-shortcut[data-current="true"] { background: var(--true-color-blue-muted); color: var(--true-color-blue); }
-    .guide-shortcut:focus-visible { outline-offset: -2px; }
-    .guide-state-icon { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; min-width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted); font: 700 10px/1 system-ui; }
-    .guide-state-icon svg { width:12px; height:12px; }
-    .guide-shortcut[data-state="complete"] .guide-state-icon { color: var(--true-color-green); }
-    .guide-shortcut[data-state="attention"] .guide-state-icon { color: var(--true-color-orange); }
-    .guide-shortcut[data-current="true"] .guide-state-icon { color: var(--true-color-blue); }
     #workspace > #details { min-height: 0; }
     body:not([data-workspace="map"]) #graph-shell,
     body:not([data-workspace="map"]) #details-resizer,
@@ -713,14 +677,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     #details-resizer:hover, #details-resizer:focus-visible { background: var(--accent); outline: none; }
     body.resizing-details { cursor: row-resize; user-select: none; }
-    #details, #guide-rail { min-width: 0; background: var(--surface); }
+    #details { min-width: 0; background: var(--surface); }
     #details { overflow: auto; padding: 16px; }
-    :is(#details, #guide-rail) h2 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
-    :is(#details, #guide-rail) h3 { margin: 16px 0 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
-    :is(#details, #guide-rail) p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-    :is(#details, #guide-rail) code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
-    :is(#details, #guide-rail) ul { margin: 4px 0; padding-left: 18px; }
-    :is(#details, #guide-rail) li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
+    #details h2 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
+    #details h3 { margin: 16px 0 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
+    #details p { margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    #details code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    #details ul { margin: 4px 0; padding-left: 18px; }
+    #details li { margin: 5px 0; font-size: 12px; overflow-wrap: anywhere; }
     .command-output { min-height: 96px; max-width: 100%; max-height: 440px; resize: vertical; overflow: auto; overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #111; color: #f3f2f1; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .command-output[hidden] { display: none; }
     .map-tools[open] > summary {
@@ -774,17 +738,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .journey-stage.complete:not(:last-child)::after { background: #107c10; }
     .journey-stage.next, .journey-stage.ready, .journey-stage.active { border-radius: 7px; background: var(--accent-soft); }
     .journey-stage strong { display: block; font-size: 12px; line-height: 1.3; }
-    #guide-rail .journey-stage-action, #guide-rail .journey-stage button.journey-stage-action {
-      display: grid !important; gap: 2px; justify-items: start; align-items: start;
-      width: 100%; height: auto; min-height: 0; padding: 4px 6px !important; margin: -4px -6px !important;
-      border: 0 !important; border-radius: 6px; background: transparent !important; box-shadow: none !important; color: inherit;
-      text-align: left; white-space: normal; cursor: pointer;
-    }
-    #guide-rail .journey-stage-action > .ct-button-label {
-      display: grid; gap: 2px; justify-items: start; width: 100%; white-space: normal; text-align: left;
-    }
-    #guide-rail .journey-stage-action strong { text-decoration: underline; text-underline-offset: 3px; }
-    #guide-rail .journey-stage-action:hover { background: var(--surface-muted) !important; border: 0 !important; }
     .journey-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.4; font-weight: 400; }
     .journey-state { display: block; margin-bottom: 2px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
     .journey-stage.complete::before { border-color: #107c10; background: #107c10; }
@@ -824,31 +777,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .actions button.setup-action { width: 100%; font-weight: 650; }
     button.danger { border-color: var(--danger); color: var(--danger); }
     .error { color: var(--danger); }
-    #workspace-status-footer {
-      display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px;
-      border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px;
-    }
-    #workspace-status-footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #status[role="alert"] { flex:none; max-height:120px; overflow:auto; overflow-wrap:anywhere; padding:8px 12px; border-bottom:1px solid var(--studio-line); background:var(--studio-raised); color:var(--studio-danger); font-size:12px; }
     @media (max-width: 960px) {
       #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas: "brand identity utilities" "loading loading loading";
       }
     }
-    @media (max-width: 900px) {
-      #workspace-shell { margin-right: 46px; }
-      #guide-rail { position: absolute; z-index: 5; right: 0; inset-block: 0; width: min(280px, 90vw); box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
-    }
     @media (max-width: 680px) {
+      .workspace-navigation-bar { flex-wrap: wrap; row-gap: 4px; }
+      #app-workspace-navigation { flex-basis: 100%; }
+      .workspace-lifecycle-actions { max-width: 100%; padding-block: 0; }
       #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas: "brand utilities" "identity identity" "loading loading";
         gap: 8px 10px; padding: 8px 12px;
       }
       .heading { padding-left: 0; border-left: 0; }
-    }
-    @media (max-width: 620px) {
-      #workspace-status-footer > :last-child { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto !important; transition: none !important; }
@@ -860,7 +805,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
     /* Retained content keeps its typography and tabs above the provider's generic element reset. */
     ${STUDIO_TABS_CSS}
+    ${AGENT_STATUS_CSS}
     ${APP_LOGS_CSS}
+    #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #app-identity { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; }
+    #app-status-mount { display:flex; flex:none; }
+    .runtime-status-control { appearance:none; display:flex; align-items:center; flex:none; min-height:28px; padding:0; border:0; border-radius:999px; background:none; color:inherit; font:inherit; cursor:pointer; }
+    .runtime-badge { border:0; cursor:pointer; white-space:nowrap; }
+    .runtime-badge[data-color="informative"] { color:var(--studio-muted); background:var(--studio-panel); }
+    .runtime-badge[data-color="brand"] { color:var(--studio-accent); background:var(--studio-accent-soft); }
+    @media (max-width:600px) {
+      .app-workspace-header[data-navigation] { grid-template-columns:minmax(0,1fr); gap:0; }
+    }
   </style>
 </head>
 <body>
@@ -869,20 +825,27 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <div class="studio-site-nav" role="navigation" aria-label="Navigation">
       ${renderStudioBrand()}
     </div>
-    <div class="heading">
+    <div class="heading" id="app-identity">
       <h1 id="app-title" title="${escapeHtml(appName)}">${escapeHtml(appName)}</h1>
+      <button type="button" id="app-status-control" class="runtime-status-control" title="Open local runtime controls" aria-label="App status: Checking status. Open Run/Debug."><span id="app-status-mount"></span></button>
     </div>
     ${renderThemeToggle(theme, presentation.id)}
     <div id="workspace-navigation-loading" role="status"><span id="workspace-navigation-message">Loading workspace navigation…</span> <button id="retry-workspace-navigation" type="button" hidden>Retry navigation</button></div>
   </header>
   <div id="workspace-content">
-    <div id="workspace-runtime-bar">
-      <span class="workspace-location">Page: <strong id="workspace-location">Build</strong></span>
-      <button id="app-status-badge" class="runtime-badge" data-tone="busy" type="button" aria-live="polite">Checking status</button>
-      <button id="header-runtime-action" class="runtime-action" type="button" disabled>Checking…</button>
+    <div id="workspace-runtime-bar" hidden>
+      <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
+      <button data-studio-button="primary" id="header-runtime-action" type="button" disabled>Checking…</button>
+      <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
+        <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
+      </div>
     </div>
+  <div id="status" class="visually-hidden" role="status" aria-atomic="true"></div>
   <main id="app-workspace-main">
     <section id="workspace-shell" role="region" aria-labelledby="workspace-location">
+    <section id="app-customize" class="build-page" aria-label="Build workspace" hidden>
+      <div id="customize-content" class="customize-content" data-mode="build" tabindex="-1"></div>
+    </section>
     <div id="observe-views" class="workspace-tabs studio-tabs" role="tablist" aria-label="Observe views" hidden>
       <button id="map-view" class="studio-tab" role="tab" type="button" aria-label="App Map" aria-selected="true" aria-controls="workspace"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--map" aria-hidden="true"></span><span class="studio-tab-label">App Map</span></span></button>
       <button id="logs-app" class="studio-tab" role="tab" type="button" aria-label="Logs" aria-selected="false" aria-controls="workspace" tabindex="-1"><span class="studio-tab-main"><span class="studio-tab-icon studio-tab-icon--logs" aria-hidden="true"></span><span class="studio-tab-label">Logs</span></span></button>
@@ -905,6 +868,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             <span>Show other resources (<span id="other-resource-count">${model.requestFlow.otherResourceCount}</span>)</span>
           </label>
           <button data-studio-button="secondary" id="reset-layout" type="button">Reset map</button>
+          <button data-studio-button="secondary" id="review-source-connections" type="button">Review source connections</button>
         </div>
       </details>
       <div class="icon-group" aria-label="Zoom controls">
@@ -931,19 +895,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <section id="details" aria-label="Workspace content" aria-live="polite" data-empty="false"></section>
     </section>
     </section>
-    <aside id="guide-rail" aria-label="Guide">
-      <div class="guide-heading">
-        <h2>Guide</h2>
-        <button data-studio-button="subtle" id="action-center" type="button" aria-expanded="true" aria-controls="guide-content" aria-label="Collapse Guide" title="Collapse Guide">${guideIcon}</button>
-      </div>
-      <div id="guide-shortcuts" role="group" aria-label="Guide progress" hidden>${guideShortcutsHtml}</div>
-      <div id="guide-content"></div>
-    </aside>
   </main>
-  <footer id="workspace-status-footer">
-    <span id="status" role="status">${escapeHtml(model.summary.projectNodes)} projects · ${escapeHtml(model.summary.operationNodes)} operations · ${escapeHtml(model.summary.edges)} edges</span>
-    <span id="map-context">Evidence-backed request flow · dashed paths need confirmation</span>
-  </footer>
+  <div id="workspace-diagnostics" data-mode="manage" data-diagnostics="closed"></div>
   </div>
   <noscript><main class="noscript">${renderNoScriptFallback(model)}</main></noscript>
   <script>
@@ -961,6 +914,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const status = document.getElementById("status");
         status.textContent = "Could not load Studio controls: " + cause.message;
         status.setAttribute("role", "alert");
+        status.classList.remove("visually-hidden");
         document.getElementById("workspace-navigation-message").textContent = "Workspace navigation is unavailable.";
         const retry = document.getElementById("retry-workspace-navigation");
         retry.hidden = false;
@@ -982,7 +936,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const SERVICE_LOG_TIERS = new Set(${safeJson([...RUNTIME_TIERS])});
     const mountAppLogs = (${createAppLogsPanel.toString()});
     let appLogs = null;
-    let launchNotice = new URLSearchParams(location.search).get("notice") || "";
+    const launchNotice = new URLSearchParams(location.search).get("notice") || "";
     const NS = "http://www.w3.org/2000/svg";
     const WORLD_PADDING = 24;
     const LANE_HEADER = 62;
@@ -1003,16 +957,36 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const detailsResizer = document.querySelector("#details-resizer");
     const details = document.querySelector("#details");
     const workspace = document.querySelector("#workspace");
-    const guideRail = document.querySelector("#guide-rail");
-    const guideContent = document.querySelector("#guide-content");
-    const guidePreferenceKey = "app-platform-workspace:" + MODEL.root + ":guide-collapsed";
-    const savedGuidePreference = localStorage.getItem(guidePreferenceKey);
-    let guideExplicitChoice = savedGuidePreference !== null;
-    let guideCollapsed = savedGuidePreference === "true" || (savedGuidePreference === null && window.innerWidth <= 900);
+    document.querySelector("#workspace-loading-header .studio-theme-control")
+      .prepend(document.querySelector("#workspace-runtime-actions"));
     const status = document.querySelector("#status");
-    const appStatusBadge = document.querySelector("#app-status-badge");
+    const runtimeStatusView = toolkit.mountCanvasComponent(document.querySelector("#app-status-mount"), toolkit.Badge, {
+      id: "app-status-badge", className: "runtime-badge",
+      appearance: "tint", color: "brand", size: "small", "data-tone": "busy",
+      "aria-live": "polite", children: "Checking status",
+    });
+    const appStatusBadge = document.querySelector("#app-status-control");
+    let runtimeStatusKey = "";
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
-    const mapContext = document.querySelector("#map-context");
+    const runtimePlayIcon = buttons.icon(ICONS.play);
+    buttons.update(headerRuntimeAction, { size: "small" });
+    const headerActions = document.createElement("div");
+    headerActions.id = "workspace-header-actions";
+    document.querySelector("#workspace-runtime-bar").append(headerActions);
+    buttons.append(headerActions, headerRuntimeAction);
+    const logsDivider = document.createElement("span");
+    logsDivider.className = "workspace-action-divider";
+    logsDivider.setAttribute("aria-hidden", "true");
+    headerActions.append(logsDivider);
+    const logsTrigger = buttons.create({
+      id: "run-diagnostics-toggle", appearance: "secondary", size: "small", icon: buttons.icon(ICONS.terminal),
+      "aria-label": "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
+      "aria-describedby": "diagnostics-status",
+      onClick: () => runWorkspace.toggleDiagnostics(),
+    });
+    buttons.append(headerActions, logsTrigger);
+    const diagnosticsContainer = document.querySelector("#workspace-diagnostics");
+    let logsTriggerKey = "";
     const structureGuidance = document.querySelector("#structure-guidance");
     const search = document.querySelector("#search");
     const tierFilter = document.querySelector("#tier-filter");
@@ -1041,6 +1015,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const defaultPositions = new Map();
     let runtimeEntrypoints = [];
     let operationalState = { app: null, readiness: null };
+    let readinessError = "";
     let portReview = null;
     let portBusy = false;
     let portMessage = "";
@@ -1056,10 +1031,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ? "Process document"
         : "Summarize how you can help and run a sample check";
     let agentPromptTouched = false;
-    let agentResponseText = "The agent response will appear here.";
+    let agentResponseText = "No task has run yet.";
+    let agentRequestState = "idle";
     let invokingAgent = false;
     let agentDocument = null;
+    let documentTestNotice = "";
     let documentInputExpanded = false;
+    let documentMenuOpen = false;
+    let documentPasteOpen = false;
+    let documentEditMode = false;
+    let documentPasteDraft = "";
     let documentError = "";
     let documentLoading = false;
     let documentReadVersion = 0;
@@ -1080,25 +1061,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let selectedGateway = null;
     let selectedModel = "";
     let gatewayApplying = false;
-    let panelMode = "build";
+    let panelMode = "manage";
+    let connectionScroll = 0;
     let observeView = "map";
     const navigationMount = document.querySelector("#workspace-navigation-mount");
     const loadingHeader = document.querySelector("#workspace-loading-header");
     const navigationRetry = document.querySelector("#retry-workspace-navigation");
     const navigationMessage = document.querySelector("#workspace-navigation-message");
     const navigationItems = [
-      { value: "build", label: "Build", button: { id: "build-app", "aria-controls": "workspace-shell" } },
-      { value: "manage", label: "Run & Debug", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
+      { value: "build", label: "Build", button: { id: "build-workspace", "aria-controls": "app-customize" } },
+      { value: "connections", label: "Connect", button: { id: "connect-workspace", "aria-controls": "workspace-shell" } },
+      { value: "manage", label: "Run", button: { id: "manage-app", "aria-controls": "workspace-shell" } },
       { value: "observe", label: "Observe", button: { id: "map-app", "aria-controls": "workspace-shell" } },
-      { value: "deploy", label: "Deploy", button: { id: "deploy-app", "aria-controls": "workspace-shell" } },
+      { value: "deploy", label: "Deploy", button: { id: "deploy-workspace", "aria-controls": "workspace-shell" } },
     ];
-    const navigationPreferenceKey = "app-platform-workspace:" + MODEL.root + ":navigation-collapsed";
-    let navigationCollapsed = false;
-    try {
-      const saved = localStorage.getItem(navigationPreferenceKey);
-      if (saved !== null && saved !== "true" && saved !== "false") throw new Error("Invalid navigation preference.");
-      navigationCollapsed = saved === "true";
-    } catch (error) { setStatus("Could not restore workspace navigation: " + error.message, true); }
+    const workspaceHistory = [];
+    let workspaceHistoryIndex = -1;
     let navigationToolkit, navigationAttempt = toolkitAttempt, navigationFailed = false, navigationDisposed = false;
     let resolveNavigationReady;
     const navigationReady = new Promise(resolve => { resolveNavigationReady = resolve; });
@@ -1119,23 +1097,41 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         setStatus(message, true);
       },
     });
+    const getAgentStatus = (${getAgentStatus.toString()});
+    const agentStatusRoot = document.createElement("div");
+    const documentTestNoticeRoot = document.createElement("div");
+    const documentMenuRoot = document.createElement("div");
+    documentMenuRoot.className = "studio-toolkit";
+    const documentMenuButtonProps = {
+      appearance: "secondary", size: "small", icon: buttons.icon(ICONS.plus),
+      "aria-label": "Add document", "data-add-document": "true", "data-action-key": "add-document",
+      title: "Add a document for the agent to analyze or to test how safety policies handle its content.",
+    };
+    documentTestNoticeRoot.dataset.documentTestNotice = "true";
+    documentTestNoticeRoot.className = "studio-toolkit";
+    agentStatusRoot.id = "agent-status";
+    agentStatusRoot.setAttribute("role", "status");
+    agentStatusRoot.setAttribute("aria-live", "polite");
+    agentStatusRoot.setAttribute("aria-atomic", "true");
+    const agentStatusView = toolkit.mountCanvasComponent(agentStatusRoot,
+      (${createAgentStatusComponent.toString()})(toolkit), getAgentStatus());
     const navigationProps = {
-      items: navigationItems, appTitle: document.querySelector("#app-title"),
+      items: navigationItems, appTitle: document.querySelector("#app-identity"),
       utilities: loadingHeader.querySelector(".studio-theme-control"), content: document.querySelector("#workspace-content"),
-      defaultCollapsed: navigationCollapsed,
-      onNavigate: (_event, value) => {
-        if (value === "build") renderBuildPanel();
+      runtimeActions: headerActions,
+      history: {
+        onBack: () => navigateWorkspaceHistory(-1),
+        onForward: () => navigateWorkspaceHistory(1),
+      },
+      onNavigate: (event, value) => {
+        if (value === "build") void openCustomizeApp();
+        else if (value === "connections") renderConnectionsPanel();
         else if (value === "manage") renderManagePanel();
         else if (value === "deploy") renderDeployPanel();
-        else if (!["map", "logs"].includes(document.body.dataset.workspace)) {
+        else if (value === "observe" && !["map", "logs"].includes(workspaceDestination())) {
           if (observeView === "logs") renderLogsPanel();
           else renderMapPanel();
         }
-      },
-      onCollapsedChange: value => {
-        navigationProps.defaultCollapsed = value;
-        try { localStorage.setItem(navigationPreferenceKey, String(value)); }
-        catch (error) { setStatus("Could not remember workspace navigation: " + error.message, true); }
       },
       onReady: () => {
         loadingHeader.hidden = true;
@@ -1146,11 +1142,27 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     };
     function renderWorkspaceNavigation(current) {
       if (!navigationFailed && !navigationDisposed) components.renderComponent(navigationMount, "WorkspaceNavigation",
-        { ...navigationProps, current }, "workspace navigation");
+        { ...navigationProps, current, history: {
+          ...navigationProps.history,
+          backDisabled: workspaceHistoryIndex <= 0,
+          forwardDisabled: workspaceHistoryIndex >= workspaceHistory.length - 1,
+        } }, "workspace navigation");
+    }
+    function navigateWorkspaceHistory(delta) {
+      const next = workspaceHistoryIndex + delta;
+      if (next < 0 || next >= workspaceHistory.length) return;
+      workspaceHistoryIndex = next;
+      const mode = workspaceHistory[next];
+      if (mode === "build") void openCustomizeApp();
+      else if (mode === "connections") renderConnectionsPanel();
+      else if (mode === "manage") renderManagePanel();
+      else if (mode === "deploy") renderDeployPanel();
+      else if (mode === "logs") renderLogsPanel();
+      else renderMapPanel();
     }
     function focusWorkspaceNavigation(id = "map-app") {
       const target = document.querySelector("#" + id);
-      (target?.getClientRects().length ? target : document.querySelector("#browse-workspaces"))?.focus({ preventScroll: true });
+      target?.focus({ preventScroll: true });
     }
     navigationRetry.addEventListener("click", () => {
       navigationAttempt++;
@@ -1169,26 +1181,62 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appLogs?.dispose();
       buildPanel.hide();
       components.dispose();
+      agentStatusView.dispose();
+      runtimeStatusView.dispose();
+      runWorkspace.dispose();
     });
     ${BUILD_SYNTAX_SCRIPT}
     let deleteConfirming = false;
     let deletingApp = false;
     let deleteError = "";
+    const buildPage = document.querySelector("#app-customize");
+    const customizeContent = document.querySelector("#customize-content");
+    let buildFocusKey;
+    customizeContent.addEventListener("focusin", event => {
+      buildFocusKey = event.target.dataset.focusKey;
+    });
     const buildPanel = (${createBuildPanel.toString()})({
-      container: details, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info,
+      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info,
       isActive: () => panelMode === "build",
       onRun: () => {
-        renderManagePanel();
+        if (panelMode !== "manage") renderManagePanel();
         details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
         details.querySelector('[aria-label="Agent message"]')?.focus();
       },
-      onModel: () => openAppSettings("connection"),
-      onOpenStructure: () => renderStructureMap(),
+      onModel: event => {
+        event.currentTarget.focus({ preventScroll: true });
+        openAppSettings("connection");
+      },
+      onOpenStructure: () => {
+        renderStructureMap();
+      },
     });
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
-      onClear: buttons.clear,
+      diagnosticsContainer,
+      toggle: logsTrigger,
+      onDiagnosticsChange: ({ open, issues }) => {
+        const key = JSON.stringify([open, issues]);
+        if (key === logsTriggerKey) return;
+        logsTriggerKey = key;
+        buttons.update(logsTrigger, {
+          "aria-expanded": open,
+          "aria-label": issues ? "Logs: " + issues : "Logs",
+          title: issues || (open ? "Hide logs" : "Show logs"),
+          children: issues ? toolkit.createElement(toolkit.Badge, {
+              className: "logs-warning-badge", color: "danger", appearance: "tint", size: "small",
+              "aria-hidden": true,
+            }, buttons.icon(ICONS.alert)) : null,
+        });
+      },
+      buttons,
+      onClear: container => {
+        if (container.contains(agentStatusRoot)) agentStatusRoot.remove();
+        if (container.contains(documentTestNoticeRoot)) documentTestNoticeRoot.remove();
+        if (container.contains(documentMenuRoot)) documentMenuRoot.remove();
+        buttons.clear(container);
+      },
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
       renderEnvironment: renderEnvironmentPanel,
@@ -1212,7 +1260,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         feed.dataset.runScrollKey = "operations";
         renderCommandFeed(feed);
       },
-      onConnection: () => openAppSettings("connection"),
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -1308,10 +1355,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         label = "Needs attention";
         tone = "error";
       }
-      appStatusBadge.textContent = label;
-      appStatusBadge.dataset.tone = tone;
-      appStatusBadge.title = "Open local runtime controls";
-      appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run/Debug.");
+      const statusKey = label + ":" + tone;
+      if (runtimeStatusKey !== statusKey) {
+        runtimeStatusKey = statusKey;
+        runtimeStatusView.update({
+          children: label, "data-tone": tone,
+          color: { neutral: "informative", success: "success", warning: "warning", busy: "brand", error: "danger" }[tone],
+        });
+        appStatusBadge.setAttribute("aria-label", "App status: " + label + ". Open Run/Debug.");
+      }
 
       let actionLabel = "Set up";
       let operation = "";
@@ -1320,7 +1372,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         actionLabel = "Checking…";
         disabled = true;
       } else if (appState === "running") {
-        actionLabel = "Stop app";
+        actionLabel = operationalState.readiness?.mode === "preview" ? "Stop preview" : "Stop app";
         operation = "stop-local";
       } else if (appState === "starting") {
         actionLabel = operationalState.app.recovered ? "Stop partial startup" : "Cancel startup";
@@ -1334,14 +1386,68 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         disabled = true;
       } else if (operationalState.readiness?.ready) {
         actionLabel = operationalState.readiness.mode === "preview"
-          ? "Start preview"
-          : "Start app";
+          ? "Run preview"
+          : "Run app";
         operation = "run-local";
       }
-      buttons.setText(headerRuntimeAction, actionLabel);
-      buttons.setDisabled(headerRuntimeAction, disabled);
+      buttons.update(headerRuntimeAction, {
+        children: actionLabel, icon: operation === "run-local" ? runtimePlayIcon : null, disabled,
+      });
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
+      headerRuntimeAction.title = actionLabel;
+      syncRuntimePlacement();
+      document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
+        entry.ready && normalized(entry.name) === "web");
+      document.querySelector("#workspace-runtime-actions").hidden = document.querySelector("#header-open-app").hidden;
+      updateAgentStatusBrief();
+    }
+
+    function syncRuntimePlacement() {
+      if (headerRuntimeAction.dataset.operation === "run-local") {
+        buttons.setDisabled(headerRuntimeAction, invokingAgent || documentTesting || documentLoading || Boolean(lifecycleOperation));
+      }
+    }
+
+    function updateAgentStatusBrief() {
+      const { app, readiness } = operationalState;
+      const status = getAgentStatus({
+        ...operationalState, readinessError, requestState: agentRequestState,
+        agentReady: runtimeEntrypoints.some(entry => entry.ready && normalized(entry.name) === "agent"),
+      });
+      const prerequisites = readiness?.prerequisites?.missingTools || [];
+      const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
+      const actions = [];
+      if (app?.foreignEntrypoints?.length) {
+        actions.push({ key: "resolve-ports", label: "Resolve port conflict", onClick: () => openAppSettings("ports") });
+      }
+      if (app?.state === "failed" || (app?.state === "starting" && app.recovered)) {
+        if (app.recovered || runtimeEntrypoints.some(entry => entry.ready)) {
+          actions.push({ key: "stop-partial-app", label: "Stop partial startup",
+            disabled: Boolean(lifecycleOperation), onClick: () => runAppOperation("stop-local") });
+        } else if (app.command?.includes("aka.ms/aca-cli-install")) {
+          actions.push({ key: "review-cli", label: "Review CLI setup", onClick: () => openAppSettings("prereqs") });
+        } else if (app.operation === "configuring") {
+          actions.push({ key: "review-connection", label: "Review model connection", onClick: () => renderConnectionsPanel() });
+        } else {
+          actions.push({ key: "retry-app", label: "Retry startup", disabled: busy, onClick: () => runAppOperation("run-local") });
+        }
+      }
+      for (const item of prerequisites) {
+        if (item.actionOperation && item.actionLabel) {
+          actions.push({ key: "prerequisite-" + (item.id || item.label), label: item.actionLabel,
+            disabled: busy || ACTIVE_LIFECYCLE_STATES.includes(app?.state),
+            onClick: () => runAppOperation(item.actionOperation) });
+        }
+      }
+      agentStatusView.update({
+        ...status, prerequisites, actions,
+        command: app?.state === "failed" ? app.command : "",
+        errorDetail: app?.state === "failed"
+          ? app.errorDetail || latestCommands.find(item => item.status === "failed")?.error : "",
+        connectionIcon: buttons.icon(ICONS.link),
+        onConnection: () => renderConnectionsPanel(),
+      });
     }
 
     function detailsHeightMaximum() {
@@ -1371,8 +1477,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function setStatus(message, isError = false) {
-      status.textContent = message;
+      status.setAttribute("role", isError ? "alert" : "status");
+      status.classList.toggle("visually-hidden", !isError);
       status.classList.toggle("error", isError);
+      status.textContent = message;
     }
 
     function requestFlowLayout() {
@@ -1777,7 +1885,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function updatePresentation() {
       entryFilter.hidden = MODEL.requestFlow.entrypointIds.length < 2;
-      mapContext.textContent = "Source-derived request flow · not live usage";
       for (const node of MODEL.nodes) {
         const element = nodeElements.get(node.id);
         const kind = element.querySelector('[data-role="kind"]');
@@ -1922,6 +2029,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function clearElement(element) {
+      if (element.contains(agentStatusRoot)) agentStatusRoot.remove();
+      if (element.contains(documentTestNoticeRoot)) documentTestNoticeRoot.remove();
+      if (element.contains(documentMenuRoot)) documentMenuRoot.remove();
+      if (element === details) runWorkspace.capture();
+      if (element === details && details.dataset.mode === "connections") {
+        connectionScroll = details.scrollTop;
+        gatewayDiscovery.invalidate();
+      }
       buttons.clear(element);
       if (element === details) {
         appLogs?.dispose();
@@ -1988,9 +2103,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function closeMapDetails() {
-      const target = panelMode === "connections" && !guideCollapsed
-        ? guideContent.querySelector('[data-action-key="review-connections"]')
-        : nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
+      const target = nodeElements.get(selectedId) || edgeElements.get(selectedEdgeId);
       renderMapPanel();
       if (target) target.focus({ preventScroll: true });
       else focusWorkspaceNavigation();
@@ -2004,19 +2117,32 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(label);
     }
 
+    function workspaceDestination() {
+      if (["build", "manage", "logs", "deploy", "connections"].includes(panelMode)) return panelMode;
+      return "map";
+    }
+
     function updateModeHighlight() {
-      if (panelMode !== "build") buildPanel.hide();
-      const mode = ["build", "manage", "logs", "deploy"].includes(panelMode) ? panelMode : "map";
-      if (mode !== "manage" && !window.appPlatformSettings?.isOpen?.()) {
+      const mode = ["build", "manage", "logs", "deploy", "connections"].includes(panelMode) ? panelMode : "map";
+      const destination = workspaceDestination();
+      if (workspaceHistory[workspaceHistoryIndex] !== destination) {
+        workspaceHistory.splice(workspaceHistoryIndex + 1);
+        workspaceHistory.push(destination);
+        workspaceHistoryIndex = workspaceHistory.length - 1;
+      }
+      if (!["manage", "connections"].includes(mode) && !window.appPlatformSettings?.isOpen?.()) {
         gatewayDiscovery.invalidate();
       }
       if (panelMode !== "map") setStructureGuidance(false);
-      const observing = mode === "map" || mode === "logs";
+      if (mode !== "build" && !buildPage.hidden) buildPanel.hide();
+      buildPage.hidden = mode !== "build";
+      workspace.hidden = mode === "build";
+      const observing = destination === "map" || destination === "logs";
       if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
       document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
-      const current = observing ? "observe" : mode;
+      const current = observing ? "observe" : destination;
       document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
@@ -2028,36 +2154,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       workspace.setAttribute("role", observing ? "tabpanel" : "region");
       if (observing) workspace.setAttribute("aria-labelledby", mode === "logs" ? "logs-app" : "map-view");
       else workspace.removeAttribute("aria-labelledby");
-      details.setAttribute("aria-label", mode === "map" ? "Observe/Map inspector" :
-        mode === "build" ? "Build workspace" : mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
-      mapContext.hidden = mode !== "map";
+      details.setAttribute("aria-label", destination === "connections" ? "Connections workspace" : mode === "map" ? "Observe/Map inspector" :
+        mode === "logs" ? "Logs workspace" : mode === "deploy" ? "Deploy workspace" : "Run/Debug workspace");
       if (mode === "map" && !mapHasFitted) requestAnimationFrame(() => fitGraph(.48));
-      updateObserveAction();
-    }
-
-    function setGuideCollapsed(collapsed, persist = false) {
-      guideCollapsed = collapsed;
-      const restoreFocus = collapsed && guideContent.contains(document.activeElement);
-      guideRail.dataset.collapsed = String(collapsed);
-      guideContent.hidden = collapsed;
-      document.querySelector("#guide-shortcuts").hidden = !collapsed;
-      const toggle = document.querySelector("#action-center");
-      toggle.innerHTML = ICONS[collapsed ? "sidebar-expand" : "sidebar-collapse"];
-      toggle.firstElementChild.classList.add("guide-panel-icon");
-      toggle.setAttribute("aria-expanded", String(!collapsed));
-      toggle.title = collapsed ? "Expand Guide" : "Collapse Guide";
-      toggle.setAttribute("aria-label", toggle.title);
-      for (const shortcut of document.querySelectorAll("[data-guide-stage]")) shortcut.setAttribute("aria-expanded", String(!collapsed));
-      if (restoreFocus) toggle.focus({ preventScroll: true });
-      setDetailsPanelHeight(detailsPanelHeight);
-      if (persist) {
-        guideExplicitChoice = true;
-        try { localStorage.setItem(guidePreferenceKey, String(collapsed)); }
-        catch (error) { setStatus("Could not remember Guide visibility: " + error.message, true); }
-      }
+      syncRuntimePlacement();
     }
 
     function renderMapPanel() {
+      renderMapWorkspace();
+    }
+
+    function renderMapWorkspace() {
       setStructureGuidance(false);
       panelMode = "map";
       selectedId = null;
@@ -2073,22 +2180,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderStructureMap() {
-      renderMapPanel();
+      renderMapWorkspace();
       setStructureGuidance(true);
       structureGuidance.focus({ preventScroll: true });
     }
 
-    function renderBuildPanel() {
-      clearDocumentAssessment();
+    async function openCustomizeApp() {
+      if (panelMode === "build") return;
+      if (panelMode === "manage") runWorkspace.capture();
       panelMode = "build";
-      selectedId = null;
-      selectedEdgeId = null;
-      applySelection();
-      clearElement(details);
-      details.dataset.empty = "false";
-      details.dataset.mode = "build";
       updateModeHighlight();
-      void buildPanel.show();
+      await buildPanel.show({ refresh: customizeContent.childElementCount > 0 });
+      if (panelMode !== "build" || window.appPlatformSettings?.isOpen()) return;
+      const target = [...customizeContent.querySelectorAll("[data-focus-key]")]
+        .find(node => node.dataset.focusKey === buildFocusKey && !node.disabled && node.checkVisibility());
+      (target || customizeContent).focus({ preventScroll: true });
     }
 
     function renderDeployPanel() {
@@ -2108,7 +2214,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       appendText(titleGroup, "p", "Provision cloud infrastructure and deploy application code once local validation and observation are complete.");
 
       const body = appendText(details, "div", "", "run-tab-body");
-      renderDeploymentPanel(body);
+      renderDeployment(body);
     }
 
     function renderLogsPanel(nodeId = null) {
@@ -2149,10 +2255,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (node.tierId === "agent" && candidate === "agent") return true;
         return names.some((name) => candidate.includes(name) || name.includes(candidate));
       });
-    }
-
-    function effectiveJourneyStages() {
-      return (${buildJourneyStages.toString()})(MODEL.actionCenter.stages, operationalState, ACTIVE_LIFECYCLE_STATES);
     }
 
     async function runAppOperation(operation, extraBody = {}) {
@@ -2208,128 +2310,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         await refreshOperationalState();
       } finally {
         lifecycleOperation = null;
+        syncAgentInputControls();
       }
-    }
-
-    function renderRuntimeAction(parent) {
-      const card = document.createElement("div");
-      const appState = operationalState.app?.state;
-      const foreignEntrypoints = operationalState.app?.foreignEntrypoints || [];
-      card.className = "action-card run-card " +
-        (appState === "running" ? "recommended" : foreignEntrypoints.length ? "attention" : "optional");
-      appendText(card, "span", "Run", "action-priority");
-      if (appState === "running") {
-        appendText(card, "strong", "Your app is running");
-        appendText(card, "p", "Open a ready endpoint to try it, or stop the local app when you are finished.");
-        const web = runtimeEntrypoints.find((entrypoint) =>
-          entrypoint.ready && normalized(entrypoint.name) === "web");
-        if (web) {
-          buttons.append(card, keyedActionButton("open-app", "Open app", async () => {
-            try {
-              await apiRequest("/api/open-entrypoint", {
-                method: "POST",
-                body: JSON.stringify({ root: MODEL.root, port: web.port }),
-              });
-              setStatus("Opened the local app.");
-            } catch (error) {
-              setStatus(error.message, true);
-            }
-          }, true));
-        }
-        buttons.append(card, keyedActionButton("stop-app", "Stop", () => runAppOperation("stop-local")));
-      } else if (foreignEntrypoints.length) {
-        appendText(card, "strong", "Another app is using the local ports");
-        appendText(
-          card,
-          "p",
-          "Stop the other local app before starting this one. Ports in use: " +
-            foreignEntrypoints.map((entrypoint) => String(entrypoint.port)).join(", ") + ".",
-        );
-        buttons.append(card, actionButton("Back to apps", () => location.assign("/"), true));
-      } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        if (operationalState.app?.recovered) {
-          appendText(card, "strong", "Startup needs attention");
-          appendText(card, "p", "Some app services are still running, but the original startup command is no longer active. Stop them before trying again.");
-          buttons.append(card, keyedActionButton("stop-partial-app", "Stop partial startup", () => runAppOperation("stop-local")));
-        } else if (appState === "starting") {
-          const expectedEntrypoints = runtimeEntrypoints.filter((entrypoint) => entrypoint.expected !== false);
-          const readyCount = expectedEntrypoints.filter((entrypoint) => entrypoint.ready).length;
-          const totalCount = expectedEntrypoints.length;
-          appendText(card, "strong", "Starting your app");
-          appendText(card, "p", totalCount
-            ? String(readyCount) + " of " + String(totalCount) + " services are ready. First startup can take about a minute."
-            : "Starting local services. First startup can take about a minute.");
-          if (totalCount) {
-            const progress = document.createElement("progress");
-            progress.max = totalCount;
-            progress.value = readyCount;
-            progress.setAttribute("aria-label", String(readyCount) + " of " + String(totalCount) + " services ready");
-            card.append(progress);
-          }
-          buttons.append(card, keyedActionButton("cancel-startup", "Cancel startup", () => runAppOperation("stop-local")));
-        } else {
-          const activeLabels = {
-            stopping: "Stopping your app",
-            configuring: "Configuring model access",
-            provisioning: "Provisioning Azure resources",
-            deploying: "Deploying your app",
-          };
-          appendText(card, "strong", activeLabels[appState] || "Updating your app");
-          appendText(card, "p", "Completing this operation. Readiness updates automatically.");
-        }
-      } else if (appState === "failed") {
-        appendText(card, "strong", "Last operation failed");
-        appendText(card, "p", operationalState.app.error || "Review command output before retrying.", "error");
-        if (operationalState.app.command) {
-          appendText(card, "pre", operationalState.app.command, "command-code");
-        }
-        const errorDetail = operationalState.app.errorDetail || latestCommands.find((item) => item.status === "failed")?.error;
-        if (errorDetail && errorDetail !== operationalState.app.error) {
-          const errorDisclosure = document.createElement("details");
-          errorDisclosure.className = "command-error-details";
-          appendText(errorDisclosure, "summary", "Error details");
-          appendText(errorDisclosure, "pre", errorDetail, "command-code command-error-output");
-          card.append(errorDisclosure);
-        }
-        if (runtimeEntrypoints.some((entry) => entry.ready)) {
-          buttons.append(card, keyedActionButton("stop-failed-app", "Stop partial startup", () => runAppOperation("stop-local")));
-        } else if (operationalState.app.command?.includes("aka.ms/aca-cli-install")) {
-          buttons.append(card, actionButton("Review CLI setup", () => openAppSettings("prereqs"), true));
-        } else if (operationalState.app.operation === "configuring") {
-          buttons.append(card, actionButton("Review model connection", () => renderManagePanel({ openGateway: true }), true));
-        } else {
-          buttons.append(card, keyedActionButton("retry-app", "Retry startup", () => runAppOperation("run-local"), true));
-        }
-      } else if (operationalState.readiness?.ready) {
-        const previewMode = operationalState.readiness.mode === "preview";
-        appendText(card, "strong", previewMode ? "Ready to preview" : "Ready to try");
-        appendText(
-          card,
-          "p",
-          previewMode
-            ? "Start the app surface now. Connect an AI Gateway later to enable the complete agent workflow."
-            : "Required local configuration was found. Start the app locally to try it.",
-        );
-        buttons.append(card, keyedActionButton(
-          "run-app",
-          previewMode ? "Run preview" : "Run app",
-          () => runAppOperation("run-local"),
-          true,
-        ));
-      } else if (operationalState.readiness) {
-        appendText(card, "strong", "Finish setup before running");
-        appendText(card, "p", operationalState.readiness.guidance || "Complete the remaining connection setup before running.");
-        buttons.append(card, keyedActionButton("finish-setup", "Finish setup", () => openAppSettings("connection"), true));
-      } else {
-        appendText(card, "strong", "Checking app status");
-        appendText(card, "p", "Checking what is ready and what still needs setup.");
-      }
-      parent.append(card);
     }
 
     function runOpportunityAction(opportunity) {
       if (opportunity.action.kind === "review-connections") {
-        renderConnectionsPanel();
+        renderSourceConnectionsPanel();
         return;
       }
       if (opportunity.action.kind === "add-tier") {
@@ -2365,15 +2352,32 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return card;
     }
 
-    function renderConnectionsPanel() {
+    function renderConnectionsPanel({ focus = true } = {}) {
       panelMode = "connections";
-      if (window.innerWidth <= 900) setGuideCollapsed(true);
+      selectedId = null;
+      selectedEdgeId = null;
+      clearElement(details);
+      details.dataset.empty = "false";
+      details.dataset.mode = "connections";
+      applySelection();
+      const heading = appendText(details, "h2", "Gateway connections");
+      heading.tabIndex = -1;
+      appendText(details, "p", "Choose model access and sandbox execution for this app. Changes are saved only when you apply or explicitly create resources.");
+      const content = appendText(details, "div", "", "gateway-connection-page");
+      void Promise.resolve(renderAppSettingsSection("connection", content)).then(() => {
+        if (content.isConnected) details.scrollTop = connectionScroll;
+      });
+      if (focus) heading.focus({ preventScroll: true });
+    }
+
+    function renderSourceConnectionsPanel() {
+      panelMode = "source-connections";
       selectedId = null;
       selectedEdgeId = null;
       applySelection();
       clearElement(details);
       details.dataset.empty = "false";
-      details.dataset.mode = "connections";
+      details.dataset.mode = "source-connections";
       appendPanelBack();
       const heading = appendText(details, "h2", "Connection review");
       heading.tabIndex = -1;
@@ -2411,166 +2415,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(details, "p", "No source connection issues found.");
       }
       heading.focus({ preventScroll: true });
-    }
-
-    function updateObserveAction() {
-      const card = guideContent.querySelector("[data-observe-action]");
-      if (!card) return;
-      const action = card.querySelector('[data-action-key="observe-map"]');
-      if (!["build", "manage", "logs"].includes(panelMode)) {
-        if (action) {
-          const mount = buttons.host(action);
-          buttons.clear(mount);
-          mount.remove();
-        }
-      } else if (!action) {
-        buttons.append(card, keyedActionButton("observe-map", "Open App Map", () => {
-          renderMapPanel();
-          focusWorkspaceNavigation();
-        }, true));
-      }
-    }
-
-    function renderActionCenter() {
-      const details = guideContent;
-      const restoreFocus = details.contains(document.activeElement);
-      const focusedAction = restoreFocus ? document.activeElement?.dataset?.actionKey : null;
-      const focusedStage = restoreFocus ? document.activeElement?.dataset?.stage : null;
-      const previousScrollTop = details.scrollTop;
-      clearElement(details);
-      details.dataset.empty = "false";
-      const heading = appendText(details, "h3", "Workflow progress");
-      heading.tabIndex = -1;
-      appendText(details, "p", "Check readiness and run the next step for your app.");
-      if (launchNotice) {
-        const notice = document.createElement("div");
-        notice.className = "action-card attention";
-        appendText(notice, "strong", "App created");
-        appendText(notice, "p", launchNotice);
-        buttons.append(notice, actionButton("Dismiss", () => {
-          launchNotice = "";
-          renderActionCenter();
-        }));
-        details.append(notice);
-      }
-      const stages = effectiveJourneyStages();
-      const currentStage = stages.find((stage) =>
-        stage.state === "next" || stage.state === "ready" ||
-        stage.state === "active" || stage.state === "runtime");
-      updateGuideShortcuts(stages, currentStage);
-      const currentOpportunity = currentStage && currentStage.id !== "observe"
-        ? MODEL.actionCenter.opportunities.find((opportunity) => opportunity.stage === currentStage.id)
-        : null;
-      const journey = document.createElement("div");
-      journey.className = "journey";
-      journey.setAttribute("role", "list");
-      journey.setAttribute("aria-label", "App progress");
-      for (const stage of stages) {
-        const item = document.createElement("div");
-        item.className = "journey-stage " + stage.state;
-        item.dataset.stage = stage.id;
-        item.tabIndex = -1;
-        item.setAttribute("role", "listitem");
-        if (stage === currentStage) {
-          item.setAttribute("aria-current", "step");
-        }
-        let content = item;
-        if (stage.id === "build" || stage.id === "connect" || stage.id === "deploy") {
-          content = document.createElement("button");
-          content.type = "button";
-          content.dataset.actionKey = stage.id === "build"
-            ? "edit-app-structure"
-            : stage.id === "connect"
-              ? "review-connections"
-              : "open-deploy";
-          content.className = "journey-stage-action";
-          content.setAttribute("aria-label", stage.id === "build"
-            ? "Build: edit app structure"
-            : stage.id === "connect"
-              ? "Connect: review connections"
-              : "Deploy: provision and deploy to Azure");
-          content.addEventListener("click", stage.id === "build"
-            ? renderStructureMap
-            : stage.id === "connect"
-              ? renderConnectionsPanel
-              : renderDeployPanel);
-          item.append(content);
-        }
-        appendText(content, "span", journeyStateLabel(stage.state), "journey-state");
-        appendText(content, "strong", stage.label);
-        appendText(
-          content,
-          "span",
-          stage === currentStage && currentOpportunity ? currentOpportunity.title + " below" : stage.detail,
-          "journey-detail",
-        );
-        journey.append(item);
-      }
-      details.append(journey);
-
-      appendText(details, "h3", "Next action");
-      if (currentStage?.id === "observe") {
-        const card = appendText(details, "div", "", "action-card recommended");
-        card.dataset.observeAction = "true";
-        appendText(card, "strong", "Observe the running app");
-        appendText(card, "p", "Select a component to inspect its source, or open Logs for service output. Runtime controls remain in Run/Debug.");
-        updateObserveAction();
-      } else if (currentStage?.id === "deploy") {
-        const card = appendText(details, "div", "", "action-card recommended");
-        appendText(card, "strong", "Deploy to Azure");
-        appendText(card, "p", "Provision Azure infrastructure and deploy your app once local observation is complete.");
-        const actions = appendText(card, "div", "", "field-actions");
-        buttons.append(actions, actionButton("Open Deploy", () => renderDeployPanel(), true));
-      } else if (currentStage?.id === "run" || !currentOpportunity) {
-        renderRuntimeAction(details);
-      } else {
-        const list = document.createElement("div");
-        list.className = "action-list";
-        list.append(opportunityCard(currentOpportunity));
-        details.append(list);
-      }
-      if (operationalState.app?.state === "running" && currentStage?.id !== "run") {
-        appendText(details, "h3", "App status");
-        renderRuntimeAction(details);
-      }
-      const remaining = MODEL.actionCenter.opportunities.filter((opportunity) =>
-        opportunity !== currentOpportunity);
-      if (remaining.length > 0) {
-        const more = document.createElement("details");
-        more.className = "more-guidance";
-        const summary = document.createElement("summary");
-        summary.textContent = "Other checks & improvements (" + remaining.length + ")";
-        const moreList = document.createElement("div");
-        moreList.className = "action-list";
-        for (const opportunity of remaining) moreList.append(opportunityCard(opportunity));
-        more.append(summary, moreList);
-        details.append(more);
-      }
-      details.scrollTop = previousScrollTop;
-      if (restoreFocus) {
-        const replacement = focusedAction
-          ? [...details.querySelectorAll("[data-action-key]")]
-            .find((element) => element.dataset.actionKey === focusedAction)
-          : focusedStage ? details.querySelector('[data-stage="' + focusedStage + '"]') : null;
-        (replacement || heading).focus({ preventScroll: true });
-      }
-    }
-
-    function journeyStateLabel(state) {
-      return { complete: "Complete", active: "Current", attention: "Review", ready: "Ready",
-        blocked: "Later", runtime: "Checking", next: "Next" }[state] || "Checking";
-    }
-
-    function updateGuideShortcuts(stages, currentStage) {
-      const symbols = { complete: "check", attention: "alert", active: "dot-fill", ready: "check", next: "arrow-right", blocked: "skip", runtime: "stopwatch" };
-      for (const stage of stages) {
-        const button = document.querySelector('[data-guide-stage="' + stage.id + '"]');
-        button.dataset.state = stage.state;
-        button.dataset.current = String(stage === currentStage);
-        button.title = stage.label + ": " + journeyStateLabel(stage.state) + ". " + stage.detail;
-        button.setAttribute("aria-label", button.title);
-        button.querySelector(".guide-state-icon").innerHTML = ICONS[symbols[stage.state] || "stopwatch"];
-      }
     }
 
     async function loadGatewayControls(container, refresh = false) {
@@ -2918,7 +2762,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
               gatewayDiscovery.invalidate();
               buttons.setDisabled(apply, true);
               buttons.setText(apply, "Applying…");
-              const envTabSummary = details.querySelector('[data-run-tab="environment"] .run-tab-summary');
+              const envTabSummary = diagnosticsContainer.querySelector('[data-run-tab="environment"] .run-tab-summary');
               if (envTabSummary) {
                 envTabSummary.textContent = "Applying…";
                 envTabSummary.dataset.attention = "false";
@@ -2955,6 +2799,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 gatewayApplying = false;
                 window.appPlatformSettings?.refreshApp();
                 if (panelMode === "manage") renderManagePanel();
+                else if (panelMode === "connections" && !window.appPlatformSettings?.isOpen()) renderConnectionsPanel({ focus: false });
               }
             },
             true,
@@ -2970,7 +2815,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
           !discovery.isCurrent()) return;
         clearElement(container);
-        appendText(container, "p", error.message, "error");
+        appendText(container, "p", error.message, "error").setAttribute("role", "alert");
+        buttons.append(container, actionButton("Retry scan", () => { void loadGatewayControls(container, true); }));
         const gatewayTier = tierById.get("gateway");
         buttons.append(container, actionButton("Open guided gateway setup", () => {
           window.appPlatformSettings.close();
@@ -3040,14 +2886,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function canInvokeOrStartAgent() {
+      const appState = operationalState.app?.state;
+      if (appState === "stopping") return false;
       const ready = runtimeEntrypoints.some((entry) => entry.ready && normalized(entry.name) === "agent");
       if (ready) return true;
       const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
       const needsGateway = !gatewayConfigured && (operationalState.readiness?.mode === "preview"
         || !operationalState.readiness?.ready);
       if (needsGateway) return false;
-      const appState = operationalState.app?.state;
-      if (appState && ["stopping", "configuring", "provisioning", "deploying"].includes(appState)) return false;
+      if (appState && ["configuring", "provisioning", "deploying"].includes(appState)) return false;
       return Boolean(operationalState.readiness?.ready);
     }
 
@@ -3092,6 +2939,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function syncAgentInputControls() {
+      syncRuntimePlacement();
+      updateAgentStatusBrief();
       const tester = details.querySelector(".agent-tester");
       if (!tester) return;
       const busy = invokingAgent || documentTesting || documentLoading;
@@ -3099,15 +2948,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const supportsDocuments = Boolean(operationalState.readiness?.documentInput);
       for (const input of tester.querySelectorAll("textarea, input")) input.disabled = busy;
       const send = tester.querySelector("[data-invoke-agent]");
-      if (send) buttons.setDisabled(send, !canRun || busy || (supportsDocuments && Boolean(documentError)));
+      if (send) buttons.setDisabled(send, !canRun || busy || (supportsDocuments && (Boolean(documentError) || documentPasteOpen)));
       const test = tester.querySelector("[data-test-document]");
-      if (test) buttons.setDisabled(test, !canRun || busy || Boolean(documentError));
+      if (test) buttons.setDisabled(test, !canRun || busy || Boolean(documentError) || documentPasteOpen);
       const egress = tester.querySelector("[data-test-egress]");
-      if (egress) buttons.setDisabled(egress, !canRun || busy || Boolean(documentError));
-      const loadSample = tester.querySelector("[data-load-sample-document]");
-      if (loadSample) buttons.setDisabled(loadSample, invokingAgent || documentTesting || documentLoading);
+      if (egress) buttons.setDisabled(egress, !canRun || busy || Boolean(documentError) || documentPasteOpen);
       const remove = tester.querySelector("[data-remove-document]");
       if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
+      const edit = tester.querySelector("[data-edit-document]");
+      if (edit) buttons.setDisabled(edit, busy);
+      if (documentMenuRoot.isConnected) components.renderComponent(documentMenuRoot, "MenuButton", {
+        button: { ...documentMenuButtonProps, disabled: busy },
+      });
+      const confirm = tester.querySelector("[data-confirm-document]");
+      if (confirm) buttons.setDisabled(confirm, busy || !documentPasteDraft ||
+        Boolean(documentTextError(documentPasteDraft, operationalState.readiness.documentInput.maxBytes)));
+      const cancel = tester.querySelector("[data-cancel-document]");
+      if (cancel) buttons.setDisabled(cancel, busy);
       for (const preset of tester.querySelectorAll("[data-event-preset]")) preset.disabled = busy;
     }
 
@@ -3158,73 +3015,185 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container.append(section);
     }
 
-    function renderDocumentInput(container) {
+    function clearDocumentTestNotice() {
+      documentTestNotice = "";
+      components.clearNotice(documentTestNoticeRoot);
+      documentTestNoticeRoot.remove();
+    }
+
+    function documentTextError(content, maxBytes) {
+      return new TextEncoder().encode(content).length > maxBytes
+        ? "Use UTF-8 document text no larger than 64 KiB." : "";
+    }
+
+    function openDocumentEditor(editing = false) {
+      documentPasteOpen = true;
+      documentEditMode = editing;
+      documentPasteDraft = agentDocument?.content || "";
+      renderManagePanel();
+      requestAnimationFrame(() => details.querySelector(".document-paste textarea")?.focus());
+    }
+
+    function replaceDocument(next, { expanded = false } = {}) {
+      documentReadVersion += 1;
+      agentDocument = next;
+      clearDocumentTestNotice();
+      documentError = "";
+      documentLoading = false;
+      documentInputExpanded = expanded;
+      documentPasteOpen = false;
+      documentEditMode = false;
+      documentPasteDraft = "";
+      clearDocumentAssessment();
+      renderManagePanel();
+      details.querySelector(expanded ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
+    }
+
+    function renderDocumentInput(container, actions) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
+      const input = appendText(container, "div", "", "document-input");
+      const row = appendText(input, "div", "", "document-attachment");
+      row.hidden = !agentDocument && !documentLoading && !documentError;
       const disclosure = document.createElement("details");
       disclosure.className = "run-document";
-      disclosure.open = documentInputExpanded || Boolean(documentError);
-      const summary = appendText(disclosure, "summary", agentDocument ? "Document · " + agentDocument.name : "Document payload (optional)");
+      disclosure.dataset.runDisclosure = "document-attachment";
+      disclosure.open = documentInputExpanded;
+      const summary = appendText(disclosure, "summary", "");
       summary.setAttribute("aria-label", "Document attachment");
+      const summaryContent = appendText(summary, "span", "", "document-summary-content");
+      const name = appendText(summaryContent, "span", agentDocument?.name || (documentLoading ? "Reading document..." : "No document attached"), "document-name");
+      name.title = name.textContent;
+      appendText(summaryContent, "small", "Untrusted source", "document-source-label command-badge");
       disclosure.addEventListener("toggle", () => {
         if (disclosure.isConnected) documentInputExpanded = disclosure.open;
       });
-      const input = document.createElement("div");
-      input.className = "document-input document-loader-card";
-      const topRow = appendText(input, "div", "", "document-loader-top");
-      const sourceBadge = appendText(topRow, "span", "Untrusted source", "command-badge");
-      sourceBadge.dataset.state = "unknown";
-      const name = appendText(topRow, "small", agentDocument?.name || "No document attached");
-      appendText(input, "p", "Load a synthetic loan note, upload .txt/.md, or edit below (up to 64 KiB). Validated in isolated sandbox before model execution.");
-      const loaderActions = appendText(input, "div", "", "document-loader-actions");
-      const loadSample = actionButton("Load sample loan note", () => {
-        documentReadVersion += 1;
-        documentError = "";
-        documentInputExpanded = true;
-        agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
-        clearDocumentAssessment();
-        renderManagePanel();
-      });
-      loadSample.dataset.loadSampleDocument = "true";
-      const remove = actionButton("Remove document", () => {
-        documentReadVersion += 1;
-        agentDocument = null;
-        documentError = "";
-        clearDocumentAssessment();
-        documentLoading = false;
-        renderManagePanel();
+      const preview = appendText(disclosure, "pre", agentDocument?.content || "", "document-preview");
+      preview.tabIndex = 0;
+      preview.setAttribute("role", "region");
+      preview.setAttribute("aria-label", "Attached document text");
+      preview.dataset.runScrollKey = "document-preview";
+      const editing = documentPasteOpen && documentEditMode;
+      preview.hidden = editing;
+      if (agentDocument) {
+        const edit = buttons.create({
+          appearance: "secondary", size: "small", children: "Edit document",
+          "aria-label": "Edit document", onClick: () => openDocumentEditor(true),
+        });
+        edit.dataset.editDocument = "true";
+        edit.dataset.actionKey = "edit-document";
+        buttons.host(edit).hidden = editing;
+        buttons.append(disclosure, edit);
+      }
+      row.append(disclosure);
+      const remove = buttons.create({
+        appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
+        "aria-label": "Remove document", title: "Remove document", onClick: () => {
+          replaceDocument(null);
+        },
       });
       remove.dataset.removeDocument = "true";
-      buttons.append(loaderActions, loadSample, remove);
+      buttons.append(row, remove);
+      if (documentTestNotice) {
+        input.append(documentTestNoticeRoot);
+        components.renderNotice(documentTestNoticeRoot, {
+          children: documentTestNotice, intent: "info", role: "status",
+          "aria-live": "polite", "aria-atomic": true,
+        });
+      }
       const file = document.createElement("input");
       file.type = "file";
+      file.hidden = true;
       file.accept = capability.extensions.join(",");
       file.setAttribute("aria-label", "Document file");
+      input.append(file);
+      actions.append(documentMenuRoot);
+      const setMenuOpen = open => {
+        documentMenuOpen = open;
+        components.renderComponent(documentMenuRoot, "MenuButton", { open });
+      };
+      components.renderComponent(documentMenuRoot, "MenuButton", {
+        label: "Document", button: documentMenuButtonProps,
+        open: documentMenuOpen, positioning: "above-start",
+        onOpenChange: (_event, data) => setMenuOpen(data.open),
+        children: [
+          toolkit.createElement(toolkit.MenuItem, { key: "upload", onClick: () => {
+            setMenuOpen(false);
+            file.click();
+          } }, "Upload document"),
+          toolkit.createElement(toolkit.MenuItem, { key: "paste", onClick: () => {
+            setMenuOpen(false);
+            openDocumentEditor();
+          } }, "Paste a document"),
+          toolkit.createElement(toolkit.MenuItem, { key: "sample", onClick: () => {
+            setMenuOpen(false);
+            replaceDocument({ ...SAMPLE_CLEAN_DOCUMENT });
+          } }, "Add sample"),
+        ],
+      });
+      const editor = appendText(editing ? disclosure : input, "section", "", "document-paste");
+      editor.hidden = !documentPasteOpen;
+      editor.setAttribute("role", "group");
+      editor.setAttribute("aria-label", editing ? "Edit document" : "Paste a document");
+      appendText(editor, "strong", editing ? "Edit document" : "Paste a document");
+      const hint = appendText(editor, "p", editing
+        ? "Plain text or Markdown, up to 64 KiB. Save or cancel before invoking."
+        : "Plain text or Markdown, up to 64 KiB. Add or cancel before invoking.", "document-paste-hint");
+      hint.id = "document-paste-hint";
       const text = document.createElement("textarea");
       text.maxLength = capability.maxBytes;
-      text.value = agentDocument?.content || "";
-      text.placeholder = "Paste or edit document payload text...";
+      text.value = documentPasteOpen ? documentPasteDraft : agentDocument?.content || "";
+      text.placeholder = editing ? "Edit document text..." : "Paste document text...";
       text.setAttribute("aria-label", "Document text");
+      text.setAttribute("aria-describedby", hint.id);
+      const pasteError = appendText(editor, "p", documentTextError(text.value, capability.maxBytes), "error");
+      pasteError.setAttribute("role", "alert");
       const error = appendText(input, "p", documentError, "error");
       error.setAttribute("role", "alert");
       text.addEventListener("input", () => {
-        documentReadVersion += 1;
-        agentDocument = text.value ? { name: agentDocument?.name || "document.txt", content: text.value } : null;
-        documentError = new TextEncoder().encode(text.value).length > capability.maxBytes
-          ? "Use a document no larger than 64 KiB." : "";
-        error.textContent = documentError;
-        name.textContent = agentDocument?.name || "No document attached";
-        clearDocumentAssessment();
+        documentPasteDraft = text.value;
+        pasteError.textContent = documentTextError(documentPasteDraft, capability.maxBytes);
         syncAgentInputControls();
       });
+      editor.append(text);
+      const pasteActions = appendText(editor, "div", "", "actions");
+      const confirm = buttons.create({ appearance: "primary", children: editing ? "Save document" : "Add document",
+        "aria-label": editing ? "Save document" : "Attach pasted document", onClick: () => {
+          const validation = documentTextError(documentPasteDraft, capability.maxBytes);
+          if (!documentPasteDraft || validation) {
+            pasteError.textContent = validation || "Enter document text before saving it.";
+            return;
+          }
+          replaceDocument({ name: agentDocument?.name || "document.txt", content: documentPasteDraft }, { expanded: editing });
+        },
+      });
+      confirm.dataset.confirmDocument = "true";
+      const cancel = buttons.create({ appearance: "secondary", children: "Cancel",
+        "aria-label": editing ? "Cancel document edit" : "Cancel paste", onClick: () => {
+          documentPasteOpen = false;
+          documentEditMode = false;
+          documentPasteDraft = "";
+          renderManagePanel();
+          details.querySelector(editing ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
+        },
+      });
+      cancel.dataset.cancelDocument = "true";
+      buttons.append(pasteActions, confirm, cancel);
       file.addEventListener("change", async () => {
         const selected = file.files?.[0];
         if (!selected) return;
         const version = ++documentReadVersion;
+        clearDocumentTestNotice();
         agentDocument = null;
+        documentPasteOpen = false;
+        documentEditMode = false;
+        documentPasteDraft = "";
         clearDocumentAssessment();
         documentError = "";
         documentLoading = true;
+        row.hidden = false;
+        name.textContent = "Reading document...";
+        preview.textContent = "";
         syncAgentInputControls();
         try {
           if (!capability.extensions.some((extension) => selected.name.toLowerCase().endsWith(extension))) {
@@ -3232,23 +3201,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           }
           if (selected.size > capability.maxBytes) throw new Error("Use a document no larger than 64 KiB.");
           const content = await selected.text();
-          if (new TextEncoder().encode(content).length > capability.maxBytes) {
-            throw new Error("Use UTF-8 document text no larger than 64 KiB.");
+          const validation = documentTextError(content, capability.maxBytes);
+          if (validation) throw new Error(validation);
+          if (version === documentReadVersion) {
+            agentDocument = { name: selected.name, content };
+            documentInputExpanded = false;
           }
-          if (version === documentReadVersion) agentDocument = { name: selected.name, content };
         } catch (cause) {
           if (version === documentReadVersion) documentError = "Could not read document: " + cause.message;
         } finally {
           if (version === documentReadVersion) {
             documentLoading = false;
-            if (panelMode === "manage") renderManagePanel();
+            if (panelMode === "manage") {
+              renderManagePanel();
+              details.querySelector(".run-document summary")?.focus({ preventScroll: true });
+            }
           }
         }
       });
-      input.append(file, text);
-      if (documentLoading) appendText(input, "p", "Reading document...");
-      disclosure.append(input);
-      container.append(disclosure);
     }
 
     const SAMPLE_CLEAN_DOCUMENT = {
@@ -3296,10 +3266,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const baseName = currentDocument?.name || defaultName;
       const baseContent = cleaned || DEFAULT_BASE_DOCUMENT.content;
       const candidate = baseContent + snippet;
-      if (new TextEncoder().encode(candidate).length <= maxBytes) {
-        return { name: baseName, content: candidate };
-      }
-      return { name: baseName, content: DEFAULT_BASE_DOCUMENT.content + snippet };
+      const synthetic = !cleaned || new TextEncoder().encode(candidate).length > maxBytes;
+      return {
+        document: { name: baseName, content: synthetic ? DEFAULT_BASE_DOCUMENT.content + snippet : candidate },
+        synthetic,
+      };
     }
 
     function renderDocumentTest(container, _actions) {
@@ -3308,8 +3279,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
         documentReadVersion += 1;
         documentError = "";
-        documentInputExpanded = true;
-        agentDocument = ensureAdversarialDocument(agentDocument, mode, maxBytes);
+        documentInputExpanded = false;
+        const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
+        agentDocument = prepared.document;
+        const addition = mode === "egress" ? "an outbound credential/PII probe" : "override text";
+        const purpose = mode === "egress" ? "egress protections" : "redaction and approval-bypass protections";
+        documentTestNotice = (prepared.synthetic ? "Created a synthetic document with " : "Added to the document: ") +
+          addition + " to test " + purpose + ". See the separate test result for the outcome.";
         const document = agentDocument;
         clearDocumentAssessment();
         const epoch = documentAssessmentEpoch;
@@ -3363,8 +3339,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const testEgress = actionButton("Test unsafe egress", () => runAdversarialTest("egress"));
       testEgress.dataset.testEgress = "true";
       buttons.append(egressCard, testEgress);
-
-      renderDocumentAssessment(container);
     }
 
     function renderEventPresetChips(tester, promptInput) {
@@ -3382,7 +3356,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           promptInput.value = preset.prompt;
           if (preset.attachSample && operationalState.readiness?.documentInput && !agentDocument) {
             documentReadVersion += 1;
+            clearDocumentTestNotice();
             documentError = "";
+            documentPasteOpen = false;
+            documentEditMode = false;
+            documentPasteDraft = "";
             documentInputExpanded = true;
             agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
             clearDocumentAssessment();
@@ -3396,6 +3374,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     async function executeAgentInvocation(promptInput) {
+      if (invokingAgent) return;
       const message = promptInput.value.trim();
       if (!message) {
         setStatus("Enter an event payload or task for the local agent.", true);
@@ -3403,9 +3382,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       invokingAgent = true;
+      agentRequestState = "invoking";
+      agentRawResponse = "";
+      agentToolActivity = [];
       clearDocumentAssessment();
       const assessmentEpoch = documentAssessmentEpoch;
-      syncAgentInputControls();
       agentResponseText = "Waiting for the local agent…";
       const updateResponseNode = (text) => {
         agentResponseText = text;
@@ -3413,6 +3394,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (currentResponse) currentResponse.textContent = text;
       };
       updateResponseNode(agentResponseText);
+      updateAgentStatusBrief();
+      if (panelMode === "manage") renderManagePanel();
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
           updateResponseNode(msg);
@@ -3434,6 +3417,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           documentAssessment = result.documentAssessment ?? { state: "unverified" };
         }
         agentToolActivity = result.summary?.tools || [];
+        agentRequestState = "succeeded";
         updateResponseNode(result.summary
           ? result.summary.text || "No assistant text was reported. Inspect the raw response below."
           : agentRawResponse);
@@ -3441,11 +3425,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (currentResponse) currentResponse.scrollTop = 0;
         setStatus("Agent response received.");
       } catch (error) {
+        agentRequestState = "failed";
         if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
         updateResponseNode(error.message);
         setStatus(error.message, true);
       } finally {
         invokingAgent = false;
+        updateAgentStatusBrief();
         syncAgentInputControls();
         if (panelMode === "manage") renderManagePanel();
       }
@@ -3456,75 +3442,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       tester.className = "developer-tool-card agent-tester";
       const agentEntrypoint = runtimeEntrypoints.find((entrypoint) =>
         entrypoint.ready && normalized(entrypoint.name) === "agent");
-      if (!agentEntrypoint) {
-        const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
-        const needsGateway = !gatewayConfigured && (operationalState.readiness?.mode === "preview"
-          || !operationalState.readiness?.ready);
-        const appRunning = operationalState.app?.state === "running";
-        const canRun = canInvokeOrStartAgent();
-        appendText(tester, "span", canRun ? "Agent standby · Auto-starts on invoke" : "Agent unavailable", "tool-status");
-        appendText(
-          tester,
-          "p",
-          needsGateway
-            ? "The local agent cannot start until this app has an AI Gateway connection."
-            : appRunning
-              ? "The agent service did not start with the rest of the app."
-              : "Invoke agent will automatically start the local app if it is not running yet.",
-        );
-        const prompt = document.createElement("textarea");
-        appendText(tester, "strong", "Autonomous event / task payload");
-        renderEventPresetChips(tester, prompt);
-        prompt.maxLength = 2000;
-        prompt.value = agentPromptDraft;
-        prompt.placeholder = "Select an event trigger above or describe an unattended agent task while the service starts";
-        prompt.setAttribute("aria-label", "Agent message");
-        prompt.addEventListener("input", () => {
-          agentPromptTouched = true;
-          agentPromptDraft = prompt.value;
-        });
-        const actions = document.createElement("div");
-        actions.className = "actions";
-        const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), canRun);
-        send.dataset.invokeAgent = "true";
-        buttons.setDisabled(send, !canRun || invokingAgent);
-        buttons.append(actions, send);
-        if (needsGateway && appRunning) {
-          buttons.append(actions, actionButton("Stop preview", () => runAppOperation("stop-local"), true));
-        } else if (needsGateway) {
-          buttons.append(actions, actionButton(
-            "Connect AI Gateway",
-            () => renderManagePanel({ openGateway: true }),
-            true,
-          ));
-        } else if (appRunning) {
-          buttons.append(actions, actionButton("Stop app", () => runAppOperation("stop-local"), true));
-        }
-        tester.append(prompt);
-        renderDocumentInput(tester);
-        tester.append(actions);
-        if (invokingAgent || agentResponseText) {
-          appendText(tester, "h3", "Autonomous run result");
-          const response = appendText(tester, "div", agentResponseText, "agent-response");
-          response.setAttribute("role", "region");
-          response.setAttribute("aria-label", "Agent response");
-        }
-        renderDocumentTest(tester, actions);
-        if (agentRawResponse) {
-          renderTools(tester);
-        }
-        container.append(tester);
-        syncAgentInputControls();
-        return;
-      }
-
-      appendText(tester, "span", "Agent ready · Event-driven runner", "tool-status ready");
+      const canRun = canInvokeOrStartAgent();
       const prompt = document.createElement("textarea");
       appendText(tester, "strong", "Autonomous event / task payload");
       renderEventPresetChips(tester, prompt);
       prompt.maxLength = 2000;
       prompt.value = agentPromptDraft;
-      prompt.placeholder = "Dispatch an event payload or unattended task to the running agent";
+      prompt.placeholder = agentEntrypoint
+        ? "Dispatch an event payload or unattended task to the running agent"
+        : "Select an event trigger or describe an unattended task";
       prompt.setAttribute("aria-label", "Agent message");
       prompt.addEventListener("input", () => {
         agentPromptTouched = true;
@@ -3534,25 +3460,33 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.className = "agent-response";
       response.setAttribute("role", "region");
       response.setAttribute("aria-label", "Agent response");
+      response.tabIndex = 0;
+      response.dataset.runScrollKey = "agent-result";
+      response.dataset.state = agentRequestState;
       response.textContent = agentResponseText;
       const actions = document.createElement("div");
-      actions.className = "actions";
+      actions.className = "actions agent-task-actions";
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
       send.dataset.invokeAgent = "true";
-      buttons.setDisabled(send, invokingAgent);
-      buttons.append(actions, send);
-      tester.append(prompt);
-      renderDocumentInput(tester);
+      buttons.setDisabled(send, !canRun || invokingAgent);
+      const dispatchActions = appendText(actions, "div", "", "agent-dispatch-actions");
+      buttons.append(dispatchActions, send);
+      const promptFrame = appendText(tester, "div", "", "agent-prompt-frame");
+      promptFrame.append(prompt);
+      renderDocumentInput(tester, dispatchActions);
       tester.append(actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
       renderDocumentTest(tester, actions);
-      renderTools(tester);
+      renderDocumentAssessment(tester);
+      if (agentRequestState !== "idle") renderTools(tester);
       if (agentRawResponse) {
         const raw = document.createElement("details");
         raw.dataset.runDisclosure = "raw-response";
         appendText(raw, "summary", "Raw agent response");
-        appendText(raw, "pre", agentRawResponse, "command-output");
+        const output = appendText(raw, "pre", agentRawResponse, "command-output");
+        output.dataset.runScrollKey = "agent-raw";
+        output.tabIndex = 0;
         tester.append(raw);
       }
       container.append(tester);
@@ -3666,7 +3600,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       cloudActions.className = "actions";
       if (operationalState.readiness?.deploymentBlocker) {
         appendText(cloudActions, "p", operationalState.readiness.deploymentBlocker);
-        buttons.append(cloudActions, actionButton("Review runtime & access", renderBuildPanel));
+        buttons.append(cloudActions, actionButton("Review runtime & access", openCustomizeApp));
       } else if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
         appendText(cloudActions, "p", humanize(appState) + " is in progress. Wait for it to finish before starting another operation.");
       } else {
@@ -3681,46 +3615,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderTryApp(container) {
-      const state = operationalState.app?.state;
-      if (state !== "running") renderRuntimeAction(container);
-      else {
-        const web = runtimeEntrypoints.find((entry) => entry.ready && normalized(entry.name) === "web");
-        if (web) {
-          const actions = appendText(container, "div", "", "run-open-app");
-          appendText(actions, "p", "Try the web experience, or send a message to the agent below.");
-          buttons.append(actions, actionButton("Open app", async () => {
-            try {
-              await apiRequest("/api/open-entrypoint", {
-                method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
-              });
-            } catch (error) { setStatus(error.message, true); }
-          }, true));
-        }
-      }
-      if (operationalState.app?.foreignEntrypoints?.length) {
-        buttons.append(container, actionButton("Resolve port conflict", () => openAppSettings("ports")));
-      }
-      renderPrerequisiteBanner(container);
+      updateAgentStatusBrief();
+      container.append(agentStatusRoot);
       renderAgentTester(container);
-    }
-
-    function renderPrerequisiteBanner(parent) {
-      const missingTools = operationalState.readiness?.prerequisites?.missingTools || [];
-      if (!missingTools.length) return;
-      const card = document.createElement("div");
-      card.className = "action-card run-card attention";
-      appendText(card, "span", "Prerequisites", "action-priority");
-      appendText(card, "strong", "Missing local prerequisites (" + missingTools.length + ")");
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      for (const item of missingTools) {
-        appendText(card, "p", item.label + ": " + item.command);
-        if (item.actionOperation && item.actionLabel) {
-          buttons.append(actions, actionButton(item.actionLabel, () => runAppOperation(item.actionOperation)));
-        }
-      }
-      if (actions.childElementCount) card.append(actions);
-      parent.append(card);
     }
 
     function renderPrerequisitesSettings(container) {
@@ -3792,6 +3689,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (section === "ports") { renderPortControls(container); return; }
       if (section === "danger") { renderDeleteSettings(container); return; }
       const appState = operationalState.app?.state;
+      if (appState === "failed" && operationalState.app?.operation === "configuring") {
+        appendText(container, "p", operationalState.app.error, "error").setAttribute("role", "alert");
+      }
       const readiness = operationalState.readiness;
       const configuring = appState === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
       appendText(container, "p", configuring
@@ -3812,7 +3712,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       const controls = appendText(container, "div", "", "gateway-fields");
       appendText(controls, "p", "Loading available AI Gateways & Sandbox Groups...");
-      void loadGatewayControls(controls);
+      return loadGatewayControls(controls);
     }
 
     window.addEventListener("app-platform-settings-ready", () => {
@@ -3821,10 +3721,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         renderSection: renderAppSettingsSection,
       });
       document.querySelector(".studio-settings").addEventListener("close", () => {
+        if (window.appPlatformSettings.isOpen()) return;
         deleteConfirming = false;
         deleteError = "";
         portReview = null;
         gatewayDiscovery.invalidate();
+        if (panelMode === "connections") renderConnectionsPanel({ focus: false });
       });
     });
 
@@ -3843,8 +3745,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (openGateway) openAppSettings("connection");
     }
 
+    function diagnosticsIssue() {
+      return [
+        readinessError,
+        (operationalState.app?.state === "failed" || operationalState.app?.error) &&
+          ("Runtime failed: " + (operationalState.app.error || "Review startup output.")),
+        agentRequestState === "failed" && ("Agent request failed: " + agentResponseText),
+      ].filter(Boolean).join(" ");
+    }
+
     async function refreshRunOutput() {
-      if (panelMode !== "manage" || outputRefreshing) return;
+      if (outputRefreshing) return;
       outputRefreshing = true;
       try {
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
@@ -3853,27 +3764,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed").length,
           operations: latestCommands.length,
+          issue: diagnosticsIssue(),
         });
         renderCommandFeed();
-        const output = details.querySelector("[data-runtime-output]");
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
           const following = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
           output.textContent = latestOutput;
           if (following) output.scrollTop = output.scrollHeight;
         }
       } catch (error) {
-        const output = details.querySelector("[data-runtime-output]");
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed").length,
           operations: latestCommands.length,
           error: error.message,
+          issue: diagnosticsIssue(),
         });
         if (output) output.textContent = "Unable to load output: " + error.message;
       } finally { outputRefreshing = false; }
     }
 
     function renderCommandFeed(target) {
-      const container = target || details.querySelector("[data-command-feed]");
+      const container = target || diagnosticsContainer.querySelector("[data-command-feed]");
       if (!container) return;
       const fingerprint = JSON.stringify(latestCommands);
       if (container.dataset.fingerprint === fingerprint) return;
@@ -3928,7 +3841,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         container.append(row);
       }
-      if (focusedRecord) (focusedSummary || details.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
+      if (focusedRecord) (focusedSummary || diagnosticsContainer.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
       container.scrollTop = following ? container.scrollHeight : scrollTop;
     }
 
@@ -3959,6 +3872,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           gatewayConfigured: readiness.gatewayConfigured,
           model: readiness.model,
           gateway: readiness.activeGateway?.name,
+          gatewayStatus: readiness.activeGateway?.configurationStatus,
+          prerequisites: readiness.prerequisites,
           documentInput: readiness.documentInput,
           entrypoints: (app.entrypoints || []).map((entrypoint) => [
             entrypoint.name,
@@ -3972,6 +3887,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const changed = nextFingerprint !== operationalFingerprint;
         operationalFingerprint = nextFingerprint;
         operationalState = { app, readiness };
+        readinessError = "";
         if (!agentPromptTouched && typeof readiness?.starterPrompt === "string" && readiness.starterPrompt.trim()) {
           agentPromptDraft = readiness.starterPrompt.trim();
           const activePrompt = details.querySelector('[aria-label="Agent message"]');
@@ -3981,13 +3897,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
-        if (changed) renderActionCenter();
         if (changed && !gatewayApplying) window.appPlatformSettings?.refreshApp();
-        if (changed && panelMode === "manage") {
+        if (changed && panelMode === "connections" && !gatewayApplying &&
+          !window.appPlatformSettings?.isOpen() && !details.querySelector("select:focus")) renderConnectionsPanel({ focus: false });
+        if (changed) {
           const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
-          const interactionActive = gatewayApplying || details.querySelector("#run-panel-environment select:focus");
+          const interactionActive = gatewayApplying || diagnosticsContainer.querySelector("#run-panel-environment select:focus");
           if (onEnvironmentTab && interactionActive) {
-            const envTab = details.querySelector('[data-run-tab="environment"]');
+            const envTab = diagnosticsContainer.querySelector('[data-run-tab="environment"]');
             if (envTab) {
               const prereqReady = readiness?.prerequisites ? readiness.prerequisites.ready : true;
               const configuring = app.state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
@@ -3999,19 +3916,23 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
                 summaryNode.dataset.attention = String(!configuring && (!prereqReady || !connected));
               }
             }
-          } else {
+          } else if (panelMode === "manage") {
             renderManagePanel();
+          } else {
+            runWorkspace.render({ state: app.state, readiness, services: runtimeEntrypoints, primary: false });
           }
         }
       } catch (error) {
         const changed = operationalFingerprint !== "unavailable";
         operationalFingerprint = "unavailable";
         operationalState = { app: null, readiness: null };
+        readinessError = "Unable to refresh app readiness: " + error.message;
         runtimeEntrypoints = [];
         updateAppStatusBadge();
-        if (changed) renderActionCenter();
         if (changed) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
+        if (changed && panelMode !== "manage") runWorkspace.render({ primary: false });
+        if (changed && panelMode === "connections") renderConnectionsPanel({ focus: false });
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }
     }
@@ -4727,7 +4648,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     function resizeWorkspace() {
       if (navigationDisposed) return;
-      if (!guideExplicitChoice) setGuideCollapsed(window.innerWidth <= 900);
+      setDetailsPanelHeight(detailsPanelHeight);
     }
     window.addEventListener("resize", resizeWorkspace);
     const workspaceResizeObserver = new ResizeObserver(() => {
@@ -4778,7 +4699,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     document.querySelector("#zoom-in").addEventListener("click", () => zoomBy(1.2));
     document.querySelector("#zoom-out").addEventListener("click", () => zoomBy(.82));
     document.querySelector("#fit").addEventListener("click", () => fitGraph());
-    document.querySelector("#action-center").addEventListener("click", () => setGuideCollapsed(!guideCollapsed, true));
+    document.querySelector("#review-source-connections").addEventListener("click", renderSourceConnectionsPanel);
     document.querySelector("#map-view").addEventListener("click", renderMapPanel);
     const dismissStructureGuidance = () => {
       setStructureGuidance(false);
@@ -4792,6 +4713,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       dismissStructureGuidance();
     });
     document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
+    document.querySelector("#header-open-app").addEventListener("click", async () => {
+      const web = runtimeEntrypoints.find(entry => entry.ready && normalized(entry.name) === "web");
+      if (!web) {
+        setStatus("No ready web entrypoint is available. Start the app before opening it.", true);
+        return;
+      }
+      try {
+        await apiRequest("/api/open-entrypoint", {
+          method: "POST", body: JSON.stringify({ root: MODEL.root, port: web.port }),
+        });
+      } catch (error) { setStatus(error.message, true); }
+    });
     for (const tabs of document.querySelectorAll(".workspace-tabs")) {
       tabs.addEventListener("keydown", (event) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -4806,14 +4739,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         event.preventDefault();
         for (const [position, tab] of items.entries()) tab.tabIndex = position === next ? 0 : -1;
         items[next].focus({ preventScroll: true });
-      });
-    }
-    for (const shortcut of document.querySelectorAll("[data-guide-stage]")) {
-      shortcut.addEventListener("click", () => {
-        setGuideCollapsed(false, true);
-        const stage = guideContent.querySelector('[data-stage="' + shortcut.dataset.guideStage + '"]');
-        guideContent.scrollTop += stage.getBoundingClientRect().top - guideContent.getBoundingClientRect().top - 12;
-        stage.focus({ preventScroll: true });
       });
     }
     document.querySelector(".map-tools").addEventListener("toggle", updateModeHighlight);
@@ -4852,14 +4777,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (first) first.focus();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || event.defaultPrevented ||
-        (document.querySelector("#app-workspace-navigation")?.dataset.mode !== "sidebar" &&
-          document.querySelector("#browse-workspaces")?.getAttribute("aria-expanded") === "true")) return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       if (document.querySelector(".map-tools").open) {
         document.querySelector(".map-tools").open = false;
         document.querySelector(".map-tools > summary").focus();
-      } else if (guideRail.contains(document.activeElement)) {
-        setGuideCollapsed(true, true);
       } else if (document.body.dataset.workspace === "map" && panelMode !== "map") {
         closeMapDetails();
       }
@@ -4876,9 +4797,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       entryFilter.append(option);
     }
     applyLayout(false);
-    setGuideCollapsed(guideCollapsed);
-    renderActionCenter();
-    renderBuildPanel();
+    renderManagePanel();
+    if (launchNotice) setStatus(launchNotice);
     void refreshOperationalState();
     const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
     const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);
@@ -4891,6 +4811,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const status = document.getElementById("status");
       status.textContent = "Could not load Canvas controls: " + cause.message + ". Reload to retry.";
       status.setAttribute("role", "alert");
+      status.classList.remove("visually-hidden");
     });
   </script>
 </body>

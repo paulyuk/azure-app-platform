@@ -17,7 +17,7 @@ Home and setup screens use the public toolkit `CanvasHeader`: a 32px row with
 a 20px Unity mark and a compact, normal-weight Azure App Platform Home button. Its accessible
 name is **App home** (retained for non-breaking compatibility). Docs and the working Settings gear remain at the
 top right. The large Home masthead and tagline are not repeated in the content.
-The existing app workspace header, selectors and controls are unchanged.
+Existing apps use the same header with Back/Forward before the logo.
 
 ## ACA CLI installation
 
@@ -29,7 +29,7 @@ back to CLI setup, not model connection settings.
 ## Icons
 
 Authored UI icons use official **Octicons 19.41.0**: settings, navigation,
-disclosures, Guide stages/statuses, map tools and capability cards. Labels and
+disclosures, runtime statuses, map tools and capability cards. Labels and
 tooltips retain their meaning; decorative SVGs are hidden from assistive
 technology and inherit the current theme's text color. CSS masks use the same
 official paths, not separately drawn approximations.
@@ -128,14 +128,14 @@ placement.
 | Existing app screen | Back and confirmation-cancel actions migrated; compound app rows and destructive actions retained |
 | Post-creation actions | Gateway, deployment, runtime, endpoints, source, agent invocation and map actions migrated |
 | Customize | Refresh/retry, Files/editor handoff, model connection, help and document testing migrated |
-| Run/Debug and Guide | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
-| Observe | Map reset/zoom/fit, inspector close and Guide collapse/dismiss actions migrated |
+| Run/Debug | Ordinary lifecycle/setup, endpoint/source, connection review, capability, invocation, document and port actions migrated |
+| Observe | Map reset/zoom/fit and inspector close actions migrated |
 | Logs | All-services action, pause/resume and refresh migrated, including the component-log panel |
 | Shared Settings | Open/close and ordinary app-section actions migrated |
 
 This is not a migration of every element with a button tag. Semantic tabs,
 workspace navigation, Customize implementation selection, journey/app cards, the
-two-line model-connection control, Guide progress/status shortcuts, inline log
+inline connection shortcut, inline log
 service filters, SVG graph controls, links and the cinematic intro's Skip action
 remain their existing controls. They need their appropriate component slices,
 not conversion to generic Button. The separate `src/web` demo and generated
@@ -235,7 +235,8 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
-pattern. Its Simple home asks **What would you like to do?** and presents
+pattern. Its Simple home introduces **Automate real tasks within boundaries you set.**
+with **Isolate tool execution and govern access to shared models and tools.** and presents
 **Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
 compact task cards, in that order. The content container uses one, two, or three
 columns at 520px and 760px of available content width, with 12px gaps and an
@@ -284,67 +285,151 @@ After creation or selection, the app workspace becomes the primary interface.
 The Unity logo and **Azure App Platform** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
-The only main destinations are **Customize**, **Run & Debug**, and **Observe**, using
-the genuine toolkit **ProductNavigation**. At 1180px of available shell width or
-more, they occupy a canonical 256px collapsible sidebar; smaller canvases use
-**Browse app workspaces** to preview or hold a menu below the header. Collapse is
-remembered per app in the current browser origin. Focus or hover previews the menu;
-click holds it on narrow canvases. Arrow Down or Tab enters it, and Enter/Space
-activates the focused destination. Selection, Escape, Close and outside interaction
-dismiss the compact menu, with toolkit-owned focus restoration. The active
-destination has `aria-current="page"` and a canonical highlight; the persistent
-**Page:** label stays visible with the menu closed. These are free destinations,
-not Guide progress steps, and there is no duplicate header strip or command palette.
-Customize opens first. It is the source-customization workspace, distinct from
-the Guide's **Build** readiness stage. Observe contains **App Map** and
-**Logs** views and remembers the last one used during the current visit.
+The workflow destinations are **Build**, **Connect**, **Run**, **Observe**, and
+**Deploy**, presented as a content-width segmented group of shipped toolkit
+Buttons at every canvas width. The group wraps in narrow panes so all five
+destinations remain visible, without a hidden overflow menu.
+The menu row has theme-aware top and bottom borders and compact spacing.
+Its small toolkit Buttons use 28px minimum height and 3px/8px padding through
+the public small-button tokens; no private toolkit styles are overridden.
+There is no sidebar or Browse menu. Tab moves between destinations; Enter/Space
+activates them. The selected workspace page has `aria-current="page"` and
+`aria-pressed="true"`. **Build** shows the existing Customize source controls as a
+normal workspace page inside the shell. Navigation, history and utilities stay
+available; there is no overlay, Close action, Escape dismissal or focus trap.
+There is no separate Customize link.
+The header's toolkit **NavigationControls** place **Back** and **Forward** before
+the logo. They traverse workspace visits (Build, Connect, Run, App Map, Logs and
+Deploy), not browser pages or readiness progression. Repeated polling does not add visits;
+a new destination after Back discards forward visits. This history lasts for the
+current page visit, without changing browser history or stored app recency.
+**Deploy** in the five-item main navigation opens existing deployment options;
+it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
+button. **Open app** remains in the existing header utilities. The app lifecycle
+control sits at the top right of the same row as the main menu: **Run app** with a
+filled play glyph when stopped and ready, **Stop app** when running. At canvas widths
+of 680px or less, the menu takes the upper row (wrapping only if needed), and the
+lifecycle control, divider and icon-only **Logs** button stay together on a second
+row below it, aligned to the right. Wider panes retain the single-row layout.
+Open app appears only when a
+ready web entrypoint is available. Explicit cloud actions retain their resource
+change warning and existing execution path. These are free destinations, not
+readiness gates.
+Run opens first with the existing autonomous event/task tester; source discovery
+starts only when Build is opened. Connect opens the complete gateway connection
+page, and Deploy opens
+existing deployment options without execution.
+Build participates in workspace history and retains its source controls between visits.
+Observe contains **App Map**
+and **Logs** views and remembers the last one used during the current visit,
+including visits through Build or Connect.
+Connect reuses the same connection renderer, discovery tracker and saved state as scoped
+Settings and Run's Environment diagnostics: gateway and sandbox subscription scopes,
+gateway/model/group selection, refresh/cancel/retry, Apply, and explicit create/configure
+actions. Merely opening Connect never applies a connection or creates cloud resources.
+Failed discovery and configuration remain explicit. Navigation invalidates pending
+discoveries; unchanged polling preserves the active controls and selections.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive
-layout changes preserve those exact nodes, focus and message selection. Permanent
+layout changes preserve those exact nodes, focus and task-payload selection. Permanent
 navigation disposes the shell binding and restores retained slots; persisted
 `pagehide` keeps them for the back/forward cache.
-Customize starts directly with customization areas and one focused preview, without a duplicate
-Build/Run/Map toolbar. Use the top-level **Run & Debug** or **Observe → App Map**
-navigation. The Guide's Build action opens the general map with a dismissible
-hint highlighting the existing add-component and connection controls; it does
-not select a component based on the current file. Connect retains its source
-review and offers **Edit connections on App Map**. These entry points do not
+Build retains its selected area, project, expanded preview, source/page scroll and focused
+source control across navigation and Back/Forward. **Model connection** opens scoped Settings
+above the Build page and returns to the same control and preview. Settings alone remains
+modal. **Run & Debug** and **Test with a document** navigate to Run and focus the existing
+task tester; **+ Add building block** opens the existing App Map controls. Task/document
+drafts, selections, results and assessments survive Build visits. Source and external-editor
+handoffs keep their existing behavior. Source connection
+review remains under Observe's App Map **Search & layout**, with **Edit connections on
+App Map** highlighting the existing diagram controls. These entry points do not
 change files or start the app.
 Every workspace remains accessible regardless of readiness: this is not a
 locked wizard. The two Observe views use a compact tab row with
 map/log line icons and the same flat Run-style tabs used by Customize: a shared baseline,
 subtle selected fill, and accent underline rather than individually outlined buttons.
-Keyboard tab navigation remains available across all three pages.
+Keyboard tab navigation remains available across the workspaces.
 Each view fills the workspace rather than sharing it
-with an always-visible map. Guide owns workflow progress and the next useful
-action, independently of the active workspace. Its inline toggle collapses the panel
-to a 46px status rail at the far right instead of disappearing.
-The toggle stays at the same top-right position in both states, including
-when the expanded Guide overlays a narrow workspace.
-The rail retains Build, Connect, Run, and Observe icons with checkmarks,
-attention indicators, and descriptive tooltips. Selecting an icon expands
-Guide at that stage's explanation without changing workspaces.
-There is no separate Guide button in the top navigation;
-switching views never reopens Guide or discards message drafts or the selected Customize preview.
-Guide visibility is remembered per app in the current browser origin.
-On narrow screens it starts collapsed and opens as a dismissible overlay.
-A persistent badge beside the app name distinguishes
-**Not running**, **Local preview**, **Running locally**, and active lifecycle
-transitions; selecting it opens the local runtime controls. A neighboring
-contextual action starts the app or preview, stops a running app, or opens
-required setup. Each request-flow stage exposes a
+with an always-visible map. There is no shared status/Guide footer, reserved bottom
+row, or Guide popover. Runtime status remains a compact badge immediately after
+the app name, and Status Brief explains runtime, agent, connection and request
+evidence without treating a running app as a successful test. Essential action
+feedback uses the existing live status region without reserving space. Errors
+appear as explicit alerts above workspace content; they are not hidden with Logs.
+Open app shares existing header utilities. Workspace changes retain task payloads
+and the selected Customize preview.
+Run retains **Autonomous event / task payload**, the **Event triggers:**
+presets (including their sample document attachment), and **Autonomous run result**.
+It dispatches tasks/events through the existing invocation path; it is not a
+conversation view and adds no chat bubbles or conversation history.
+**Status Brief** leads the tester with separate runtime, agent-endpoint and model
+connection facts. A running web app, configured gateway or Azure operation never
+establishes agent availability or successful policy enforcement. Stopped, starting,
+preview, missing prerequisites/connection and unavailable agent states explain the
+next step; invoking, result received and failed invocation states describe the
+current or last task independently of those facts. Readiness-fetch errors are explicit.
+Readiness, prerequisite commands, runtime errors and recovery details share this
+single card instead of separate readiness banners. Contextual recovery/setup actions
+are secondary buttons aligned to the right, wrapping within compact panes. The small
+connection icon immediately after the model/gateway value opens **Connect** without
+changing configuration; there is no separate **Connection settings** button.
+**Invoke agent** retains the existing auto-start/wait/dispatch contract and optional
+document request shape. The payload, sample-document presets, document assessment,
+last result, reported tool activity and raw response survive polling, workspace visits
+and runtime transitions. A failed retry clears the previous run's raw/tool evidence,
+keeps its own error visible and never becomes a success just because the runtime
+recovers. Text selection, result scrolling and evidence disclosures are retained.
+Open app and lifecycle controls remain in the header rather than a second tester
+toolbar. The icon-only **Logs** button, to the right of Start/Stop with a divider, opens the shared lower
+support pane without leaving Build, Connect, Run, Observe or Deploy. It contains
+**Output**, **Services**, **Environment** and **Operations**, with Output selected
+initially. The current workspace remains above it with independent scrolling; the task tester is not duplicated.
+Drag the separator or focus **Resize Diagnostics** and use Up/Down (24 pixels),
+Shift+Up/Down (48 pixels), Home (minimum) or End (maximum). The pane is bounded to
+55% of the available workspace height and 560 pixels, with a 120-pixel minimum reduced
+for short canvases. It also reserves 160 pixels for the primary workspace (40% on
+short canvases) after accounting for visible alerts, warnings and the separator.
+Resizing the window clamps its displayed size without losing the
+preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
+returns focus to its toggle. Its visibility, height, active tab, content scrolling
+and disclosures survive close/reopen, navigation and lifecycle polling for the current
+visit. Closing it does not stop output polling or hide errors: unavailable logs and
+failed operation counts stay visible in the lower warning strip. A red warning-sign
+badge on Logs also reports these issues, runtime/readiness failures and failed agent
+requests; its accessible label explains them. It clears when the reported issues clear,
+and does not treat an ordinarily stopped app as a failure. Output continues polling
+from every workspace. Status Brief, task errors,
+prerequisite warnings and safety/document evidence remain in the primary tester.
+The Status Brief retains truthful runtime, agent, request and failure information.
+Its bordered summary card places the current state icon, title and explanation
+above a shaded three-column row for **Runtime**, **Agent** and **Connection**.
+The facts remain an accessible definition list, with theme-owned horizontal and
+vertical dividers and wrapping values at compact widths, not a second readiness
+claim or a table of invented checks.
+All runtime states, including **Running locally** and **Not running**, remain visible
+in the app-name row through navigation and polling. The public toolkit Badge uses
+neutral gray for stopped, green for running, blue/accent for checking and active
+operations, amber for preview/partial startup, and red for failure, with readable
+state labels and theme-owned colors in light and dark. Activating it opens Run.
+The same small primary toolkit
+lifecycle control stays right-aligned beside Build / Connect / Run / Observe / Deploy
+(below the menu in narrow panes)
+across workspace visits: **Run app** / **Run preview** or **Stop app** /
+**Stop preview**, with existing readiness, busy and stopping-state gating.
+Task actions contain only **Invoke agent** and **Document**, without duplicate
+Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,
+failures and cloud operations; startup cancellation, partial-startup recovery and
+setup use the same navigation-row control. Navigation alone never performs a lifecycle
+operation. Each request-flow stage exposes a
 contextual **Add component** action. Adjacent request-flow stages expose
 **Connect** actions that list discovered relationships, require source and
 destination selection, and review the source-backed change before delegating
 implementation to the app session. Compact tier illustrations on each component
 card make the architecture easier to scan without replacing source-derived names,
-badges, or status. Guide stays focused on progress and one required action at a
-time.
-Additional recommendations are collapsed. **Observe → App Map** has one request-flow
-map. Once the app is running, Guide marks Run complete and makes
-**Observe & manage** current. **Open App Map** is offered from the other main
-workspaces, not when the map or its inspector is already visible. Clicking
-**Connect** opens a read-only connection review in the bottom inspector, with
+badges, or status. **Observe → App Map** has one request-flow map. Runtime inspection
+is available independently of task success. Clicking
+**Review source connections** under App Map's **Search & layout** opens a read-only
+connection review in the bottom inspector, with
 source locations, possible destinations, and actions to inspect affected
 components or resolve missing connections.
 Uncertain source connections remain review items, not a gate on observing a
@@ -368,29 +453,30 @@ The compact palette exposes zoom and **Fit map**; **Search & layout** opens
 downward with search, component/request-path filters, **Show other resources**,
 and reset.
 Wheel and trackpad gestures
-zoom smoothly anywhere over the map surface. **Run/Debug** focuses on trying the
-app: contextual startup or recovery guidance, an available web-app link, the
-agent message, and a readable response. A single **Output**, **Services**,
-**Operations**, **Deploy** tab row sits below this primary area, showing one
-supporting panel at a time. Output is first and selected by default, so command
-stdout/stderr is visible beneath the tester. **Open all logs** hands off to Observe.
+zoom smoothly anywhere over the map surface. **Run** focuses on autonomous tasks:
+contextual startup or recovery guidance, the event/task payload and a readable result.
+Diagnostics shows one supporting panel at a time, only when requested.
+**Open all logs** hands off to Observe.
 Services retains readiness, endpoint actions, and native source links; Operations
 separates recorded command/activity history from output. Error/failure indicators
 remain visible on inactive tabs. Explicit tab choices, input drafts, focus, and
 output scroll state survive refreshes, workspace switches, and lifecycle changes;
 starting or failing an operation does not force the user back to Output.
-There is no additional workspace
-navigation, custom debugger, or resizable diagnostics dock.
+There is no additional workspace navigation or custom debugger; deployment controls
+remain in the existing Deploy workspace and runtime bar, not Diagnostics.
 
-The **Settings** gear opens a compact modal without leaving the current
-workspace. Appearance and **Preferred external editor** are Studio-wide
-preferences; VS Code is the default editor, while explicit saved choices are
-retained. **Model connection**,
-**Local ports**, and **Danger zone** apply to the named app. The model summary,
-setup blockers, and service port action open the relevant settings directly.
+The **Settings** gear opens a fullscreen, scoped dialog without leaving the current
+workspace. **General · Across all apps** contains Appearance and **Preferred external
+editor**, the Studio-wide preferences; VS Code is the default editor, while explicit saved choices are
+retained. **AI Gateway & Sandbox**, **Local ports**, and **Danger zone** apply to
+the named app. **Prerequisites & CLI tools** identifies device requirements for
+that app and keeps the existing install commands and error reporting. A section
+list switches one panel at a time; at narrow widths or short heights it becomes
+a labeled native section picker. Hidden app sections load only when selected.
+The model summary, setup blockers, and service port action open the relevant settings directly.
 Closing Settings or pressing Escape returns focus without discarding app input.
 Customize's **Model connection** action opens the same settings in place, preserving
-the read-only preview; Run's **Review key files** action returns to Customize rather
+the read-only preview; Deploy's **Review runtime & access** action opens Customize rather
 than introducing another editor or navigation bar.
 Delete local app remains a reviewed, stopped-app operation: it removes the local
 worktree/files and Unity-created branch, not Azure resources or source repositories.
@@ -398,9 +484,9 @@ Landing-page Settings exposes appearance and the preferred external editor. Stud
 from app source and runtime configuration.
 
 Map inspection opens a separate resizable
-bottom details panel, keeping the map's full width beside Guide. Drag the
+bottom details panel, keeping the map's full width. Drag the
 horizontal divider or use its Up/Down keys to resize it; **Close details** or
-Escape dismisses it without changing Guide. The inspector's height is
+Escape dismisses it. The inspector's height is
 remembered and bounded to leave the map visible, including in compact panes.
 New inspector content starts at the top. Opening, closing, or resizing the
 inspector does not pan or zoom the map; use the map controls to adjust the view.
@@ -449,9 +535,9 @@ are targeted, including known launchers from other workspaces. This is not a
 machine-wide stop command. Reviews expire after one minute and reject changed
 process identities; Studio and its host ancestors are protected. The operation
 verifies that ports remain free and reports permission errors or respawning apps.
-The outlined **Connection settings** button shows the current model/gateway and
-opens **Settings → Model connection**. Before a gateway is configured it reads
-**Connect AI Gateway**, with **No AI Gateway connected** beneath it. A local
+The connection fact shows the current model/gateway with a small **Open connections**
+icon button that navigates to **Connect**. Before a gateway is configured the fact
+reads **Not configured**; the same shortcut opens the connection setup page. A local
 web preview remains available when the app supports it; agent invocation stays
 disabled until its endpoint is ready. If gateway discovery finds none, Settings
 offers **Create or manage gateways** rather than an empty apply action. Run/Debug uses
@@ -467,7 +553,7 @@ source-discovered implementations; **Tool activity** beneath the response
 contains only calls reported in the last response. A reported call alone is not
 proof of successful execution.
 **Home** returns to the landing screen. The active main view is highlighted
-independently from Guide visibility; Search & layout does not change that view.
+independently from inspector visibility; Search & layout does not change that view.
 **Open app** lists the most recently opened apps first and shows their last-opened
 date and time in the browser's local timezone. Opening an App Map records its
 timestamp in `.azure-app-platform/last-opened.json`, separately from app identity and
@@ -633,11 +719,40 @@ executed by a JSON Schema validation library. Changing a schema definition alone
 does not rewrite the corresponding Python validation.
 **Test enforcement** sends a text/Markdown document to the tool-only endpoint
 without calling a model. Both it and **Invoke agent** use the message and optional
-document together in **Run/Debug**. Choose a `.txt`/`.md` file up to 64 KiB,
-paste text, or remove the document to send only a message. Invalid files and
+document together in **Run/Debug**. The compact secondary **+ Document** menu
+immediately to the right of **Invoke agent** offers **Upload document**, **Paste a document**
+and **Add sample**. Upload accepts `.txt`/`.md` files up to 64 KiB; Paste opens an
+on-demand editor with explicit Add and Cancel, without clipboard permissions.
+Its draft survives polling/navigation and does not replace the attachment until
+confirmed. Invocation and safety tests wait for Add or Cancel. Add sample uses
+the existing synthetic loan note. The tooltip explains analysis and safety-policy testing.
+Invoke and Document stay together when the task actions wrap on compact canvases;
+Start remains before them and Stop follows them.
+An expandable attachment card immediately below the textarea shows the filename
+and a muted **Untrusted source** badge immediately to its right. Long filenames
+truncate with a full-name tooltip; the disclosure and badge remain visible.
+Remove is a separate action and restores focus to Add document.
+Expansion shows all source text with preserved line breaks, paragraphs and wrapping.
+Every attachment has **Edit document** inside the expanded card, including uploads,
+pasted text, samples, event documents and safety-test documents. It opens the shared
+full-text editor with **Save document** and **Cancel**. Saving retains the filename,
+updates the exact text sent to invocation/tests, and clears stale document assessments,
+results and insertion notices. Cancel preserves the committed attachment and evidence.
+Edit drafts, selection and scrolling survive polling/navigation. Invocation/tests
+wait for Save or Cancel; UTF-8 limits and busy/read gating apply to edits too.
+Unsafe override/egress tests show an informational message beside the attachment:
+what test text was added (or a synthetic document supplied) and which protections
+it probes. This is not a test result. The message survives polling/navigation and
+clears when the document is edited, replaced, removed or reset to a sample.
+This is a safe text preview, not HTML/Markdown execution: links, images and scripts
+are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
+Choose **Paste a document** to attach pasted text; use **Edit document** to change an attachment.
+Remove the document to send only a message; removal or editing clears stale assessments.
+Invalid files and
 oversized UTF-8 text are reported before sending; there is no PDF/Word extraction.
 Document input appears only for document-capable agents. Drafts survive readiness
-polling and switching between Customize and Run in the same panel, but are not saved
+polling and switching between Build/Customize, Connect, Observe and Run in the same panel,
+including attachment expansion and preview scrolling, but are not saved
 to disk. Customize's **Test with a document** links directly to this shared Run input.
 These HTTP operations appear in Commands without document payloads.
 Local processing is explicitly a subprocess simulation, not an isolation
@@ -816,15 +931,13 @@ troubleshooting—not known-file creation.
   switching to a different map or moving the request-path cards.
   Search or filter nodes, inspect connection evidence, highlight one-hop
   relationships, and open safe navigation actions with one click. Click the
-  selected card again or click empty map space to return to the Guide.
+  selected card again or click empty map space to dismiss its inspector.
   A request-flow stage's **Add component** action can open its specialist studio or
   explicitly request a new source capability without provisioning Azure.
   **Connect** controls between adjacent stages expose existing evidence and a
   confirmation-gated path to create or improve real source wiring.
-  The default **Guide** turns current app evidence into a progressive
-  **Build → Connect → Run → Observe & manage** journey. It prioritizes missing
-  foundations, uncertain connections, local readiness, and observability while
-  keeping later suggestions collapsed.
+  **Build → Connect → Run → Observe → Deploy** remain directly accessible destinations.
+  Status Brief surfaces readiness and recovery without a separate Guide or footer.
 - `run_doctor` remains a compatibility action backed by discovery probes; it
   reports repository and Azure discovery health rather than simulated platform
   status.
@@ -835,8 +948,8 @@ root-owned web and agent listeners recover the running state even when the
 in-memory launcher record is gone. Listeners from another app are not attributed
 to the selected worktree. Run is idempotent and will not restart an
 already-running or partially starting app.
-While startup is active, Guide shows how many local services are ready instead
-of presenting an indefinite spinner or generic in-progress message.
+While startup is active, Status Brief distinguishes the runtime from the agent
+endpoint; Diagnostics lists individual service readiness on demand.
 Detached lifecycle and configuration commands write to a private
 `azure-app-platform-command-logs` directory under the system temporary directory, so
 closing Studio does not terminate the operation or discard its diagnostics.

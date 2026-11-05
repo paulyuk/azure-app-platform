@@ -1,6 +1,6 @@
 export function createWorkspaceNavigationComponent(toolkit) {
-  const { createElement: h, useEffect, useRef, CanvasShell, CanvasHeader } = toolkit;
-  function RetainedContent({ element, className }) {
+  const { createElement: h, useEffect, useRef, Fragment, CanvasShell, CanvasHeader, NavigationControls, Button } = toolkit;
+  function RetainedContent({ element, ...props }) {
     const host = useRef(null);
     useEffect(() => {
       const parent = element.parentNode;
@@ -11,34 +11,38 @@ export function createWorkspaceNavigationComponent(toolkit) {
         anchor.replaceWith(element);
       };
     }, [element]);
-    return h("div", { ref: host, className });
+    return h("div", { ref: host, ...props });
   }
   return function WorkspaceNavigation({
-    current, items, appTitle, utilities, content, defaultCollapsed,
-    onNavigate, onCollapsedChange, onReady, onHome,
+    current, items, appTitle, utilities, content, history, runtimeActions,
+    onNavigate, onReady, onHome,
   }) {
     useEffect(() => { onReady(); }, [onReady]);
     return h(CanvasShell, {
       id: "studio-workspace-navigation",
-      defaultNavigationCollapsed: defaultCollapsed,
-      onNavigationCollapsedChange: onCollapsedChange,
-      header: h(CanvasHeader, {
-        variant: "workbench", title: "Azure App Platform",
+      header: h(Fragment, null, h(CanvasHeader, {
+        variant: "workbench", title: "Azure App Platform", className: "app-workspace-header",
         icon: h("img", { src: "/assets/app-platform-symbol.png", alt: "" }),
         onHome, homeButton: { "aria-label": "App home" },
         context: h(RetainedContent, { element: appTitle }),
         contextVisibility: "always",
-        browse: {
-          id: "browse-workspaces", "aria-label": "Browse app workspaces",
-          title: "Browse app workspaces", "aria-controls": "app-workspace-navigation", "aria-expanded": false,
-        },
+        history: h(NavigationControls, { ...history, variant: "browser", label: "Workspace history" }),
         actions: h(RetainedContent, { element: utilities }),
-      }),
-      navigation: {
-        id: "app-workspace-navigation", label: "App workspaces", title: "App workspaces",
-        items, current, onNavigate,
-        closeLabel: "Close workspace menu", collapseLabel: "Collapse workspace sidebar",
-      },
+      }), h("div", { className: "workspace-navigation-bar" },
+        h("nav", { id: "app-workspace-navigation", "aria-label": "App workspaces" },
+          h("div", { className: "workspace-view-switch", role: "group", "aria-label": "Workspace view" },
+            h("ul", null, items.map(item => h("li", { key: item.value },
+              h(Button, {
+                ...item.button, type: "button", size: "small",
+                appearance: current === item.value ? "secondary" : "subtle",
+                "aria-pressed": item.button["aria-haspopup"] ? undefined : current === item.value,
+                "aria-current": current === item.value ? "page" : undefined,
+                onClick: event => onNavigate(event, item.value),
+              }, item.label)))))),
+        h(RetainedContent, {
+          element: runtimeActions, className: "workspace-lifecycle-actions",
+          role: "group", "aria-label": "App runtime controls",
+        }))),
     }, h(RetainedContent, { element: content, className: "studio-workspace-content" }));
   };
 }

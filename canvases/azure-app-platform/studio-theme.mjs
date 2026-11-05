@@ -101,14 +101,28 @@ export function renderThemeToggle(theme = "light", presentationProfile = "standa
     <span class="studio-theme-error" data-studio-editor-status role="status"></span>
     <dialog class="studio-settings" aria-labelledby="studio-settings-title">
       <div class="studio-settings-heading"><h2 id="studio-settings-title">Settings</h2><button data-studio-button="subtle" type="button" class="studio-settings-close" data-settings-close aria-label="Close settings" autofocus>${renderOcticon("x")}</button></div>
-      <div class="studio-settings-content">
+      <div class="studio-settings-layout">
+        <nav class="studio-settings-navigation" aria-label="Settings sections">
+          <p class="studio-settings-scope">Across all apps</p>
+          <button data-studio-button="subtle" type="button" data-settings-target="preferences" aria-current="page">General</button>
+          <div data-settings-app-navigation></div>
+        </nav>
+        <label class="studio-settings-compact-navigation">Settings section
+          <select aria-label="Settings section" data-settings-navigation><option value="preferences">General · Across all apps</option></select>
+        </label>
+        <div class="studio-settings-content" tabindex="0" aria-label="Selected settings">
+        <section class="studio-settings-section" data-settings-section="preferences" aria-labelledby="studio-settings-general">
+        <p class="studio-settings-scope">Across all apps</p>
+        <h3 id="studio-settings-general">General</h3>
         <label>Appearance<select aria-label="Appearance" data-studio-theme-select><option value="light"${theme === "light" ? " selected" : ""}>Light</option><option value="dark"${theme === "dark" ? " selected" : ""}>Dark</option></select></label>
         <p>${presentation.appearanceDescription}</p>
         <p class="error studio-settings-error" role="alert"></p>
         <label class="studio-editor-preference">Preferred external editor<select aria-label="Preferred external editor" data-studio-editor-select><option value="vscode">VS Code</option></select></label>
         <p>Used for external-editor actions across your apps. VS Code is the default.</p>
         <p class="error studio-settings-error" data-studio-editor-error role="alert"></p>
+        </section>
         <div data-settings-app></div>
+        </div>
       </div>
     </dialog>
   </div>`;

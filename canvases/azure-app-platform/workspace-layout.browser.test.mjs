@@ -118,7 +118,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       if (mode === "map" || mode === "logs") {
         await selectWorkspace(page, "map-app");
         await page.locator(mode === "map" ? "#map-view" : "#logs-app").click();
-      } else await selectWorkspace(page, mode === "manage" ? "manage-app" : "build-app");
+      } else await selectWorkspace(page, mode === "manage" ? "manage-app" : "build-workspace");
     };
     const openStructureFromGuide = async () => {
       const toggle = page.locator("#action-center");
@@ -131,6 +131,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await installStudioAssetRoutes(page);
     await page.goto(url);
     await page.locator("#studio-workspace-navigation").waitFor();
+    await selectWorkspace(page, "build-workspace");
     const buildRow = page.locator('.build-file[data-artifact="instructions"]');
     const buildDisclosure = buildRow.locator(
       '.build-source-disclosure[data-preview-for="instructions"]');
@@ -145,32 +146,32 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     };
     await buildRow.waitFor();
     await openBuildPreview();
+    await selectWorkspace(page, "manage-app");
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
-    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Run & Debug", "Observe", "Deploy"]);
+    assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
     assert.equal(await page.locator("#studio-workspace-navigation > header h1").count(), 1);
-    assert.equal(await page.locator("#workspace-runtime-bar .runtime-badge").count(), 1);
+    assert.equal(await page.locator("#workspace-runtime-bar .runtime-badge").count(), 0);
+    assert.equal(await page.locator("#app-identity .runtime-badge").count(), 1);
     assert.equal(await page.locator("#workspace-runtime-bar .runtime-action").count(), 1);
     const headerBounds = await page.locator("#studio-workspace-navigation > header").boundingBox();
     assert.ok(headerBounds.height <= 64);
     assert.ok((await page.locator("#app-workspace-main").boundingBox()).y >= headerBounds.y + headerBounds.height);
     assert.equal(await page.locator(".header-actions #action-center").count(), 0);
-    assert.equal(await page.locator("#guide-rail button[title='Collapse Guide']").count(), 1);
+    assert.equal(await page.locator("#guide-rail button[title='Close Guide']").count(), 1);
     assert.equal(await page.locator("#collapse-guide").count(), 0);
-    assert.equal(await page.locator("#action-center svg").getAttribute("data-octicon"), "sidebar-collapse");
-    assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
+    assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
+    assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
     assert.equal(await page.locator("#graph-shell").isVisible(), false);
     assert.equal(await page.locator(".map-palette").isVisible(), false);
     assert.equal(await page.locator(".map-view-bar").count(), 0);
     const expanded = await page.locator("#workspace").boundingBox();
-    const rail = await page.locator("#guide-rail").boundingBox();
-    assert.ok(expanded.width >= (await page.locator("#app-workspace-main").boundingBox()).width - 300);
-    assert.ok(Math.abs(expanded.x + expanded.width - rail.x) < 1);
-    assert.ok(rail.width <= 280);
+    assert.equal(await page.locator("#guide-rail").isVisible(), false);
+    assert.equal(expanded.width, (await page.locator("#app-workspace-main").boundingBox()).width);
     assert.ok(Math.abs((await page.locator("#details").boundingBox()).width - expanded.width) < 1);
 
     const buttonFormat = (button) => button.evaluate((el) => {
@@ -183,7 +184,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     const assertHeaderLayout = async (width) => {
       const layout = await page.evaluate(() => {
         const header = document.querySelector("#studio-workspace-navigation > header");
-        const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+        const action = document.querySelector("#header-runtime-action:not([hidden]), [data-task-runtime-action]").getBoundingClientRect();
         const title = document.querySelector("#app-title").getBoundingClientRect();
         const utilities = document.querySelector("#studio-workspace-navigation .studio-theme-control").getBoundingClientRect();
         return {
@@ -247,8 +248,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
     await openWorkspaceNavigation(page);
-    await page.getByRole("button", { name: "Build", exact: true }).press("Tab");
-    assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).evaluate((el) => el === document.activeElement), true);
+    await page.locator("#manage-app").focus();
+    assert.equal(await page.getByRole("button", { name: "Test agent", exact: true }).evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "build");
     await page.keyboard.press("Enter");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "manage");
@@ -256,7 +257,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await openWorkspaceNavigation(page);
     await page.locator("#manage-app").press("Tab");
     assert.equal(await page.locator("#map-app").evaluate((el) => el === document.activeElement), true);
-    await page.locator("#build-app").focus();
+    await page.locator("#build-workspace").focus();
     await page.keyboard.press("Space");
     await openBuildPreview();
     await preview.evaluate((element) => {
@@ -280,7 +281,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator(".flow-add").first().press("Enter");
     assert.equal(await page.locator("#details").isVisible(), true);
     assert.equal(await structureGuidance.isVisible(), false);
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await source.textContent(), "Explain applications.");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -289,7 +290,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await source.textContent(), "Explain applications.");
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
-    assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(230, 237, 243)");
+    assert.equal(await page.locator("#build-workspace").evaluate((el) => getComputedStyle(el).color), "rgb(230, 237, 243)");
     const expandedToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();
     assert.deepEqual(await page.locator("#action-center").boundingBox(), expandedToggleBounds, "Collapsing Guide must not move its toggle");
@@ -316,7 +317,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
     assert.equal(await source.textContent(), "Explain applications.");
     assert.equal(await preview.evaluate((el) => el === window.document.activeElement), true);
-    assert.equal(await page.locator("#build-app").getAttribute("aria-current"), "page");
+    assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
     await page.locator("#action-center").click();
     const reviewShortcut = page.locator('[data-guide-stage="connect"]');
     assert.equal(await reviewShortcut.getAttribute("data-state"), "attention");
@@ -364,17 +365,19 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#details").isVisible(), false);
     assert.equal(await connectionReview.evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("#viewport").getAttribute("transform"), reviewCamera);
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await page.getByRole("button", { name: "Open App Map", exact: true }).count(), 1);
     assert.equal(await source.textContent(), "Explain applications.");
 
     await selectWorkspace(page, "manage-app");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
-    const document = page.getByRole("textbox", { name: "Document text", exact: true });
+    const document = page.getByLabel("Document text", { exact: true });
     await message.fill("Explain my application.");
-    await page.getByLabel("Document attachment", { exact: true }).click();
+    await page.getByRole("button", { name: "Add document", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Paste a document", exact: true }).click();
     await document.fill("Synthetic loan application.");
+    await page.getByRole("button", { name: "Attach pasted document", exact: true }).click();
     assert.equal(await page.locator("#details").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(27, 30, 37)");
     await page.locator("#action-center").click();
     assert.equal(await message.inputValue(), "Explain my application.");
@@ -436,7 +439,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.ok(await page.locator("#studio-workspace-navigation > header").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
       assert.ok(await page.locator(".map-palette").evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
     }
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await source.textContent(), "Explain applications.");
     await selectWorkspace(page, "manage-app");
@@ -458,7 +461,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#logs-app").click();
     await page.locator("#details").filter({ hasText: "Agent service output" }).waitFor();
     assert.equal(await serviceFilter.textContent(), "All services", "The global Logs entry resets component scoping");
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await selectWorkspace(page, "map-app");
     assert.equal(await page.locator("body").getAttribute("data-workspace"), "logs", "Observe remembers its last view");
     await page.locator("#logs-app").press("ArrowLeft");
@@ -506,12 +509,11 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("#viewport").getAttribute("transform"), cameraBeforeDetails);
     for (const width of [380, 640, 1024, 1440]) {
       await page.setViewportSize({ width, height: 850 });
-      await page.waitForFunction(wide => {
+      await page.waitForFunction(() => {
         const map = document.querySelector("#graph-shell").getBoundingClientRect();
         const inspector = document.querySelector("#details").getBoundingClientRect();
-        return document.querySelector("#studio-workspace-navigation").dataset.navigationExpanded === String(wide)
-          && Math.abs(map.width - inspector.width) < 1 && inspector.y >= map.bottom;
-      }, width >= 1180);
+        return Math.abs(map.width - inspector.width) < 1 && inspector.y >= map.bottom;
+      });
       const { map, inspector } = await page.evaluate(() => ({
         map: document.querySelector("#graph-shell").getBoundingClientRect().toJSON(),
         inspector: document.querySelector("#details").getBoundingClientRect().toJSON(),
@@ -558,7 +560,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
     await page.getByRole("button", { name: "Close settings" }).click();
     assert.equal(await page.locator(".build-source-preview").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 255, 255)");
-    assert.equal(await page.locator("#build-app").evaluate((el) => getComputedStyle(el).color), "rgb(31, 35, 40)");
+    assert.equal(await page.locator("#build-workspace").evaluate((el) => getComputedStyle(el).color), "rgb(31, 35, 40)");
     assert.equal(await page.locator("#guide-content").isVisible(), false);
     assert.equal(await page.locator("#action-center").getAttribute("aria-expanded"), "false");
     await page.setViewportSize({ width: 380, height: 1000 });
@@ -567,7 +569,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       await page.mouse.move(0, 0);
       await assertObserveSwitcher();
     }
-    await selectWorkspace(page, "build-app");
+    await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     const narrowToggleBounds = await page.locator("#action-center").boundingBox();
     await page.locator("#action-center").click();

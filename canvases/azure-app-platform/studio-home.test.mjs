@@ -33,6 +33,9 @@ test("Unity home composes public toolkit components and retains all journey call
   }
   assert.deepEqual(calls, ["create", "open", "assemble"]);
   assert.equal(tree.filter(node => node.type === "h1").length, 1);
+  assert.deepEqual(tree.find(node => node.type === "h1").children, ["Automate real tasks within boundaries you set."]);
+  assert.ok(tree.some(node => node.type === "p" &&
+    node.children[0] === "Isolate tool execution and govern access to shared models and tools."));
 });
 
 test("recent apps distinguish not-loaded, empty, failed and recorded rows without new discovery", () => {
