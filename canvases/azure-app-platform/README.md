@@ -618,15 +618,13 @@ only when the code is clipped, alongside **Show full file** to reveal its full
 height. **Show less** returns to the compact preview. Short, complete files show
 neither a fade nor an unnecessary expansion action. Page view has no fade or
 stack boundary. Only the surrounding file pane scrolls.
-Multi-file blocks have a sticky header with toolkit-backed **Stack view** and
-**Page view** icon segments, in that order, at the top right beside the collection
-name. Stack is the default and shows the files together. Page shows one complete
-file at a time, filling the preview pane. Filename choices appear in a separate row below in both views;
-in Stack view they jump to the selected file
-without changing layouts. Activating the selected filename jumps back to that
-file. **More files** appears only when some filenames do not fit, lists only those
+Multi-file blocks have a sticky header with a **Stack view** toggle button before
+the filename choices. Stack is the default and shows the files together. Selecting
+a filename switches to its complete individual page, filling the preview pane.
+The Stack button switches back to the full stack; toggling it off returns to the
+selected page. **More files** appears only when some filenames do not fit, lists only those
 hidden files, and marks the selected file when it is in the menu.
-It selects a page or jumps to a stacked file without changing layouts.
+Selecting an overflow filename also switches to its individual page.
 The **+ Add building block** button sits immediately after the filenames while
 they fit. When space runs out, whole filenames move into **More files** instead
 of scrolling horizontally. The buttons stay left-aligned immediately after the

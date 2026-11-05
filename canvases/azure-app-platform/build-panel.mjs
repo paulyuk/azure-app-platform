@@ -142,7 +142,6 @@ export const BUILD_EXPLORER_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-page-switch-mount { flex:0 1 auto; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-collection-actions { flex:none; gap:4px; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-header .ct-toolbar { flex-wrap:nowrap; gap:2px; min-width:0; padding:2px; }
-:is(#details, #customize-content)[data-mode="build"] .build-view-switch { width:max-content; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-panel); }
 :is(#details, #customize-content)[data-mode="build"] .build-page-switch { overflow:clip; width:max-content; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-controls [hidden] { display:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-measure { position:absolute; width:0; height:0; overflow:hidden; visibility:hidden; pointer-events:none; }
@@ -755,6 +754,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const artifact = matches.find(item => item.id === remembered) ??
       matches.find(item => item.id === selectedArtifact) ?? matches[0];
     selectFile(artifact.id, returnToSource);
+    if (fileFilter.trim() && matches.length === 1 && blockViews.has(project.path)) {
+      blockViews.get(project.path).mode = "page";
+      updateBlockView();
+    }
   }
   function renderFileList(list, status) {
     rememberCategories(list);
@@ -924,25 +927,24 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     function viewIcon(path) {
       return buttons.icon('<svg class="build-view-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="' + path + '"/></svg>');
     }
-    const mode = buttons.segmented({
-      "aria-label": "Document layout", className: "build-view-switch", iconOnly: true, value: view.mode,
-      items: [
-        { value: "stack", label: "Stack view", focusKey: "layout-stack", icon: viewIcon("m2 5 6-3 6 3-6 3-6-3Zm0 3 6 3 6-3M2 11l6 3 6-3") },
-        { value: "page", label: "Page view", focusKey: "layout-page", icon: viewIcon("M4 1.5h5.5L13 5v9.5H4zM9.5 1.5V5H13") },
-      ],
-      onValueChange(value) {
-        rememberView();
-        if (view.mode === "stack") view.stackScroll = contentPanel.scrollTop;
-        else view.pageScroll.set(view.activeId, files.scrollTop);
-        view.mode = value;
-        updateBlockView();
-        contentPanel.scrollTop = value === "stack" ? view.stackScroll : 0;
-        files.scrollTop = value === "page" ? view.pageScroll.get(view.activeId) ?? 0 : 0;
-      },
+    function setMode(value) {
+      rememberView();
+      if (view.mode === "stack") view.stackScroll = contentPanel.scrollTop;
+      else view.pageScroll.set(view.activeId, files.scrollTop);
+      view.mode = value;
+      updateBlockView();
+      contentPanel.scrollTop = value === "stack" ? view.stackScroll : 0;
+      files.scrollTop = value === "page" ? view.pageScroll.get(view.activeId) ?? 0 : 0;
+    }
+    const controls = element("div", undefined, header, "build-block-controls");
+    const mode = buttons.create({
+      "aria-label": "Stack view", title: "Stack view", "data-focus-key": "layout-stack",
+      size: "small", appearance: "subtle", "aria-pressed": view.mode === "stack",
+      icon: viewIcon("m2 5 6-3 6 3-6 3-6-3Zm0 3 6 3 6-3M2 11l6 3 6-3"),
+      onClick: () => setMode(view.mode === "stack" ? "page" : "stack"),
     });
     buttons.host(mode).classList.add("build-view-switch-mount");
-    buttons.append(heading, mode);
-    const controls = element("div", undefined, header, "build-block-controls");
+    buttons.append(controls, mode);
     const rows = [...files.querySelectorAll(".build-file")];
     for (const row of rows) row.id = "build-document-" + encodeURIComponent(row.dataset.artifact);
     const pageItems = members.map((member, index) => ({
@@ -950,15 +952,16 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       controls: rows[index].id, focusKey: "page-" + member.id,
     }));
     const pages = buttons.segmented({
-      "aria-label": "File pages", className: "build-page-switch", value: selectedArtifact,
+      "aria-label": "File pages", className: "build-page-switch", value: view.mode === "page" ? selectedArtifact : undefined,
       items: pageItems,
       onValueChange(value) {
         rememberView();
         selectedArtifact = value;
+        setMode("page");
         renderSelection({ revealSelected: true });
       },
       onReselect() {
-        if (view.mode === "stack") renderSelection({ revealSelected: true });
+        setMode("page");
       },
     });
     const pageMount = buttons.host(pages);
@@ -980,7 +983,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         id: member.id, label: member.path.split("/").pop(), title: member.path,
         "aria-current": member.id === selectedArtifact ? "true" : undefined,
         icon: member.id === selectedArtifact ? fileIcon("check") : undefined,
-        onClick: () => selectFile(member.id, false),
+        onClick: () => {
+          rememberView();
+          selectedArtifact = member.id;
+          setMode("page");
+          renderSelection({ revealSelected: true });
+        },
       }));
     }
     const more = buttons.menu({
@@ -1000,13 +1008,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     updateFileOverflow = () => {
       if (!controls.getClientRects().length || controls.clientWidth === 0) return;
       const gap = parseFloat(getComputedStyle(controls).columnGap) || 0;
+      const stackWidth = mode.getBoundingClientRect().width + gap;
       const actionGap = parseFloat(getComputedStyle(actions.querySelector(".build-collection-actions")).columnGap) || 0;
       const addWidth = add.getBoundingClientRect().width;
-      const fits = fullStrip.getBoundingClientRect().width + gap + addWidth <= controls.clientWidth;
+      const fits = stackWidth + fullStrip.getBoundingClientRect().width + gap + addWidth <= controls.clientWidth;
       let nextCount = members.length;
       if (!fits) {
         moreMount.hidden = false;
-        const available = controls.clientWidth - gap - addWidth - actionGap - more.getBoundingClientRect().width;
+        const available = controls.clientWidth - stackWidth - gap - addWidth - actionGap - more.getBoundingClientRect().width;
         const stripStyle = getComputedStyle(fullStrip);
         const itemGap = parseFloat(stripStyle.columnGap) || 0;
         let used = parseFloat(stripStyle.paddingLeft) + parseFloat(stripStyle.paddingRight);
@@ -1025,7 +1034,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       pageMount.hidden = nextCount === 0;
       if (visibleCount !== nextCount) {
         visibleCount = nextCount;
-        buttons.update(pages, { items: pageItems.slice(0, visibleCount), value: selectedArtifact });
+        buttons.update(pages, { items: pageItems.slice(0, visibleCount), value: view.mode === "page" ? selectedArtifact : undefined });
         buttons.update(more, { items: collectionFileItems() });
         if (focusedFile && !pages.querySelector(`[data-focus-key="${CSS.escape(focusedFile)}"]`)) more.focus({ preventScroll: true });
       }
@@ -1038,8 +1047,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       contentPanel.dataset.blockView = view.mode;
       files.dataset.view = view.mode;
       for (const row of rows) row.hidden = view.mode === "page" && row.dataset.artifact !== selectedArtifact;
-      buttons.update(mode, { value: view.mode });
-      buttons.update(pages, { value: selectedArtifact });
+      buttons.update(mode, { "aria-pressed": view.mode === "stack" });
+      buttons.update(pages, { value: view.mode === "page" ? selectedArtifact : undefined });
       buttons.update(more, { items: collectionFileItems() });
       updateFileOverflow();
       if (changedPage && view.mode === "page") files.scrollTop = view.pageScroll.get(view.activeId) ?? 0;

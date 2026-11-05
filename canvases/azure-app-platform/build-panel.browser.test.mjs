@@ -157,6 +157,8 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await toolsArea.locator(".build-project-list").count(), 0);
 
     await files.locator('[data-file-choice="runtime"]').click();
+    await page.getByRole("toolbar", { name: "File pages", exact: true })
+      .getByRole("button", { name: "runtime.json", exact: true }).click();
     const runtimeArea = page.locator('.build-area[data-area-id="application"]');
     assert.equal(await runtimeArea.locator(".build-area-title").textContent(), "Config",
       "Files in a shared directory form one collection even without discovery metadata");
@@ -256,6 +258,8 @@ test("Build is a focused read-only customization workspace with document and Run
     artifacts.find(artifact => artifact.id === "runtime").content = '{"agentRuntime":"copilot-sdk-sandbox"}';
     await page.getByRole("button", { name: "Refresh source", exact: true }).click();
     await files.locator('[data-file-choice="runtime"]').click();
+    await page.getByRole("toolbar", { name: "File pages", exact: true })
+      .getByRole("button", { name: "runtime.json", exact: true }).click();
     const runtime = page.locator('.build-file[data-artifact="runtime"]');
     await runtime.locator(".build-runtime-info").waitFor();
     assert.match(await runtime.innerText(), /Target: separate ACA sandboxes/);

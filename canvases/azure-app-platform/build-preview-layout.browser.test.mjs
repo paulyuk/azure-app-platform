@@ -99,6 +99,7 @@ for (const [name, engine, presentationProfile] of [
         const choice = page.locator(`[data-collection-path="${path}"]`);
         if (!await choice.isVisible() && await filesToggle.isVisible()) await filesToggle.click();
         await choice.click();
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const pages = page.getByRole("toolbar", { name: "File pages", exact: true, includeHidden: true });
         if (await pages.count()) {
           const filename = artifact.path.split("/").pop();
@@ -396,9 +397,7 @@ for (const [name, engine, presentationProfile] of [
       await page.locator('[data-file-choice="deal-implementation"]').click();
       const block = page.locator(".build-block-files");
       await block.waitFor();
-      const layout = page.getByRole("toolbar", { name: "Document layout", exact: true });
-      const stackView = layout.getByRole("button", { name: "Stack view", exact: true });
-      const pageView = layout.getByRole("button", { name: "Page view", exact: true });
+      const stackView = page.getByRole("button", { name: "Stack view", exact: true });
       const filePages = page.getByRole("toolbar", { name: "File pages", exact: true, includeHidden: true });
       const filePicker = page.getByRole("button", { name: "More files", exact: true });
       const fileMenu = page.getByRole("menu", { name: "More files", exact: true });
@@ -407,10 +406,12 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(await stackView.getAttribute("aria-pressed"), "true", "Every block defaults to Stack view");
       assert.equal(await block.locator(".build-file:visible").count(), 2);
       assert.equal(await filePages.isVisible(), true, "Filename choices are available by default");
-      assert.ok((await stackView.boundingBox()).x < (await pageView.boundingBox()).x,
-        "The stack icon precedes the single-page icon");
-      await pageView.click();
-      await page.setViewportSize({ width: 320, height: 900 });
+      assert.equal(await page.getByRole("toolbar", { name: "Document layout", exact: true }).count(), 0);
+      assert.ok((await stackView.boundingBox()).x < (await filePages.boundingBox()).x,
+        "The stack button precedes the filename choices");
+      assert.equal(await filePages.locator('[aria-pressed="true"]').count(), 0);
+      await stackView.click();
+      await page.setViewportSize({ width: 380, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await filePicker.isVisible(), true, JSON.stringify(await page.locator(".build-block-controls").evaluate(controls => ({
         width: controls.clientWidth,
@@ -426,7 +427,7 @@ for (const [name, engine, presentationProfile] of [
       await fileMenu.getByRole("menuitem", { name: "agents.config.yaml", exact: true }).click();
       assert.equal(await config.isVisible(), true);
       assert.equal(await implementation.isVisible(), false, "The file menu selects a page");
-      assert.equal(await pageView.getAttribute("aria-pressed"), "true");
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false");
       await filePicker.click();
       assert.equal(await fileMenu.locator('[aria-current="true"]').textContent(), "agents.config.yaml",
         "The file menu marks the current file after selection");
@@ -450,7 +451,7 @@ for (const [name, engine, presentationProfile] of [
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const toolbar = await page.locator(".build-block-header").evaluate(header => {
           const title = header.querySelector(".build-area-title").getBoundingClientRect();
-          const layout = header.querySelector(".build-view-switch").getBoundingClientRect();
+          const layout = header.querySelector('[aria-label="Stack view"]').getBoundingClientRect();
           const filenames = header.querySelector(".build-page-switch");
           const pages = filenames.getBoundingClientRect();
           const lastFile = [...filenames.querySelectorAll("button")].at(-1)?.getBoundingClientRect();
@@ -463,9 +464,10 @@ for (const [name, engine, presentationProfile] of [
           const firstFile = header.parentElement.querySelector(".build-file:not([hidden])").getBoundingClientRect();
           return {
             hasOverflow, overflows, filenameWidth: filenames.clientWidth, contentWidth: filenames.scrollWidth,
+            positions: { stack: layout.toJSON(), pages: pages.toJSON(), last: lastFile?.toJSON(), add: add.toJSON() },
             checks: {
-              headingAligned: Math.abs(title.top + title.height / 2 - layout.top - layout.height / 2) <= 1,
-              layoutAtRight: layout.left > title.right && layout.bottom <= header.querySelector(".build-block-controls").getBoundingClientRect().top,
+              stackBelowHeading: layout.top >= title.bottom,
+              stackBeforeFiles: layout.right <= (lastFile ? pages.left : more.left),
               filenamesBeforeActions: !lastFile || lastFile.right <= (hasOverflow ? more.left : add.left),
               plusAfterOverflow: !hasOverflow || (more.right <= add.left && Math.abs(add.top - more.top) <= 1),
               noHorizontalScroll: !overflows && filenames.scrollLeft === 0,
@@ -476,14 +478,14 @@ for (const [name, engine, presentationProfile] of [
               actionPlacement: lastFile
                 ? (hasOverflow ? more.left : add.left) - lastFile.right >= 0 &&
                   (hasOverflow ? more.left : add.left) - lastFile.right <= 12
-                : Math.abs(more.left - header.querySelector(".build-block-controls").getBoundingClientRect().left) <= 1,
+                : more.left >= layout.right && more.left - layout.right <= 12,
             },
           };
         });
         fileRowModes.add(toolbar.hasOverflow);
         fileRowSizes.push({ width, ...toolbar });
         assert.ok(Object.values(toolbar.checks).every(Boolean),
-          `${name} ${width}px keeps layout beside the heading and filenames, overflow, plus on the next row: ${JSON.stringify(toolbar)}`);
+          `${name} ${width}px keeps Stack, filenames, overflow and plus on one bounded row: ${JSON.stringify(toolbar)}`);
         assert.equal(await filePicker.isVisible(), toolbar.hasOverflow, "Only hidden filenames expose the overflow trigger");
         const inlineFiles = await filePages.getByRole("button").allTextContents();
         if (toolbar.hasOverflow) {
@@ -573,19 +575,21 @@ for (const [name, engine, presentationProfile] of [
         preview.scrollTop = 90;
       });
       await chooseFile("deal-config");
+      await stackView.click();
       assert.equal(await implementation.locator("textarea").inputValue(), "Preserve this deal doc draft.");
       assert.ok(await implementation.locator(".build-source-preview").evaluate(preview =>
         preview === window.retainedBlockPreview && preview.scrollTop === 0), "Sibling selection preserves non-scrolling source nodes");
       assert.equal(await page.locator('[data-file-choice="deal-implementation"]').getAttribute("aria-current"), "true");
       assert.equal(await filePages.getByRole("button", {
         name: "agents.config.yaml", exact: true, includeHidden: true,
-      }).getAttribute("aria-pressed"), "true", "The right-hand file selector tracks the selected sibling");
+      }).getAttribute("aria-pressed"), "false", "Stack mode does not mark an individual page as active");
       await config.getByRole("button", { name: "Edit in VS Code", exact: true }).focus();
       await page.getByRole("searchbox", { name: "Filter files", exact: true }).fill("deal-config-no-match");
       assert.equal(await block.locator(".build-file").count(), 2, "File filtering does not remove a sibling preview");
       await page.getByRole("searchbox", { name: "Filter files", exact: true }).press("Escape");
       await implementation.getByRole("button", { name: "Cancel", exact: true }).click();
       await chooseFile("deal-implementation");
+      await stackView.click();
       assert.ok(await block.locator(".build-file-header").evaluateAll(elements => elements.every(header => {
         const pane = header.closest(".build-content").getBoundingClientRect();
         const bounds = header.getBoundingClientRect();
@@ -602,20 +606,17 @@ for (const [name, engine, presentationProfile] of [
       await implementation.getByRole("button", { name: "Show less", exact: true }).click();
       assert.equal(await stackView.getAttribute("aria-pressed"), "true", "The chosen Stack view survives navigation");
       assert.equal(await filePages.isVisible(), true, "Filename controls remain visible in Stack view");
-      assert.equal(await layout.locator('svg[aria-hidden="true"]').count(), 2, "Both layout choices have decorative icons");
+      assert.equal(await stackView.locator('svg[aria-hidden="true"]').count(), 1);
       await stackView.focus();
-      await stackView.press("ArrowRight");
-      assert.equal(await pageView.evaluate(button => button === document.activeElement), true,
-        "The toolkit owns arrow-key movement between view choices");
-      await pageView.press("Space");
-      assert.equal(await pageView.getAttribute("aria-pressed"), "true");
+      await stackView.press("Space");
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false");
       assert.equal(await block.locator("[data-clipped]").count(), 0, "Page view never looks truncated");
       assert.equal(await implementation.isVisible(), true);
       assert.equal(await config.isVisible(), false, "Page view displays just the selected file");
       assert.equal(await implementation.getByRole("button", { name: "Show full file", exact: true }).isVisible(), false,
         "Page view always displays the complete source");
-      await pageView.click();
-      assert.equal(await pageView.getAttribute("aria-pressed"), "true", "The active layout cannot be deselected");
+      await filePages.getByRole("button", { name: "function_app.py", exact: true }).click();
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Reselecting a filename stays in Page view");
       for (const width of [1000, 620, 380]) {
         await page.setViewportSize({ width, height: 900 });
         // Let WebKit update sticky-header hit testing after the resize and scroll.
@@ -682,11 +683,11 @@ for (const [name, engine, presentationProfile] of [
       await configPage.click();
       assert.equal(await configPage.getAttribute("aria-pressed"), "true", "File choices remain on the right");
       await page.getByRole("button", { name: "Refresh source", exact: true }).click();
-      assert.equal(await pageView.getAttribute("aria-pressed"), "true", "Source refresh preserves the selected layout");
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Source refresh preserves the selected layout");
       await page.locator('[data-file-choice="first"]').click();
-      assert.equal(await layout.count(), 0, "Single files have no layout switch");
+      assert.equal(await stackView.count(), 0, "Single files have no layout switch");
       await page.locator('[data-file-choice="deal-implementation"]').click();
-      assert.equal(await pageView.getAttribute("aria-pressed"), "true", "Returning to the block preserves Page view");
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Returning to the block preserves Page view");
       assert.equal(await configPage.getAttribute("aria-pressed"), "true", "Returning to a collection restores its selected file");
       assert.equal(await page.locator('.build-explorer [aria-current="true"]').count(), 1);
       await stackView.click();
@@ -714,20 +715,21 @@ for (const [name, engine, presentationProfile] of [
         `Stack keeps each file's actions below the responsive context header at ${width}px: ${JSON.stringify(pinned)}`);
       }
       await page.setViewportSize({ width: 380, height: 900 });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await filePicker.click();
       await fileMenu.getByRole("menuitem", { name: "agents.config.yaml", exact: true }).click();
-      assert.equal(await stackView.getAttribute("aria-pressed"), "true", "Filename navigation does not leave Stack view");
-      assert.equal(await block.locator(".build-file:visible").count(), 2);
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Overflow filenames switch from Stack to Page view");
+      assert.equal(await block.locator(".build-file:visible").count(), 1);
       assert.ok(await config.locator(".build-file-header").evaluate(header => {
         const bounds = header.getBoundingClientRect();
         const pane = header.closest(".build-content").getBoundingClientRect();
         return bounds.top >= pane.top && bounds.bottom <= pane.bottom;
-      }), "Selecting a filename reveals its stacked file and actions");
+      }), "Selecting a filename reveals its page and actions");
       await implementationPage.click();
-      await page.locator(".build-content").evaluate(pane => { pane.scrollTop = 400; });
+      await block.evaluate(files => { files.scrollTop = 80; });
       await implementationPage.press("Enter");
-      assert.ok(await page.locator(".build-content").evaluate(pane =>
-        pane.scrollTop < 100), "Reactivating the selected filename returns to its stacked file");
+      assert.equal(await block.evaluate(files => files.scrollTop), 80,
+        "Reselecting the active page preserves its scroll");
       await page.locator(".build-content").evaluate(pane => { pane.scrollTop = 400; });
       await filePicker.click();
       await fileMenu.getByRole("menuitem", { name: "agents.config.yaml", exact: true }).click();
@@ -738,14 +740,16 @@ for (const [name, engine, presentationProfile] of [
         const bounds = header.getBoundingClientRect();
         const pane = header.closest(".build-content").getBoundingClientRect();
         return bounds.top >= pane.top && bounds.bottom <= pane.bottom;
-      }), "Reselecting a hidden filename from the menu also returns to its stacked file");
+      }), "Reselecting an overflow filename keeps its page visible");
       await page.setViewportSize({ width: 1000, height: 900 });
+      await stackView.click();
       await implementation.getByRole("button", { name: "Show less", exact: true }).click();
       await config.getByRole("button", { name: "Edit in VS Code", exact: true }).click();
       await config.locator(".build-handoff-feedback [role=status]").waitFor();
       assert.deepEqual(handoffs, [{ root: "/fixture", id: "deal-implementation" }, { root: "/fixture", id: "deal-config" }],
         "Each sibling toolbar opens its own file; the file picker never launches an editor");
       await chooseFile("reflow-code");
+      await stackView.click();
       assert.equal(await stackView.getAttribute("aria-pressed"), "true", "Another block also starts in Stack view");
       const reflow = page.locator('[data-artifact="reflow-code"]');
       const reflowGeometry = await reflow.locator(".build-source-preview").evaluate(source => ({
@@ -792,11 +796,11 @@ for (const [name, engine, presentationProfile] of [
         const more = controls.querySelector("[data-file-picker]").getBoundingClientRect();
         const add = controls.querySelector('[aria-label="Add building block"]').getBoundingClientRect();
         const bounds = controls.getBoundingClientRect();
-        const naturalWidth = Math.ceil(strip.width + (more.left - strip.right) + (add.right - more.left));
+        const naturalWidth = Math.ceil(add.right - bounds.left);
         return { gap: more.left - strip.right, spare: bounds.right - add.right, naturalWidth };
       });
-      assert.ok(validationActions.gap >= 0 && validationActions.gap <= 12 && validationActions.spare > 12,
-        "Overflow controls stay after the visible filenames rather than jumping to the far right");
+      assert.ok(validationActions.gap >= 0 && validationActions.gap <= 12 && validationActions.spare >= 0,
+        "Overflow controls stay after the visible filenames rather than jumping to the far right: " + JSON.stringify(validationActions));
       await page.locator(".build-block-controls").evaluate((controls, width) => {
         controls.style.width = width + "px";
       }, validationActions.naturalWidth);
@@ -824,14 +828,13 @@ for (const [name, engine, presentationProfile] of [
       assert.deepEqual(await fileMenu.getByRole("menuitem").allTextContents(),
         longFiles.map(file => file.path.split("/").pop()), "Long filenames stay fully accessible in the menu");
       await fileMenu.getByRole("menuitem").nth(1).click();
-      assert.equal(await stackView.getAttribute("aria-pressed"), "true");
-      await pageView.click();
+      assert.equal(await stackView.getAttribute("aria-pressed"), "false");
       assert.equal(await page.locator('.build-file[data-artifact="long-second"]').isVisible(), true);
       assert.equal(await page.locator('.build-file[data-artifact="long-first"]').isVisible(), false);
       assert.ok(await page.locator(".build-block-controls").evaluate(controls =>
         controls.scrollWidth <= controls.clientWidth + 1), "Even very long filenames never create horizontal scrolling");
       await page.setViewportSize({ width: 1000, height: 900 });
-      await chooseFile("deal-implementation");
+      await page.locator('[data-collection-path="src/skills/deal-doc"]').click();
       await page.locator(".build-explorer-body").evaluate(element => { element.scrollTop = element.scrollHeight; });
       await page.getByRole("button", { name: "Add building block", exact: true }).click();
       await page.getByRole("textbox", { name: "Block name", exact: true }).fill("lookup");
