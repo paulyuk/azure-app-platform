@@ -46,7 +46,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
         assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "Stop app");
         assert.equal(await action.locator('svg[data-octicon="play"]').count(), fixture.state.app === "stopped" ? 1 : 0);
-        assert.equal(await action.getAttribute("data-appearance"), "primary");
+        assert.equal(await action.getAttribute("data-appearance"), fixture.state.app === "stopped" ? "primary" : "secondary");
         assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
         assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
@@ -124,6 +124,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               actionsTogether: Math.abs(action.top - logs.top) <= 1 && action.right < logs.left,
               rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 12)) <= 1,
               primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
+              runtimeAppearance: document.querySelector("#header-runtime-action").dataset.appearance,
               menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
@@ -149,7 +150,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
             geometry.actionsTogether && geometry.rightAligned, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.buttons.length, 7);
-          assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
+          assert.deepEqual(geometry.primaryActions, []);
+          assert.equal(geometry.runtimeAppearance, "secondary");
           for (const button of geometry.buttons) {
             assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
           }

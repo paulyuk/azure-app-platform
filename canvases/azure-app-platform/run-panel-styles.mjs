@@ -45,7 +45,7 @@ export const RUN_PANEL_CONTENT_CSS = `
 body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] { display:none; }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) {
   color:var(--studio-ink); background:var(--studio-raised);
-  font:13px/1.5 var(--font-sans, system-ui, sans-serif); padding:24px;
+  font:13px/1.5 var(--font-sans, system-ui, sans-serif); padding:16px 12px;
 }
 #details[data-mode="manage"] .run-workspace, #details[data-mode="deploy"] .deploy-workspace { width:100%; max-width:960px; margin:0 auto; min-width:0; }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) h2 { font-size:20px; letter-spacing:-.3px; margin:0; }
@@ -138,7 +138,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .sanitized-document { min-height:0; max-height:240px; margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
 #details[data-mode="manage"] { padding:0; overflow:hidden; }
 #details[data-mode="manage"] .run-workspace { display:flex; flex-direction:column; height:100%; max-width:none; min-height:0; }
-#details[data-mode="manage"] .run-primary { flex:1; min-height:0; min-width:0; overflow:auto; padding:24px; scrollbar-gutter:stable; }
+#details[data-mode="manage"] .run-primary { flex:1; min-height:0; min-width:0; overflow:auto; padding:16px 12px; scrollbar-gutter:stable; }
 #details[data-mode="manage"] .run-primary > * { max-width:960px; margin-inline:auto; }
 #details[data-mode="manage"] .run-diagnostics-toolbar { display:flex; flex:none; align-items:center; justify-content:space-between; gap:8px; padding:4px 12px; border-top:1px solid var(--studio-line); background:var(--studio-panel); }
 #details[data-mode="manage"] .run-diagnostics-toolbar button { flex:none; }
@@ -176,7 +176,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .command-error-details > summary { cursor:pointer; font-size:11px; font-weight:600; color:var(--studio-danger); padding:2px 0; }
 #details[data-mode="manage"] .command-error-output { margin-top:4px; border-color:var(--studio-danger); }
 @media (max-width:620px) {
-  #details[data-mode="manage"] .run-primary { padding:16px; }
+  #details[data-mode="manage"] .run-primary { padding:12px; }
   #details[data-mode="manage"] .run-open-app, #details[data-mode="manage"] .run-section-actions { align-items:flex-start; flex-wrap:wrap; }
   #details[data-mode="manage"] .run-tab-panel { padding-inline:4px; }
 }

@@ -1407,8 +1407,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           : "Run app";
         operation = "run-local";
       }
+      const isStopAction = operation === "stop-local" || appState === "stopping";
       buttons.update(headerRuntimeAction, {
-        children: actionLabel, icon: operation === "run-local" ? runtimePlayIcon : null, disabled,
+        children: actionLabel,
+        appearance: isStopAction ? "secondary" : "primary",
+        icon: operation === "run-local" ? runtimePlayIcon : null,
+        disabled,
       });
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);

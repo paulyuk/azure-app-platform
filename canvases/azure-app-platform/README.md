@@ -329,8 +329,8 @@ current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
 button. **Open app** remains in the existing header utilities. The app lifecycle
-control sits at the top right of the same row as the main menu: **Run app** with a
-filled play glyph when stopped and ready, **Stop app** when running. At canvas widths
+control sits at the top right of the same row as the main menu: primary **Run app** with a
+filled play glyph when stopped and ready, secondary **Stop app** when running. Workspace content aligns with the 12px horizontal margin of the header buttons up to its max-width. At canvas widths
 of 680px or less, the menu stretches across the full upper row (wrapping only if needed), and the
 lifecycle control, divider and icon-only **Logs** button stay together on a second
 row below it, aligned to the right. Wider panes retain the single-row layout.
@@ -463,10 +463,10 @@ in the app-name row through navigation and polling. The public toolkit Badge use
 neutral gray for stopped, green for running, blue/accent for checking and active
 operations, amber for preview/partial startup, and red for failure, with readable
 state labels and theme-owned colors in light and dark. Activating it opens Run.
-The same small primary toolkit
+The same small toolkit
 lifecycle control stays right-aligned beside Build / Connect / Run / Observe / Deploy
 (below the menu in narrow panes)
-across workspace visits: **Run app** / **Run preview** or **Stop app** /
+across workspace visits: primary **Run app** / **Run preview** or secondary **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
 Task actions contain only secondary **Invoke agent** (with a primary-colored `agent` Octicon) and **Document**, without duplicate
 Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,

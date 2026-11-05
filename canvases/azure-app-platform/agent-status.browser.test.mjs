@@ -368,27 +368,33 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
               const first = document.querySelector("#build-workspace").getBoundingClientRect();
               const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+              const brief = document.querySelector(".agent-status-brief").getBoundingClientRect();
               const style = getComputedStyle(node);
               return {
                 sameRow: Math.abs(button.top - first.top) <= 1,
                 belowMenu: button.top >= menu.bottom + 4,
                 actionsTogether: Math.abs(button.top - logs.top) <= 1 && button.right < logs.left,
                 rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
+                briefLeftAligned: Math.abs(brief.left - menu.left) <= 1,
+                briefCentered: brief.width <= 960 && Math.abs(brief.left - menu.left) > 1,
                 separated: button.left >= menu.right + 7,
                 fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
                 toolkit: node.classList.contains("ct-button"), size: node.dataset.size,
                 height: button.height, padding: style.padding, appearance: node.dataset.appearance,
+                operation: node.dataset.operation,
                 prominent: style.backgroundColor !== getComputedStyle(document.querySelector("#build-workspace")).backgroundColor,
               };
             });
             assert.ok((width <= 680 ? geometry.belowMenu : geometry.sameRow && geometry.separated) &&
               geometry.actionsTogether && geometry.rightAligned &&
+              (width <= 960 ? geometry.briefLeftAligned : geometry.briefCentered) &&
               geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
             assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
               [true, "small", 28, "3px 8px"]);
-            assert.equal(geometry.appearance, "primary");
-            assert.equal(geometry.prominent, true);
+            const isStop = geometry.operation === "stop-local";
+            assert.equal(geometry.appearance, isStop ? "secondary" : "primary");
+            if (!isStop) assert.equal(geometry.prominent, true);
           }
         }
       };
@@ -412,7 +418,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
       assert.equal(await action.innerText(), "Stopping…");
       assert.equal(await action.isDisabled(), true);
-      assert.equal(await action.getAttribute("data-appearance"), "primary");
+      assert.equal(await action.getAttribute("data-appearance"), "secondary");
       assert.equal(await invoke.isDisabled(), true);
       release();
       holdStop = false;
@@ -590,7 +596,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         recovered = recovery;
         await page.waitForFunction(value => document.querySelector("#app-status-badge").textContent === value, label);
         assert.equal(await badge.getAttribute("data-color"), color);
-        assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"), "primary");
+        assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"),
+          ["running", "starting", "stopping"].includes(state) ? "secondary" : "primary");
         assert.equal(await badge.getAttribute("aria-live"), "polite");
         assert.match(await page.locator("#app-status-control").getAttribute("aria-label"), new RegExp(label));
         for (const width of [320, 380, 620, 1280]) {

@@ -32,7 +32,7 @@ async function assertDocumentActionPlacement(page) {
       order: [...pair.querySelectorAll("button")].map(button => button.getAttribute("aria-label") || button.textContent),
       invokeAppearance: invoke.dataset.appearance,
       invokeIcon: invoke.querySelector('svg[data-octicon="agent"]') ? getComputedStyle(invoke.querySelector('svg[data-octicon="agent"]')).color : null,
-      primaryColor: getComputedStyle(document.querySelector("#header-runtime-action")).backgroundColor,
+      invokeTextColor: getComputedStyle(invoke).color,
       gap: button.left - primary.right,
       centered: Math.abs((button.top + button.bottom) - (primary.top + primary.bottom)) < 2,
       fits: document.documentElement.scrollWidth <= innerWidth && button.right <= innerWidth && primary.left >= 0,
@@ -43,7 +43,7 @@ async function assertDocumentActionPlacement(page) {
   assert.ok(geometry.pair && geometry.centered && geometry.fits && !geometry.overlay &&
     geometry.gap >= 6 && geometry.gap <= 10, JSON.stringify(geometry));
   assert.equal(geometry.invokeAppearance, "secondary");
-  assert.equal(geometry.invokeIcon, geometry.primaryColor);
+  assert.ok(geometry.invokeIcon && geometry.invokeIcon !== geometry.invokeTextColor);
   assert.deepEqual(geometry.order, ["Invoke agent", "Add document"]);
   assert.equal(geometry.bottomPadding, "10px");
 }

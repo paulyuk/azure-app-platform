@@ -474,9 +474,9 @@ status Badge sits immediately after the app name, including **Running locally** 
 **Not running**, with no separate runtime row. Neutral gray means stopped, green
 running, accent blue checking/active operation, amber preview/partial startup, and
 red failure; explicit labels accompany theme-owned colors in both themes.
-The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
-is top-right on the main-menu row across workspaces: **Run app** / **Run preview**
-with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running.
+The badge retains its keyboard-accessible Run shortcut. A single small toolkit lifecycle control
+is top-right on the main-menu row across workspaces: primary **Run app** / **Run preview**
+with the shipped filled play glyph when ready, or secondary **Stop app** / **Stop preview** when running. Workspace content aligns with the 12px horizontal margin of the header buttons up to its max-width.
 At canvas widths of 680px or less, the menu stretches to 100% of the upper row, wrapping only
 as needed. The lifecycle control, divider and icon-only Logs group move together
 to a second row below the menu, aligned to the right; wider panes keep both on
