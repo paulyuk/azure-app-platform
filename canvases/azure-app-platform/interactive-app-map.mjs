@@ -3606,7 +3606,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           cancelAgentPromptTyping();
           return;
         }
-        const step = Math.max(1, Math.ceil(state.chars.length / 48));
+        const step = Math.max(1, Math.ceil(state.chars.length / 96));
         for (let count = 0; count < step && state.index < state.chars.length; count += 1) {
           state.index += 1;
           state.currentValue = state.chars.slice(0, state.index).join("");
