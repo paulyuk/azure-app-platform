@@ -15,6 +15,80 @@ let playwright;
 try { playwright = requireWeb("playwright"); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
+for (const engine of ["chromium", "webkit"]) {
+  test(`Home boundary copy preserves compact journeys and recent actions in ${engine}`, {
+    skip: !playwright && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const { renderStudioHtml } = await import("./studio-ui.mjs");
+    const { serveStudioAsset } = await import("./studio-assets.mjs");
+    let theme = "light";
+    const server = createServer((request, response) => {
+      void (async () => {
+        const path = new URL(request.url, "http://localhost").pathname;
+        if (await serveStudioAsset(request, response, path)) return;
+        if (path !== "/") { response.writeHead(404).end(); return; }
+        response.writeHead(200, { "Content-Type": "text/html" });
+        response.end(renderStudioHtml("home-copy-test", "fixture", { theme, presentationProfile: "github-app" }));
+      })().catch(error => { response.writeHead(500).end(error.message); });
+    });
+    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+    const browser = await playwright[engine].launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage();
+      const errors = [], mutations = [];
+      page.on("pageerror", error => errors.push(error.message));
+      const apps = Array.from({ length: 7 }, (_, index) => ({
+        name: "Synthetic app " + index, path: "projects/app-" + index, capabilityIds: [],
+        lastOpenedAt: new Date(Date.UTC(2026, 9, 29 - index, 12)).toISOString(),
+      }));
+      await page.route("**/api/**", route => {
+        const path = new URL(route.request().url()).pathname;
+        if (route.request().method() !== "GET") mutations.push(path);
+        const json = path === "/api/sources" ? { roots: [], apps, templates: [EMPTY_TEMPLATE] }
+          : path === "/api/editor-settings" ? DEFAULT_EDITOR_SETTINGS
+            : path === "/api/preferences" ? { theme } : null;
+        if (!json) {
+          errors.push("Unexpected Home request: " + path);
+          return route.abort("failed");
+        }
+        return route.fulfill({ json });
+      });
+      const origin = "http://127.0.0.1:" + server.address().port;
+      for (const tone of ["light", "dark"]) {
+        theme = tone;
+        for (const width of [320, 380, 620]) {
+          await page.setViewportSize({ width, height: 800 });
+          await page.goto(origin);
+          await page.locator("[data-recent-app]").nth(4).waitFor();
+          assert.equal(await page.locator(".simple-home-introduction h1").innerText(), "Automate real tasks within boundaries you set.");
+          assert.equal(await page.locator(".simple-home-introduction p").innerText(), "Isolate tool execution and govern access to shared models and tools.");
+          assert.equal(await page.locator("#studio-home .ct-action-card").count(), 3);
+          assert.equal(await page.locator("[data-recent-app]").count(), 5);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+          await page.locator("#new-app").focus();
+          await page.keyboard.press("Enter");
+          await page.locator('input[name="template"]').waitFor();
+          await page.locator("#top-back").click();
+          await page.locator("#open-app").click();
+          await page.locator("[data-existing-app]").nth(6).waitFor();
+          assert.equal(await page.locator("[data-existing-app]").count(), 7);
+          await page.locator("#top-back").click();
+          await page.locator("#assemble-app").click();
+          await page.getByRole("heading", { name: "Assemble existing projects", exact: true }).waitFor();
+          await page.locator("#top-back").click();
+        }
+      }
+      await page.route("**/app-map?**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic existing app workspace</h1>" }));
+      await page.locator("[data-recent-app]").first().focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("heading", { name: "Synthetic existing app workspace", exact: true }).waitFor();
+      assert.equal(new URL(page.url()).searchParams.get("root"), apps[0].path);
+      assert.deepEqual(mutations, []);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+  });
+}
+
 test("packaged simple home preserves the three explicit journeys", {
   skip: !playwright && "Install src/web dependencies to run browser coverage.",
   timeout: 90000,
@@ -111,7 +185,7 @@ test("packaged simple home preserves the three explicit journeys", {
           assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           if (!baseline) {
-            assert.equal(await page.getByRole("heading", { name: "What would you like to do?", exact: true }).count(), 1);
+            assert.equal(await page.getByRole("heading", { name: "Automate real tasks within boundaries you set.", exact: true }).count(), 1);
             assert.equal(await page.locator("#studio-home .ct-feature-panel").count(), 0);
             assert.equal(await page.locator("#studio-home .ct-action-card").count(), 3);
             assert.equal(await page.locator("#studio-home").getByRole("button").count(), 3);
