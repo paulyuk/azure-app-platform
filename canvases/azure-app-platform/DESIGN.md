@@ -477,7 +477,7 @@ red failure; explicit labels accompany theme-owned colors in both themes.
 The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
 is top-right on the main-menu row across workspaces: **Run app** / **Run preview**
 with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running.
-At canvas widths of 680px or less, the menu occupies the upper row, wrapping only
+At canvas widths of 680px or less, the menu stretches to 100% of the upper row, wrapping only
 as needed. The lifecycle control, divider and icon-only Logs group move together
 to a second row below the menu, aligned to the right; wider panes keep both on
 one row. The same mounted controls retain their keyboard order. Task actions retain only

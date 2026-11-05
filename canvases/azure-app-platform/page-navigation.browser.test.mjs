@@ -140,7 +140,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.headerFits, true, JSON.stringify({ width, tone, geometry }));
           assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
-          assert.ok(geometry.navRight <= width && geometry.groupWidth < 400, "Destinations stay content-width");
+          assert.ok(geometry.navRight <= width &&
+            (width <= 680 ? Math.abs(geometry.groupWidth - (width - 24)) <= 1 : geometry.groupWidth < 400),
+            JSON.stringify({ width, tone, geometry }));
           assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
           assert.ok(geometry.menuHeight <= (width <= 680 ? 108 : 44), JSON.stringify({ width, tone, geometry }));

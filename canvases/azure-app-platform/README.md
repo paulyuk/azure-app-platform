@@ -331,7 +331,7 @@ it does not provision or deploy. There is no duplicate right-side/runtime-bar De
 button. **Open app** remains in the existing header utilities. The app lifecycle
 control sits at the top right of the same row as the main menu: **Run app** with a
 filled play glyph when stopped and ready, **Stop app** when running. At canvas widths
-of 680px or less, the menu takes the upper row (wrapping only if needed), and the
+of 680px or less, the menu stretches across the full upper row (wrapping only if needed), and the
 lifecycle control, divider and icon-only **Logs** button stay together on a second
 row below it, aligned to the right. Wider panes retain the single-row layout.
 Open app appears only when a
