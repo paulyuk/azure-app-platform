@@ -35,6 +35,8 @@ async function assertDocumentActionPlacement(page) {
     const statusBrief = document.querySelector(".agent-status-brief");
     const isPlaying = statusBrief?.dataset.state === "ready";
     const button = node.getBoundingClientRect(), primary = invoke.getBoundingClientRect();
+    const leadingIcon = node.querySelector('.ct-button-icon[data-visual="leading"] svg[data-octicon="plus"]')?.getBoundingClientRect();
+    const trailingTick = node.querySelector('.ct-button-icon[data-visual="trailing"] svg[data-octicon="chevron-down"]')?.getBoundingClientRect();
     const pair = node.closest(".agent-dispatch-actions");
     const textarea = document.querySelector(".agent-prompt-frame textarea");
     return {
@@ -48,11 +50,15 @@ async function assertDocumentActionPlacement(page) {
       gap: button.left - primary.right,
       centered: Math.abs((button.top + button.bottom) - (primary.top + primary.bottom)) < 2,
       fits: document.documentElement.scrollWidth <= innerWidth && button.right <= innerWidth && primary.left >= 0,
+      hasLeadingIcon: Boolean(leadingIcon && leadingIcon.width > 0),
+      hasTrailingTick: Boolean(trailingTick && trailingTick.width > 0 && leadingIcon &&
+        trailingTick.left > leadingIcon.right && trailingTick.right <= button.right),
       overlay: Boolean(node.closest(".agent-prompt-frame")),
       bottomPadding: getComputedStyle(textarea).paddingBottom,
     };
   });
-  assert.ok(geometry.pair && geometry.centered && geometry.fits && !geometry.overlay &&
+  assert.ok(geometry.pair && geometry.centered && geometry.fits && geometry.hasLeadingIcon &&
+    geometry.hasTrailingTick && !geometry.overlay &&
     geometry.gap >= 6 && geometry.gap <= 10, JSON.stringify(geometry));
   assert.equal(geometry.invokeAppearance, geometry.isPlaying ? "primary" : "secondary");
   assert.ok(geometry.invokeIcon && (geometry.isPlaying

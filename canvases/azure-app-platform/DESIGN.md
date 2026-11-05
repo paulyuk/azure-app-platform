@@ -584,8 +584,8 @@ scroll/disclosures, ongoing output polling and keyboard focus survive page visit
 It is resizable with pointer or keyboard, bounded against the current shell and
 visible alert height; Escape closes it and returns focus to Logs. Failure warnings stay
 visible when it is hidden.
-A compact secondary **+ Document** toolkit menu immediately to the right of **Invoke agent**
-appears only when readiness advertises document support. Its three actions are
+A compact secondary **+ Document** toolkit MenuButton with a trailing dropdown chevron
+immediately to the right of **Invoke agent** appears only when readiness advertises document support. Its three actions are
 **Upload document**, **Paste a document** and **Add sample**. The public MenuButton
 owns keyboard navigation, dismissal and focus return. Paste opens an on-demand,
 confirmable editor, not a second permanent control row; Cancel preserves the attachment

@@ -1127,8 +1127,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const documentTestNoticeRoot = document.createElement("div");
     const documentMenuRoot = document.createElement("div");
     documentMenuRoot.className = "studio-toolkit";
+    const documentMenuTrailingIcon = () => buttons.icon(ICONS["chevron-down"]);
     const documentMenuButtonProps = {
       appearance: "secondary", size: "small", icon: buttons.icon(ICONS.plus),
+      trailingVisual: documentMenuTrailingIcon,
       "aria-label": "Add document", "data-add-document": "true", "data-action-key": "add-document",
       title: "Add a document for the agent to analyze or to test how safety policies handle its content.",
     };
