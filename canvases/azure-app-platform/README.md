@@ -468,7 +468,7 @@ lifecycle control stays right-aligned beside Build / Connect / Run / Observe / D
 (below the menu in narrow panes)
 across workspace visits: **Run app** / **Run preview** or **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
-Task actions contain only **Invoke agent** and **Document**, without duplicate
+Task actions contain only secondary **Invoke agent** (with a primary-colored `agent` Octicon) and **Document**, without duplicate
 Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,
 failures and cloud operations; startup cancellation, partial-startup recovery and
 setup use the same navigation-row control. Navigation alone never performs a lifecycle

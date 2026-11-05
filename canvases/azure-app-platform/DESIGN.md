@@ -481,7 +481,7 @@ At canvas widths of 680px or less, the menu stretches to 100% of the upper row, 
 as needed. The lifecycle control, divider and icon-only Logs group move together
 to a second row below the menu, aligned to the right; wider panes keep both on
 one row. The same mounted controls retain their keyboard order. Task actions retain only
-**Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
+secondary **Invoke agent** (with a primary-colored `agent` Octicon) and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
 gating reuse the same control and lifecycle operations. Navigation alone does not run
 or stop the app. The icon-only **Logs** button sits immediately to its right, separated by a divider, and

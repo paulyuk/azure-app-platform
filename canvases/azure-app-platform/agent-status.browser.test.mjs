@@ -273,6 +273,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
       fail = true;
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
+      assert.equal(await invoke.getAttribute("data-appearance"), "secondary");
+      assert.equal(await invoke.locator('svg[data-octicon="agent"]').count(), 1);
       await invoke.focus();
       await invoke.press("Enter");
       await page.locator('.agent-response[data-state="failed"]').waitFor();

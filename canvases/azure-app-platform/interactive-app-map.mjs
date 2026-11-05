@@ -3517,7 +3517,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderResponse(response);
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
-      const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
+      const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt));
+      buttons.update(send, { icon: buttons.icon(ICONS.agent) });
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
       const dispatchActions = appendText(actions, "div", "", "agent-dispatch-actions");
