@@ -228,6 +228,27 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="invoking"]').waitFor();
+      assert.deepEqual(await page.evaluate(() => {
+        const button = document.querySelector("[data-invoke-agent]");
+        const buttonRing = button?.querySelector(".agent-invoke-spinner .ct-spinner-ring");
+        const heading = document.querySelector(".agent-status-brief h3");
+        const statusRing = heading?.querySelector(".agent-status-spinner .ct-spinner-ring");
+        return {
+          buttonLabel: button?.textContent.trim(),
+          buttonInvoking: button?.dataset.invoking,
+          buttonSpin: buttonRing ? getComputedStyle(buttonRing).animationName : "",
+          buttonColorMatches: Boolean(button && buttonRing && getComputedStyle(buttonRing).borderTopColor === getComputedStyle(button).color),
+          statusSpin: statusRing ? getComputedStyle(statusRing).animationName : "",
+          statusColorMatches: Boolean(heading && statusRing && getComputedStyle(statusRing).borderTopColor === getComputedStyle(heading).color),
+        };
+      }), {
+        buttonLabel: "Invoking agent…",
+        buttonInvoking: "true",
+        buttonSpin: "ct-spin",
+        buttonColorMatches: true,
+        statusSpin: "ct-spin",
+        statusColorMatches: true,
+      });
       assert.equal(await prompt.isDisabled(), true);
       assert.equal(commands.length, 1, "The existing auto-start path runs once.");
       assert.equal(requests.length, 0, "A running app alone cannot dispatch a task.");
@@ -241,6 +262,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Not running"));
       release();
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
+      assert.equal(await page.locator(".agent-status-brief .agent-status-spinner").count(), 0);
+      assert.equal(await page.locator("[data-invoke-agent] .agent-invoke-spinner").count(), 0);
+      assert.equal(await page.locator("[data-invoke-agent]").textContent(), "Invoke agent");
       assert.deepEqual(requests[0], {
         root: "/fixture/dealer", port: 8088, message: payload, document: { name: "sample-loan-note.md", content: documentText },
       });
@@ -509,13 +533,21 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await status.getByRole("button", { name: "Open connections", exact: true }).count(), 1);
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await prompt.fill("Retain this task while runtime facts change.");
+      const toneColors = new Map();
       for (const [state, expected, tone] of [["stopped", "stopped", "neutral"], ["failed", "runtime-failed", "danger"], ["running", "ready", "success"]]) {
         fixture.state.app = state;
         fixture.state.error = state === "failed" ? "Simulated failure with a long diagnostic identifier: " + "x".repeat(120) : "";
         await page.locator('.agent-status-brief[data-state="' + expected + '"]').waitFor();
         assert.equal(await status.locator(".agent-status-icon").getAttribute("data-tone"), tone);
         assert.equal(await status.locator(".agent-status-icon").getAttribute("aria-hidden"), "true");
-        if (state === "failed") assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
+        toneColors.set(tone, await status.locator(".agent-status-icon").evaluate(node => getComputedStyle(node).backgroundColor));
+        if (state === "failed") {
+          assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
+          assert.equal(
+            await status.locator(".agent-status-icon").evaluate(node => getComputedStyle(node).backgroundColor),
+            await status.locator("h3").evaluate(node => getComputedStyle(node).color),
+          );
+        }
         for (const width of [320, 380, 620, 621, 800, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
@@ -553,6 +585,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         assert.equal(await prompt.inputValue(),
           "Retain this task while runtime facts change.");
       }
+      assert.equal(new Set(toneColors.values()).size, 3, "Neutral, danger and success tones use distinct filled status icon colors.");
       assert.deepEqual(fixture.mutations, []);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }

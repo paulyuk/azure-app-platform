@@ -15,14 +15,22 @@ export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-prerequisites { margin:4px 0 0; padding-inline-start:18px; font-size:12px; overflow-wrap:anywhere; }
 #details[data-mode="manage"] .agent-connection-shortcut { flex:none; }
 #details[data-mode="manage"] .agent-status-icon { display:grid; flex:none; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--text-color-button-primary-rest, var(--studio-on-accent)); background:var(--background-color-button-primary-rest, var(--canvas-button-primary-bg, var(--studio-accent))); }
+#details[data-mode="manage"] .agent-status-icon[data-tone="success"] { background:var(--studio-ok); }
+#details[data-mode="manage"] .agent-status-icon[data-tone="warning"] { background:var(--studio-warn); }
+#details[data-mode="manage"] .agent-status-icon[data-tone="danger"] { background:var(--studio-danger); }
 #details[data-mode="manage"] .agent-status-icon::before { content:""; width:16px; height:16px; background:currentColor; mask:${octiconMask("info")} center/contain no-repeat; }
 #details[data-mode="manage"] .agent-status-icon[data-tone="success"]::before { mask-image:${octiconMask("check")}; }
 #details[data-mode="manage"] .agent-status-icon:is([data-tone="danger"],[data-tone="warning"])::before { mask-image:${octiconMask("alert")}; }
+#details[data-mode="manage"] .agent-status-spinner.ct-spinner,
+#details[data-mode="manage"] .agent-invoke-spinner.ct-spinner { display:inline-flex; width:auto; min-height:0; color:inherit; }
+#details[data-mode="manage"] .agent-status-spinner.ct-spinner { margin-inline-end:6px; vertical-align:-2px; }
+#details[data-mode="manage"] .agent-status-spinner .ct-spinner-ring,
+#details[data-mode="manage"] .agent-invoke-spinner .ct-spinner-ring { width:14px; height:14px; border-color:color-mix(in srgb, currentColor 28%, transparent); border-top-color:currentColor; }
 #details[data-mode="manage"] .agent-status-brief h2 { font-size:11px; letter-spacing:0; color:var(--studio-muted); font-weight:600; margin:0; }
 #details[data-mode="manage"] .agent-status-brief h3 { font-size:14px; line-height:1.5; margin:0; color:var(--studio-ink); overflow-wrap:anywhere; }
 #details[data-mode="manage"] .agent-status-brief p { font-size:12px; line-height:1.5; margin:0; color:var(--studio-muted); }
 #details[data-mode="manage"] .agent-status-brief p.error { color:var(--studio-danger); }
-#details[data-mode="manage"] .agent-status-brief[data-state="runtime-failed"] h3 { color:var(--studio-danger); }
+#details[data-mode="manage"] .agent-status-brief:is([data-state="runtime-failed"],[data-state="unavailable"]) h3 { color:var(--studio-danger); }
 #details[data-mode="manage"] .agent-status-brief[data-state="invoking"] h3 { color:var(--studio-accent); }
 #details[data-mode="manage"] .agent-status-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; min-width:0; border-top:1px solid var(--studio-line); background:var(--studio-panel); font-size:11px; }
 #details[data-mode="manage"] .agent-status-facts > div { min-width:0; padding:8px 10px; }

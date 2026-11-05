@@ -1435,8 +1435,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         buttons.setDisabled(headerRuntimeAction, invokingAgent || documentTesting || documentLoading || Boolean(lifecycleOperation));
       }
       const isAppPlaying = operationalState.app?.state === "running";
+      const invokeIcon = invokingAgent
+        ? toolkit.createElement("span", { className: "ct-spinner agent-invoke-spinner", "aria-hidden": true },
+          toolkit.createElement("span", { className: "ct-spinner-ring", "aria-hidden": true }))
+        : buttons.icon(ICONS.agent);
+      const invokeLabel = invokingAgent ? "Invoking agent…" : "Invoke agent";
       for (const send of details.querySelectorAll("[data-invoke-agent]")) {
-        buttons.update(send, { appearance: isAppPlaying ? "primary" : "secondary" });
+        buttons.update(send, {
+          appearance: isAppPlaying ? "primary" : "secondary",
+          icon: invokeIcon,
+          children: invokeLabel,
+        });
+        send.dataset.invoking = invokingAgent ? "true" : "false";
       }
     }
 
@@ -3444,6 +3454,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       updateResponseNode(agentResponseText);
       updateAgentStatusBrief();
       if (panelMode === "manage") renderManagePanel();
+      else syncAgentInputControls();
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
           agentResponsePhase = "starting";
@@ -3534,8 +3545,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderResponse(response);
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
-      const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), operationalState.app?.state === "running");
-      buttons.update(send, { icon: buttons.icon(ICONS.agent) });
+      const send = actionButton(invokingAgent ? "Invoking agent…" : "Invoke agent", () => executeAgentInvocation(prompt), operationalState.app?.state === "running");
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);
       const dispatchActions = appendText(actions, "div", "", "agent-dispatch-actions");
