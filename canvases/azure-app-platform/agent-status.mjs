@@ -96,13 +96,21 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
 export function createAgentStatusComponent(toolkit) {
   const h = toolkit.createElement;
   return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError }) {
+    const tone = state === "ready" ? "success"
+      : ["failed", "runtime-failed", "unavailable"].includes(state) ? "danger"
+      : ["ports", "prerequisites", "preview", "connection", "agent-unavailable"].includes(state) ? "warning"
+      : ["checking", "starting", "stopping", "configuring", "provisioning", "deploying", "invoking"].includes(state) ? "busy"
+      : "neutral";
     return h("section", { className: "agent-status-brief", "data-state": state, "aria-label": "Status Brief" },
-      h("h2", null, "Status Brief"),
-      h("h3", null, title),
-      h("p", null, description),
+      h("div", { className: "agent-status-summary" },
+        h("span", { className: "agent-status-icon", "data-tone": tone, "aria-hidden": true }),
+        h("div", null,
+          h("h2", { className: "visually-hidden" }, "Status Brief"),
+          h("h3", null, title),
+          h("p", null, description),
+          runtimeError ? h("p", { className: "error" }, "Runtime: " + runtimeError) : null)),
       h("dl", { className: "agent-status-facts" },
         ...[["Runtime", runtime], ["Agent", agent], ["Connection", connection]].map(([label, value]) =>
-          h("div", { key: label }, h("dt", null, label), h("dd", null, value)))),
-      runtimeError ? h("p", { className: "error" }, "Runtime: " + runtimeError) : null);
+          h("div", { key: label }, h("dt", null, label), h("dd", null, value)))));
   };
 }

@@ -470,7 +470,11 @@ The map uses directional evidence-backed edges, pan and zoom controls, search,
 and tier filters. A floating palette keeps zoom and fit directly accessible;
 search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
-row. Status Brief retains runtime availability and failures. A compact public toolkit
+row. Status Brief retains runtime availability and failures. A bounded
+summary card groups its state icon, title and explanation above shaded, divided
+**Runtime**, **Agent** and **Connection** cells. The facts retain definition-list
+semantics and wrap within compact panes; no merge actions or progress bars are
+invented. A compact public toolkit
 status Badge sits immediately after the app name, including **Running locally** and
 **Not running**, with no separate runtime row. Neutral gray means stopped, green
 running, accent blue checking/active operation, amber preview/partial startup, and

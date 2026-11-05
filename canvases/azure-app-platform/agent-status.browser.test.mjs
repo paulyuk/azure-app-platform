@@ -289,6 +289,73 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     } finally { release?.(); await browser.close(); await fixture.close(); }
   });
 
+  test(`Status Brief groups truthful summary and divided fact cells without compact overflow in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.app = "stopped";
+    const browser = await engine.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page.setDefaultTimeout(10000);
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      const connection = { model: "very-long-model-name-without-truncation", name: "a-very-long-gateway-name-to-check-compact-cell-wrapping" };
+      await page.route("**/api/local-readiness*", route => route.fulfill({ json: {
+        ready: true, gatewayConfigured: true, mode: "full", model: connection.model,
+        activeGateway: { name: connection.name }, prerequisites: { ready: true },
+      } }));
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
+      const status = page.getByRole("region", { name: "Status Brief", exact: true });
+      assert.deepEqual(await status.locator("dl dt").allTextContents(), ["Runtime", "Agent", "Connection"]);
+      assert.equal(await status.locator("dl dd").nth(2).textContent(), connection.model + " · " + connection.name);
+      assert.equal(await status.getByRole("button").count(), 0);
+      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await prompt.fill("Retain this task while runtime facts change.");
+      for (const [state, expected, tone] of [["stopped", "stopped", "neutral"], ["failed", "runtime-failed", "danger"], ["running", "ready", "success"]]) {
+        fixture.state.app = state;
+        fixture.state.error = state === "failed" ? "Simulated failure with a long diagnostic identifier: " + "x".repeat(120) : "";
+        await page.locator('.agent-status-brief[data-state="' + expected + '"]').waitFor();
+        assert.equal(await status.locator(".agent-status-icon").getAttribute("data-tone"), tone);
+        assert.equal(await status.locator(".agent-status-icon").getAttribute("aria-hidden"), "true");
+        if (state === "failed") assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
+        for (const width of [320, 380, 620]) {
+          await page.setViewportSize({ width, height: 480 });
+          for (const theme of ["light", "dark"]) {
+            await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+            const geometry = await status.evaluate(node => {
+              const style = getComputedStyle(node), box = node.getBoundingClientRect();
+              const summary = node.querySelector(".agent-status-summary"), facts = node.querySelector("dl");
+              const cells = [...facts.children], boxes = cells.map(cell => cell.getBoundingClientRect());
+              return {
+                bounded: ["Top", "Right", "Bottom", "Left"].every(side => style["border" + side + "Width"] === "1px") &&
+                  parseFloat(style.borderRadius) > 0,
+                divided: getComputedStyle(facts).borderTopWidth === "1px" &&
+                  cells.slice(1).every(cell => getComputedStyle(cell).borderInlineStartWidth === "1px"),
+                shaded: getComputedStyle(facts).backgroundColor !== getComputedStyle(summary).backgroundColor,
+                summaryFirst: summary.getBoundingClientRect().bottom <= facts.getBoundingClientRect().top,
+                threeColumns: boxes.every(cell => Math.abs(cell.top - boxes[0].top) < 1 &&
+                  Math.abs(cell.height - boxes[0].height) < 1) && boxes[1].left >= boxes[0].right - 1 &&
+                  boxes[2].left >= boxes[1].right - 1,
+                fits: box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth &&
+                  document.documentElement.scrollWidth <= innerWidth &&
+                  cells.every(cell => cell.scrollWidth <= cell.clientWidth),
+                icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none",
+              };
+            });
+            assert.ok(Object.values(geometry).every(Boolean), JSON.stringify({ width, theme, state, geometry }));
+          }
+        }
+        assert.equal(await prompt.inputValue(),
+          "Retain this task while runtime facts change.");
+      }
+      assert.deepEqual(fixture.mutations, []);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
+  });
+
   test(`Header badge retains all runtime statuses beside the app name with semantic colors in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {

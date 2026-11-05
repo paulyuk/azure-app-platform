@@ -395,6 +395,11 @@ visit. Closing it does not stop output polling or hide errors: unavailable logs 
 failed operation counts stay beside the toggle, while Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
 The Status Brief retains truthful runtime, agent, request and failure information.
+Its bordered summary card places the current state icon, title and explanation
+above a shaded three-column row for **Runtime**, **Agent** and **Connection**.
+The facts remain an accessible definition list, with theme-owned horizontal and
+vertical dividers and wrapping values at compact widths, not a second readiness
+claim or a table of invented checks.
 All runtime states, including **Running locally** and **Not running**, remain visible
 in the app-name row through navigation and polling. The public toolkit Badge uses
 neutral gray for stopped, green for running, blue/accent for checking and active

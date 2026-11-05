@@ -1,18 +1,30 @@
 import { ACTION_BUTTON_STYLE } from "./control-styles.mjs";
 import { STUDIO_TABS_CSS } from "./studio-tabs.mjs";
+import { octiconMask } from "./studio-icons.mjs";
 
 export const AGENT_STATUS_CSS = `
-#details[data-mode="manage"] .agent-status-brief { display:grid; gap:6px; min-width:0; padding:0 0 12px; border:0; border-bottom:1px solid var(--studio-line); background:transparent; color:var(--studio-ink); }
+#details[data-mode="manage"] .agent-status-brief { min-width:0; border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; background:var(--studio-raised); color:var(--studio-ink); }
+#details[data-mode="manage"] .agent-status-summary { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:start; gap:10px; padding:12px; }
+#details[data-mode="manage"] .agent-status-summary > div { min-width:0; }
+#details[data-mode="manage"] .agent-status-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--studio-muted); background:var(--studio-panel); }
+#details[data-mode="manage"] .agent-status-icon::before { content:""; width:16px; height:16px; background:currentColor; mask:${octiconMask("info")} center/contain no-repeat; }
+#details[data-mode="manage"] .agent-status-icon[data-tone="success"] { color:var(--studio-ok); }
+#details[data-mode="manage"] .agent-status-icon[data-tone="success"]::before { mask-image:${octiconMask("check")}; }
+#details[data-mode="manage"] .agent-status-icon[data-tone="danger"] { color:var(--studio-danger); }
+#details[data-mode="manage"] .agent-status-icon[data-tone="warning"] { color:var(--studio-warn); }
+#details[data-mode="manage"] .agent-status-icon:is([data-tone="danger"],[data-tone="warning"])::before { mask-image:${octiconMask("alert")}; }
+#details[data-mode="manage"] .agent-status-icon[data-tone="busy"] { color:var(--studio-accent); background:var(--studio-accent-soft); }
 #details[data-mode="manage"] .agent-status-brief h2 { font-size:11px; letter-spacing:0; color:var(--studio-muted); font-weight:600; margin:0; }
-#details[data-mode="manage"] .agent-status-brief h3 { font-size:16px; margin:0; color:var(--studio-ink); }
+#details[data-mode="manage"] .agent-status-brief h3 { font-size:14px; line-height:1.5; margin:0; color:var(--studio-ink); overflow-wrap:anywhere; }
 #details[data-mode="manage"] .agent-status-brief p { font-size:12px; line-height:1.5; margin:0; color:var(--studio-muted); }
 #details[data-mode="manage"] .agent-status-brief p.error { color:var(--studio-danger); }
 #details[data-mode="manage"] .agent-status-brief[data-state="failed"] h3, #details[data-mode="manage"] .agent-status-brief[data-state="runtime-failed"] h3 { color:var(--studio-danger); }
 #details[data-mode="manage"] .agent-status-brief[data-state="invoking"] h3 { color:var(--studio-accent); }
-#details[data-mode="manage"] .agent-status-facts { display:flex; flex-wrap:wrap; gap:6px 20px; margin:4px 0 0; min-width:0; font-size:11px; }
-#details[data-mode="manage"] .agent-status-facts > div { min-width:0; }
-#details[data-mode="manage"] .agent-status-facts dt { color:var(--studio-muted); }
-#details[data-mode="manage"] .agent-status-facts dd { margin:0; color:var(--studio-ink); overflow-wrap:anywhere; }
+#details[data-mode="manage"] .agent-status-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; min-width:0; border-top:1px solid var(--studio-line); background:var(--studio-panel); font-size:11px; }
+#details[data-mode="manage"] .agent-status-facts > div { min-width:0; padding:8px 10px; }
+#details[data-mode="manage"] .agent-status-facts > div + div { border-inline-start:1px solid var(--studio-line); }
+#details[data-mode="manage"] .agent-status-facts dt { color:var(--studio-muted); font-weight:600; overflow-wrap:anywhere; }
+#details[data-mode="manage"] .agent-status-facts dd { margin:2px 0 0; color:var(--studio-ink); overflow-wrap:anywhere; }
 `;
 
 export const RUN_PANEL_CONTENT_CSS = `
