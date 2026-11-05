@@ -475,8 +475,11 @@ running, accent blue checking/active operation, amber preview/partial startup, a
 red failure; explicit labels accompany theme-owned colors in both themes.
 The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
 is top-right on the main-menu row across workspaces: **Run app** / **Run preview**
-with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running. The menu wraps within
-its own left-side space without displacing the control. Task actions retain only
+with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running.
+At canvas widths of 680px or less, the menu occupies the upper row, wrapping only
+as needed. The lifecycle control, divider and icon-only Logs group move together
+to a second row below the menu, aligned to the right; wider panes keep both on
+one row. The same mounted controls retain their keyboard order. Task actions retain only
 **Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
 gating reuse the same control and lifecycle operations. Navigation alone does not run

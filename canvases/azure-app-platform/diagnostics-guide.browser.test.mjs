@@ -52,7 +52,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         assert.equal(await resizer.evaluate(node => node === document.activeElement), true);
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-          for (const width of [320, 380, 620]) {
+          for (const width of [320, 380, 620, 800]) {
             await page.setViewportSize({ width, height: 480 });
             await page.waitForFunction(() => {
               const dock = document.querySelector("#workspace-diagnostics");
@@ -63,17 +63,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
               const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
               const divider = document.querySelector(".workspace-action-divider").getBoundingClientRect();
+              const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
+              const first = document.querySelector("#build-workspace").getBoundingClientRect();
+              const bar = document.querySelector(".workspace-navigation-bar").getBoundingClientRect();
               const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
               const dock = document.querySelector("#workspace-diagnostics").getBoundingClientRect();
               return {
                 fits: document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth,
                 divided: action.right < divider.left && divider.right < logs.left && divider.height === 20,
                 sameRow: Math.abs(action.top - logs.top) <= 1,
+                belowMenu: action.top >= menu.bottom + 4,
+                besideMenu: action.left >= menu.right + 7 && Math.abs(action.top - first.top) <= 1,
+                rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
                 below: main.bottom <= dock.top + 1,
                 mainHeight: main.height,
               };
             });
-            assert.ok(geometry.fits && geometry.divided && geometry.sameRow && geometry.below && geometry.mainHeight > 60,
+            assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
+              geometry.rightAligned && geometry.fits && geometry.divided && geometry.sameRow && geometry.below && geometry.mainHeight > 60,
               JSON.stringify({ id, theme, width, geometry }));
           }
         }
@@ -114,16 +121,20 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       fixture.state.app = "starting";
       await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
-      for (const width of [320, 380, 620]) {
+      for (const width of [320, 380, 620, 800]) {
         await page.setViewportSize({ width, height: 480 });
         const geometry = await page.evaluate(() => {
           const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
           const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
           const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
-          return { separated: action.left >= menu.right + 7, fits: logs.right <= innerWidth,
+          const bar = document.querySelector(".workspace-navigation-bar").getBoundingClientRect();
+          return { separated: action.left >= menu.right + 7, belowMenu: action.top >= menu.bottom + 4,
+            sameRow: Math.abs(action.top - logs.top) <= 1,
+            rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1, fits: logs.right <= innerWidth,
             label: document.querySelector("#header-runtime-action").getAttribute("aria-label") };
         });
-        assert.ok(geometry.separated && geometry.fits, JSON.stringify({ width, geometry }));
+        assert.ok((width <= 680 ? geometry.belowMenu : geometry.separated) &&
+          geometry.sameRow && geometry.rightAligned && geometry.fits, JSON.stringify({ width, geometry }));
         assert.equal(geometry.label, "Stop partial startup");
       }
       await page.unroute("**/api/app-status*");

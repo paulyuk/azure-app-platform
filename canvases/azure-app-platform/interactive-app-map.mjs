@@ -785,6 +785,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
     @media (max-width: 680px) {
+      .workspace-navigation-bar { flex-wrap: wrap; row-gap: 4px; }
+      #app-workspace-navigation { flex-basis: 100%; }
+      .workspace-lifecycle-actions { max-width: 100%; padding-block: 0; }
       #workspace-loading-header {
         grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas: "brand utilities" "identity identity" "loading loading";

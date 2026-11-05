@@ -33,6 +33,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const origin = fixture.origin;
       await page.goto(origin + "/app-map");
       await page.waitForFunction(() => window.appPlatformReady);
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       await page.locator("#header-open-app").waitFor();
       const nav = page.getByRole("navigation", { name: "App workspaces", exact: true });
@@ -107,12 +108,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const group = document.querySelector(".workspace-view-switch").getBoundingClientRect();
             const menu = document.querySelector(".workspace-navigation-bar");
             const menuStyle = getComputedStyle(menu);
+            const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
+            const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+            const first = document.querySelector("#build-workspace").getBoundingClientRect();
             return {
               overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
               mainHeight: main.height, barBottom: bar.bottom, mainTop: main.top,
               headerFits: header.scrollWidth <= header.clientWidth + 1,
               navRight: nav.right, groupWidth: group.width,
               menuHeight: menu.getBoundingClientRect().height,
+              belowMenu: action.top >= group.bottom + 4,
+              besideMenu: action.left >= group.right + 7 && Math.abs(action.top - first.top) <= 1,
+              actionsTogether: Math.abs(action.top - logs.top) <= 1 && action.right < logs.left,
+              rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 12)) <= 1,
               primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
               menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
@@ -133,7 +141,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok(geometry.navRight <= width && geometry.groupWidth < 400, "Destinations stay content-width");
           assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
-          assert.ok(geometry.menuHeight <= (width < 480 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
+          assert.ok(geometry.menuHeight <= (width <= 680 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
+          assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
+            geometry.actionsTogether && geometry.rightAligned, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.buttons.length, 7);
           assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
           for (const button of geometry.buttons) {

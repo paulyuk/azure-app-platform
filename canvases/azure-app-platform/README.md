@@ -307,8 +307,10 @@ current page visit, without changing browser history or stored app recency.
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
 button. **Open app** remains in the existing header utilities. The app lifecycle
 control sits at the top right of the same row as the main menu: **Run app** with a
-filled play glyph when stopped and ready, **Stop app** when running. The menu wraps within its own space on
-narrow panes, keeping the lifecycle control aligned with its first row.
+filled play glyph when stopped and ready, **Stop app** when running. At canvas widths
+of 680px or less, the menu takes the upper row (wrapping only if needed), and the
+lifecycle control, divider and icon-only **Logs** button stay together on a second
+row below it, aligned to the right. Wider panes retain the single-row layout.
 Open app appears only when a
 ready web entrypoint is available. Explicit cloud actions retain their resource
 change warning and existing execution path. These are free destinations, not
@@ -410,7 +412,8 @@ neutral gray for stopped, green for running, blue/accent for checking and active
 operations, amber for preview/partial startup, and red for failure, with readable
 state labels and theme-owned colors in light and dark. Activating it opens Run.
 The same small primary toolkit
-lifecycle control stays to the right of Build / Connect / Run / Observe / Deploy
+lifecycle control stays right-aligned beside Build / Connect / Run / Observe / Deploy
+(below the menu in narrow panes)
 across workspace visits: **Run app** / **Run preview** or **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
 Task actions contain only **Invoke agent** and **Document**, without duplicate

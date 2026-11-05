@@ -330,6 +330,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       await page.goto(fixture.origin + "/app-map");
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
       const action = page.locator("#header-runtime-action");
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -347,7 +348,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok(await icon.locator("path").getAttribute("d"));
           assert.equal(await icon.evaluate(node => getComputedStyle(node).stroke), "none");
         }
-        for (const width of [320, 380, 620, 1280]) {
+        for (const width of [320, 380, 620, 680, 681, 800, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
             await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
@@ -356,10 +357,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const bar = node.closest(".workspace-navigation-bar").getBoundingClientRect();
               const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
               const first = document.querySelector("#build-workspace").getBoundingClientRect();
+              const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
               const style = getComputedStyle(node);
               return {
                 sameRow: Math.abs(button.top - first.top) <= 1,
-                rightAligned: Math.abs(document.querySelector("#run-diagnostics-toggle").getBoundingClientRect().right - (bar.right - 12)) <= 1,
+                belowMenu: button.top >= menu.bottom + 4,
+                actionsTogether: Math.abs(button.top - logs.top) <= 1 && button.right < logs.left,
+                rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
                 separated: button.left >= menu.right + 7,
                 fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
@@ -368,7 +372,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 prominent: style.backgroundColor !== getComputedStyle(document.querySelector("#build-workspace")).backgroundColor,
               };
             });
-            assert.ok(geometry.sameRow && geometry.rightAligned && geometry.separated &&
+            assert.ok((width <= 680 ? geometry.belowMenu : geometry.sameRow && geometry.separated) &&
+              geometry.actionsTogether && geometry.rightAligned &&
               geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
             assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
               [true, "small", 28, "3px 8px"]);
