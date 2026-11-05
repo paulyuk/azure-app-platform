@@ -60,6 +60,7 @@ import { createCommandActivity, redactActivityText } from "./command-activity.mj
 import { summarizeAgentResult } from "./agent-result.mjs";
 import { assessDocumentResult } from "./document-assessment.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
+import { normalizeSandboxGroupCreateRequest } from "./sandbox-group-config.mjs";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
@@ -2228,10 +2229,12 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       if (input.operation === "create-sandbox-group") {
         const active = await loadActiveGateway(root, { refresh: true });
-        const subscriptionId = String(input.subscriptionId || active?.subscriptionId || "").trim();
-        const resourceGroup = String(input.resourceGroup || active?.resourceGroup || "rg-app-platform-aigateway").trim();
-        const location = String(input.location || active?.location || "eastus2").trim();
-        const groupName = String(input.sandboxGroupName || "aca-sandboxes-samples").trim();
+        const {
+          subscriptionId,
+          resourceGroup,
+          location,
+          groupName,
+        } = normalizeSandboxGroupCreateRequest(input, active);
         const args = [
           "sandboxgroup",
           "create",

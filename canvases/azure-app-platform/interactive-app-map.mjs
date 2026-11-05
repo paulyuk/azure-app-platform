@@ -26,6 +26,7 @@ import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.m
 import { createStudioNotices } from "./studio-notice.mjs";
 import { createStudioToolkitComponents } from "./studio-toolkit-components.mjs";
 import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
+import { defaultSandboxGroupName } from "./sandbox-group-config.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -473,6 +474,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
   const appName = providedAppName ||
     model.root.split(/[\\/]/).filter(Boolean).at(-1) ||
     "App";
+  const newSandboxGroupName = defaultSandboxGroupName(appName);
   const tierOptions = model.tiers
     .map((tier) => `<option value="${escapeHtml(tier.id)}">${escapeHtml(tier.name)}</option>`)
     .join("");
@@ -2813,7 +2815,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             subscriptionId: targetSub,
             resourceGroup: activeCandidate?.resourceGroup || "rg-app-platform-aigateway",
             location: activeCandidate?.location || "eastus2",
-            sandboxGroupName: "aca-sandboxes-samples",
+            sandboxGroupName: ${safeJson(newSandboxGroupName)},
           });
         }));
 
