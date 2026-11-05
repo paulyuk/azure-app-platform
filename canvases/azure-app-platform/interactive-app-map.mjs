@@ -1427,6 +1427,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (headerRuntimeAction.dataset.operation === "run-local") {
         buttons.setDisabled(headerRuntimeAction, invokingAgent || documentTesting || documentLoading || Boolean(lifecycleOperation));
       }
+      const isAppPlaying = operationalState.app?.state === "running";
+      for (const send of details.querySelectorAll("[data-invoke-agent]")) {
+        buttons.update(send, { appearance: isAppPlaying ? "primary" : "secondary" });
+      }
     }
 
     function updateAgentStatusBrief() {
@@ -3520,7 +3524,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderResponse(response);
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
-      const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt));
+      const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), operationalState.app?.state === "running");
       buttons.update(send, { icon: buttons.icon(ICONS.agent) });
       send.dataset.invokeAgent = "true";
       buttons.setDisabled(send, !canRun || invokingAgent);

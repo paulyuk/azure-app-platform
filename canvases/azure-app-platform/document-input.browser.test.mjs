@@ -24,15 +24,19 @@ async function pasteDocument(page, content) {
 async function assertDocumentActionPlacement(page) {
   const geometry = await page.getByRole("button", { name: "Add document", exact: true }).evaluate(node => {
     const invoke = document.querySelector("[data-invoke-agent]");
+    const statusBrief = document.querySelector(".agent-status-brief");
+    const isPlaying = statusBrief?.dataset.state === "ready";
     const button = node.getBoundingClientRect(), primary = invoke.getBoundingClientRect();
     const pair = node.closest(".agent-dispatch-actions");
     const textarea = document.querySelector(".agent-prompt-frame textarea");
     return {
       pair: pair === invoke.closest(".agent-dispatch-actions"),
       order: [...pair.querySelectorAll("button")].map(button => button.getAttribute("aria-label") || button.textContent),
+      isPlaying,
       invokeAppearance: invoke.dataset.appearance,
       invokeIcon: invoke.querySelector('svg[data-octicon="agent"]') ? getComputedStyle(invoke.querySelector('svg[data-octicon="agent"]')).color : null,
       invokeTextColor: getComputedStyle(invoke).color,
+      invokeBgColor: getComputedStyle(invoke).backgroundColor,
       gap: button.left - primary.right,
       centered: Math.abs((button.top + button.bottom) - (primary.top + primary.bottom)) < 2,
       fits: document.documentElement.scrollWidth <= innerWidth && button.right <= innerWidth && primary.left >= 0,
@@ -42,8 +46,10 @@ async function assertDocumentActionPlacement(page) {
   });
   assert.ok(geometry.pair && geometry.centered && geometry.fits && !geometry.overlay &&
     geometry.gap >= 6 && geometry.gap <= 10, JSON.stringify(geometry));
-  assert.equal(geometry.invokeAppearance, "secondary");
-  assert.ok(geometry.invokeIcon && geometry.invokeIcon !== geometry.invokeTextColor);
+  assert.equal(geometry.invokeAppearance, geometry.isPlaying ? "primary" : "secondary");
+  assert.ok(geometry.invokeIcon && (geometry.isPlaying
+    ? geometry.invokeIcon === geometry.invokeTextColor && geometry.invokeIcon !== geometry.invokeBgColor
+    : geometry.invokeIcon !== geometry.invokeTextColor));
   assert.deepEqual(geometry.order, ["Invoke agent", "Add document"]);
   assert.equal(geometry.bottomPadding, "10px");
 }

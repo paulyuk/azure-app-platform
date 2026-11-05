@@ -100,7 +100,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .agent-prompt-frame { min-width:0; }
 #details[data-mode="manage"] .agent-task-actions { align-items:center; }
 #details[data-mode="manage"] .agent-dispatch-actions { display:flex; align-items:center; gap:8px; max-width:100%; }
-#details[data-mode="manage"] [data-invoke-agent] svg[data-octicon="agent"] { color:var(--background-color-button-primary-rest, var(--canvas-button-primary-bg, var(--studio-accent))); }
+#details[data-mode="manage"] [data-invoke-agent][data-appearance="secondary"] svg[data-octicon="agent"] { color:var(--background-color-button-primary-rest, var(--canvas-button-primary-bg, var(--studio-accent))); }
 #details[data-mode="manage"] .document-attachment { display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-panel); }
 #details[data-mode="manage"] .document-attachment[hidden] { display:none; }
 #details[data-mode="manage"] .document-attachment > .run-document { flex:1; min-width:0; }

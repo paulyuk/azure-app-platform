@@ -273,7 +273,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
       fail = true;
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
-      assert.equal(await invoke.getAttribute("data-appearance"), "secondary");
+      assert.equal(await invoke.getAttribute("data-appearance"), "primary");
       assert.equal(await invoke.locator('svg[data-octicon="agent"]').count(), 1);
       await invoke.focus();
       await invoke.press("Enter");
@@ -382,6 +382,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
                 toolkit: node.classList.contains("ct-button"), size: node.dataset.size,
                 height: button.height, padding: style.padding, appearance: node.dataset.appearance,
+                invokeAppearance: document.querySelector("[data-invoke-agent]")?.dataset.appearance,
+                isPlaying: ["Running locally", "Local preview"].includes(document.querySelector("#app-status-badge")?.textContent),
                 operation: node.dataset.operation,
                 prominent: style.backgroundColor !== getComputedStyle(document.querySelector("#build-workspace")).backgroundColor,
               };
@@ -394,6 +396,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               [true, "small", 28, "3px 8px"]);
             const isStop = geometry.operation === "stop-local";
             assert.equal(geometry.appearance, isStop ? "secondary" : "primary");
+            assert.equal(geometry.invokeAppearance, geometry.isPlaying ? "primary" : "secondary");
             if (!isStop) assert.equal(geometry.prominent, true);
           }
         }
