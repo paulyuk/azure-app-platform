@@ -986,13 +986,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       onClick: () => runWorkspace.toggleDiagnostics(),
     });
     buttons.append(headerActions, logsTrigger);
-    const buildRefreshButton = buttons.create({
-      id: "build-refresh-view", appearance: "secondary", size: "small", icon: buttons.icon(ICONS.sync),
-      "aria-label": "Refresh view", title: "Refresh view",
-      onClick: () => buildPanel.show({ refresh: true }),
-    });
-    buttons.append(headerActions, buildRefreshButton);
-    buildRefreshButton.hidden = true;
     const diagnosticsContainer = document.querySelector("#workspace-diagnostics");
     let logsTriggerKey = "";
     const structureGuidance = document.querySelector("#structure-guidance");
@@ -1205,7 +1198,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buildFocusKey = event.target.dataset.focusKey;
     });
     const buildPanel = (${createBuildPanel.toString()})({
-      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info, vsCodeIconMarkup: VSCODE_ICON_MARKUP, refreshButton: buildRefreshButton,
+      container: customizeContent, root: MODEL.root, request: apiRequest, syntax: buildSyntax, editorSettings: INITIAL_EDITOR_SETTINGS, buttons, helpIcon: ICONS.info, vsCodeIconMarkup: VSCODE_ICON_MARKUP,
       isActive: () => panelMode === "build",
       onRun: () => {
         if (panelMode !== "manage") renderManagePanel();
@@ -2143,7 +2136,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (panelMode !== "map") setStructureGuidance(false);
       if (mode !== "build" && !buildPage.hidden) buildPanel.hide();
       buildPage.hidden = mode !== "build";
-      buildRefreshButton.hidden = mode !== "build";
       workspace.hidden = mode === "build";
       const observing = destination === "map" || destination === "logs";
       if (observing) observeView = mode;

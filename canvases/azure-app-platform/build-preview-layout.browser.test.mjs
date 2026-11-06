@@ -596,7 +596,7 @@ for (const [name, engine, presentationProfile] of [
         const bounds = header.getBoundingClientRect();
         return bounds.top >= pane.top - 1 && bounds.bottom <= pane.bottom + 1;
       })), "Both block file headers fit together at the desktop height");
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       assert.ok(await implementation.locator(".build-source-preview").evaluate(preview => preview === window.retainedBlockPreview),
         "An unchanged source refresh preserves the entire block");
       await implementation.getByRole("button", { name: "Show full file", exact: true }).click();
@@ -683,7 +683,7 @@ for (const [name, engine, presentationProfile] of [
       assert.ok(await implementation.locator(".build-source-preview").evaluate(source => source === window.retainedPageSource));
       await configPage.click();
       assert.equal(await configPage.getAttribute("aria-pressed"), "true", "File choices remain on the right");
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Source refresh preserves the selected layout");
       await page.locator('[data-file-choice="first"]').click();
       assert.equal(await stackView.count(), 0, "Single files have no layout switch");
@@ -776,7 +776,7 @@ for (const [name, engine, presentationProfile] of [
         projectPath: "src/tools/document-validation", projectName: "Document validation",
         available: true, content: "# Document validation\n",
       })));
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       await chooseFile("validation-0");
       await page.setViewportSize({ width: 480, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -819,7 +819,7 @@ for (const [name, engine, presentationProfile] of [
         available: true, content: "value = " + index + "\n",
       }));
       artifacts.push(...longFiles);
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       await chooseFile("long-first");
       await page.setViewportSize({ width: 380, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

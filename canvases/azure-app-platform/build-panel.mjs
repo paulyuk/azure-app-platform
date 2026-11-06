@@ -6,6 +6,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] { --build-code-bg:light-dark(var(--studio-raised),color-mix(in srgb,var(--studio-panel) 94%,var(--studio-ink))); display:flex; flex-direction:column; overflow:hidden; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
 :is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-height:0; width:100%; margin-inline:auto; padding:20px 24px 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-heading { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-heading > :first-child { flex:1; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] h2 { margin:0; font-size:15px; line-height:22px; font-weight:600; color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; line-height:20px; }
 :is(#details, #customize-content)[data-mode="build"] .build-heading p { max-width:60ch; margin-bottom:0; }
@@ -110,7 +111,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-add-form p { margin:0; font-size:12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-template-path { font:11px/18px var(--font-mono,monospace); overflow-wrap:anywhere; }
 @container build-panel (max-width:600px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-heading { flex-wrap:wrap; gap:4px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-heading { gap:8px; }
   :is(#details, #customize-content)[data-mode="build"] .build-workspace { padding:12px 12px 0; }
   :is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-condensed,8px); }
 }
@@ -181,7 +182,7 @@ export const BUILD_EXPLORER_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS + BUILD_EXPLORER_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon, vsCodeIconMarkup, refreshButton }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon, vsCodeIconMarkup }) {
   const areas = [
     { id: "web", tab: "User Experience" },
     { id: "triggers", tab: "Triggers" },
@@ -1184,10 +1185,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     element("h2", "Build your app", title);
     renderHelp(title);
     element("p", "Preview code, edit files, and add building blocks.", intro);
-    if (!refreshButton) {
-      const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
-      renderRefreshButton(headerActions);
-    }
+    const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
+    renderRefreshButton(headerActions);
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
@@ -1343,7 +1342,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       if (isActive() && version === loadVersion) {
         loading?.remove();
         error(container, "Could not refresh saved files: " + cause.message);
-        if (!refreshButton && !container.querySelector(".build-refresh")) {
+        if (!container.querySelector(".build-refresh")) {
           renderRefreshButton(container);
         }
       }
@@ -1357,13 +1356,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   function renderRefreshButton(parent) {
     const refresh = buttons.create({
       className: "build-refresh", appearance: "secondary", size: "small", disabled: refreshing,
-      icon: fileIcon("refresh"), "aria-label": "Refresh view", title: "Refresh view",
+      icon: fileIcon("refresh"), "aria-label": "Refresh source", title: "Refresh source",
       "data-focus-key": "refresh", onClick: () => show({ refresh: true }),
     });
     buttons.append(parent, refresh);
   }
   function setRefreshDisabled(disabled) {
-    if (refreshButton) buttons.setDisabled(refreshButton, disabled);
     for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, disabled);
   }
   function scheduleRefresh() {

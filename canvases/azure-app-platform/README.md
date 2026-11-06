@@ -637,9 +637,10 @@ of scrolling horizontally. The buttons stay left-aligned immediately after the
 visible filenames, with plus last, and never extend past the row's right edge.
 Opening the overflow menu does not push the buttons to the right.
 Editor, AI, and section-specific actions stay in each file's header. The plus button opens
-the existing template-first creation flow. The secondary **Refresh view** icon
-sits immediately to the right of **Logs** in the workspace header while Build
-is active; its tooltip names the action. Build has no separate Run & Debug shortcut.
+the existing template-first creation flow. The secondary **Refresh source** icon
+sits by itself at the top right of the Build page, including in compact panes;
+its tooltip names the action. It is not part of the shared Logs toolbar.
+Build has no separate Run & Debug shortcut.
 The selected layout, per-page scroll
 positions, expanded stack previews, and AI drafts survive switching views.
 File headers and their editor/AI actions stay pinned while scrolling in either
@@ -818,7 +819,7 @@ beside the page heading provides additional context. Its tooltip is
 available on hover, keyboard focus, or click, and dismisses with Escape.
 Save changes in Files or the external editor, then return to Build. Focus and
 visibility changes refresh saved source, as does re-entering Build.
-**Refresh view** provides an explicit retry or refresh without leaving the
+**Refresh source** provides an explicit retry or refresh without leaving the
 page. File selection, category/preview expansion, keyboard focus, and page/preview scroll positions
 are retained in the panel. Unchanged refreshes preserve the preview DOM and text
 selection. Late refresh responses cannot replace another workspace or overwrite

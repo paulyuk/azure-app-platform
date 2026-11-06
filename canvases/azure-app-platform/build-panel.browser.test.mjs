@@ -134,7 +134,7 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await tooltip.isVisible(), true);
     await page.mouse.move(900, 700);
     assert.equal(await tooltip.isVisible(), true, "Click pins the tooltip");
-    await page.getByRole("button", { name: "Refresh view", exact: true }).focus();
+    await page.getByRole("button", { name: "Refresh source", exact: true }).focus();
     await tooltip.waitFor({ state: "hidden" });
     await page.setViewportSize({ width: 380, height: 800 });
     await help.hover();
@@ -260,7 +260,7 @@ test("Build is a focused read-only customization workspace with document and Run
     await page.setViewportSize({ width: 1000, height: 800 });
     documentSupport = true;
     artifacts.find(artifact => artifact.id === "runtime").content = '{"agentRuntime":"copilot-sdk-sandbox"}';
-    await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
     await files.locator('[data-file-choice="runtime"]').click();
     await page.getByRole("toolbar", { name: "File pages", exact: true })
       .getByRole("button", { name: "runtime.json", exact: true }).click();
@@ -349,7 +349,7 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
     mode = "error";
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await page.getByRole("alert").filter({ hasText: "Source discovery unavailable." }).waitFor();
-    const retry = page.getByRole("button", { name: "Refresh view", exact: true });
+    const retry = page.getByRole("button", { name: "Refresh source", exact: true });
     assert.equal(await retry.count(), 1);
     mode = "ready";
     await retry.click();

@@ -119,7 +119,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
       await nav.locator("summary").filter({ hasText: "Tools (32)" }).press("Enter");
       await filter.fill("tool-20");
       artifacts[0].title = "Updated agent instructions";
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       await page.getByRole("region", { name: "Updated agent instructions source preview", exact: true }).waitFor();
       assert.equal(await filter.inputValue(), "tool-20", "A changed source snapshot retains the filter");
       assert.equal(await choice("tool-20").isVisible(), true);
@@ -153,7 +153,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
         { id: "root-file", customizationArea: "runtime", path: "azure-app.yaml",
           title: "App inventory", available: true, content: "name: example\n" },
       );
-      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       const rootCollection = nav.getByRole("button", { name: "Workspace", exact: true });
       await rootCollection.waitFor();
       assert.equal(await nav.locator('[data-collection-path="."]').count(), 1,
@@ -168,7 +168,7 @@ test(`Build creates a template before editor or AI handoff (${mode})`, {
     await choice("tool-20").press("ArrowDown");
     assert.equal(await choice("tool-21").getAttribute("aria-current"), "true");
     assert.equal(await choice("tool-21").evaluate(node => node === document.activeElement), true);
-    await page.getByRole("button", { name: "Refresh view", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
     assert.equal(await choice("tool-21").getAttribute("aria-current"), "true");
     await choice("web").click();
     assert.equal(await page.locator(".build-highlight").textContent(), "export const app = {};");

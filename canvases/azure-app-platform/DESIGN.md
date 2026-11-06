@@ -382,7 +382,7 @@ outside the session worktree reports the limitation and stays available through
 the external-editor option. Missing host support and launch failures are explicit.
 Repeated opens reuse the file's canvas rather than creating duplicate drafts.
 
-Focus, visibility, workspace re-entry, and **Refresh view** reload saved
+Focus, visibility, workspace re-entry, and **Refresh source** reload saved
 source. Unchanged refreshes retain the source DOM and text selection. Changed
 refreshes preserve selection/disclosure state and page/preview scrolling. Failed refreshes
 retain the last guide with an error and retry. Handoff status/errors remain local

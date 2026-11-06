@@ -250,19 +250,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(new URL(page.url()).hash, "", "The one-time creation destination is consumed");
       assert.equal(await back.isDisabled(), true, "Creation starts history at Build, not an unseen Run page");
       await page.locator(".build-source-preview").first().waitFor();
-      const refreshView = page.getByRole("button", { name: "Refresh view", exact: true });
-      assert.equal(await refreshView.getAttribute("title"), "Refresh view");
+      const refreshView = page.getByRole("button", { name: "Refresh source", exact: true });
+      assert.equal(await refreshView.getAttribute("title"), "Refresh source");
       assert.equal(await refreshView.getAttribute("data-appearance"), "secondary");
       assert.equal(await refreshView.innerText(), "");
       assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).count(), 0);
-      assert.equal(await page.locator(".build-heading-actions").count(), 0);
-      assert.equal(await refreshView.evaluate(button => {
-        const refresh = button.getBoundingClientRect();
-        const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
-        return refresh.left > logs.right && Math.abs(refresh.top - logs.top) <= 1;
-      }), true);
+      assert.equal(await page.locator(".build-heading-actions button").count(), 1);
+      assert.equal(await page.locator("#workspace-header-actions .build-refresh").count(), 0);
+      for (const width of [320, 380, 1000]) {
+        await page.setViewportSize({ width, height: 800 });
+        assert.equal(await refreshView.evaluate(button => {
+          const refresh = button.getBoundingClientRect();
+          const heading = button.closest(".build-heading").getBoundingClientRect();
+          return Math.abs(refresh.right - heading.right) <= 1 &&
+            Math.abs(refresh.top - heading.top) <= 1 && refresh.right <= innerWidth;
+        }), true, "Refresh source stays alone at the Build page's top right");
+      }
       await refreshView.click();
-      await page.waitForFunction(() => !document.querySelector("#build-refresh-view").disabled);
+      await page.waitForFunction(() => !document.querySelector(".build-refresh").disabled);
       await select("manage-app");
       await mode("manage");
       assert.equal(await refreshView.isVisible(), false);
