@@ -3461,7 +3461,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         agentRequestState = "failed";
         if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
         updateResponseNode(error.message);
-        setStatus(error.message, true);
+        setStatus("The last invocation had a problem. Review its result.");
       } finally {
         clearTimeout(agentResponseWaitTimer);
         invokingAgent = false;
@@ -3793,7 +3793,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         readinessError,
         (operationalState.app?.state === "failed" || operationalState.app?.error) &&
           ("Runtime failed: " + (operationalState.app.error || "Review startup output.")),
-        agentRequestState === "failed" && ("Agent request failed: " + agentResponseText),
       ].filter(Boolean).join(" ");
     }
 
@@ -3805,7 +3804,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
         latestCommands = result.commands || [];
         runWorkspace.diagnostics({
-          failures: latestCommands.filter((record) => record.status === "failed").length,
+          failures: latestCommands.filter((record) => record.status === "failed"
+            && !(record.kind === "http" && record.label === "Invoke agent")).length,
           operations: latestCommands.length,
           issue: diagnosticsIssue(),
         });

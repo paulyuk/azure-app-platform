@@ -153,8 +153,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await badge.waitFor({ state: "detached" });
       await page.route("**/api/agent-invoke", route => route.fulfill({ status: 503, json: { error: "Simulated agent failure" } }));
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("Agent request failed"));
-      assert.equal(await dock.isVisible(), false, "Issues do not force the pane open.");
+      await page.locator('.agent-response[data-state="failed"]').waitFor();
+      assert.match(await page.locator(".agent-response").innerText(), /Simulated agent failure/);
+      assert.equal(await badge.count(), 0, "Invocation errors stay in their result, not global diagnostics.");
+      assert.equal(await dock.isVisible(), false);
       assert.equal(fixture.mutations.filter(item => item.path === "/api/app-command").length, 0);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }
@@ -378,12 +380,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       await page.route("**/api/agent-invoke", route => route.fulfill({ status: 503, json: { error: "Simulated task failure" } }));
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await page.locator('.agent-status-brief[data-state="failed"]').waitFor();
+      await page.locator('.agent-response[data-state="failed"]').waitFor();
+      assert.equal(await page.locator(".agent-status-brief").getAttribute("data-state"), "ready");
       assert.match(await page.locator(".agent-response").innerText(), /Simulated task failure/);
-      assert.equal(await status.getAttribute("role"), "alert");
-      assert.match(await status.textContent(), /Simulated task failure/);
+      assert.equal(await status.getAttribute("role"), "status");
+      assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
       assert.equal(await logs.getAttribute("aria-expanded"), "false");
-      assert.equal(await logs.locator(".logs-warning-badge").count(), 1);
+      assert.equal(await logs.locator(".logs-warning-badge").count(), 0);
       await page.locator("#map-app").click();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".workspace-lifecycle-actions #header-runtime-action").isVisible(), true,

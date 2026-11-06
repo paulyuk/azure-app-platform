@@ -20,39 +20,32 @@ export function getAgentResponsePresentation({ state = "idle", phase = "preparin
   if (state === "failed") {
     const sent = phase === "waiting";
     return {
-      title: sent ? "Task request failed" : "The task was not sent",
+      title: sent ? "This invocation had a problem" : "The task was not sent",
       description: sent
         ? "Your task is retained above. A failed request does not confirm that backend execution stopped."
         : "Your task is retained above. Review startup output before trying again.",
-      illustration: null, steps: [], showLogs: true, note: "",
+      illustration: null, showLogs: true,
     };
   }
   if (state === "idle") {
     return {
       title: "Your result will appear here",
       description: "Choose an event or enter a task above, then select Invoke agent.",
-      illustration: "ready", steps: [], showLogs: false, note: "",
+      illustration: "ready", showLogs: false,
     };
   }
-  const current = phase === "waiting" ? 2 : phase === "endpoint" ? 1 : 0;
-  const [title, description, note] = phase === "waiting"
+  const [title, description] = phase === "waiting"
     ? [
       slow ? "Still waiting for a response" : "Waiting for the agent response",
       slow ? "No response yet. You can inspect logs while the request continues."
-        : "The invocation request is in flight. No result has been reported yet.",
-      "Tool reports arrive with the result.",
+        : "Tool reports will appear with the result.",
     ]
     : phase === "endpoint"
-      ? ["Agent endpoint available", "Preparing the invocation request. Your task has not been sent yet.", "Request not sent yet."]
+      ? ["Sending the task", "The agent endpoint is available. Your task has not been sent yet."]
       : phase === "starting"
-        ? ["Waiting for the agent endpoint", "Local services are starting. Your task has not been sent yet.", "Startup wait: up to 90 seconds."]
-        : ["Preparing the agent", "Checking local agent availability. Your task has not been sent yet.", "Request not sent yet."];
-  return {
-    title, description, note, illustration: "working", showLogs: true,
-    steps: ["Prepare agent", "Send request", "Receive response"].map((label, index) => ({
-      label, state: index < current ? "complete" : index === current ? "current" : "pending",
-    })),
-  };
+        ? ["Waiting for the agent endpoint", "Starting local services (up to 90 seconds). Your task has not been sent yet."]
+        : ["Preparing the agent", "Checking availability. Your task has not been sent yet."];
+  return { title, description, illustration: "working", showLogs: true };
 }
 
 export function renderAgentResponse(root, { state, phase, slow, text, buttons, onLogs, pendingIndicator, illustrations }) {
@@ -85,31 +78,18 @@ export function renderAgentResponse(root, { state, phase, slow, text, buttons, o
       illustration.removeAttribute("aria-labelledby");
       illustration.setAttribute("aria-hidden", "true");
       illustration.setAttribute("focusable", "false");
-      illustration.setAttribute("width", "80");
-      illustration.setAttribute("height", "80");
+      illustration.setAttribute("width", "40");
+      illustration.setAttribute("height", "40");
       summary.append(illustration);
     }
     const copy = append(summary, "div", "", "agent-result-copy");
-    append(copy, "strong", presentation.title, "agent-result-title");
+    const title = append(copy, "strong", "", "agent-result-title");
+    if (state === "invoking") title.append(pendingIndicator);
+    append(title, "span", presentation.title);
     if (state === "failed") append(copy, "p", text, "agent-result-error");
     append(copy, "p", presentation.description);
-    if (presentation.steps.length) {
-      const steps = append(root, "ol", "", "agent-result-steps");
-      steps.setAttribute("aria-label", "Run progress");
-      for (const step of presentation.steps) {
-        const row = append(steps, "li", "", "agent-result-step");
-        row.dataset.state = step.state;
-        if (step.state === "current") row.setAttribute("aria-current", "step");
-        const status = { complete: "Complete", current: "Current", pending: "Not started" }[step.state];
-        row.setAttribute("aria-label", step.label + ": " + status);
-        if (step.state === "current") row.append(pendingIndicator);
-        else append(row, "span", "", "agent-result-step-icon").setAttribute("aria-hidden", "true");
-        append(row, "span", step.label);
-      }
-    }
     if (presentation.showLogs) {
       const footer = append(root, "div", "", "agent-result-footer");
-      if (presentation.note) append(footer, "span", presentation.note);
       buttons.append(footer, buttons.create({
         children: "View logs", appearance: "secondary", size: "small",
         "data-action-key": "agent-result-logs", onClick: onLogs,

@@ -55,8 +55,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await result.locator(".agent-result-title").filter({ hasText: "Waiting for the agent endpoint" }).waitFor();
       assert.equal(commands.length, 1);
       assert.equal(requests.length, 0);
-      assert.equal(await result.locator('[aria-current="step"]').innerText(), "Prepare agent");
-      const spinner = result.locator('[aria-current="step"] .ct-spinner-ring');
+      assert.equal(await result.locator("ol").count(), 0);
+      const spinner = result.locator(".agent-result-title .ct-spinner-ring");
       assert.equal(await spinner.count(), 1);
       assert.deepEqual(await spinner.evaluate(node => {
         window.responseStepSpinner = node;
@@ -71,15 +71,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(requests.length, 0, "A running web app is not a ready agent.");
       available = true;
       await page.clock.runFor(700);
-      await result.locator('[data-state="current"]').filter({ hasText: "Receive response" }).waitFor();
+      await result.locator(".agent-result-title").filter({ hasText: "Waiting for the agent response" }).waitFor();
       assert.equal(requests.length, 1);
       assert.deepEqual(requests[0], {
         root: "/fixture/dealer", port: 8088, message: "Retain this exact payload during startup and response waiting.",
       });
-      assert.equal(await result.locator('[data-state="complete"]').count(), 2);
+      assert.equal(await result.locator("ol").count(), 0);
       assert.equal(await spinner.evaluate(node => node === window.responseStepSpinner), true,
-        "Phase changes move the same owned Spinner instead of restarting its animation.");
-      assert.equal(await result.locator('[data-state="pending"] .ct-spinner,[data-state="complete"] .ct-spinner').count(), 0);
+        "Phase changes retain the same owned Spinner instead of restarting its animation.");
+      assert.equal(await result.locator(".ct-spinner").count(), 1);
       assert.equal(await result.getAttribute("aria-busy"), "true");
       assert.equal(await prompt.isDisabled(), true);
       const now = await page.evaluate(() => Date.now());
@@ -94,9 +94,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.setViewportSize({ width, height: 800 });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(theme => { document.documentElement.dataset.studioTheme = theme; }, theme);
-          const fits = await result.evaluate(node => node.scrollWidth <= node.clientWidth
-            && node.scrollHeight <= node.clientHeight && document.documentElement.scrollWidth <= innerWidth);
-          assert.ok(fits, `Pending steps and logs fit without nested clipping: ${width}px ${theme}`);
+          const dimensions = await result.evaluate(node => ({
+            scrollWidth: node.scrollWidth, clientWidth: node.clientWidth,
+            scrollHeight: node.scrollHeight, clientHeight: node.clientHeight,
+            documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth,
+          }));
+          assert.ok(dimensions.scrollWidth <= dimensions.clientWidth
+            && dimensions.scrollHeight <= dimensions.clientHeight && dimensions.documentWidth <= dimensions.viewportWidth,
+          `Pending summary and logs fit without nested clipping: ${width}px ${theme}: ${JSON.stringify(dimensions)}`);
+          assert.ok(await result.evaluate(node => node.getBoundingClientRect().height <= 160),
+            `Waiting uses at most 160px at ${width}px ${theme}, including the long-wait message and logs.`);
         }
       }
       await page.setViewportSize({ width: 430, height: 800 });
@@ -151,11 +158,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         ? { status: 503, json: { error: "Startup failed: synthetic prerequisite error." } }
         : { json: { outcome: "command-started" } }));
       await page.route("**/api/app-status*", route => route.fulfill({ json: {
-        state: fixture.state.app, error: "",
+        state: fixture.state.app, error: fixture.state.error,
         entrypoints: [{ name: "agent", port: 8088, ready: available, expected: true }],
       } }));
       await page.route("**/api/agent-invoke", route => {
         requests.push(route.request().postDataJSON());
+        fixture.state.commands = [{
+          id: "invocation", kind: "http", label: "Invoke agent",
+          command: "POST http://localhost:8088/responses", status: "failed", startedAt: Date.now(),
+        }];
         return route.fulfill({ status: 503, json: { error: "Synthetic request timeout\n".repeat(12) + "<script>not executable</script>" } });
       });
       await page.goto(fixture.origin + "/app-map");
@@ -171,10 +182,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               documentFits: document.documentElement.scrollWidth <= innerWidth,
               color: getComputedStyle(node).color,
               background: getComputedStyle(node).backgroundColor,
+              height: node.getBoundingClientRect().height,
               images: [...node.querySelectorAll("svg.agent-result-illustration")].every(image => image.getBoundingClientRect().width > 0),
             }));
             assert.ok(measured.fits && measured.documentFits && measured.images, JSON.stringify({ width, theme, state, measured }));
             assert.notEqual(measured.color, measured.background);
+            if (state === "idle") assert.ok(measured.height <= 110,
+              `Idle guidance uses at most 110px at ${width}px ${theme}: ${measured.height}`);
           }
         }
       }
@@ -191,13 +205,55 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       fixture.state.app = "running";
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await result.locator(".agent-result-title").filter({ hasText: "Task request failed" }).waitFor();
+      await result.locator(".agent-result-title").filter({ hasText: "This invocation had a problem" }).waitFor();
       assert.match(await result.innerText(), /does not confirm that backend execution stopped/);
       assert.match(await result.innerText(), /<script>not executable<\/script>/);
       assert.equal(await result.locator("script,svg,ol,.ct-spinner").count(), 0);
       assert.equal(requests.length, 1);
       assert.equal(await prompt.inputValue(), requests[0].message);
       await geometry("request-failed");
+      await page.waitForResponse(response => response.url().includes("/api/app-output"));
+      assert.equal(await page.locator(".agent-status-brief").getAttribute("data-state"), "ready");
+      assert.equal(await page.locator("#status").getAttribute("role"), "status");
+      assert.match(await page.locator("#status").getAttribute("class"), /visually-hidden/);
+      assert.equal(await page.locator("#diagnostics-status").isVisible(), false);
+      assert.doesNotMatch(await page.locator("#diagnostics-status").textContent(), /failed|timeout/i,
+        "Failed HTTP invocation history must not become a global Operations failure.");
+      await result.getByRole("button", { name: "View logs", exact: true }).click();
+      await page.locator('[data-run-tab="operations"]').click();
+      const record = page.locator('[data-run-disclosure="invocation"]');
+      assert.equal(await record.getAttribute("data-status"), "failed");
+      assert.match(await record.innerText(), /Invoke agent[\s\S]*POST http:\/\/localhost:8088\/responses/);
+      await page.locator("#run-diagnostics-toggle").click();
+      assert.deepEqual(await result.evaluate(node => {
+        const probe = document.createElement("span");
+        node.append(probe);
+        probe.style.color = "var(--studio-line)";
+        const border = getComputedStyle(probe).color;
+        probe.style.color = "var(--studio-ink)";
+        const text = getComputedStyle(probe).color;
+        probe.style.color = "var(--studio-danger)";
+        const danger = getComputedStyle(probe).color;
+        probe.remove();
+        return [
+          getComputedStyle(node).borderTopColor === border,
+          getComputedStyle(node.querySelector(".agent-result-error")).color === text,
+          getComputedStyle(node.querySelector(".agent-result-title")).color === danger,
+        ];
+      }), [true, true, true], "Only the local failure heading is red; the result border and error body stay neutral.");
+      fixture.state.app = "failed";
+      fixture.state.error = "Synthetic runtime failure";
+      fixture.state.commands.push({
+        id: "startup", kind: "shell", label: "Run app", command: "aca run",
+        status: "failed", startedAt: Date.now(),
+      });
+      available = false;
+      await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
+      await page.waitForFunction(() => document.querySelector("#diagnostics-status")?.textContent.includes("1 failed operation"));
+      assert.match(await page.locator("#diagnostics-status").innerText(), /Synthetic runtime failure/);
+      assert.doesNotMatch(await page.locator("#diagnostics-status").innerText(), /2 failed operations/);
+      assert.match(await result.innerText(), /<script>not executable<\/script>/,
+        "An independent runtime problem must not replace the retained invocation error.");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }
   });
