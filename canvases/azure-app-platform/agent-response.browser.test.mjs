@@ -8,6 +8,66 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
+  test(`Idle SVG follows standalone and host colors without changing its geometry in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const browser = await engine.launch({ headless: true });
+    try {
+      for (const presentationProfile of ["standalone", "github-app"]) {
+        const fixture = await createRunSettingsFixture({ preview: true, presentationProfile });
+        const page = await browser.newPage({ viewport: { width: 430, height: 800 } });
+        try {
+          await page.goto(fixture.origin + "/app-map");
+          const svg = page.locator(".agent-response svg.agent-result-illustration");
+          await svg.waitFor();
+          const geometry = await svg.evaluate(node => [...node.querySelectorAll("path")].map(path => path.getAttribute("d")));
+          const palettes = [];
+          for (const theme of ["light", "dark"]) {
+            if (presentationProfile === "github-app") {
+              await page.evaluate(theme => {
+                const hostColors = theme === "light"
+                  ? { "--background-color-overlay": "#fdf7e8", "--text-color-muted": "#805030",
+                    "--text-color-accent": "#b02070", "--background-color-accent-muted": "#f8d0e8",
+                    "--text-color-button-primary-rest": "#fffaf0" }
+                  : { "--background-color-overlay": "#201d30", "--text-color-muted": "#d0b090",
+                    "--text-color-accent": "#e090c0", "--background-color-accent-muted": "#403050",
+                    "--text-color-button-primary-rest": "#302010" };
+                for (const [token, value] of Object.entries(hostColors)) document.documentElement.style.setProperty(token, value);
+              }, theme);
+            }
+            await page.evaluate(theme => { document.documentElement.dataset.studioTheme = theme; }, theme);
+            const palette = await svg.evaluate(node => {
+              const probe = document.createElementNS("http://www.w3.org/2000/svg", "path");
+              node.append(probe);
+              const resolve = token => {
+                probe.setAttribute("fill", "var(" + token + ")");
+                return getComputedStyle(probe).fill;
+              };
+              const colors = [
+                [getComputedStyle(node.querySelector("#subject-intake > use")).fill, resolve("--studio-raised")],
+                [getComputedStyle(node.querySelector("#subject-intake > path")).stroke, resolve("--studio-muted")],
+                [getComputedStyle(node.querySelector("#subject-task > path")).fill, resolve("--studio-accent-soft")],
+                [getComputedStyle(node.querySelector("#connection-dispatch > circle")).fill, resolve("--studio-accent")],
+                [getComputedStyle(node.querySelector("#connection-dispatch > path")).stroke, resolve("--studio-on-accent")],
+              ];
+              probe.remove();
+              return colors;
+            });
+            for (const [actual, expected] of palette) assert.equal(actual, expected, `${presentationProfile} ${theme} uses inherited tokens`);
+            palettes.push(palette.map(([actual]) => actual));
+            assert.deepEqual(await svg.evaluate(node => [...node.querySelectorAll("path")].map(path => path.getAttribute("d"))), geometry);
+          }
+          assert.notDeepEqual(palettes[0], palettes[1], `${presentationProfile} illustration must change with theme colors`);
+          if (presentationProfile === "github-app") {
+            assert.deepEqual(palettes[0], ["rgb(253, 247, 232)", "rgb(128, 80, 48)", "rgb(248, 208, 232)", "rgb(176, 32, 112)", "rgb(255, 250, 240)"]);
+            assert.deepEqual(palettes[1], ["rgb(32, 29, 48)", "rgb(208, 176, 144)", "rgb(64, 48, 80)", "rgb(224, 144, 192)", "rgb(48, 32, 16)"]);
+          }
+          assert.equal(await svg.locator('[fill^="#"],[stroke^="#"]').count(), 0, "No fixed palette remains in rendered artwork");
+        } finally { await page.close(); await fixture.close(); }
+      }
+    } finally { await browser.close(); }
+  });
+
   test(`Only idle is illustrated; invocation, success and failure retain plain text in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -31,18 +91,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       await page.goto(fixture.origin + "/app-map");
       const result = page.getByRole("region", { name: "Agent response", exact: true });
-      await result.locator("img").waitFor();
+      await result.locator(".agent-result-illustration").waitFor();
       assert.equal(await result.locator(".agent-result-title").textContent(), "Your next run starts here");
       assert.equal(await result.locator("p").textContent(), "Choose an event or enter a task above, then invoke the agent.");
-      assert.equal(await result.locator("img").getAttribute("alt"), "");
-      assert.equal(await result.locator("img").getAttribute("aria-hidden"), "true");
-      assert.equal(await result.locator("img").getAttribute("src"), "/assets/run-ready-spot.svg");
+      const illustration = result.locator("svg.agent-result-illustration");
+      assert.equal(await illustration.getAttribute("aria-hidden"), "true");
+      assert.equal(await illustration.getAttribute("focusable"), "false");
+      assert.equal(await illustration.getAttribute("role"), null);
+      assert.equal(await illustration.getAttribute("aria-labelledby"), null);
       assert.equal(await result.locator("ol,button,.ct-spinner").count(), 0);
       for (const width of [320, 430, 620]) {
         await page.setViewportSize({ width, height: 800 });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(theme => { document.documentElement.dataset.studioTheme = theme; }, theme);
-          await page.waitForFunction(() => [...document.querySelectorAll(".agent-response img")].every(image => image.complete && image.naturalWidth > 0));
           assert.ok(await result.evaluate(node => node.scrollWidth <= node.clientWidth
             && node.scrollHeight <= node.clientHeight && document.documentElement.scrollWidth <= innerWidth),
           `${width}px ${theme} idle must fit`);
@@ -103,7 +164,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }));
       await page.goto(fixture.origin + "/app-map");
       const result = page.getByRole("region", { name: "Agent response", exact: true });
-      await result.locator("img").waitFor();
+      await result.locator(".agent-result-illustration").waitFor();
       await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Retain this task after startup failure.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.waitForFunction(() => document.querySelector(".agent-response").dataset.state === "failed");

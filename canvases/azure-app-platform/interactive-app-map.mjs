@@ -5,7 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
-import { renderIdleAgentResponse } from "./agent-response.mjs";
+import { renderIdleAgentResponse, RUN_READY_ILLUSTRATION_MARKUP } from "./agent-response.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -3464,7 +3464,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.tabIndex = 0;
       response.dataset.runScrollKey = "agent-result";
       response.dataset.state = agentRequestState;
-      if (agentRequestState === "idle") (${renderIdleAgentResponse.toString()})(response);
+      if (agentRequestState === "idle") (${renderIdleAgentResponse.toString()})(response, ${JSON.stringify(RUN_READY_ILLUSTRATION_MARKUP)});
       else response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";

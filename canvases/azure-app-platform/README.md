@@ -365,7 +365,11 @@ conversation view and adds no chat bubbles or conversation history.
 Before the first invocation, the result box shows a static decorative task
 illustration with **Your next run starts here** and guidance to choose an event
 or enter a task. The SVG ships with the plugin and needs no CDN or dependency
-restore. Invocation, response text, errors and runtime readiness are unchanged.
+restore. The idle renderer inlines the shipped artwork and maps its decorative
+colors to Studio's surface, muted, accent and on-accent tokens, so standalone
+light/dark themes and host-provided colors apply without filters or a fixed
+palette. The source SVG remains byte-preserved. Invocation, response text, errors
+and runtime readiness are unchanged.
 **Status Brief** leads the tester with separate runtime, agent-endpoint and model
 connection facts. A running web app, configured gateway or Azure operation never
 establishes agent availability or successful policy enforcement. Stopped, starting,
