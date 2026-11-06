@@ -1,4 +1,4 @@
-export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble, onOpenRecent, recentApps = null, recentError = null, busy = false }) {
+export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, onAssemble, onOpenRecent, recentApps = null, recentError = null, busy = false }) {
   const { createElement: h, mountCanvasComponent, SectionHeader, WorkItem, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
   const tasks = [
     { id: "new-app", title: "Create a new app", description: "Start with a template. Make it yours.", illustration: "create", onClick: onCreate },
@@ -37,9 +37,29 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
         .simple-home .simple-home-task.simple-home-task { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; height: 100%; min-height: 100px; padding: 12px; text-align: start; border: 1px solid var(--canvas-border); border-radius: var(--canvas-radius-large, 12px); background: var(--canvas-bg); color: var(--canvas-fg); }
         .simple-home .simple-home-task.simple-home-task:hover:not(:disabled) { background: var(--canvas-hover); }
         .simple-home-art { display: flex; justify-content: center; align-items: center; width: 84px; height: 74px; }
-        .simple-home-art img { width: 84px; height: 74px; object-fit: contain; }
+        .simple-home-art svg { display: block; width: 84px; height: 74px; }
         .simple-home-art [data-home-art-theme="light"] { display: var(--home-art-light); }
         .simple-home-art [data-home-art-theme="dark"] { display: var(--home-art-dark); }
+        .simple-home-art {
+          --art-shell-start: color-mix(in srgb, var(--canvas-fg) 18%, var(--canvas-bg));
+          --art-shell-end: var(--canvas-tint);
+          --art-inset-start: color-mix(in srgb, var(--canvas-fg) 8%, var(--canvas-bg));
+          --art-inset-end: var(--canvas-bg);
+          --art-accent-start: color-mix(in srgb, var(--canvas-accent) 70%, var(--canvas-bg));
+          --art-accent-end: var(--canvas-accent);
+          --art-accent-shade: color-mix(in srgb, var(--canvas-accent) 80%, var(--canvas-fg));
+        }
+        .simple-home-art [id$="-neutral"] stop:first-child { stop-color: var(--art-shell-start); }
+        .simple-home-art [id$="-neutral"] stop:last-child { stop-color: var(--art-shell-end); }
+        .simple-home-art [id$="-highlight"] stop:first-child { stop-color: var(--art-inset-start); }
+        .simple-home-art [id$="-highlight"] stop:last-child { stop-color: var(--art-inset-end); }
+        .simple-home-art [id$="-azure"] stop:first-child { stop-color: var(--art-accent-start); }
+        .simple-home-art [id$="-azure"] stop:last-child { stop-color: var(--art-accent-end); }
+        .simple-home-art [id$="-violet"] stop { stop-color: var(--art-accent-shade); }
+        .simple-home-art [fill="#8DC8E8"] { fill: var(--canvas-muted); }
+        .simple-home-art [stroke="#0078D4"], .simple-home-art [stroke="#8DC8E8"] { stroke: var(--canvas-accent); }
+        .simple-home-art [stroke="white"] { stroke: var(--canvas-bg); }
+        .simple-home-art [fill="white"] { fill: var(--canvas-fg); }
         .simple-home-task-copy { display: grid; gap: 4px; min-width: 0; }
         .simple-home-task-title { font-size: var(--canvas-body); line-height: 20px; font-weight: var(--font-weight-semibold, 600); }
         .simple-home-task-description { color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 18px; font-weight: 400; }
@@ -65,11 +85,8 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
           .simple-home-recent { padding: 16px; }
         }
         @container simple-home (min-width: 640px) {
-          .simple-home-tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-          .simple-home .simple-home-task.simple-home-task { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 16px; }
-          .simple-home-art { width: 100%; height: 116px; margin-bottom: 12px; }
-          .simple-home-art img { width: 144px; height: 116px; }
-          .simple-home-task-title { min-height: 40px; }
+          .simple-home-tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .simple-home-task:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
         }
       `),
       h("div", { className: "simple-home-start" },
@@ -81,9 +98,13 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
             key: task.id, id: task.id, className: "simple-home-task", type: "button",
             "aria-label": task.title, disabled: currentBusy, onClick: task.onClick,
           }, h("span", { className: "simple-home-art", "aria-hidden": true },
-            ...["light", "dark"].map(theme => h("img", {
-              key: theme, src: "/assets/homepage-" + task.illustration + (theme === "dark" ? "-dark" : "") + ".svg",
-              "data-home-art-theme": theme, alt: "", width: 144, height: 116,
+            ...["light", "dark"].map(theme => h("span", {
+              key: theme, "data-home-art-theme": theme,
+              dangerouslySetInnerHTML: { __html: artwork[task.illustration][theme]
+                .replaceAll('id="', 'id="home-' + task.illustration + '-' + theme + '-')
+                .replaceAll('url(#', 'url(#home-' + task.illustration + '-' + theme + '-')
+                .replaceAll('aria-labelledby="' + task.illustration + '-title ' + task.illustration + '-description"',
+                  'aria-hidden="true" focusable="false"') },
             }))),
           h("span", { className: "simple-home-task-copy" },
             h("span", { className: "simple-home-task-title" }, task.title),

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="assemble-title assemble-description">
   <title id="assemble-title">Assemble existing projects - dark material</title>
-  <desc id="assemble-description">Existing source and resource pieces connect into a deep blue app window, with a blue module fitting into its matching slot.</desc>
+  <desc id="assemble-description">A source project and an Azure resource connect into one deep blue app window with clearly visible components.</desc>
   <defs>
     <linearGradient id="assemble-neutral" x1="432" y1="96" x2="150" y2="430" gradientUnits="userSpaceOnUse">
       <stop stop-color="#2A446F"/>
@@ -13,10 +13,6 @@
     <linearGradient id="assemble-azure" x1="422" y1="32" x2="160" y2="432" gradientUnits="userSpaceOnUse">
       <stop offset="0.421312" stop-color="#49C5B1"/>
       <stop offset="0.933804" stop-color="#0078D4"/>
-    </linearGradient>
-    <linearGradient id="assemble-violet" x1="270" y1="322" x2="270" y2="168" gradientUnits="userSpaceOnUse">
-      <stop offset="0.498686" stop-color="#C03BC4"/>
-      <stop offset="1" stop-color="#C03BC4" stop-opacity="0"/>
     </linearGradient>
     <filter id="assemble-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
@@ -104,10 +100,5 @@
     <path d="M82 342H126M82 370H126" stroke="#8DC8E8" stroke-width="8" stroke-linecap="round"/>
     <circle cx="96" cy="342" r="9" fill="white"/>
     <circle cx="114" cy="370" r="9" fill="white"/>
-  </g>
-  <g id="fitting-module" transform="rotate(-8 278 196)" filter="url(#assemble-bevel)">
-    <rect x="212" y="136" width="126" height="96" rx="24" fill="url(#assemble-azure)"/>
-    <rect x="212" y="136" width="126" height="96" rx="24" fill="url(#assemble-violet)"/>
-    <path d="M242 170H304M242 194H282" stroke="white" stroke-width="10" stroke-linecap="round"/>
   </g>
 </svg>

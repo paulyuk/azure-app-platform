@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mountStudioHome } from "./studio-home.mjs";
+import { readFileSync } from "node:fs";
+
+const artwork = Object.fromEntries(["create", "open", "assemble"].map(name => [
+  name, Object.fromEntries(["light", "dark"].map(theme => [
+    theme, readFileSync(new URL(`./assets/homepage-${name}${theme === "dark" ? "-dark" : ""}.svg`, import.meta.url), "utf8"),
+  ])),
+]));
 
 function mountHome(options = {}) {
   const tree = [], state = [];
@@ -26,7 +33,7 @@ function mountHome(options = {}) {
     render();
     return handle;
   };
-  assert.equal(mountStudioHome(element, { toolkit, ...options }), handle);
+  assert.equal(mountStudioHome(element, { toolkit, artwork, ...options }), handle);
   return { tree, handle };
 }
 
@@ -47,13 +54,18 @@ test("home composes public toolkit primitives with the selected illustrations an
   assert.deepEqual(calls, ["create", "open", "assemble"]);
   tree.find(node => node.props.className === "simple-home-browse").props.onClick();
   assert.deepEqual(calls, ["create", "open", "assemble", "open"]);
-  assert.deepEqual(tree.filter(node => node.type === "img").map(node => [node.props.src, node.props.alt]), [
-    ["/assets/homepage-create.svg", ""], ["/assets/homepage-create-dark.svg", ""],
-    ["/assets/homepage-open.svg", ""], ["/assets/homepage-open-dark.svg", ""],
-    ["/assets/homepage-assemble.svg", ""], ["/assets/homepage-assemble-dark.svg", ""],
-  ]);
-  assert.deepEqual(tree.filter(node => node.type === "img").map(node => node.props["data-home-art-theme"]),
+  const illustrations = tree.filter(node => node.props["data-home-art-theme"]);
+  assert.equal(tree.filter(node => node.type === "img").length, 0, "Inline SVGs inherit live host material tokens");
+  assert.deepEqual(illustrations.map(node => node.props["data-home-art-theme"]),
     ["light", "dark", "light", "dark", "light", "dark"]);
+  const ids = [];
+  for (const illustration of illustrations) {
+    const markup = illustration.props.dangerouslySetInnerHTML.__html;
+    assert.match(markup, /aria-hidden="true" focusable="false"/);
+    for (const match of markup.matchAll(/\bid="([^"]+)"/g)) ids.push(match[1]);
+    for (const match of markup.matchAll(/url\(#([^)]+)\)/g)) assert.ok(markup.includes(`id="${match[1]}"`));
+  }
+  assert.equal(new Set(ids).size, ids.length, "Inline artwork IDs are unique across actions and theme variants");
   assert.deepEqual(tree.filter(node => node.type === "h1").map(node => node.children), [["What would you like to do?"]]);
   assert.ok(JSON.stringify(tree).includes("Start a new app, bring existing projects together, or pick up where you left off."));
 });

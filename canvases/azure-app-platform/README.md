@@ -257,9 +257,10 @@ This user-level preference lives under
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
 pattern. Its home asks **What would you like to do?** and presents
 **Create a new app**, **Open an app**, and **Assemble existing projects** as equal,
-arrow-free illustrated buttons, in that order. Cards stack with artwork beside
-their labels below 640px of available content width; at 640px they become three
-equal columns with artwork above the labels. The content is at most 888px wide,
+arrow-free illustrated buttons, in that order. Cards keep their compact artwork
+beside the labels at every width. Below 640px of available content width they
+stack; at 640px they use two equal columns. With an odd number of cards, the
+first spans the full row, followed by paired cards. The content is at most 888px wide,
 with 12px card gaps and 16px narrow / 24px wide outer padding.
 A compact canonical header replaces the large Home
 masthead; the opening animation and existing Docs/Settings actions are preserved.
@@ -274,7 +275,8 @@ row target, with rounded hover and focus states and no duplicate Open button.
 No toolkit internals are hidden or changed. The shared controls
 bootstrap completes before the home and intro become interactive. A failed
 bundle load is explicit and asks the user to reload to retry. Returning from a
-journey restores focus to Create, as does skipping the intro.
+journey does not automatically focus a starting point; the intro restores a
+meaningful previous focus when available.
 **Get back to your app** uses only genuine source inventory with recorded
 last-opened timestamps, showing at most the newest five in the source catalog's
 existing recency order. This Home-only limit does not truncate stored history or
@@ -290,10 +292,12 @@ or sample recents are added.
 app components, sandbox isolation, gateway governance and per-app verification.
 Opening guidance performs no setup, execution or permission changes.
 
-The layout adopts approved homepage prototype `v02`, revision `8` (source digest
+The homepage began with approved prototype `v02`, revision `8` (source digest
 `a7324c2baf464ecee002c9d6acf1e1ef31dd7363eaec861d04689d9c254b6eb9`),
 translated into product-owned components and existing handlers, not prototype
-mock operations or preview infrastructure. The self-contained SVGs ship with the
+mock operations or preview infrastructure. The responsive two-column layout
+and full-width first card for odd counts are subsequent product refinements.
+The self-contained SVGs ship with the
 plugin; no build, dependency restore or CDN is needed to show them. The toolkit
 runtime and provenance are unchanged.
 
@@ -303,18 +307,30 @@ rounded soft-neutral or deep-blue surfaces,
 Azure blue/teal/violet gradients and restrained vector bevel lighting adapted
 from the supplied Azure illustration reference. Their new compositions depict
 creating an app, reopening a project folder, and fitting existing pieces into
-an app. Each is a static, editable, self-contained 512px SVG, designed to remain
+an app. Assemble shows the source and resource connected to an unobstructed app
+window, without an overlapping card. Each is a static, editable, self-contained 512px SVG, designed to remain
 legible in the compact 84px by 74px art slot.
 
-The paired files keep the same geometry and colored focal details. Dark shells
+The paired source files keep the same geometry and colored focal details. Dark shells
 use `#2A446F` to `#091F2C`, lifted blue inset surfaces, and separately tuned
 bevel highlights; small blue line symbols use the pale-blue reference ink for
 contrast. Object interiors remain opaque and the outer canvas transparent.
-Do not recolor materials with foreground tokens or expect document CSS variables
-to cross the external `img` boundary. The surrounding cards, labels, borders,
+For product rendering, reviewed shipped SVGs are inlined with action/theme-scoped
+IDs so the actual host palette can reach their materials. Only these bundled
+assets enter the inline markup boundary; workspace or user-provided SVGs do not.
+Shell gradients blend host foreground, background and muted surface tokens;
+insets use raised background tones; accent gradients and line symbols use the
+host accent, and focal symbols use the contrasting host background. Neutral
+bevel lighting remains separate from those material roles. This replaces fixed
+Azure hues throughout the rendered artwork, not just its light/dark selection.
+CSS palette changes update the existing SVG nodes without observers or remounts.
+The external SVG routes retain the editable reference-material sources; outer
+document variables do not cross external image boundaries.
+The surrounding cards, labels, borders,
 hover and focus states continue to use the toolkit's semantic `--canvas-*`
-aliases and host-delivered theme. The images retain empty `alt` text inside `aria-hidden` art wrappers;
-their standalone SVG title and description are not duplicate button labels.
+aliases and host-delivered theme. Inline artwork is non-focusable and hidden
+inside decorative wrappers; standalone SVG titles and descriptions do not
+become duplicate button labels.
 CSS displays exactly one shipped variant per card without remounting controls.
 For the embedded GitHub app presentation, valid host `data-theme-tone` takes
 precedence over valid compatibility `data-color-mode`; the saved

@@ -93,7 +93,9 @@ for (const engine of ["chromium", "webkit"]) {
             attributes: [...node.attributes].filter(attribute => !["fill", "stroke", "filter"].includes(attribute.name))
               .map(attribute => [attribute.name, attribute.value]),
           }));
-          const accents = ["azure", "violet"].map(role => doc.getElementById(`${name}-${role}`).outerHTML);
+          if (name === "assemble" && doc.getElementById("fitting-module")) problems.push("Assemble must not cover the app window with an overlapping card");
+          const accents = (name === "assemble" ? ["azure"] : ["azure", "violet"])
+            .map(role => doc.getElementById(`${name}-${role}`).outerHTML);
           const focal = root.querySelector("#add-control, #continue-control, #fitting-module")?.outerHTML;
           return { problems, samples, geometry, accents, focal };
         }, { name, neutralPoint, suffix });
@@ -252,14 +254,13 @@ test("packaged simple home preserves the three explicit journeys", {
       page.on("pageerror", error => errors.push(error.message));
       page.on("request", request => requests.push(request.url()));
       const expectArtwork = async tone => {
-        const visible = page.locator(".simple-home-art img:visible");
+        const visible = page.locator(".simple-home-art [data-home-art-theme]:visible");
         assert.equal(await visible.count(), 3, "Exactly one material is visible per card");
         assert.deepEqual(await visible.evaluateAll(images => images.map(image => ({
-          file: new URL(image.src).pathname, theme: image.dataset.homeArtTheme, alt: image.alt,
+          theme: image.dataset.homeArtTheme, decorativeSvg: image.querySelector("svg").getAttribute("aria-hidden"),
           decorative: image.closest(".simple-home-art").getAttribute("aria-hidden"),
         }))), ["create", "open", "assemble"].map(name => ({
-          file: `/assets/homepage-${name}${tone === "dark" ? "-dark" : ""}.svg`,
-          theme: tone, alt: "", decorative: "true",
+          theme: tone, decorativeSvg: "true", decorative: "true",
         })));
       };
       let sourceMode = "ready", recentCount = 7, releaseSources, notifySourcePending;
@@ -331,7 +332,10 @@ test("packaged simple home preserves the three explicit journeys", {
             }));
             assert.deepEqual(heading, { size: "20px", lineHeight: "28px" });
             assert.equal(await page.locator("#new-app .simple-home-task-title").evaluate(element => getComputedStyle(element).fontWeight), "600");
-            assert.equal(await page.locator(".simple-home-art img").evaluateAll(images => images.every(image => image.naturalWidth > 0 && image.alt === "")), true);
+            assert.equal(await page.locator(".simple-home-art svg").count(), 6);
+            assert.equal(await page.locator(".simple-home-art svg").evaluateAll(images => images.every(image =>
+              image.getAttribute("aria-hidden") === "true" && image.getAttribute("focusable") === "false"
+              && image.querySelector("rect, path, circle"))), true);
             const measured = await page.evaluate(() => {
               const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
               const style = selector => {
@@ -357,7 +361,21 @@ test("packaged simple home preserves the three explicit journeys", {
                 brandGap: getComputedStyle(document.querySelector(".studio-site-nav .ct-header-identity")).gap,
               };
             });
-            assert.equal(measured.columns, width === 390 ? 1 : 3);
+            assert.equal(measured.columns, width === 390 ? 1 : 2);
+            const [first, second, third] = measured.cards;
+            if (measured.columns === 2) {
+              assert.equal(first.width, measured.content.width, "An odd card count gives the first card a full row");
+              assert.equal(first.x, second.x);
+              assert.equal(second.y, third.y);
+              assert.equal(second.width, third.width);
+              assert.equal(second.y - first.bottom, 12);
+              assert.equal(third.x - second.right, 12);
+            }
+            assert.equal(await page.locator(".simple-home-task").evaluateAll(cards => cards.every(card => {
+              const art = card.querySelector(".simple-home-art").getBoundingClientRect();
+              const copy = card.querySelector(".simple-home-task-copy").getBoundingClientRect();
+              return art.width === 84 && art.height === 74 && copy.left - art.right === 12;
+            })), true, "Artwork stays beside the text at every width");
             const availableWidth = await page.evaluate(() => document.documentElement.clientWidth);
             assert.equal(measured.content.width, Math.min(888, availableWidth) - (width === 390 ? 32 : 48));
             assert.equal(measured.introductionToGridGap, 24);
@@ -401,13 +419,44 @@ test("packaged simple home preserves the three explicit journeys", {
           if (!baseline) {
             await page.keyboard.press("Tab");
             await page.locator("#new-app").focus();
-            for (const [outerWidth, columns] of [[648, 1], [687, 1], [688, 3]]) {
+            for (const [outerWidth, columns] of [[648, 1], [687, 1], [688, 2]]) {
               await page.locator("#studio-home").evaluate((element, width) => { element.style.width = width + "px"; }, outerWidth);
               assert.equal(await page.locator(".simple-home-tasks").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length), columns,
                 "The 640px content breakpoint is independent of host viewport width");
-              if (columns === 3) {
+              const countLayouts = await page.locator(".simple-home-tasks").evaluate(grid => {
+                const fixture = grid.cloneNode(false);
+                fixture.setAttribute("aria-hidden", "true");
+                fixture.inert = true;
+                grid.after(fixture);
+                try {
+                  return [1, 2, 3, 4, 5].map(count => {
+                    fixture.replaceChildren(...Array.from({ length: count }, () => {
+                      const card = grid.firstElementChild.cloneNode(true);
+                      card.removeAttribute("id");
+                      return card;
+                    }));
+                    return { count, width: fixture.getBoundingClientRect().width,
+                      cards: [...fixture.children].map(card => card.getBoundingClientRect().toJSON()) };
+                  });
+                } finally { fixture.remove(); }
+              });
+              for (const layout of countLayouts) {
+                const fullFirstRow = columns === 1 || layout.count % 2 === 1;
+                assert.equal(layout.cards[0].width, fullFirstRow ? layout.width : (layout.width - 12) / 2,
+                  `${layout.count} cards at ${outerWidth}px use the expected first-row span`);
+                for (let index = fullFirstRow ? 1 : 0; index < layout.count; index++) {
+                  if (columns === 1) assert.equal(layout.cards[index].width, layout.width);
+                  else {
+                    assert.equal(layout.cards[index].width, (layout.width - 12) / 2);
+                    if ((index - (fullFirstRow ? 1 : 0)) % 2 === 1) {
+                      assert.equal(layout.cards[index].y, layout.cards[index - 1].y, "Remaining cards form horizontal pairs");
+                    }
+                  }
+                }
+              }
+              if (columns === 2) {
                 const heights = await page.locator(".simple-home-task").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().height));
-                assert.equal(new Set(heights).size, 1, "Wide cards have equal heights");
+                assert.equal(heights[1], heights[2], "Paired cards have equal heights");
               }
             }
             await page.locator("#studio-home").evaluate(element => { element.style.removeProperty("width"); });
@@ -578,6 +627,34 @@ test("packaged simple home preserves the three explicit journeys", {
           && window.originalCreate === document.activeElement
           && window.originalHeader === document.querySelector(".studio-site-nav .ct-header")), true, "Late host delivery must preserve roots and focus");
         await expectArtwork("light");
+        const readMaterials = () => page.locator(".simple-home-art [data-home-art-theme]:visible svg").evaluateAll(images =>
+          images.map(image => ({
+            shell: getComputedStyle(image.querySelector('[id$="-neutral"] stop')).stopColor,
+            accent: getComputedStyle(image.querySelector('[id$="-azure"] stop:last-child')).stopColor,
+            symbol: getComputedStyle(image.querySelector('[stroke="white"], [stroke="#0078D4"], [stroke="#8DC8E8"]')).stroke,
+          })));
+        const originalMaterials = await readMaterials();
+        assert.ok(originalMaterials.every(material => material.accent === "rgb(124, 47, 150)"),
+          "Illustration accents use the delivered host accent, not fixed Azure colors");
+        await page.evaluate(() => {
+          window.originalArtwork = [...document.querySelectorAll(".simple-home-art svg")];
+          document.documentElement.style.setProperty("--background-color-default", "rgb(53, 58, 44)");
+          document.documentElement.style.setProperty("--background-color-muted", "rgb(65, 70, 53)");
+          document.documentElement.style.setProperty("--text-color-default", "rgb(241, 213, 171)");
+          document.documentElement.style.setProperty("--text-color-accent", "rgb(217, 171, 106)");
+        });
+        const oliveMaterials = await readMaterials();
+        assert.ok(oliveMaterials.every((material, index) => material.accent === "rgb(217, 171, 106)"
+          && material.shell !== originalMaterials[index].shell
+          && material.symbol === (index === 2 ? "rgb(217, 171, 106)" : "rgb(53, 58, 44)")),
+          "An olive host palette updates shells, accents and contrasting symbols without a tone change");
+        assert.equal(await page.evaluate(() => window.originalArtwork.every((svg, index) =>
+          svg === document.querySelectorAll(".simple-home-art svg")[index]) && window.originalCreate === document.activeElement),
+        true, "Live palette changes preserve artwork, controls and focus");
+        assert.equal(await page.evaluate(() => {
+          const ids = [...document.querySelectorAll(".simple-home-art [id]")].map(node => node.id);
+          return new Set(ids).size === ids.length;
+        }), true);
         for (const [tone, compatibility, expected] of [
           ["dark", "light", "dark"], ["light", "dark", "light"],
           ["invalid", "dark", "dark"], ["invalid", "light", "light"],
