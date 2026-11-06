@@ -20,8 +20,6 @@ export const CONNECTION_PANEL_CSS = `
   #details .connections-root .studio-field, .studio-settings .connections-root .studio-field { display:grid; gap:6px; min-width:0; font:inherit; font-weight:400; }
   #details .connections-root .studio-field > span, .studio-settings .connections-root .studio-field > span { font:inherit; font-weight:400; }
   #details .connections-root select, .studio-settings .connections-root select { width:100%; min-width:0; max-width:100%; padding-block:0; }
-  .connection-execution { margin:0 0 14px; min-width:0; }
-  .connections-warning { margin-top:12px; }
   .connections-feedback { margin-bottom:12px; }
   .connections-feedback[data-quiet="true"] { margin-bottom:0; }
   .connections-feedback-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
@@ -45,15 +43,6 @@ export const CONNECTION_PANEL_CSS = `
   }
 `;
 
-export function createConnectionExecutionComponent({ createElement, RadioGroup, Radio }) {
-  return function ConnectionExecution({ value, disabled, onChange }) {
-    return createElement(RadioGroup, { label: "Execution mode", value, disabled,
-      onChange: (_event, data) => onChange(data.value) },
-    createElement(Radio, { value: "sandbox", label: "ACA Sandbox" }),
-    createElement(Radio, { value: "local", label: "Local simulation (no sandbox)" }));
-  };
-}
-
 export function createConnectionPanel({ buttons, notices, toolkitComponents, request, tracker, getRuntime, applySelection,
   createGateway, createSandbox, configureModel, openSetup, selectModel }) {
   const views = new Map();
@@ -67,11 +56,11 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
   let modelContext = "";
   let applying = false;
   let activeRequest = null;
-  let draft = { subscriptionId: "", sandboxSubscriptionId: "", gateway: null, model: "", mode: "local", sandbox: null, suggestGateway: true };
+  let draft = { subscriptionId: "", sandboxSubscriptionId: "", gateway: null, model: "", sandbox: null, suggestGateway: true };
   const identity = item => item?.name
     ? [item.subscriptionId || "", item.resourceGroup || "", item.name].map(value => value.toLowerCase()).join("|") : "";
   const selectionKey = value => JSON.stringify([identity(value), value?.model || "", identity(value?.sandboxGroup)]);
-  const selection = () => draft.gateway ? { ...draft.gateway, model: draft.model, sandboxGroup: draft.mode === "sandbox" ? draft.sandbox : null } : null;
+  const selection = () => draft.gateway ? { ...draft.gateway, model: draft.model, sandboxGroup: draft.sandbox } : null;
   const dirty = () => initialized && selectionKey(selection()) !== selectionKey(persisted);
   const transient = state => getRuntime().activeStates.includes(state);
   const runtimeBusy = () => {
@@ -91,7 +80,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     return phase === "ready" && !applying && !runtimeBusy() &&
       gateways().some(item => identity(item) === identity(draft.gateway)) &&
       models().some(item => item.id === draft.model) &&
-      (draft.mode === "local" || sandboxes().some(item => identity(item) === identity(draft.sandbox)));
+      sandboxes().some(item => identity(item) === identity(draft.sandbox));
   }
   function text(parent, tag, value, className) {
     const node = document.createElement(tag);
@@ -154,8 +143,6 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       if (container === retain) continue;
       if (container.isConnected && view.root.isConnected) continue;
       notices.clearNotice(view.notice);
-      notices.clearNotice(view.warning);
-      notices.clearComponent(view.execution);
       view.subscription.dispose();
       view.sandboxSubscription.dispose();
       buttons.clear(view.root);
@@ -201,8 +188,8 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     else if (phase === "ready" && !draft.gateway) message = "Choose an AI Gateway to load its models.";
     else if (phase === "ready" && !gateways().some(item => identity(item) === identity(draft.gateway))) message = "The selected gateway is no longer available. Choose a gateway or refresh discovery.";
     else if (phase === "ready" && !models().length) message = "This gateway has no models. Choose another gateway or configure a model.";
-    else if (phase === "ready" && draft.mode === "sandbox" && !sandboxes().some(item => identity(item) === identity(draft.sandbox))) message =
-      "Choose an available sandbox group, create one, or explicitly select local simulation.";
+    else if (phase === "ready" && !sandboxes().some(item => identity(item) === identity(draft.sandbox))) message =
+      "Choose an available sandbox group or create one.";
     for (const view of views.values()) {
       view.form.setAttribute("aria-busy", String(checking || loading || applying));
       view.root.dataset.phase = checking ? "checking" : phase;
@@ -211,7 +198,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       view.currentLabel.textContent = dirty() ? "Saved connection / Unsaved changes" : "Saved connection";
       view.currentText.textContent = persisted?.name
         ? [persisted.model || "Model not selected", persisted.name,
-          persisted.sandboxGroup?.name || "Local simulation (no sandbox)"].join(" / ")
+          persisted.sandboxGroup?.name || "Sandbox not selected"].join(" / ")
         : "No connection has been saved for this app.";
       view.currentState.hidden = !persisted;
       view.currentState.textContent = runtime.readiness?.activeGateway?.configurationStatus === "configuring" || runtime.app?.state === "configuring"
@@ -249,12 +236,6 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       updateOptions(view.sandbox, sandboxes().map(item => ({ value: String(options.sandboxGroups.indexOf(item)),
         label: [item.name, item.resourceGroup, draft.sandboxSubscriptionId === "*" ? subscriptions.find(sub => sub.value === item.subscriptionId)?.label || item.subscriptionId : ""].filter(Boolean).join(" / ") })),
       draft.sandbox ? String(options?.sandboxGroups.indexOf(draft.sandbox)) : "", locked || !sandboxes().length, "Choose a sandbox group");
-      view.sandboxFields.hidden = draft.mode !== "sandbox";
-      notices.renderComponent(view.execution, "ConnectionExecution", { value: draft.mode, disabled: locked,
-        onChange: value => { draft.mode = value; update(); } }, "execution mode choices");
-      view.warning.hidden = draft.mode !== "local";
-      if (!view.warning.hidden) notices.renderNotice(view.warning, { children: "Local simulation does not use an ACA Sandbox and provides no sandbox execution isolation.", intent: "warning" });
-      else notices.clearNotice(view.warning);
       view.discoveryWarnings.textContent = (options?.warnings || []).join(" ");
       view.discoveryWarnings.hidden = !view.discoveryWarnings.textContent;
       buttons.setDisabled(view.refresh, locked);
@@ -308,7 +289,6 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
         const desired = next.active && Object.hasOwn(next.active, "sandboxGroup")
           ? next.active.sandboxGroup : getRuntime().readiness?.sandboxGroup || next.suggestedSandboxGroup;
         draft.sandbox = (next.sandboxGroups || []).find(item => identity(item) === identity(desired)) || null;
-        draft.mode = desired ? "sandbox" : "local";
         initialized = true;
       } else {
         draft.sandbox = (next.sandboxGroups || []).find(item => identity(item) === identity(requested.sandbox)) || null;
@@ -408,8 +388,6 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     const configure = button(modelGroup, "Configure Model", () => configureModel(draft.gateway));
     const execution = section("Sandbox execution");
     const refreshSandbox = button(execution.heading, "Refresh", () => { void load(true); }, false, "Refresh sandbox groups");
-    const group = text(execution.section, "div", "", "connection-execution");
-    execution.section.insertBefore(group, execution.fields);
     const sandboxSubscription = control(execution.fields, "Sandbox subscription", value => {
       draft.sandboxSubscriptionId = value; draft.sandbox = null; void load(false, "sandboxSubscription");
     });
@@ -420,7 +398,6 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     const createSandboxButton = button(sandboxInline, "Create", () => createSandbox({
       subscriptionId: draft.sandboxSubscriptionId, gatewaySubscriptionId: draft.subscriptionId, gateway: draft.gateway,
     }), false, "Create Sandbox Group");
-    const warning = text(execution.section, "div", "", "connections-warning");
     const explanation = text(form, "details", "", "connections-explanation");
     text(explanation, "summary", "What Apply changes");
     text(explanation, "p", "Apply saves this app's gateway, model, and sandbox selection, then validates the connection. Create actions use a separate resource workflow.");
@@ -431,7 +408,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       if (busy()) return;
       draft = { subscriptionId: persisted?.subscriptionId || draft.subscriptionId,
         sandboxSubscriptionId: persisted?.sandboxGroup?.subscriptionId || persisted?.subscriptionId || draft.sandboxSubscriptionId,
-        gateway: persisted, model: persisted?.model || "", mode: persisted?.sandboxGroup ? "sandbox" : "local",
+        gateway: persisted, model: persisted?.model || "",
         sandbox: persisted?.sandboxGroup || null, suggestGateway: false };
       void load(false, "gateway");
     });
@@ -440,7 +417,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     const view = { root, body, scrollToRestore: scrollTop, summary, currentLabel, currentText, currentState, notice, feedbackArea, feedbackActions,
       cancel: cancelButton, retry, setup,
       discoveryWarnings, skeleton, form, subscription, gateway, model, configure, sandboxSubscription, sandbox,
-      sandboxFields: execution.fields, execution: group, warning, refresh, refreshSandbox, createGateway: createGatewayButton,
+      refresh, refreshSandbox, createGateway: createGatewayButton,
       createSandbox: createSandboxButton, apply: applyButton, discard, footerText };
     views.set(container, view);
     for (const event of ["wheel", "pointerdown", "keydown"]) body.addEventListener(event, () => { view.scrollToRestore = null; }, { passive: true });
@@ -466,8 +443,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     dispose() {
       tracker.invalidate();
       for (const view of views.values()) {
-        notices.clearNotice(view.notice); notices.clearNotice(view.warning); buttons.clear(view.root);
-        notices.clearComponent(view.execution);
+        notices.clearNotice(view.notice); buttons.clear(view.root);
         view.subscription.dispose();
         view.sandboxSubscription.dispose();
       }

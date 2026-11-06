@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
-import { CONNECTION_PANEL_CSS, createConnectionPanel, createConnectionExecutionComponent } from "./connection-panel.mjs";
+import { CONNECTION_PANEL_CSS, createConnectionPanel } from "./connection-panel.mjs";
 import { selectPreferredModelId } from "./gateway-state.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
@@ -1112,8 +1112,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       loadToolkit: async () => {
         if (!navigationToolkit) {
           const toolkit = await import("/canvas-ui/base.mjs" + (navigationAttempt ? "?retry=" + navigationAttempt : ""));
-          navigationToolkit = { ...toolkit, WorkspaceNavigation: (${createWorkspaceNavigationComponent.toString()})(toolkit),
-            ConnectionExecution: (${createConnectionExecutionComponent.toString()})(toolkit) };
+          navigationToolkit = { ...toolkit, WorkspaceNavigation: (${createWorkspaceNavigationComponent.toString()})(toolkit) };
         }
         return navigationToolkit;
       },

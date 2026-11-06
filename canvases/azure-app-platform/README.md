@@ -352,14 +352,15 @@ actions. Merely opening Connect never applies a connection or creates cloud reso
 Failed discovery and configuration remain explicit. Navigation invalidates pending
 discoveries; unchanged polling preserves the active controls and selections.
 Model access and Sandbox execution are grouped separately, with inline resource
-actions and a persistent Apply/Discard footer in Connect. A static loading
+actions and a persistent Apply/Discard footer in Connect. Both subscription
+dropdowns remain searchable by name or ID. A static loading
 skeleton appears immediately, including while the initial app-status/readiness
 check is pending, without claiming that no connection is saved before checking.
 Refresh retains the form and disables Apply until the
-selected gateway's models and execution selection are valid. Execution mode
-explicitly distinguishes ACA Sandbox from local simulation, which provides no
-sandbox execution isolation. A missing sandbox never silently switches the draft
-to simulation. The saved connection, unsaved draft and validation progress remain
+selected gateway's model and ACA Sandbox group are valid. Sandbox execution is
+required; if a saved connection has no sandbox or its sandbox is no longer
+available, choose an available group or create one before applying.
+The saved connection, unsaved draft and validation progress remain
 distinct; Discard restores the saved selection without applying it.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive

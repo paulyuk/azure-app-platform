@@ -161,7 +161,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.route("**/api/build-workspace*", route => route.fulfill({ json: {
           supportsDocuments: true,
           artifacts: [{ id: "runtime", customizationArea: "runtime", title: "Runtime & access",
-            path: "config/runtime.json", available: true, content: '{"agentRuntime":"local"}', sha: "fixture" }],
+            path: "config/runtime.json", available: true, content: '{"agentRuntime":"copilot-sdk-sandbox"}', sha: "fixture" }],
         } }));
         await page.route("**/api/active-gateway", async route => {
           const selection = route.request().postDataJSON();
@@ -183,8 +183,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           }
           if (entry === "Build Model connection") {
             await page.locator("#build-workspace").click();
-            await page.getByRole("tab", { name: "Runtime", exact: true }).click();
-            await page.getByRole("button", { name: "Model connection", exact: true }).click();
+            await page.getByRole("button", { name: "Model connection", exact: true }).click().catch(async cause => {
+              throw new Error(cause.message + "\nBuild: " + await page.locator("#customize-content").innerText() +
+                "\nErrors: " + errors.join("\n"), { cause });
+            });
           } else {
             await page.getByRole("button", { name: "Settings", exact: true }).click();
             const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
@@ -221,7 +223,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await content.getByRole("region", { name: "Sandbox execution", exact: true }).waitFor();
         assert.equal(await model.inputValue(), "gpt-latest");
         await model.selectOption("gpt-alternate");
-        await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).check();
+        assert.equal(await content.getByRole("radio").count(), 0, "Sandbox execution is required, not an optional mode");
+        assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
         await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).selectOption("0");
         assert.match(await content.locator(".connections-current").innerText(), /Unsaved changes/);
         assert.deepEqual(applied, []);
@@ -230,21 +233,22 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const connect = page.locator(".gateway-connection-page .connections-root");
         await connect.getByRole("combobox", { name: "AI model", exact: true }).waitFor();
         assert.equal(await connect.getByRole("combobox", { name: "AI model", exact: true }).inputValue(), "gpt-alternate");
-        assert.equal(await connect.getByRole("radio", { name: "ACA Sandbox", exact: true }).isChecked(), true);
         assert.equal(await connect.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).inputValue(), "0");
         await connect.getByRole("button", { name: "Discard", exact: true }).click();
-        await connect.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).waitFor();
         await page.waitForFunction(() => document.querySelector('.gateway-connection-page [aria-label="AI model"]')?.value === "gpt-latest");
         content = await open();
         await content.getByRole("combobox", { name: "AI model", exact: true }).waitFor();
         assert.equal(await content.getByRole("combobox", { name: "AI model", exact: true }).inputValue(), "gpt-latest");
-        assert.equal(await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).isChecked(), true);
+        assert.equal(await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).inputValue(), "");
+        assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
+        assert.match(await content.locator(".connections-current").innerText(), /Sandbox not selected/);
         fixture.state.app = "deploying";
         await content.getByRole("status").filter({ hasText: "An app operation is in progress." }).waitFor();
         assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
         fixture.state.app = "stopped";
-        await content.getByRole("status").filter({ hasText: "Available connections loaded." }).waitFor();
+        await content.getByRole("status").filter({ hasText: "Choose an available sandbox group" }).waitFor();
         await content.getByRole("combobox", { name: "AI model", exact: true }).selectOption("gpt-alternate");
+        await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).selectOption("0");
         assert.deepEqual(applied, [], "Inspection, selection, navigation and Discard do not save or start resources");
         const apply = content.getByRole("button", { name: "Apply connections", exact: true });
         assert.equal(await apply.isEnabled(), true);
@@ -256,7 +260,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         assert.equal(await apply.isDisabled(), true);
         assert.equal(applied.length, 1, "Duplicate clicks cannot submit twice");
         assert.deepEqual(applied[0], { root: "/fixture/dealer", name: "sub-a-first", resourceGroup: "rg-sub-a",
-          subscriptionId: "sub-a", model: "gpt-alternate", sandboxGroup: null });
+          subscriptionId: "sub-a", model: "gpt-alternate",
+          sandboxGroup: { name: "sandbox-sub-a", resourceGroup: "rg-sandbox", subscriptionId: "sub-a" } });
         save.resolve();
         await content.getByText("Connection validated", { exact: true }).waitFor();
         assert.deepEqual(fixture.mutations, [], "Explicit Apply is intercepted; no real runtime or cloud mutation occurs");
@@ -317,17 +322,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await field("AI Gateway").waitFor();
       assert.equal(await field("AI Gateway").inputValue(), "0", "A suggested JSON candidate maps to the actual option");
       assert.equal(await content.getByText("Synthetic discovery warning: subscription access is limited.", { exact: true }).isVisible(), true);
-      assert.equal(await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).isChecked(), true,
-        "An explicit saved null sandbox must win over suggestions and stale readiness");
-      assert.equal(await field("ACA Sandbox Group").isVisible(), false);
-      assert.equal(await apply.isEnabled(), true);
-      await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).focus();
-      await page.keyboard.press("ArrowUp");
-      assert.equal(await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).isChecked(), true);
+      assert.equal(await content.getByRole("radio").count(), 0);
       assert.equal(await field("ACA Sandbox Group").isVisible(), true);
-      await page.keyboard.press("ArrowDown");
-      assert.equal(await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).isChecked(), true);
-      assert.equal(await field("ACA Sandbox Group").isVisible(), false);
+      assert.equal(await field("ACA Sandbox Group").inputValue(), "",
+        "A saved null sandbox must not silently adopt a suggestion or stale readiness");
+      assert.equal(await apply.isDisabled(), true);
+      await apply.evaluate(node => { node.click(); node.click(); });
+      assert.deepEqual(applied, [], "A legacy connection without a sandbox cannot be applied");
+      await field("ACA Sandbox Group").selectOption("0");
+      assert.equal(await apply.isEnabled(), true);
       held = deferred();
       await field("AI Gateway").focus();
       await field("AI Gateway").selectOption("1");
@@ -423,17 +426,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       missingSandbox = true;
       await refresh.click();
       await content.getByRole("status").filter({ hasText: "Choose an available sandbox group" }).waitFor();
-      assert.equal(await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).isChecked(), true);
+      assert.equal(await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).isVisible(), true);
       assert.equal(await apply.isDisabled(), true);
-      await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).check();
-      assert.equal(await apply.isEnabled(), true);
+      assert.equal(await content.getByRole("radio").count(), 0);
+      assert.equal(await content.getByRole("button", { name: "Create Sandbox Group", exact: true }).isEnabled(), true);
+      await apply.evaluate(node => { node.click(); node.click(); });
+      assert.deepEqual(applied, [], "A missing sandbox cannot be bypassed");
       missingGateway = true;
       await refresh.click();
       await content.getByRole("status").filter({ hasText: "No AI Gateways found." }).waitFor();
       assert.equal(await apply.isDisabled(), true);
       assert.equal(await content.getByRole("button", { name: "Create Gateway", exact: true }).isEnabled(), true);
       missingGateway = false;
+      missingSandbox = false;
       await refresh.click();
+      await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).getByRole("option", { name: /sandbox-sub-a/ }).waitFor({ state: "attached" });
+      assert.equal(await apply.isDisabled(), true, "A recovered sandbox must be explicitly reselected");
+      await content.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).selectOption("0");
       await page.waitForFunction(() => !document.querySelector('.gateway-connection-page [data-gateway-apply]').disabled);
       fixture.state.app = "deploying";
       await content.getByRole("status").filter({ hasText: "An app operation is in progress." }).waitFor();
@@ -448,7 +457,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await content.getByRole("status").filter({ hasText: "Validating the saved gateway endpoint" }).waitFor();
       assert.equal(await apply.isDisabled(), true);
       assert.equal(applied.length, 1);
-      assert.equal(applied[0].sandboxGroup, null);
+      assert.deepEqual(applied[0].sandboxGroup, initial.sandboxGroups[0]);
       assert.equal(await content.getByText("Connection validated", { exact: true }).count(), 0);
       configurationStatus = "ready";
       await content.getByText("Connection validated", { exact: true }).waitFor();
@@ -488,7 +497,6 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       await page.waitForFunction(() => document.querySelector('.gateway-connection-page [aria-label="AI Gateway"] option[value="0"]')?.textContent.includes("sub-b"));
       for (const action of ["Create Gateway", "Create Sandbox Group", "Configure Model"]) {
-        if (action === "Create Sandbox Group") await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).check();
         await content.getByRole("button", { name: action, exact: true }).click();
         await page.waitForFunction(() => document.body.dataset.workspace === "manage");
         await page.locator("#connect-workspace").click();
@@ -544,7 +552,6 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#graph-shell").isVisible(), false);
       assert.equal(await connect.getAttribute("aria-current"), "page");
       assert.equal(await page.locator("#workspace-location").textContent(), "Connect");
-      await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).check();
       await field("ACA Sandbox Group").selectOption("0");
       for (const label of ["AI Gateway", "AI model", "ACA Sandbox Group"]) {
         assert.equal(await field(label).isVisible(), true);
@@ -618,12 +625,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await settings.getByRole("combobox", { name: "AI model", exact: true }).evaluate(node =>
         node === window.settingsModel && node === document.activeElement), true);
-      await settings.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).check();
+      await settings.getByRole("combobox", { name: "ACA Sandbox Group", exact: true }).selectOption("");
       await page.keyboard.press("Escape");
       await settings.waitFor({ state: "hidden" });
-      assert.equal(await content.getByRole("radio", { name: "Local simulation (no sandbox)", exact: true }).isChecked(), true);
-      assert.equal(await field("ACA Sandbox Group").isVisible(), false);
-      await content.getByRole("radio", { name: "ACA Sandbox", exact: true }).check();
+      assert.equal(await field("ACA Sandbox Group").isVisible(), true);
+      assert.equal(await field("ACA Sandbox Group").inputValue(), "");
+      assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
       await field("ACA Sandbox Group").selectOption("0");
       applyError = true;
       await content.getByRole("button", { name: "Apply connections", exact: true }).click();
