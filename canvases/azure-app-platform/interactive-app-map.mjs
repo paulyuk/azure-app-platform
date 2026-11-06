@@ -1043,6 +1043,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         : "Summarize how you can help and run a sample check";
     let agentPromptTouched = false;
     let agentPromptTyping = null;
+    let selectedEventPresetId = "";
     let agentResponseText = "No task has run yet.";
     let agentRequestState = "idle";
     let agentResponsePhase = "preparing";
@@ -3024,7 +3025,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         Boolean(documentTextError(documentPasteDraft, operationalState.readiness.documentInput.maxBytes)));
       const cancel = tester.querySelector("[data-cancel-document]");
       if (cancel) buttons.setDisabled(cancel, busy);
-      for (const preset of tester.querySelectorAll("[data-event-preset]")) preset.disabled = busy;
+      for (const preset of tester.querySelectorAll("button[data-event-preset], [data-event-preset-select]")) {
+        preset.disabled = busy;
+      }
     }
 
     function clearDocumentAssessment() {
@@ -3771,7 +3774,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       };
       agentPromptTyping = chars.length ? state : null;
       if (typeof onBeforeRender === "function") onBeforeRender();
-      const activeChip = presetId ? details.querySelector('[data-event-preset="' + presetId + '"]') : null;
+      const activeChip = presetId
+        ? (details.querySelector('button[data-event-preset="' + presetId + '"]')
+          || details.querySelector("[data-event-preset-select]"))
+        : null;
       if (activeChip) activeChip.focus({ preventScroll: true });
       const activePrompt = details.querySelector('[aria-label="Agent message"]');
       if (activePrompt) {
@@ -3802,7 +3808,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         promptNode.scrollTop = promptNode.scrollHeight;
         if (state.index >= state.chars.length) {
           cancelAgentPromptTyping();
-          if (document.activeElement === document.body || document.activeElement?.hasAttribute?.("data-event-preset")) {
+          if (
+            document.activeElement === document.body
+            || document.activeElement?.hasAttribute?.("data-event-preset")
+            || document.activeElement?.hasAttribute?.("data-event-preset-select")
+          ) {
             promptNode.focus({ preventScroll: true });
             promptNode.setSelectionRange(promptNode.value.length, promptNode.value.length);
           }
@@ -3810,44 +3820,85 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }, 6);
     }
 
+    function getEventPresets() {
+      const custom = operationalState?.eventTriggers;
+      if (Array.isArray(custom) && custom.length) return custom;
+      return AUTONOMOUS_EVENT_PRESETS;
+    }
+
+    function applyEventPreset(preset) {
+      if (!preset) return;
+      selectedEventPresetId = preset.id;
+      animateAgentPrompt(preset.prompt, () => {
+        const attachSample = Boolean(preset.attachSample && operationalState.readiness?.documentInput && !agentDocuments.length);
+        if (attachSample) {
+          documentReadVersion += 1;
+          documentError = "";
+          documentPasteOpen = false;
+          documentEditMode = false;
+          documentEditId = null;
+          documentPasteDraft = "";
+          agentDocuments.push({
+            id: ++nextDocumentId,
+            name: uniqueDocumentName(SAMPLE_CLEAN_DOCUMENT.name),
+            content: SAMPLE_CLEAN_DOCUMENT.content,
+            expanded: false,
+          });
+          clearDocumentAssessment();
+        }
+        setDocumentTestNotice(
+          attachSample ? preset.sampleNotice : preset.notice,
+          attachSample ? "both" : "prompt",
+        );
+        if (attachSample) renderManagePanel();
+        else syncDocumentTestNotice();
+      }, preset.id);
+    }
+
     function renderEventPresetChips(tester, _promptInput) {
+      const presets = getEventPresets();
+      if (!presets.length) return;
       const bar = appendText(tester, "div", "", "event-preset-bar");
       appendText(bar, "span", "Event triggers:", "event-preset-label");
-      for (const preset of AUTONOMOUS_EVENT_PRESETS) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "event-preset-chip";
-        chip.tabIndex = 0;
-        chip.dataset.eventPreset = preset.id;
-        chip.textContent = preset.label;
-        chip.addEventListener("click", () => {
-          animateAgentPrompt(preset.prompt, () => {
-            const attachSample = Boolean(preset.attachSample && operationalState.readiness?.documentInput && !agentDocuments.length);
-            if (attachSample) {
-              documentReadVersion += 1;
-              documentError = "";
-              documentPasteOpen = false;
-              documentEditMode = false;
-              documentEditId = null;
-              documentPasteDraft = "";
-              agentDocuments.push({
-                id: ++nextDocumentId,
-                name: uniqueDocumentName(SAMPLE_CLEAN_DOCUMENT.name),
-                content: SAMPLE_CLEAN_DOCUMENT.content,
-                expanded: true,
-              });
-              clearDocumentAssessment();
-            }
-            setDocumentTestNotice(
-              attachSample ? preset.sampleNotice : preset.notice,
-              attachSample ? "both" : "prompt",
-            );
-            if (attachSample) renderManagePanel();
-            else syncDocumentTestNotice();
-          }, preset.id);
+      if (presets.length > 1) {
+        const select = document.createElement("select");
+        select.className = "event-preset-select";
+        select.setAttribute("aria-label", "Event triggers");
+        select.dataset.eventPresetSelect = "true";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select an event trigger…";
+        select.append(placeholder);
+        for (const preset of presets) {
+          const option = document.createElement("option");
+          option.value = preset.id;
+          option.dataset.eventPreset = preset.id;
+          option.textContent = preset.label;
+          select.append(option);
+        }
+        select.value = presets.some((preset) => preset.id === selectedEventPresetId)
+          ? selectedEventPresetId
+          : "";
+        select.addEventListener("change", () => {
+          const preset = presets.find((item) => item.id === select.value);
+          if (!preset) {
+            selectedEventPresetId = "";
+            return;
+          }
+          applyEventPreset(preset);
         });
-        bar.append(chip);
+        bar.append(select);
+        return;
       }
+      const preset = presets[0];
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "event-preset-chip";
+      chip.tabIndex = 0;
+      chip.dataset.eventPreset = preset.id;
+      chip.textContent = preset.label;
+      chip.addEventListener("click", () => applyEventPreset(preset));
+      bar.append(chip);
     }
 
     async function executeAgentInvocation(promptInput, explicitDocument = undefined) {
@@ -3978,6 +4029,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         cancelAgentPromptTyping();
         agentPromptTouched = true;
         agentPromptDraft = prompt.value;
+        selectedEventPresetId = "";
+        const presetSelect = tester.querySelector("[data-event-preset-select]");
+        if (presetSelect) presetSelect.value = "";
         if (documentTestNoticeKind === "prompt") {
           clearDocumentTestNotice();
         } else if (documentTestNoticeKind === "both") {

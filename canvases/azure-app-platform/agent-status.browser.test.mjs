@@ -217,7 +217,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await status.innerText(), /Invoke agent starts the local app/);
       assert.equal(await page.locator("#header-open-app").isVisible(), false);
       assert.equal(await page.locator(".run-primary").getByRole("button", { name: "Open app", exact: true }).count(), 0);
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      const eventTriggerSelect = page.getByRole("combobox", { name: "Event triggers", exact: true });
+      assert.equal(await eventTriggerSelect.isVisible(), true);
+      assert.equal(await page.locator("button.event-preset-chip").count(), 0);
+      await eventTriggerSelect.selectOption("loan.document.submitted");
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       const document = page.getByLabel("Document text", { exact: true });
       const notice = page.locator("[data-document-test-notice] .ct-message");
@@ -366,19 +369,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           },
         });
       });
-      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await eventTriggerSelect.selectOption("applicant.intake.received");
       await page.waitForFunction(() => {
         const node = document.querySelector('[aria-label="Agent message"]');
         return node && node.dataset.typing === "true" && node.value.length > 0;
       });
-      await page.locator('[data-event-preset="compliance.audit.scheduled"]').click();
+      await eventTriggerSelect.selectOption("compliance.audit.scheduled");
       await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       const interruptedTrace = await page.evaluate(() => window.__promptValueTrace.slice());
       const auditTarget = await prompt.inputValue();
       assert.match(auditTarget, /^Event \[compliance\.audit\.scheduled\]/);
-      assert.equal(interruptedTrace[0], "", "Clicking a preset button must clear the textarea first.");
+      assert.equal(interruptedTrace[0], "", "Selecting a preset trigger must clear the textarea first.");
       const secondClearIndex = interruptedTrace.lastIndexOf("");
-      assert.ok(secondClearIndex > 0, "Clicking another preset mid-animation must clear the textarea again.");
+      assert.ok(secondClearIndex > 0, "Selecting another preset mid-animation must clear the textarea again.");
       const auditFrames = interruptedTrace.slice(secondClearIndex + 1);
       const expectedAuditChars = Array.from(auditTarget);
       assert.equal(auditFrames.length, expectedAuditChars.length);
@@ -388,19 +391,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         "Preset prompt must animate character by character after clearing.",
       );
       await page.evaluate(() => { window.__promptValueTrace = []; });
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await eventTriggerSelect.selectOption("loan.document.submitted");
       await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       const loanTrace = await page.evaluate(() => window.__promptValueTrace.slice());
       const loanTarget = await prompt.inputValue();
       assert.match(loanTarget, /^Event \[loan\.document\.submitted\]/);
-      assert.equal(loanTrace[0], "", "Clicking loan.document.submitted must clear the textarea first.");
+      assert.equal(loanTrace[0], "", "Selecting loan.document.submitted must clear the textarea first.");
       const expectedLoanChars = Array.from(loanTarget);
       assert.deepEqual(
         loanTrace.slice(1),
         expectedLoanChars.map((_, index) => expectedLoanChars.slice(0, index + 1).join("")),
         "loan.document.submitted preset must animate in character by character.",
       );
-      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await eventTriggerSelect.selectOption("applicant.intake.received");
       await page.waitForFunction(() => {
         const node = document.querySelector('[aria-label="Agent message"]');
         return node && node.dataset.typing === "true" && node.value.length > 0;

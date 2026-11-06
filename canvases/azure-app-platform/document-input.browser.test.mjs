@@ -374,7 +374,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           await documentAction(page, "Add sample");
           await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
         } else if (source === "event") {
-          await page.locator('[data-event-preset="loan.document.submitted"]').click();
+          await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
           await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
         } else {
           await runBoundaryTest(page, source === "egress" ? "Test unsafe egress" : "Test unsafe override");
@@ -735,7 +735,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.waitForFunction(() => !document.querySelector("[data-invoke-agent]").disabled);
       assert.equal(Object.hasOwn(fixture.mutations.at(-1).body, "document"), false);
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       assert.match(await card.textContent(), /sample-loan-note\.md/);
       fixture.state.documentInput = false;
       await plus.waitFor({ state: "hidden" });
@@ -863,7 +863,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await invoke.click();
       await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
       await page.getByRole("button", { name: "Remove document", exact: true }).click();
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await page.locator("[data-event-preset-select]").selectOption("loan.document.submitted");
       await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
       assert.equal(await notice.getAttribute("data-intent"), "info");
       assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
@@ -879,7 +879,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.deepEqual(presetPlacement, { afterPrompt: true, beforeDocs: true });
       await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("User-authored task prompt.");
       await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
-      await page.locator('[data-event-preset="applicant.intake.received"]').click();
+      await page.locator("[data-event-preset-select]").selectOption("applicant.intake.received");
       await notice.filter({ hasText: "Added the applicant.intake.received event prompt" }).waitFor();
       assert.doesNotMatch(await notice.textContent(), /passed|approved|executed|blocked/i);
       await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("User-authored intake prompt.");

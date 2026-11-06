@@ -50,7 +50,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => window.appPlatformReady);
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
-      await page.locator("[data-event-preset]").first().click();
+      await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       await draft.fill("Keep this document-backed event.");
       const connect = page.locator("#connect-workspace");
       await connect.click();

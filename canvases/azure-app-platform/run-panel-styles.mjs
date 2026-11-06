@@ -123,6 +123,8 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .event-runner-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 #details[data-mode="manage"] .event-preset-bar { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:2px 0 4px; }
 #details[data-mode="manage"] .event-preset-label { font-size:11px; font-weight:600; color:var(--studio-muted); margin-right:2px; }
+#details[data-mode="manage"] select.event-preset-select { width:auto; flex:0 1 260px; max-width:100%; height:28px; min-height:28px; padding:2px 8px; border-radius:6px; font:600 11px/1.3 var(--font-mono, ui-monospace, monospace); background:var(--studio-panel); border:1px solid var(--studio-line); color:var(--studio-ink); }
+#details[data-mode="manage"] select.event-preset-select:focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
 #details[data-mode="manage"] button.event-preset-chip:not(.ct-button) { min-height:24px; padding:2px 8px; border-radius:999px; font:600 11px/1.3 var(--font-mono, ui-monospace, monospace); background:var(--studio-panel); border:1px solid var(--studio-line); color:var(--studio-ink); }
 #details[data-mode="manage"] button.event-preset-chip:not(.ct-button):hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-accent-soft, var(--studio-panel)); }
 #details[data-mode="manage"] .safety-trust-section { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; margin:2px 0; padding:9px 0; border-top:1px solid var(--studio-line); border-bottom:1px solid var(--studio-line); }

@@ -279,7 +279,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const resizer = page.getByRole("separator", { name: "Resize Diagnostics", exact: true });
       assert.equal(await support.isVisible(), false);
       assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       const document = page.locator('textarea[aria-label="Document text"]');
       await prompt.fill("Event [test.task.received]: preserve this payload.");
