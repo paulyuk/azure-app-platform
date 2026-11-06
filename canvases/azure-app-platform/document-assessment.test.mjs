@@ -57,6 +57,7 @@ test("rejection has no approved text or approval label", () => {
   value.toolResult.reasonCode = "instruction-override";
   value.toolResult.message = "Document contains a prohibited instruction-override pattern.";
   assert.deepEqual(assessDocumentResult(value), {
-    state: "rejected", reason: value.toolResult.message, contractVersion: "1.0",
+    state: "rejected", reason: value.toolResult.message,
+    reasonCode: "instruction-override", contractVersion: "1.0",
   });
 });

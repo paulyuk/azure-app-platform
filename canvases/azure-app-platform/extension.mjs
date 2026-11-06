@@ -57,8 +57,8 @@ import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
 import { parseLogTail, readAppLogs, readComponentLogs } from "./runtime-logs.mjs";
 import { createCommandActivity, redactActivityText } from "./command-activity.mjs";
-import { summarizeAgentResult } from "./agent-result.mjs";
 import { assessDocumentResult } from "./document-assessment.mjs";
+import { readAgentHttpResponse } from "./agent-http-response.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
 import { normalizeSandboxGroupCreateRequest } from "./sandbox-group-config.mjs";
 import {
@@ -537,17 +537,16 @@ async function promptLocalAgent(root, prompt, requestedPort, document) {
       signal: AbortSignal.timeout(120_000),
     });
     status = response.status;
-    const body = await response.text();
-    if (!response.ok) throw new Error(`Agent returned HTTP ${response.status}: ${body.slice(0, 500)}`);
-    let result;
-    try { result = JSON.parse(body); } catch { result = body; }
-    await activity.finish(id, { ok: true, note: `HTTP ${status}` });
-    return {
-      response: result, summary: summarizeAgentResult(result),
-      ...(document !== undefined && contract.route === "/invoke" && ownership.available
-        && ownership.ownedPorts.has(agent.port)
-        ? { documentAssessment: assessDocumentResult(result) } : {}),
-    };
+    const interpreted = await readAgentHttpResponse(response, {
+      documentAssessmentAllowed: document !== undefined && contract.route === "/invoke"
+        && ownership.available && ownership.ownedPorts.has(agent.port),
+    });
+    await activity.finish(id, {
+      ok: response.ok,
+      note: `HTTP ${status}`,
+      ...(!response.ok ? { error: interpreted.payload.error } : {}),
+    });
+    return interpreted;
   } catch (error) {
     await activity.finish(id, {
       ok: false,
@@ -1818,9 +1817,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       const input = await readJsonBody(request, 128 * 1024);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Agent root is not an authorized app workspace.");
-      sendJson(response, 200, await promptLocalAgent(
+      const result = await promptLocalAgent(
         root, url.pathname === "/api/agent-invoke" ? input.message : input.prompt, input.port, input.document,
-      ));
+      );
+      sendJson(response, result.statusCode, result.payload);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/sources") {
@@ -2084,7 +2084,9 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
           throw new Error(`Document test returned HTTP ${result.status}: ${body.error?.message || "Tool execution failed."}`);
         }
         await activity.finish(id, { ok: true, note: `HTTP ${result.status}; enforcement ${body.verdict || "completed"} (not a model call).` });
-        sendJson(response, 200, { ...body, documentAssessment: assessDocumentResult(body) });
+        sendJson(response, 200, {
+          ...body, upstreamHttpStatus: result.status, documentAssessment: assessDocumentResult(body),
+        });
       } catch (error) {
         await activity.finish(id, { ok: false, note: "Document enforcement failed; payload omitted from logs.", error: error.message });
         throw error;

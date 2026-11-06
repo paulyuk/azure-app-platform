@@ -10,7 +10,10 @@ export function assessDocumentResult(response) {
     || tool.safety?.piiDetection !== "limited-deterministic-patterns") return null;
   if (tool.verdict === "rejected" && typeof tool.message === "string"
     && tool.message.length <= 1000 && typeof tool.reasonCode === "string") {
-    return { state: "rejected", reason: tool.message, contractVersion: tool.contractVersion };
+    return {
+      state: "rejected", reason: tool.message, reasonCode: tool.reasonCode,
+      contractVersion: tool.contractVersion,
+    };
   }
   const document = tool.document;
   const redactions = tool.analysis?.redactions;

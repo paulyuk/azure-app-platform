@@ -1059,6 +1059,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentResponsePhase = "preparing";
     let agentResponseSlow = false;
     let agentResponseWaitTimer;
+    let agentBlockedResponse = null;
+    let agentBlockedSubmission = null;
     let invokingAgent = false;
     let agentDocuments = [];
     let nextDocumentId = 0;
@@ -2310,8 +2312,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           ...(options.headers || {}),
         },
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Canvas request failed.");
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        result = {};
+      }
+      if (!response.ok) {
+        const error = new Error(
+          typeof result.error === "string" ? result.error
+            : result.error?.message || "Canvas request failed with HTTP " + response.status + ".",
+        );
+        error.statusCode = response.status;
+        error.payload = result;
+        throw error;
+      }
       return result;
     }
 
@@ -3623,6 +3638,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "document",
       );
       clearDocumentAssessment();
+      agentBlockedResponse = null;
+      if (agentRequestState === "blocked") {
+        agentRequestState = "idle";
+        agentResponseText = "No task has run yet.";
+      }
       setStatus("Boundary test ready. Select Invoke agent to run it.");
       if (panelMode === "manage") renderManagePanel();
       else syncAgentInputControls();
@@ -3912,6 +3932,113 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       bar.append(chip);
     }
 
+    function blockedModeLabel(mode) {
+      return {
+        "local-simulation": "local simulation",
+        "aca-session": "ACA session",
+        "aca-document-session": "ACA document session",
+      }[mode] || mode;
+    }
+
+    function blockedLimitations(response) {
+      const limits = [];
+      const values = new Set(response.limitations);
+      if (values.has("no-model-call") && values.has("no-hostile-outbound-probe")) {
+        if (response.mode === "local-simulation") {
+          limits.push("No model call or hostile outbound-target probe was attempted.");
+        } else {
+          limits.push("No model call was attempted.");
+          limits.push("No hostile-target network-denial probe was performed.");
+        }
+      } else {
+        if (values.has("no-model-call")) limits.push("No model call was attempted.");
+        if (values.has("no-hostile-outbound-probe")) {
+          limits.push("No hostile-target network-denial probe was performed.");
+        }
+      }
+      if (values.has("model-output-not-shown")) {
+        limits.push("No model-authored text is shown.");
+      }
+      if (response.mode !== "local-simulation") {
+        limits.push("ACA session or control-plane requests may have occurred.");
+      }
+      if (values.has("local-process-not-isolation-boundary")) {
+        limits.push("A local child process is not a network or isolation boundary.");
+      }
+      if (values.has("cloud-isolation-not-verified")) {
+        limits.push("Cloud isolation is not verified for this result.");
+      }
+      return limits;
+    }
+
+    function renderBlockedAgentResponse(container, response) {
+      const card = appendText(container, "article", "", "blocked-agent-card");
+      card.dataset.blockedResponse = "true";
+      card.dataset.mode = response.mode;
+      const header = appendText(card, "header", "", "blocked-agent-header");
+      const identity = appendText(header, "div", "", "blocked-agent-identity");
+      const icon = appendText(identity, "span", "", "blocked-agent-icon");
+      icon.setAttribute("aria-hidden", "true");
+      const title = appendText(identity, "div", "", "blocked-agent-title");
+      appendText(title, "strong", "Request blocked · " + blockedModeLabel(response.mode));
+      appendText(title, "span", "Agent harness response, not model-generated text");
+      appendText(
+        header,
+        "span",
+        "HTTP " + response.upstreamHttpStatus + " · " + blockedModeLabel(response.mode),
+        "blocked-agent-status",
+      );
+      appendText(card, "p", response.operatorMessage, "blocked-agent-callout");
+      const pathHeading = appendText(card, "div", "", "blocked-agent-path-heading");
+      appendText(pathHeading, "strong", "Where the request stopped");
+      appendText(pathHeading, "span", "· evidence-backed path");
+      const stageLabels = {
+        "agent-harness": "Agent harness",
+        "document-tool": "Document tool / sandbox",
+        model: "Model",
+        "approval-disclosure": "Approval / disclosure",
+      };
+      const stages = appendText(card, "div", "", "blocked-agent-stages");
+      for (const stage of response.stages) {
+        const stageCard = appendText(stages, "section", "", "blocked-agent-stage");
+        stageCard.dataset.state = stage.state;
+        const stageHeader = appendText(stageCard, "div", "", "blocked-agent-stage-header");
+        const stateIcon = appendText(stageHeader, "span", "", "blocked-agent-stage-icon");
+        stateIcon.setAttribute("aria-hidden", "true");
+        appendText(stageHeader, "strong", stageLabels[stage.id]);
+        appendText(
+          stageCard,
+          "span",
+          stage.detail + (stage.reasonCode ? " · " + stage.reasonCode : ""),
+          "blocked-agent-stage-detail",
+        );
+      }
+      appendText(card, "strong", response.summary, "blocked-agent-summary");
+      appendText(card, "p", blockedLimitations(response).join(" "), "blocked-agent-limit");
+      const disclosures = appendText(card, "div", "", "blocked-agent-disclosures");
+      const submitted = appendText(disclosures, "details", "", "blocked-agent-disclosure");
+      appendText(submitted, "summary", "Submitted input");
+      const submittedDocs = Array.isArray(agentBlockedSubmission?.documents) && agentBlockedSubmission.documents.length
+        ? agentBlockedSubmission.documents
+        : (agentBlockedSubmission?.document ? [agentBlockedSubmission.document] : []);
+      const submittedText = [
+        "Prompt",
+        agentBlockedSubmission?.message || "(not retained)",
+        "",
+        submittedDocs.length > 1 ? "Attachments" : "Attachment",
+        submittedDocs.length
+          ? submittedDocs.map((doc) => doc.name + "\\n\\n" + doc.content).join("\\n\\n---\\n\\n")
+          : "No document attached.",
+      ].join("\\n");
+      appendText(submitted, "pre", submittedText, "blocked-agent-evidence");
+      const evidence = appendText(disclosures, "details", "", "blocked-agent-disclosure");
+      appendText(evidence, "summary", "Response evidence");
+      appendText(evidence, "pre", JSON.stringify(response, null, 2), "blocked-agent-evidence");
+      const limits = appendText(disclosures, "details", "", "blocked-agent-disclosure");
+      appendText(limits, "summary", "Limits");
+      appendList(limits, blockedLimitations(response), "No limits were reported.");
+    }
+
     async function executeAgentInvocation(promptInput, explicitDocument = undefined) {
       if (invokingAgent) return;
       finishAgentPromptTyping();
@@ -3934,6 +4061,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       clearTimeout(agentResponseWaitTimer);
       agentRawResponse = "";
       agentToolActivity = [];
+      agentBlockedResponse = null;
+      agentBlockedSubmission = {
+        message,
+        document: invocationDocument ? { ...invocationDocument } : null,
+        documents: invocationDocuments,
+      };
       clearDocumentAssessment();
       const assessmentEpoch = documentAssessmentEpoch;
       agentResponseText = "Waiting for the local agent…";
@@ -3990,14 +4123,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         updateResponseNode(result.summary
           ? result.summary.text || "No assistant text was reported. Inspect the raw response below."
           : agentRawResponse);
-        const currentResponse = details.querySelector(".agent-response");
-        if (currentResponse) currentResponse.scrollTop = 0;
+        for (const currentResponse of document.querySelectorAll(".agent-response")) currentResponse.scrollTop = 0;
         setStatus("Agent response received.");
       } catch (error) {
-        agentRequestState = "failed";
-        if (invocationDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
-        updateResponseNode(error.message);
-        setStatus("");
+        if (error.payload?.blockedResponse) {
+          agentRequestState = "blocked";
+          agentBlockedResponse = error.payload.blockedResponse;
+          agentResponseText = agentBlockedResponse.operatorMessage;
+          if (invocationDocument && assessmentEpoch === documentAssessmentEpoch) {
+            documentAssessment = error.payload.documentAssessment ?? { state: "unverified" };
+          }
+          updateResponseNode(agentResponseText);
+          setStatus("Agent request stopped by policy. Review the evidence-backed response.");
+        } else {
+          agentRequestState = "failed";
+          if (invocationDocument && assessmentEpoch === documentAssessmentEpoch) {
+            documentAssessment = { state: "unverified" };
+          }
+          updateResponseNode(error.message);
+          setStatus("");
+        }
       } finally {
         clearTimeout(agentResponseWaitTimer);
         invokingAgent = false;
@@ -4008,6 +4153,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderResponse(response) {
+      if (agentBlockedResponse) {
+        clearElement(response);
+        response.dataset.state = agentRequestState;
+        response.dataset.phase = agentResponsePhase;
+        response.setAttribute("aria-busy", "false");
+        renderBlockedAgentResponse(response, agentBlockedResponse);
+        return;
+      }
       renderAgentResponse(response, {
         state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
         text: agentResponseText, buttons,
@@ -4071,8 +4224,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderDocumentTest(tester, actions);
       appendText(tester, "h3", "Autonomous run result");
       tester.append(response);
-      renderDocumentAssessment(tester);
-      if (agentRequestState !== "idle") renderTools(tester);
+      if (agentRequestState !== "blocked") renderDocumentAssessment(tester);
+      if (agentRequestState !== "idle" && agentRequestState !== "blocked") renderTools(tester);
       if (agentRawResponse) {
         const raw = document.createElement("details");
         raw.dataset.runDisclosure = "raw-response";
