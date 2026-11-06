@@ -465,10 +465,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         return payload;
       }
 
-      function openAppMap(root, notice = "") {
+      function openAppMap(root, notice = "", initialWorkspace = "") {
         location.assign("/app-map?root=" + encodeURIComponent(root) +
           "&token=" + encodeURIComponent(apiToken) +
-          (notice ? "&notice=" + encodeURIComponent(notice) : ""));
+          (notice ? "&notice=" + encodeURIComponent(notice) : "") +
+          (initialWorkspace === "build" ? "#build" : ""));
       }
 
       function setBusy(busy, message = "") {
@@ -1680,7 +1681,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             })
           });
           if (result.worktreePath) {
-            openAppMap(result.worktreePath, result.editorWarning);
+            openAppMap(result.worktreePath, result.editorWarning, "build");
           } else {
             window.__appPlatformSubmitting = false;
             renderLanding();

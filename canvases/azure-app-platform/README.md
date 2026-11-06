@@ -302,6 +302,9 @@ the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in the user's selected code editor.
 
 After creation or selection, the app workspace becomes the primary interface.
+Newly created workspaces open **Build** first so users can inspect their source
+before connecting or running it. Opening an existing app still starts in **Run**;
+explicit App Map navigation remains unchanged.
 The Unity logo and **Azure App Platform** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
@@ -586,8 +589,11 @@ Missing tiers are scaffoldable rather than inferred from the platform catalog.
 on the left shows one item per parent collection, named for its discovered source
 project or parent directory rather than an individual file. Collections appear
 once under architecture-aligned categories: **User Experience**, **Triggers**,
-**Agents**, **Connectors**, **Hosted Skills**, **Orchestrations**,
-**Sandboxes & Policies**, **Operations**, and **App Configuration**.
+**Agents**, **Connectors**, **Tools**, **Orchestrations**, **Operations**, and
+**App Configuration**. Hosted skills and sandbox tool implementations share
+**Tools**. Collections with sandbox metadata show a **Sandboxed** badge in the
+file list and preview heading; it describes configuration, not verified deployment
+or isolation.
 Existing **AI Gateway**, **Data**, and uncategorized **Source** implementations
 remain available. Agent manifests, instructions, and runtime configuration stay
 with their agent; App Service Builder files stay with their web project.

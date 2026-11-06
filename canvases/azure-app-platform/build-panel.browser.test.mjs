@@ -22,13 +22,13 @@ test("Build is a focused read-only customization workspace with document and Run
       content: "Use the document tool.", sha: "base",
     },
     {
-      id: "tool", customizationArea: "tools", title: "Document validation entry point",
+      id: "tool", blockCategory: "sandbox", customizationArea: "tools", title: "Document validation entry point",
       path: "src/tools/document-validation/main.py", projectPath: "src/tools/document-validation",
       description: "Validate documents.", available: true,
       content: "def main(): pass\n", sha: "base",
     },
     {
-      id: "contract", customizationArea: "tools", title: "Document validation contract",
+      id: "contract", blockCategory: "sandbox", customizationArea: "tools", title: "Document validation contract",
       path: "src/tools/document-validation/contract.json", projectPath: "src/tools/document-validation",
       description: "Validation inputs and outputs.", available: true, content: '{"type":"object"}', sha: "base",
     },
@@ -91,9 +91,11 @@ test("Build is a focused read-only customization workspace with document and Run
     await page.getByRole("heading", { name: "Build your app", exact: true }).waitFor();
 
     const files = page.getByRole("navigation", { name: "Build files", exact: true });
-    assert.deepEqual(await files.locator("summary").allTextContents(), ["Agents (1)", "Hosted Skills (1)", "Sandboxes & Policies (1)", "Source (1)"]);
+    assert.deepEqual(await files.locator("summary").allTextContents(), ["Agents (1)", "Tools (2)", "Source (1)"]);
     assert.deepEqual(await files.locator("[data-file-choice]").allTextContents(),
-      ["Document agent", "Document validation", "Config", "Other"]);
+      ["Document agent", "Document validationSandboxed", "Config", "Other"]);
+    assert.equal(await files.locator('[data-file-choice="tool"] .build-sandbox-badge').textContent(), "Sandboxed");
+    assert.equal(await files.locator('[data-file-choice="instructions"] .build-sandbox-badge').count(), 0);
     assert.equal(await files.locator('[aria-current="true"]').getAttribute("data-file-choice"), "instructions");
     assert.equal(await page.locator(".build-area-title").textContent(), "Document agent",
       "A single file uses its discovered parent name rather than its category");
@@ -149,10 +151,12 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await page.locator("body").getAttribute("data-run-requested"), "true");
 
     await files.locator('[data-file-choice="tool"]').click();
-    assert.equal(await page.locator(".build-area-title").textContent(), "Document validation",
+    assert.equal(await page.locator(".build-area-title").textContent(), "Document validationSandboxed",
       "A source-project path supplies the parent name when no display name is provided");
     const toolsArea = page.locator('.build-area[data-area-id="skills"]');
-    assert.equal(await files.getByText("Document validation", { exact: true }).count(), 1,
+    assert.equal(await toolsArea.locator(".build-area-title .build-sandbox-badge").textContent(), "Sandboxed");
+    assert.match(await toolsArea.locator(".build-sandbox-badge").getAttribute("title"), /verified separately/);
+    assert.equal(await files.locator('[data-file-choice="tool"]').count(), 1,
       "The categorized list shows the source project name");
     assert.equal(await toolsArea.locator(".build-project-list").count(), 0);
 

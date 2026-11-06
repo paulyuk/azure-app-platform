@@ -118,6 +118,13 @@ test("Build scopes native Files handoff state per artifact and suppresses duplic
         ["#0065A9", "#007ACC", "#1F9CF0"]);
       assert.equal(await logo.getAttribute("aria-hidden"), "true");
     }
+    assert.deepEqual(await agentRow.getByRole("button", { name: "Edit in VS Code", exact: true }).locator(".vscode-icon").evaluate(logo => {
+      const bounds = logo.getBoundingClientRect();
+      const button = logo.closest("button").getBoundingClientRect();
+      return { size: [bounds.width, bounds.height], overflow: getComputedStyle(logo).overflow,
+        contained: bounds.left >= button.left && bounds.right <= button.right &&
+          bounds.top >= button.top && bounds.bottom <= button.bottom };
+    }), { size: [14, 14], overflow: "visible", contained: true });
     assert.equal(await openMenu.locator(".build-icon-files").evaluate(icon =>
       getComputedStyle(icon).maskImage !== "none" && icon.getBoundingClientRect().width === 16), true,
     "The Files destination retains its visible icon inside the toolkit menu");
@@ -316,7 +323,10 @@ test("Build follows shared editor settings without owning a picker or accepting 
     await page.keyboard.press("Escape");
     await page.setViewportSize({ width: 1000, height: 800 });
 
-    await launches.first().click();
+    await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === "/api/open-build-file"),
+      launches.first().click(),
+    ]);
     assert.deepEqual(opened[0], { root: "/fixture", id: "agent" });
     await page.locator('[data-file-choice="tool"]').click();
     const toolLaunch = page.locator('[data-editor-launch][data-artifact-id="tool"]');

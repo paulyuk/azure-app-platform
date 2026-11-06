@@ -243,6 +243,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(fixture.mutations.at(-1).body.message, "Preserve this event payload.");
       assert.equal(fixture.mutations.at(-1).body.document.name, "sample-loan-note.md");
       assert.equal(await page.locator(".conversation-list,.chat-bubble").count(), 0);
+      await page.goto(origin + "/app-map?created=1#build");
+      await page.waitForFunction(() => window.appPlatformReady && document.body.dataset.workspace === "build");
+      await page.locator("#header-runtime-action").evaluate(node => { window.navigationRuntimeAction = node; });
+      assert.equal(await page.locator("#workspace-location").textContent(), "Build");
+      assert.equal(new URL(page.url()).hash, "", "The one-time creation destination is consumed");
+      assert.equal(await back.isDisabled(), true, "Creation starts history at Build, not an unseen Run page");
+      await page.locator(".build-source-preview").first().waitFor();
+      await select("manage-app");
+      await mode("manage");
+      await back.click();
+      await mode("build");
       fixture.state.app = "stopped";
       await page.locator("#header-open-app").waitFor({ state: "hidden" });
       await select("deploy-workspace");

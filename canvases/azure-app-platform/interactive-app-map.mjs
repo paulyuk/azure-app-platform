@@ -4805,6 +4805,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     if (window.location.hash === "#app-map") {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       renderStructureMap();
+    } else if (window.location.hash === "#build") {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      workspaceHistory.length = 0;
+      workspaceHistoryIndex = -1;
+      await openCustomizeApp();
     } else renderManagePanel();
     if (launchNotice) setStatus(launchNotice);
     void refreshOperationalState();

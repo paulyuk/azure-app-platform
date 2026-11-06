@@ -43,7 +43,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-actions { margin:var(--canvas-spacing-condensed,8px) 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions button { min-height:28px; padding:4px 10px; font-size:12px; line-height:18px; font-weight:500; }
 :is(#details, #customize-content)[data-mode="build"] .build-actions .vscode-icon { width:14px; height:14px; flex:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-file-header .vscode-icon { width:16px; height:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-header .vscode-icon { width:14px; height:14px; overflow:visible; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-action-icon { display:inline-block; flex:none; width:16px; height:16px; background:currentColor; mask-position:center; mask-size:contain; mask-repeat:no-repeat; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-files { mask-image:${octiconMask("project")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-editor { mask-image:${octiconMask("code")}; }
@@ -127,6 +127,7 @@ export const BUILD_EXPLORER_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-file { padding:0; border:0; border-radius:0; background:transparent; }
 :is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice { display:block; box-sizing:border-box; width:100%; min-width:0; min-height:30px; padding:6px 10px; border:0; border-radius:0; background:transparent; color:var(--studio-ink); text-align:start; font:12px/18px var(--font-sans,system-ui); white-space:normal; overflow-wrap:anywhere; cursor:pointer; }
 :is(#details, #customize-content)[data-mode="build"] .build-collection-path { display:block; margin-top:2px; color:var(--studio-muted); font:11px/16px var(--font-mono,monospace); }
+:is(#details, #customize-content)[data-mode="build"] .build-sandbox-badge { display:inline-block; margin-inline-start:8px; vertical-align:middle; font-weight:normal; }
 :is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice:hover { background:var(--studio-raised); }
 :is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice[aria-current="true"] { background:var(--studio-accent-soft); box-shadow:inset 3px 0 var(--studio-accent); font-weight:600; }
 :is(#details, #customize-content)[data-mode="build"] .build-explorer button.build-file-choice:focus-visible { outline:2px solid var(--studio-focus); outline-offset:-2px; }
@@ -185,9 +186,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     { id: "triggers", tab: "Triggers" },
     { id: "agent", tab: "Agents" },
     { id: "connectors", tab: "Connectors" },
-    { id: "skills", tab: "Hosted Skills" },
+    { id: "skills", tab: "Tools" },
     { id: "workflows", tab: "Orchestrations" },
-    { id: "sandbox", tab: "Sandboxes & Policies" },
     { id: "gateway", tab: "AI Gateway" },
     { id: "sre", tab: "Operations" },
     { id: "data", tab: "Data" },
@@ -195,7 +195,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     { id: "source", tab: "Source", label: "Source projects" },
   ];
   function artifactCategory(artifact) {
-    return artifact.blockCategory ?? ({ behavior: "agent", tools: "skills", policies: "sandbox", runtime: "application" })[artifact.customizationArea] ?? artifact.customizationArea ?? "source";
+    const category = artifact.blockCategory ?? ({ behavior: "agent", tools: "skills", policies: "sandbox", runtime: "application" })[artifact.customizationArea] ?? artifact.customizationArea ?? "source";
+    return category === "sandbox" ? "skills" : category;
+  }
+  function sandboxBadge(parent, members) {
+    if (!members.some(artifact => artifact.blockCategory === "sandbox" || artifact.tierId === "sandbox")) return;
+    const mount = element("span", undefined, parent, "build-sandbox-badge");
+    mount.title = "Configured for sandbox execution. Deployment and isolation are verified separately.";
+    buttons.renderComponent(mount, "Badge", { appearance: "tint", size: "small", children: "Sandboxed" });
   }
   const supportedEditors = [
     { id: "vscode", label: "VS Code" }, { id: "vscode-insiders", label: "VS Code Insiders" },
@@ -787,6 +794,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         const choice = navigationButton(category, project.name, () => selectCollection(project));
         choice.className = "build-file-choice";
         choice.title = project.path || ".";
+        sandboxBadge(choice, project.artifacts);
         if (nameCounts.get(project.name) > 1) {
           element("code", project.path || ".", choice, "build-collection-path");
           choice.setAttribute("aria-label", project.name + " (" + (project.path || ".") + ")");
@@ -891,7 +899,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     contentPanel.dataset.areaId = area.id;
     const header = element("div", undefined, contentPanel, "build-area-header");
     const parentName = project && (members.length > 1 || artifact.projectPath || artifact.projectName) ? project.name : undefined;
-    element("h3", parentName ?? artifact.path.split("/").pop(), header, "build-area-title");
+    const title = element("h3", parentName ?? artifact.path.split("/").pop(), header, "build-area-title");
+    sandboxBadge(title, members);
     if (createdBlock?.paths.includes(artifact.path)) {
       const notice = element("div", undefined, contentPanel, "build-created");
       buttons.renderComponent(notice, "MessageBar", { intent: "info", role: "status",

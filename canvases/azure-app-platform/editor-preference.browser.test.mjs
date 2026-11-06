@@ -18,7 +18,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-test("Settings and app review share one race-safe external editor preference", {
+test("Settings persist the external editor preference into two-step app creation", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   let editorSettings = DEFAULT_EDITOR_SETTINGS;
@@ -72,18 +72,15 @@ test("Settings and app review share one race-safe external editor preference", {
     await page.route("**/app-map?**", (route) =>
       route.fulfill({ contentType: "text/html", body: "<h1>Created workspace</h1>" }));
     const base = `http://127.0.0.1:${server.address().port}`;
-    const reviewApp = async () => {
+    const configureApp = async () => {
       await installToolkitRoutes(page);
 
       await page.goto(base);
       await page.locator("#new-app").click();
       await page.locator('input[name="template"]').waitFor();
+      await page.locator("#next").click();
       await page.locator("#app-name").fill("claims-app");
-      await page.locator("#purpose").fill("Review claims safely.");
-      await page.locator("#next").click();
       await page.locator("#agent-instructions").fill("Use verified tool results.");
-      await page.locator("#next").click();
-      await page.locator("#preferred-editor").waitFor();
     };
 
     await installToolkitRoutes(page);
@@ -109,25 +106,15 @@ test("Settings and app review share one race-safe external editor preference", {
       path === "/api/editor-settings" && method === "POST").length, 1);
     await page.getByRole("button", { name: "Close settings" }).click();
 
-    await reviewApp();
-    const reviewPicker = page.getByRole("combobox", { name: "Code editor", exact: true });
-    assert.equal(await reviewPicker.inputValue(), "cursor");
-    await page.locator("#open-editor").uncheck();
-    await reviewPicker.selectOption("zed");
-    await page.locator("#status").filter({ hasText: "Code editor preference saved." }).waitFor();
-    assert.equal(await reviewPicker.inputValue(), "zed",
-      "Changing the app-review picker persists the selected editor");
-    assert.match(await page.locator("#open-editor-label").textContent(), /Zed/);
-    assert.equal(await page.locator("#open-editor").isChecked(), false);
-
     await settingsButton.click();
+    await settingsPicker.selectOption("zed");
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Preferred external editor"]').disabled);
     assert.equal(await settingsPicker.inputValue(), "zed");
     failPreference = true;
     await settingsPicker.selectOption("windsurf");
     await settings.getByRole("alert").filter({ hasText: /Could not persist editor/ }).waitFor();
     assert.equal(await settingsPicker.inputValue(), "zed");
     await page.getByRole("button", { name: "Close settings" }).click();
-    assert.equal(await reviewPicker.inputValue(), "zed");
 
     readGate = {
       started: deferred(), reply: deferred(), completed: deferred(),
@@ -139,7 +126,6 @@ test("Settings and app review share one race-safe external editor preference", {
     const postsBeforeBusyRead = requests.filter(({ path, method }) =>
       path === "/api/editor-settings" && method === "POST").length;
     assert.equal(await settingsPicker.isDisabled(), true);
-    assert.equal(await reviewPicker.isDisabled(), true);
     assert.equal(requests.filter(({ path, method }) =>
       path === "/api/editor-settings" && method === "POST").length, postsBeforeBusyRead);
     readGate.reply.resolve();
@@ -147,20 +133,17 @@ test("Settings and app review share one race-safe external editor preference", {
     readGate = undefined;
     await settingsPicker.waitFor({ state: "visible" });
     await page.waitForFunction(() =>
-      [...document.querySelectorAll("#preferred-editor")].every((control) => !control.disabled));
-    await reviewPicker.selectOption("sublime");
-    await page.waitForFunction(() => document.querySelector("#preferred-editor")?.value === "sublime");
-    assert.equal(await settingsPicker.inputValue(), "sublime",
-      "A stale Settings GET cannot overwrite the newer review save");
+      !document.querySelector('[aria-label="Preferred external editor"]')?.disabled);
+    await settingsPicker.selectOption("sublime");
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Preferred external editor"]').disabled);
+    assert.equal(await settingsPicker.inputValue(), "sublime");
     await page.getByRole("button", { name: "Close settings" }).click();
 
-    await page.locator("#back").click();
+    await configureApp();
     assert.equal(await page.locator("#agent-instructions").inputValue(), "Use verified tool results.");
     await page.locator("#next").click();
-    assert.equal(await reviewPicker.inputValue(), "sublime");
-    assert.equal(await page.locator("#open-editor").isChecked(), false);
-    await page.locator("#next").click();
     await page.waitForURL("**/app-map?**");
+    assert.equal(new URL(page.url()).hash, "#build", "Creation opens Build before Run");
     assert.equal(creations.length, 1);
     assert.equal(creations[0].editorId, "sublime");
     assert.equal(creations[0].openInEditor, false);
