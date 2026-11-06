@@ -1049,10 +1049,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentResponseSlow = false;
     let agentResponseWaitTimer;
     let invokingAgent = false;
-    let agentDocument = null;
+    let agentDocuments = [];
+    let nextDocumentId = 0;
+    let documentEditId = null;
     let documentTestNotice = "";
     let documentTestNoticeKind = "";
-    let documentInputExpanded = false;
     let documentMenuOpen = false;
     let documentPasteOpen = false;
     let documentEditMode = false;
@@ -3009,10 +3010,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (chooseTest) buttons.setDisabled(chooseTest, boundaryDisabled);
       if (testOverrideBtn) buttons.setDisabled(testOverrideBtn, boundaryDisabled);
       if (testEgressBtn) buttons.setDisabled(testEgressBtn, boundaryDisabled);
-      const remove = tester.querySelector("[data-remove-document]");
-      if (remove) buttons.setDisabled(remove, invokingAgent || documentTesting);
-      const edit = tester.querySelector("[data-edit-document]");
-      if (edit) buttons.setDisabled(edit, busy);
+      for (const remove of tester.querySelectorAll("[data-remove-document]")) {
+        buttons.setDisabled(remove, invokingAgent || documentTesting);
+      }
+      for (const edit of tester.querySelectorAll("[data-edit-document]")) {
+        buttons.setDisabled(edit, busy);
+      }
       if (documentMenuRoot.isConnected) components.renderComponent(documentMenuRoot, "MenuButton", {
         button: { ...documentMenuButtonProps, disabled: busy },
       });
@@ -3033,7 +3036,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderDocumentAssessment(container) {
-      if (!documentAssessment && !documentTesting && !(invokingAgent && agentDocument)) return;
+      if (!documentAssessment && !documentTesting && !(invokingAgent && agentDocuments.length > 0)) return;
       const section = document.createElement("details");
       section.className = "document-assessment";
       section.dataset.documentAssessment = "true";
@@ -3127,81 +3130,214 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         ? "Use UTF-8 document text no larger than 64 KiB." : "";
     }
 
-    function openDocumentEditor(editing = false) {
+    function uniqueDocumentName(baseName, excludeId = null) {
+      const taken = new Set(
+        agentDocuments.filter((doc) => doc.id !== excludeId).map((doc) => doc.name.toLowerCase()),
+      );
+      if (!taken.has(baseName.toLowerCase())) return baseName;
+      const dotIndex = baseName.lastIndexOf(".");
+      const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName;
+      const ext = dotIndex > 0 ? baseName.slice(dotIndex) : ".txt";
+      let index = 2;
+      while (taken.has((stem + "-" + index + ext).toLowerCase())) index += 1;
+      return stem + "-" + index + ext;
+    }
+
+    function combineInvocationDocuments(documents, maxBytes = 65536) {
+      if (!Array.isArray(documents) || !documents.length) return null;
+      if (documents.length === 1) return { name: documents[0].name, content: documents[0].content };
+      const hasMarkdown = documents.some((doc) => /\\.(md|markdown)$/i.test(doc.name));
+      const ext = hasMarkdown ? ".md" : ".txt";
+      const firstStem = documents[0].name.replace(/\\.[^.]+$/, "").slice(0, 60) || "documents";
+      const combinedName = firstStem + "-plus-" + (documents.length - 1) + "-more" + ext;
+      let combinedContent = documents.map((doc) => "## " + doc.name + "\\n\\n" + doc.content).join("\\n\\n");
+      const encoder = new TextEncoder();
+      if (encoder.encode(combinedContent).length > maxBytes) {
+        const decoder = new TextDecoder("utf-8", { fatal: false });
+        combinedContent = decoder.decode(encoder.encode(combinedContent).slice(0, maxBytes));
+      }
+      return { name: combinedName, content: combinedContent };
+    }
+
+    function openDocumentEditor(editing = false, docId = null) {
       finishAgentPromptTyping();
+      const targetDoc = editing
+        ? (agentDocuments.find((doc) => doc.id === docId) || agentDocuments.at(-1) || null)
+        : null;
       documentPasteOpen = true;
-      documentEditMode = editing;
-      documentPasteDraft = agentDocument?.content || "";
+      documentEditMode = Boolean(editing && targetDoc);
+      documentEditId = targetDoc?.id ?? null;
+      if (targetDoc) {
+        targetDoc.expanded = true;
+        const existingDisclosure = details.querySelector(
+          '.run-document[data-document-id="' + targetDoc.id + '"]',
+        );
+        if (existingDisclosure) existingDisclosure.open = true;
+      }
+      documentPasteDraft = documentEditMode ? (targetDoc?.content || "") : "";
       renderManagePanel();
       requestAnimationFrame(() => details.querySelector(".document-paste textarea")?.focus());
     }
 
-    function replaceDocument(next, { expanded = false, notice = "", noticeKind = "document" } = {}) {
+    function addAttachedDocument(next, { expanded = false, notice = "", noticeKind = "document" } = {}) {
       finishAgentPromptTyping();
       documentReadVersion += 1;
-      agentDocument = next;
+      const added = {
+        id: ++nextDocumentId,
+        name: uniqueDocumentName(next.name),
+        content: next.content,
+        expanded,
+      };
+      agentDocuments.push(added);
       if (notice) setDocumentTestNotice(notice, noticeKind);
       else clearDocumentTestNotice();
       documentError = "";
       documentLoading = false;
-      documentInputExpanded = expanded;
-      const existingDisclosure = details.querySelector(".run-document");
-      if (existingDisclosure) existingDisclosure.open = expanded;
       documentPasteOpen = false;
       documentEditMode = false;
+      documentEditId = null;
       documentPasteDraft = "";
       clearDocumentAssessment();
       renderManagePanel();
-      details.querySelector(expanded ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
+      const focusTarget = expanded
+        ? '[data-edit-document][data-document-id="' + added.id + '"]'
+        : "[data-add-document]";
+      details.querySelector(focusTarget)?.focus({ preventScroll: true });
+      return added;
+    }
+
+    function saveEditedDocument(docId, content) {
+      finishAgentPromptTyping();
+      documentReadVersion += 1;
+      const targetDoc = agentDocuments.find((doc) => doc.id === docId) || agentDocuments.at(-1);
+      if (!targetDoc) return addAttachedDocument({ name: "document.txt", content }, { expanded: true });
+      targetDoc.content = content;
+      targetDoc.expanded = true;
+      const existingDisclosure = details.querySelector(
+        '.run-document[data-document-id="' + targetDoc.id + '"]',
+      );
+      if (existingDisclosure) existingDisclosure.open = true;
+      clearDocumentTestNotice();
+      documentError = "";
+      documentLoading = false;
+      documentPasteOpen = false;
+      documentEditMode = false;
+      documentEditId = null;
+      documentPasteDraft = "";
+      clearDocumentAssessment();
+      renderManagePanel();
+      details.querySelector('[data-edit-document][data-document-id="' + targetDoc.id + '"]')?.focus({ preventScroll: true });
+      return targetDoc;
+    }
+
+    function removeDocument(docId = null) {
+      finishAgentPromptTyping();
+      documentReadVersion += 1;
+      clearDocumentTestNotice();
+      documentError = "";
+      documentLoading = false;
+      if (docId !== null) {
+        agentDocuments = agentDocuments.filter((doc) => doc.id !== docId);
+        if (documentEditId === docId) {
+          documentPasteOpen = false;
+          documentEditMode = false;
+          documentEditId = null;
+          documentPasteDraft = "";
+        }
+      } else {
+        documentPasteOpen = false;
+        documentEditMode = false;
+        documentEditId = null;
+        documentPasteDraft = "";
+      }
+      clearDocumentAssessment();
+      renderManagePanel();
+      details.querySelector("[data-add-document]")?.focus({ preventScroll: true });
     }
 
     function renderDocumentInput(container, actions) {
       const capability = operationalState.readiness?.documentInput;
       if (!capability) return;
       const input = appendText(container, "div", "", "document-input");
-      const row = appendText(input, "div", "", "document-attachment");
-      row.hidden = !agentDocument && !documentLoading && !documentError;
-      const disclosure = document.createElement("details");
-      disclosure.className = "run-document";
-      disclosure.dataset.runDisclosure = "document-attachment";
-      disclosure.open = documentInputExpanded;
-      const summary = appendText(disclosure, "summary", "");
-      summary.setAttribute("aria-label", "Document attachment");
-      const summaryContent = appendText(summary, "span", "", "document-summary-content");
-      const name = appendText(summaryContent, "span", agentDocument?.name || (documentLoading ? "Reading document..." : "No document attached"), "document-name");
-      name.title = name.textContent;
-      appendText(summaryContent, "small", "Untrusted source", "document-source-label command-badge");
-      disclosure.addEventListener("toggle", () => {
-        if (disclosure.isConnected) documentInputExpanded = disclosure.open;
-      });
-      const preview = appendText(disclosure, "pre", agentDocument?.content || "", "document-preview");
-      preview.tabIndex = 0;
-      preview.setAttribute("role", "region");
-      preview.setAttribute("aria-label", "Attached document text");
-      preview.dataset.runScrollKey = "document-preview";
-      const editing = documentPasteOpen && documentEditMode;
-      preview.hidden = editing;
-      if (agentDocument) {
+      let activeEditingDisclosure = null;
+      agentDocuments.forEach((doc, index) => {
+        const row = appendText(input, "div", "", "document-attachment");
+        row.dataset.documentId = String(doc.id);
+        const disclosure = document.createElement("details");
+        disclosure.className = "run-document";
+        disclosure.dataset.documentId = String(doc.id);
+        disclosure.dataset.runDisclosure = index === 0 ? "document-attachment" : ("document-attachment-" + doc.id);
+        disclosure.open = Boolean(doc.expanded);
+        const summary = appendText(disclosure, "summary", "");
+        summary.setAttribute("aria-label", "Document attachment");
+        const summaryContent = appendText(summary, "span", "", "document-summary-content");
+        const name = appendText(summaryContent, "span", doc.name, "document-name");
+        name.title = name.textContent;
+        appendText(summaryContent, "small", "Untrusted source", "document-source-label command-badge");
+        disclosure.addEventListener("toggle", () => {
+          if (disclosure.isConnected) doc.expanded = disclosure.open;
+        });
+        const preview = appendText(disclosure, "pre", doc.content, "document-preview");
+        preview.tabIndex = 0;
+        preview.setAttribute("role", "region");
+        preview.setAttribute("aria-label", "Attached document text");
+        preview.dataset.runScrollKey = index === 0 ? "document-preview" : ("document-preview-" + doc.id);
+        const editingThisDoc = documentPasteOpen && documentEditMode && documentEditId === doc.id;
+        preview.hidden = editingThisDoc;
+        if (editingThisDoc) activeEditingDisclosure = disclosure;
         const edit = buttons.create({
           appearance: "secondary", size: "small", children: "Edit document",
-          "aria-label": "Edit document", onClick: () => openDocumentEditor(true),
+          "aria-label": "Edit document", onClick: () => openDocumentEditor(true, doc.id),
         });
         edit.dataset.editDocument = "true";
-        edit.dataset.actionKey = "edit-document";
-        buttons.host(edit).hidden = editing;
+        edit.dataset.documentId = String(doc.id);
+        edit.dataset.actionKey = index === 0 ? "edit-document" : ("edit-document-" + doc.id);
+        buttons.host(edit).hidden = editingThisDoc;
         buttons.append(disclosure, edit);
-      }
-      row.append(disclosure);
-      const remove = buttons.create({
-        appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
-        "aria-label": "Remove document", title: "Remove document", onClick: () => {
-          replaceDocument(null);
-        },
+        row.append(disclosure);
+        const remove = buttons.create({
+          appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
+          "aria-label": "Remove document", title: "Remove document", onClick: () => {
+            removeDocument(doc.id);
+          },
+        });
+        remove.dataset.removeDocument = "true";
+        remove.dataset.documentId = String(doc.id);
+        buttons.append(row, remove);
       });
-      remove.dataset.removeDocument = "true";
-      buttons.append(row, remove);
+      let loadingRow = null, loadingName = null, loadingPreview = null;
+      if (!agentDocuments.length) {
+        loadingRow = appendText(input, "div", "", "document-attachment");
+        loadingRow.hidden = !documentLoading && !documentError;
+        const loadingDisclosure = document.createElement("details");
+        loadingDisclosure.className = "run-document";
+        loadingDisclosure.dataset.runDisclosure = "document-attachment-loading";
+        loadingDisclosure.open = false;
+        const loadingSummary = appendText(loadingDisclosure, "summary", "");
+        loadingSummary.setAttribute("aria-label", "Document attachment");
+        const loadingSummaryContent = appendText(loadingSummary, "span", "", "document-summary-content");
+        loadingName = appendText(loadingSummaryContent, "span", documentLoading ? "Reading document..." : "No document attached", "document-name");
+        loadingName.title = loadingName.textContent;
+        appendText(loadingSummaryContent, "small", "Untrusted source", "document-source-label command-badge");
+        loadingPreview = appendText(loadingDisclosure, "pre", "", "document-preview");
+        loadingPreview.tabIndex = 0;
+        loadingPreview.setAttribute("role", "region");
+        loadingPreview.setAttribute("aria-label", "Attached document text");
+        loadingPreview.dataset.runScrollKey = "document-preview-loading";
+        loadingRow.append(loadingDisclosure);
+        const loadingRemove = buttons.create({
+          appearance: "subtle", size: "small", icon: buttons.icon(ICONS.x),
+          "aria-label": "Remove document", title: "Remove document", onClick: () => {
+            removeDocument(null);
+          },
+        });
+        loadingRemove.dataset.removeDocument = "true";
+        buttons.append(loadingRow, loadingRemove);
+      }
+      const editing = Boolean(documentPasteOpen && documentEditMode && activeEditingDisclosure);
       const file = document.createElement("input");
       file.type = "file";
+      file.multiple = true;
       file.hidden = true;
       file.accept = capability.extensions.join(",");
       file.setAttribute("aria-label", "Document file");
@@ -3222,18 +3358,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           } }, "Upload document"),
           toolkit.createElement(toolkit.MenuItem, { key: "paste", onClick: () => {
             setMenuOpen(false);
-            openDocumentEditor();
+            openDocumentEditor(false);
           } }, "Paste a document"),
           toolkit.createElement(toolkit.MenuItem, { key: "sample", onClick: () => {
             setMenuOpen(false);
-            replaceDocument({ ...SAMPLE_CLEAN_DOCUMENT }, {
+            addAttachedDocument({ ...SAMPLE_CLEAN_DOCUMENT }, {
               notice: SAMPLE_DOCUMENT_NOTICE,
               noticeKind: "document",
             });
           } }, "Add sample"),
         ],
       });
-      const editor = appendText(editing ? disclosure : input, "section", "", "document-paste");
+      const editor = appendText(editing ? activeEditingDisclosure : input, "section", "", "document-paste");
       editor.hidden = !documentPasteOpen;
       editor.setAttribute("role", "group");
       editor.setAttribute("aria-label", editing ? "Edit document" : "Paste a document");
@@ -3244,7 +3380,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       hint.id = "document-paste-hint";
       const text = document.createElement("textarea");
       text.maxLength = capability.maxBytes;
-      text.value = documentPasteOpen ? documentPasteDraft : agentDocument?.content || "";
+      text.value = documentPasteOpen ? documentPasteDraft : (documentError ? "" : (agentDocuments.at(-1)?.content || ""));
       text.placeholder = editing ? "Edit document text..." : "Paste document text...";
       text.setAttribute("aria-label", "Document text");
       text.setAttribute("aria-describedby", hint.id);
@@ -3266,57 +3402,92 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             pasteError.textContent = validation || "Enter document text before saving it.";
             return;
           }
-          replaceDocument({ name: agentDocument?.name || "document.txt", content: documentPasteDraft }, { expanded: editing });
+          if (editing && documentEditId !== null) {
+            saveEditedDocument(documentEditId, documentPasteDraft);
+          } else {
+            addAttachedDocument({ name: "document.txt", content: documentPasteDraft }, { expanded: false });
+          }
         },
       });
       confirm.dataset.confirmDocument = "true";
       const cancel = buttons.create({ appearance: "secondary", children: "Cancel",
         "aria-label": editing ? "Cancel document edit" : "Cancel paste", onClick: () => {
+          const cancelledEditId = editing ? documentEditId : null;
           documentPasteOpen = false;
           documentEditMode = false;
+          documentEditId = null;
           documentPasteDraft = "";
           renderManagePanel();
-          details.querySelector(editing ? "[data-edit-document]" : "[data-add-document]")?.focus({ preventScroll: true });
+          const focusSelector = cancelledEditId !== null
+            ? '[data-edit-document][data-document-id="' + cancelledEditId + '"]'
+            : "[data-add-document]";
+          details.querySelector(focusSelector)?.focus({ preventScroll: true });
         },
       });
       cancel.dataset.cancelDocument = "true";
       buttons.append(pasteActions, confirm, cancel);
       file.addEventListener("change", async () => {
-        const selected = file.files?.[0];
-        if (!selected) return;
+        const selectedFiles = Array.from(file.files || []);
+        if (!selectedFiles.length) return;
         const version = ++documentReadVersion;
+        const replacingEditId = documentPasteOpen && documentEditMode ? documentEditId : null;
         clearDocumentTestNotice();
-        agentDocument = null;
-        documentPasteOpen = false;
-        documentEditMode = false;
-        documentPasteDraft = "";
         clearDocumentAssessment();
         documentError = "";
         documentLoading = true;
-        row.hidden = false;
-        name.textContent = "Reading document...";
-        preview.textContent = "";
+        if (loadingRow && loadingName && loadingPreview) {
+          loadingRow.hidden = false;
+          loadingName.textContent = "Reading document...";
+          loadingPreview.textContent = "";
+        }
         syncAgentInputControls();
         try {
-          if (!capability.extensions.some((extension) => selected.name.toLowerCase().endsWith(extension))) {
-            throw new Error("Choose a .txt or .md document. PDF and Word files are not supported.");
+          const loadedDocs = [];
+          for (const selected of selectedFiles) {
+            if (!capability.extensions.some((extension) => selected.name.toLowerCase().endsWith(extension))) {
+              throw new Error("Choose a .txt or .md document. PDF and Word files are not supported.");
+            }
+            if (selected.size > capability.maxBytes) throw new Error("Use a document no larger than 64 KiB.");
+            const content = await selected.text();
+            const validation = documentTextError(content, capability.maxBytes);
+            if (validation) throw new Error(validation);
+            loadedDocs.push({ name: selected.name, content });
           }
-          if (selected.size > capability.maxBytes) throw new Error("Use a document no larger than 64 KiB.");
-          const content = await selected.text();
-          const validation = documentTextError(content, capability.maxBytes);
-          if (validation) throw new Error(validation);
           if (version === documentReadVersion) {
-            agentDocument = { name: selected.name, content };
-            documentInputExpanded = false;
+            if (replacingEditId !== null) {
+              agentDocuments = agentDocuments.filter((doc) => doc.id !== replacingEditId);
+            }
+            documentPasteOpen = false;
+            documentEditMode = false;
+            documentEditId = null;
+            documentPasteDraft = "";
+            for (const item of loadedDocs) {
+              agentDocuments.push({
+                id: ++nextDocumentId,
+                name: uniqueDocumentName(item.name),
+                content: item.content,
+                expanded: false,
+              });
+            }
           }
         } catch (cause) {
-          if (version === documentReadVersion) documentError = "Could not read document: " + cause.message;
+          if (version === documentReadVersion) {
+            if (replacingEditId !== null) {
+              agentDocuments = agentDocuments.filter((doc) => doc.id !== replacingEditId);
+            }
+            documentPasteOpen = false;
+            documentEditMode = false;
+            documentEditId = null;
+            documentPasteDraft = "";
+            documentError = "Could not read document: " + cause.message;
+          }
         } finally {
           if (version === documentReadVersion) {
             documentLoading = false;
             if (panelMode === "manage") {
               renderManagePanel();
-              details.querySelector(".run-document summary")?.focus({ preventScroll: true });
+              const summaries = details.querySelectorAll(".run-document summary");
+              summaries[summaries.length - 1]?.focus({ preventScroll: true });
             }
           }
         }
@@ -3394,12 +3565,37 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       documentError = "";
       documentPasteOpen = false;
       documentEditMode = false;
+      documentEditId = null;
       documentPasteDraft = "";
-      documentInputExpanded = true;
-      const existingDisclosure = details.querySelector(".run-document");
-      if (existingDisclosure) existingDisclosure.open = true;
-      const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
-      agentDocument = prepared.document;
+      const currentTarget = agentDocuments.at(-1) || null;
+      const prepared = ensureAdversarialDocument(currentTarget, mode, maxBytes);
+      if (currentTarget && !prepared.synthetic) {
+        currentTarget.name = prepared.document.name;
+        currentTarget.content = prepared.document.content;
+        currentTarget.expanded = true;
+        const existingDisclosure = details.querySelector(
+          '.run-document[data-document-id="' + currentTarget.id + '"]',
+        );
+        if (existingDisclosure) existingDisclosure.open = true;
+      } else if (currentTarget && prepared.synthetic) {
+        currentTarget.name = uniqueDocumentName(
+          mode === "egress" ? "unsafe-egress-test.md" : "unsafe-override-test.md",
+          currentTarget.id,
+        );
+        currentTarget.content = prepared.document.content;
+        currentTarget.expanded = true;
+        const existingDisclosure = details.querySelector(
+          '.run-document[data-document-id="' + currentTarget.id + '"]',
+        );
+        if (existingDisclosure) existingDisclosure.open = true;
+      } else {
+        agentDocuments.push({
+          id: ++nextDocumentId,
+          name: uniqueDocumentName(prepared.document.name),
+          content: prepared.document.content,
+          expanded: true,
+        });
+      }
       if (!agentPromptDraft.trim()) {
         agentPromptDraft = hasSandboxNode
           ? "Process document"
@@ -3626,15 +3822,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         chip.textContent = preset.label;
         chip.addEventListener("click", () => {
           animateAgentPrompt(preset.prompt, () => {
-            const attachSample = Boolean(preset.attachSample && operationalState.readiness?.documentInput && !agentDocument);
+            const attachSample = Boolean(preset.attachSample && operationalState.readiness?.documentInput && !agentDocuments.length);
             if (attachSample) {
               documentReadVersion += 1;
               documentError = "";
               documentPasteOpen = false;
               documentEditMode = false;
+              documentEditId = null;
               documentPasteDraft = "";
-              documentInputExpanded = true;
-              agentDocument = { ...SAMPLE_CLEAN_DOCUMENT };
+              agentDocuments.push({
+                id: ++nextDocumentId,
+                name: uniqueDocumentName(SAMPLE_CLEAN_DOCUMENT.name),
+                content: SAMPLE_CLEAN_DOCUMENT.content,
+                expanded: true,
+              });
               clearDocumentAssessment();
             }
             setDocumentTestNotice(
@@ -3649,7 +3850,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
-    async function executeAgentInvocation(promptInput, invocationDocument = agentDocument) {
+    async function executeAgentInvocation(promptInput, explicitDocument = undefined) {
       if (invokingAgent) return;
       finishAgentPromptTyping();
       const message = promptInput.value.trim();
@@ -3658,6 +3859,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         promptInput.focus();
         return;
       }
+      const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
+      const invocationDocuments = explicitDocument !== undefined
+        ? (explicitDocument ? [{ name: explicitDocument.name, content: explicitDocument.content }] : [])
+        : agentDocuments.map((doc) => ({ name: doc.name, content: doc.content }));
+      const invocationDocument = combineInvocationDocuments(invocationDocuments, maxBytes);
       invokingAgent = true;
       setStatus("");
       agentRequestState = "invoking";
@@ -3698,7 +3904,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             root: MODEL.root,
             port: readyEntry.port,
             message,
-            ...(operationalState.readiness?.documentInput && invocationDocument ? { document: invocationDocument } : {}),
+            ...(operationalState.readiness?.documentInput && invocationDocument ? {
+              document: invocationDocument,
+              ...(invocationDocuments.length > 1 ? { documents: invocationDocuments } : {}),
+            } : {}),
           }),
         });
         agentResponsePhase = "waiting";
