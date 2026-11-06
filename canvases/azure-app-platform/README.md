@@ -347,10 +347,20 @@ and **Logs** views and remembers the last one used during the current visit,
 including visits through Build or Connect.
 Connect reuses the same connection renderer, discovery tracker and saved state as scoped
 Settings and Run's Environment diagnostics: gateway and sandbox subscription scopes,
-gateway/model/group selection, refresh/cancel/retry, Apply, and explicit create/configure
+gateway/model/group selection, refresh/cancel/retry, Apply connections, and explicit create/configure
 actions. Merely opening Connect never applies a connection or creates cloud resources.
 Failed discovery and configuration remain explicit. Navigation invalidates pending
 discoveries; unchanged polling preserves the active controls and selections.
+Model access and Sandbox execution are grouped separately, with inline resource
+actions and a persistent Apply/Discard footer in Connect. A static loading
+skeleton appears immediately, including while the initial app-status/readiness
+check is pending, without claiming that no connection is saved before checking.
+Refresh retains the form and disables Apply until the
+selected gateway's models and execution selection are valid. Execution mode
+explicitly distinguishes ACA Sandbox from local simulation, which provides no
+sandbox execution isolation. A missing sandbox never silently switches the draft
+to simulation. The saved connection, unsaved draft and validation progress remain
+distinct; Discard restores the saved selection without applying it.
 The existing content, utilities and app title are retained DOM slots within the
 shell rather than React copies of business logic. Navigation refreshes and responsive
 layout changes preserve those exact nodes, focus and task-payload selection. Permanent

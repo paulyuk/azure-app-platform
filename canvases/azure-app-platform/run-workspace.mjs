@@ -3,6 +3,7 @@ export function createRunWorkspace({
   diagnosticsContainer,
   toggle,
   onDiagnosticsChange,
+  onTabChange = () => {},
   renderTry,
   renderServices,
   renderEnvironment,
@@ -164,6 +165,7 @@ export function createRunWorkspace({
     }
     renderSelectedPanel();
     restoreScrolling(shell);
+    onTabChange(id);
   }
 
   function renderSelectedPanel() {

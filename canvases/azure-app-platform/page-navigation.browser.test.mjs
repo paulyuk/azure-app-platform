@@ -367,7 +367,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await selected("Build"), "page", "Escape does not close a page");
       assert.equal(await page.locator("#observe-views").isVisible(), false);
       await select("Connect");
-      await page.getByRole("heading", { name: "Gateway connections", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Connections", exact: true }).waitFor();
       await page.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor();
       assert.equal(await selected("Connect"), "page");
       assert.equal(await page.locator("#observe-views").isVisible(), false);
@@ -375,7 +375,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("region", { name: "Build workspace", exact: true }).waitFor();
       await page.getByRole("navigation", { name: "Workspace history", exact: true }).getByRole("button", { name: "Back", exact: true }).click();
       assert.equal(await selected("Connect"), "page");
-      assert.equal(await page.getByRole("heading", { name: "Gateway connections", exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole("heading", { name: "Connections", exact: true }).isVisible(), true);
       await select("Run");
       assert.equal(await draft.inputValue(), "Keep this unattended event payload.");
       await select("Observe");

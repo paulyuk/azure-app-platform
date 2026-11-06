@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
+import { CONNECTION_PANEL_CSS, createConnectionPanel, createConnectionExecutionComponent } from "./connection-panel.mjs";
+import { selectPreferredModelId } from "./gateway-state.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
@@ -806,6 +808,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${BUILD_PANEL_CONTENT_CSS}
     ${COMPONENT_LOGS_CSS}
     ${renderThemeStyles(presentation.id)}
+    ${CONNECTION_PANEL_CSS}
     }
     /* Retained content keeps its typography and tabs above the provider's generic element reset. */
     ${STUDIO_TABS_CSS}
@@ -1041,7 +1044,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let portBusy = false;
     let portMessage = "";
     let portError = false;
-    let gatewayState = null;
     let operationalFingerprint = "";
     let lifecycleOperation = null;
     const hasSandboxNode = MODEL.nodes.some((node) => node.tierId === "sandbox");
@@ -1084,12 +1086,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentRawResponse = "";
     let outputRefreshing = false;
     let operationalRefreshing = false;
-    let selectedSubscriptionId = "";
-    let selectedSandboxSubscriptionId = "";
-    let selectedSandboxChoice = "";
     const gatewayDiscovery = (${createDiscoveryTracker.toString()})();
-    let selectedGateway = null;
-    let selectedModel = "";
     let gatewayApplying = false;
     let panelMode = "manage";
     let connectionScroll = 0;
@@ -1115,7 +1112,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       loadToolkit: async () => {
         if (!navigationToolkit) {
           const toolkit = await import("/canvas-ui/base.mjs" + (navigationAttempt ? "?retry=" + navigationAttempt : ""));
-          navigationToolkit = { ...toolkit, WorkspaceNavigation: (${createWorkspaceNavigationComponent.toString()})(toolkit) };
+          navigationToolkit = { ...toolkit, WorkspaceNavigation: (${createWorkspaceNavigationComponent.toString()})(toolkit),
+            ConnectionExecution: (${createConnectionExecutionComponent.toString()})(toolkit) };
         }
         return navigationToolkit;
       },
@@ -1126,6 +1124,61 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         navigationRetry.hidden = false;
         navigationMessage.textContent = "Workspace navigation is unavailable.";
         setStatus(message, true);
+      },
+    });
+    const connections = (${createConnectionPanel.toString()})({
+      buttons, notices: components, toolkitComponents, tracker: gatewayDiscovery,
+      selectModel: (${selectPreferredModelId.toString()}),
+      getRuntime: () => ({ ...operationalState, lifecycleOperation, error: readinessError,
+        activeStates: ACTIVE_LIFECYCLE_STATES }),
+      request: (params, signal) => {
+        params.set("root", MODEL.root);
+        return apiRequest("/api/gateway-options?" + params, { signal });
+      },
+      applySelection: async selection => {
+        gatewayApplying = true;
+        try {
+          const result = await apiRequest("/api/active-gateway", {
+            method: "POST",
+            body: JSON.stringify({ root: MODEL.root, name: selection.name,
+              resourceGroup: selection.resourceGroup, subscriptionId: selection.subscriptionId,
+              model: selection.model, sandboxGroup: selection.sandboxGroup }),
+          });
+          if (result.configuration) {
+            operationalState = { ...operationalState, app: { ...(operationalState.app || {}), state: "configuring" } };
+            await refreshOperationalState();
+          } else await runAppOperation("configure-gateway");
+          return result;
+        } catch (error) {
+          operationalState.app = { state: "failed", operation: "configuring", error: error.message };
+          setStatus(error.message, true);
+          throw error;
+        } finally {
+          gatewayApplying = false;
+          if (!window.appPlatformSettings?.isOpen("connection")) window.appPlatformSettings?.refreshApp();
+          connections.updateRuntime();
+        }
+      },
+      createGateway: async subscriptionId => {
+        if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
+        await runAppOperation("bootstrap-starter-gateway", { subscriptionId });
+      },
+      configureModel: async gateway => {
+        if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
+        await runAppOperation("onboard-gateway-models", { subscriptionId: gateway.subscriptionId,
+          resourceGroup: gateway.resourceGroup, gatewayName: gateway.name });
+      },
+      createSandbox: async ({ subscriptionId, gatewaySubscriptionId, gateway }) => {
+        if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
+        await runAppOperation("create-sandbox-group", {
+          subscriptionId: subscriptionId && subscriptionId !== "*" ? subscriptionId : gatewaySubscriptionId || gateway?.subscriptionId || "",
+          resourceGroup: gateway?.resourceGroup || "rg-app-platform-aigateway",
+          location: gateway?.location || "eastus2", sandboxGroupName: ${safeJson(newSandboxGroupName)},
+        });
+      },
+      openSetup: () => {
+        if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
+        return openTierStudio(tierById.get("gateway"));
       },
     });
     const getAgentStatus = (${getAgentStatus.toString()});
@@ -1223,6 +1276,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       workspaceResizeObserver.disconnect();
       appLogs?.dispose();
       buildPanel.hide();
+      connections.dispose();
       components.dispose();
       agentStatusView.dispose();
       agentResponseSpinnerView.dispose();
@@ -1258,7 +1312,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       container: details,
       diagnosticsContainer,
       toggle: logsTrigger,
+      onTabChange: () => queueMicrotask(() => connections.updateRuntime()),
       onDiagnosticsChange: ({ open, issues }) => {
+        queueMicrotask(() => connections.updateRuntime());
         const key = JSON.stringify([open, issues]);
         if (key === logsTriggerKey) return;
         logsTriggerKey = key;
@@ -2097,8 +2153,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (element.contains(documentMenuRoot)) documentMenuRoot.remove();
       if (element === details) runWorkspace.capture();
       if (element === details && details.dataset.mode === "connections") {
-        connectionScroll = details.scrollTop;
-        gatewayDiscovery.invalidate();
+        if (document.body.dataset.workspace === "connections") {
+          connectionScroll = details.querySelector(".connections-body")?.scrollTop || 0;
+        }
+        connections.invalidate();
       }
       toolkitComponents.clear(element);
       buttons.clear(element);
@@ -2188,6 +2246,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function updateModeHighlight() {
       const mode = ["build", "manage", "logs", "deploy", "connections"].includes(panelMode) ? panelMode : "map";
+      if (document.body.dataset.workspace === "connections" && mode !== "connections") {
+        connectionScroll = details.querySelector(".connections-body")?.scrollTop || 0;
+        connections.invalidate();
+      }
       const destination = workspaceDestination();
       if (workspaceHistory[workspaceHistoryIndex] !== destination) {
         workspaceHistory.splice(workspaceHistoryIndex + 1);
@@ -2195,7 +2257,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         workspaceHistoryIndex = workspaceHistory.length - 1;
       }
       if (!["manage", "connections"].includes(mode) && !window.appPlatformSettings?.isOpen?.()) {
-        gatewayDiscovery.invalidate();
+        connections.invalidate();
       }
       if (panelMode !== "map") setStructureGuidance(false);
       if (mode !== "build" && !buildPage.hidden) buildPanel.hide();
@@ -2443,13 +2505,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.empty = "false";
       details.dataset.mode = "connections";
       applySelection();
-      const heading = appendText(details, "h2", "Gateway connections");
+      const page = appendText(details, "div", "", "gateway-connection-page");
+      const intro = appendText(page, "div", "", "connection-page-heading");
+      const heading = appendText(intro, "h2", "Connections");
       heading.tabIndex = -1;
-      appendText(details, "p", "Choose model access and sandbox execution for this app. Changes are saved only when you apply or explicitly create resources.");
-      const content = appendText(details, "div", "", "gateway-connection-page");
-      void Promise.resolve(renderAppSettingsSection("connection", content)).then(() => {
-        if (content.isConnected) details.scrollTop = connectionScroll;
-      });
+      appendText(intro, "p", "Choose model access and sandbox execution for this app.");
+      const content = appendText(page, "div", "", "connections-mount");
+      renderAppSettingsSection("connection", content);
       if (focus) heading.focus({ preventScroll: true });
     }
 
@@ -2498,414 +2560,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         appendText(details, "p", "No source connection issues found.");
       }
       heading.focus({ preventScroll: true });
-    }
-
-    async function loadGatewayControls(container, refresh = false) {
-      if (gatewayApplying) {
-        appendText(container, "p", "Applying model connection...");
-        return;
-      }
-      const requestedSubscription = selectedSubscriptionId;
-      const requestedSandboxSubscription = selectedSandboxSubscriptionId;
-      const params = new URLSearchParams({ root: MODEL.root });
-      if (requestedSubscription) params.set("subscriptionId", requestedSubscription);
-      if (requestedSandboxSubscription) params.set("sandboxSubscriptionId", requestedSandboxSubscription);
-      if (selectedGateway) {
-        params.set("gatewayName", selectedGateway.name);
-        params.set("resourceGroup", selectedGateway.resourceGroup);
-      }
-      if (refresh) params.set("refresh", "1");
-      const discoveryKey = [
-        MODEL.root,
-        requestedSubscription,
-        requestedSandboxSubscription,
-        selectedGateway ? selectedGateway.name + ":" + selectedGateway.resourceGroup : "",
-      ].join("|");
-      const existingFields = container.querySelectorAll("select, button");
-      for (const el of existingFields) el.disabled = true;
-      for (const el of container.querySelectorAll("[data-filterable-dropdown]")) el.disabled = true;
-      const discovery = gatewayDiscovery.begin(discoveryKey,
-        ({ signal } = {}) => apiRequest("/api/gateway-options?" + params, { signal }), refresh);
-      let cancelBanner = container.querySelector('[data-discovery-cancel="true"]');
-      if (!cancelBanner) {
-        cancelBanner = document.createElement("div");
-        cancelBanner.className = "field-actions";
-        cancelBanner.dataset.discoveryCancel = "true";
-        appendText(
-          cancelBanner,
-          "small",
-          requestedSandboxSubscription === "*"
-            ? "Scanning sandbox groups across subscriptions (Resource Graph, max 200)…"
-            : "Refreshing Azure subscriptions, gateways & sandbox groups…",
-        );
-        const cancelBtn = actionButton("Cancel scan", () => {
-          discovery.abort();
-          if (!container.isConnected) return;
-          cancelBanner.remove();
-          for (const el of container.querySelectorAll("select, button")) el.disabled = false;
-          for (const el of container.querySelectorAll("[data-filterable-dropdown]")) el.disabled = false;
-          if (!container.querySelector("select")) {
-            clearElement(container);
-            appendText(container, "p", "Azure scan cancelled.");
-            buttons.append(container, actionButton("Retry scan", () => {
-              void loadGatewayControls(container, true);
-            }));
-          }
-          setStatus("Azure discovery scan cancelled.");
-        });
-        cancelBtn.setAttribute("aria-label", "Cancel Azure discovery scan");
-        buttons.append(cancelBanner, cancelBtn);
-        container.prepend(cancelBanner);
-      }
-      try {
-        const options = await discovery.promise;
-        if (!container.isConnected || requestedSubscription !== selectedSubscriptionId ||
-          requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
-          !discovery.isCurrent()) return;
-        const detailsScroll = details.scrollTop;
-        const containerScroll = container.scrollTop;
-        gatewayState = options;
-        selectedSubscriptionId = options.subscription?.id || "";
-        selectedSandboxSubscriptionId = options.sandboxSubscriptionId || selectedSubscriptionId;
-        selectedGateway = options.suggested;
-        clearElement(container);
-        for (const warning of options.warnings || []) appendText(container, "p", warning, "error");
-        const subscriptions = gatewayState.subscriptions || [];
-        const subNameById = new Map(subscriptions.map((sub) => [String(sub.id).toLowerCase(), sub.name]));
-        const subscriptionOptions = [
-          {
-            value: "*",
-            label: "All enabled subscriptions",
-            description: "Search gateways or sandbox groups across enabled subscriptions.",
-          },
-          ...subscriptions.map((subscription) => ({
-            value: subscription.id,
-            label: subscription.name + (subscription.isDefault ? " (default)" : "") + " · " + subscription.id,
-          })),
-        ];
-
-        const subGroup = appendText(container, "div", "", "field-group");
-        const subscriptionSelect = toolkitComponents.createFilterableDropdown({
-          ariaLabel: "Azure subscription",
-          title: "Azure subscription",
-          searchPlaceholder: "Filter Azure subscriptions by name or ID",
-          placeholder: "Choose an Azure subscription",
-          options: subscriptionOptions,
-          value: gatewayState.subscription?.id || "",
-          onChange: (value) => {
-            selectedSubscriptionId = value;
-            selectedGateway = null;
-            selectedModel = "";
-            void loadGatewayControls(container);
-          },
-        });
-        appendField(subGroup, "Azure subscription", subscriptionSelect);
-        const subActions = appendText(subGroup, "div", "", "field-actions");
-        const refreshGatewayBtn = actionButton("Refresh", () => {
-          void loadGatewayControls(container, true);
-        });
-        refreshGatewayBtn.setAttribute("aria-label", "Refresh subscriptions & gateways");
-        buttons.append(subActions, refreshGatewayBtn);
-
-        const gwGroup = appendText(container, "div", "", "field-group");
-        const select = document.createElement("select");
-        select.setAttribute("aria-label", "AI Gateway");
-        if (gatewayState.gateways.length) {
-          const empty = document.createElement("option");
-          empty.value = "";
-          empty.textContent = "Choose an AI Gateway";
-          empty.disabled = true;
-          select.append(empty);
-          for (const [index, gateway] of gatewayState.gateways.entries()) {
-            const option = document.createElement("option");
-            option.value = String(index);
-            const gwSubLabel = gatewayState.subscription?.id === "*" && gateway.subscriptionId
-              ? " · " + (subNameById.get(String(gateway.subscriptionId).toLowerCase()) || gateway.subscriptionId.slice(0, 8))
-              : "";
-            option.textContent = gateway.name +
-              (gateway.resourceGroup ? " · " + gateway.resourceGroup : "") + gwSubLabel;
-            option.selected = gateway.name === gatewayState.suggested?.name &&
-              gateway.resourceGroup === gatewayState.suggested?.resourceGroup;
-            select.append(option);
-          }
-          select.addEventListener("change", async () => {
-            selectedGateway = options.gateways[Number(select.value)];
-            selectedModel = "";
-            modelSelect.disabled = true;
-            modelSelect.innerHTML = "<option>Loading models…</option>";
-            const modelParams = new URLSearchParams({
-              root: MODEL.root,
-              subscriptionId: selectedGateway.subscriptionId || selectedSubscriptionId,
-              gatewayName: selectedGateway.name,
-              resourceGroup: selectedGateway.resourceGroup,
-              refresh: "1",
-            });
-            if (selectedSandboxSubscriptionId) {
-              modelParams.set("sandboxSubscriptionId", selectedSandboxSubscriptionId);
-            }
-            try {
-              const modelDiscovery = gatewayDiscovery.begin(
-                [MODEL.root, selectedGateway.subscriptionId || selectedSubscriptionId, selectedSandboxSubscriptionId, selectedGateway.name + ":" + selectedGateway.resourceGroup].join("|"),
-                ({ signal } = {}) => apiRequest("/api/gateway-options?" + modelParams, { signal }),
-                true,
-              );
-              const nextOptions = await modelDiscovery.promise;
-              if (!container.isConnected || !modelDiscovery.isCurrent()) return;
-              gatewayState = nextOptions;
-              options.models = nextOptions.models || [];
-              modelSelect.innerHTML = "";
-              const nextModels = options.models;
-              const nextDefault = nextModels.find((model) => /^gpt-latest$/i.test(model.id))?.id
-                || nextModels.find((model) => !/mini|nano/i.test(model.id))?.id
-                || nextModels[0]?.id
-                || "";
-              selectedModel = nextModels.find((model) => model.id === nextOptions.active?.model)?.id || nextDefault;
-              if (nextModels.length) {
-                for (const model of nextModels) {
-                  const option = document.createElement("option");
-                  option.value = model.id;
-                  option.textContent = model.label;
-                  option.selected = model.id === selectedModel;
-                  modelSelect.append(option);
-                }
-                modelSelect.disabled = false;
-                modelGroup.querySelector(".field-actions")?.remove();
-              } else {
-                const emptyOpt = document.createElement("option");
-                emptyOpt.value = "";
-                emptyOpt.textContent = "No models configured";
-                modelSelect.append(emptyOpt);
-                modelSelect.disabled = true;
-                if (!modelGroup.querySelector(".field-actions")) {
-                  const modelActions = appendText(modelGroup, "div", "", "field-actions");
-                  buttons.append(modelActions, actionButton("Configure Model", async () => {
-                    if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
-                    await runAppOperation("onboard-gateway-models", {
-                      subscriptionId: selectedGateway.subscriptionId,
-                      resourceGroup: selectedGateway.resourceGroup,
-                      gatewayName: selectedGateway.name,
-                    });
-                  }));
-                }
-              }
-              const applyBtn = container.querySelector('[data-gateway-apply="true"]');
-              if (applyBtn) {
-                buttons.setDisabled(applyBtn, !nextModels.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
-              }
-            } catch (err) {
-              if (err?.name !== "AbortError") setStatus(err.message, true);
-            }
-          });
-        } else {
-          const empty = document.createElement("option");
-          empty.value = "";
-          empty.textContent = "No AI Gateways in subscription";
-          select.append(empty);
-          select.disabled = true;
-        }
-        appendField(gwGroup, "AI Gateway", select);
-        const gwActions = appendText(gwGroup, "div", "", "field-actions");
-        buttons.append(gwActions, actionButton("Create Gateway", async () => {
-          if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
-          await runAppOperation("bootstrap-starter-gateway", {
-            subscriptionId: options.subscription?.id || "",
-          });
-        }));
-
-        const modelGroup = appendText(container, "div", "", "field-group");
-        const modelSelect = document.createElement("select");
-        modelSelect.setAttribute("aria-label", "AI model");
-        const models = options.models || [];
-        const preferredDefaultModel = models.find((model) => /^gpt-latest$/i.test(model.id))?.id
-          || models.find((model) => !/mini|nano/i.test(model.id))?.id
-          || models[0]?.id
-          || "";
-        selectedModel = models.find((model) => model.id === selectedModel)?.id
-          || models.find((model) => model.id === options.active?.model)?.id || preferredDefaultModel;
-        if (models.length) {
-          for (const model of models) {
-            const option = document.createElement("option");
-            option.value = model.id;
-            option.textContent = model.label;
-            option.selected = model.id === selectedModel;
-            modelSelect.append(option);
-          }
-        } else {
-          const empty = document.createElement("option");
-          empty.value = "";
-          empty.textContent = "No models configured";
-          modelSelect.append(empty);
-        }
-        modelSelect.disabled = !models.length;
-        modelSelect.addEventListener("change", () => {
-          selectedModel = modelSelect.value;
-          gatewayDiscovery.invalidate();
-        });
-        appendField(modelGroup, "Model", modelSelect);
-        if (gatewayState.gateways.length && !models.length) {
-          const activeCandidate = options.gateways[Number(select.value)] || gatewayState.suggested;
-          if (activeCandidate) {
-            const modelActions = appendText(modelGroup, "div", "", "field-actions");
-            buttons.append(modelActions, actionButton("Configure Model", async () => {
-              if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
-              await runAppOperation("onboard-gateway-models", {
-                subscriptionId: activeCandidate.subscriptionId,
-                resourceGroup: activeCandidate.resourceGroup,
-                gatewayName: activeCandidate.name,
-              });
-            }));
-          }
-        }
-        const sbSubGroup = appendText(container, "div", "", "field-group");
-        const sandboxSubSelect = toolkitComponents.createFilterableDropdown({
-          ariaLabel: "Sandbox subscription",
-          title: "Sandbox subscription",
-          searchPlaceholder: "Filter sandbox subscriptions by name or ID",
-          placeholder: "Choose a sandbox subscription",
-          options: subscriptionOptions,
-          value: selectedSandboxSubscriptionId,
-          onChange: (value) => {
-            selectedSandboxSubscriptionId = value;
-            selectedSandboxChoice = "";
-            void loadGatewayControls(container);
-          },
-        });
-        appendField(sbSubGroup, "Sandbox subscription", sandboxSubSelect);
-        const sbSubActions = appendText(sbSubGroup, "div", "", "field-actions");
-        const refreshSandboxBtn = actionButton("Refresh", () => {
-          void loadGatewayControls(container, true);
-        });
-        refreshSandboxBtn.setAttribute("aria-label", "Refresh sandbox groups");
-        buttons.append(sbSubActions, refreshSandboxBtn);
-
-        const sbGroup = appendText(container, "div", "", "field-group");
-        const sandboxGroups = options.sandboxGroups || [];
-        const sandboxSelect = document.createElement("select");
-        sandboxSelect.setAttribute("aria-label", "ACA Sandbox Group");
-        const activeSandboxInSub = options.active?.sandboxGroup?.name
-          && (!selectedSandboxSubscriptionId
-            || selectedSandboxSubscriptionId === "*"
-            || (options.active?.sandboxGroup?.subscriptionId || options.active?.subscriptionId || "").toLowerCase() === selectedSandboxSubscriptionId.toLowerCase())
-          ? options.active.sandboxGroup.name + ":" + (options.active.sandboxGroup.resourceGroup || "")
-          : "";
-        const suggestedSandboxKey = options.suggestedSandboxGroup?.name
-          ? options.suggestedSandboxGroup.name + ":" + (options.suggestedSandboxGroup.resourceGroup || "")
-          : "";
-        const targetSandboxKey = selectedSandboxChoice || suggestedSandboxKey || activeSandboxInSub || "";
-        const hasSelectedSandbox = targetSandboxKey !== "local-simulation" && sandboxGroups.some((sg) =>
-          (sg.name + ":" + (sg.resourceGroup || "")) === targetSandboxKey || sg.name === targetSandboxKey,
-        );
-        for (const [index, sg] of sandboxGroups.entries()) {
-          const option = document.createElement("option");
-          option.value = String(index);
-          const sgKey = sg.name + ":" + (sg.resourceGroup || "");
-          const subLabel = selectedSandboxSubscriptionId === "*" && sg.subscriptionId
-            ? " · " + (subNameById.get(String(sg.subscriptionId).toLowerCase()) || sg.subscriptionId.slice(0, 8))
-            : "";
-          option.textContent = sg.name + (sg.resourceGroup ? " · " + sg.resourceGroup : "") + subLabel;
-          option.selected = sgKey === targetSandboxKey || sg.name === targetSandboxKey;
-          sandboxSelect.append(option);
-        }
-        const simOption = document.createElement("option");
-        simOption.value = "local-simulation";
-        simOption.textContent = "Local simulation mode (no sandbox)";
-        simOption.selected = targetSandboxKey === "local-simulation" || !sandboxGroups.length || !hasSelectedSandbox;
-        sandboxSelect.append(simOption);
-        sandboxSelect.addEventListener("change", () => {
-          if (sandboxSelect.value === "local-simulation") {
-            selectedSandboxChoice = "local-simulation";
-          } else {
-            const chosen = sandboxGroups[Number(sandboxSelect.value)];
-            selectedSandboxChoice = chosen ? chosen.name + ":" + (chosen.resourceGroup || "") : "";
-          }
-        });
-        appendField(sbGroup, "ACA Sandbox Group", sandboxSelect);
-        const sbActions = appendText(sbGroup, "div", "", "field-actions");
-        buttons.append(sbActions, actionButton("Create Sandbox Group", async () => {
-          const activeCandidate = options.gateways[Number(select.value)] || gatewayState.suggested;
-          const targetSub = selectedSandboxSubscriptionId && selectedSandboxSubscriptionId !== "*"
-            ? selectedSandboxSubscriptionId
-            : (options.subscription?.id || activeCandidate?.subscriptionId || "");
-          if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
-          await runAppOperation("create-sandbox-group", {
-            subscriptionId: targetSub,
-            resourceGroup: activeCandidate?.resourceGroup || "rg-app-platform-aigateway",
-            location: activeCandidate?.location || "eastus2",
-            sandboxGroupName: ${safeJson(newSandboxGroupName)},
-          });
-        }));
-
-        if (gatewayState.gateways.length) {
-          const applyRow = appendText(container, "div", "", "field-actions");
-          const apply = actionButton(
-            "Apply",
-            async () => {
-              if (!select.value || !modelSelect.value || lifecycleOperation || gatewayApplying) return;
-              gatewayApplying = true;
-              gatewayDiscovery.invalidate();
-              buttons.setDisabled(apply, true);
-              buttons.setText(apply, "Applying…");
-              const envTabSummary = diagnosticsContainer.querySelector('[data-run-tab="environment"] .run-tab-summary');
-              if (envTabSummary) {
-                envTabSummary.textContent = "Applying…";
-                envTabSummary.dataset.attention = "false";
-              }
-              subscriptionSelect.disabled = sandboxSubSelect.disabled = select.disabled = modelSelect.disabled = sandboxSelect.disabled = true;
-              try {
-                const gateway = options.gateways[Number(select.value)];
-                const chosenSandboxGroup = sandboxGroups.length && sandboxSelect.value !== "local-simulation"
-                  ? sandboxGroups[Number(sandboxSelect.value)]
-                  : null;
-                const result = await apiRequest("/api/active-gateway", {
-                  method: "POST",
-                  body: JSON.stringify({
-                    root: MODEL.root, name: gateway.name, resourceGroup: gateway.resourceGroup,
-                    subscriptionId: gateway.subscriptionId,
-                    model: modelSelect.value,
-                    sandboxGroup: chosenSandboxGroup,
-                  }),
-                });
-                gatewayState.active = result.active;
-                if (result.configuration) {
-                  operationalState = {
-                    ...operationalState,
-                    app: { ...(operationalState.app || {}), state: "configuring" },
-                  };
-                  await refreshOperationalState();
-                } else {
-                  await runAppOperation("configure-gateway");
-                }
-              } catch (error) {
-                operationalState.app = { state: "failed", operation: "configuring", error: error.message };
-                setStatus(error.message, true);
-              } finally {
-                gatewayApplying = false;
-                window.appPlatformSettings?.refreshApp();
-                if (panelMode === "manage") renderManagePanel();
-                else if (panelMode === "connections" && !window.appPlatformSettings?.isOpen()) renderConnectionsPanel({ focus: false });
-              }
-            },
-            true,
-          );
-          apply.dataset.gatewayApply = "true";
-          buttons.setDisabled(apply, !models.length || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state));
-          buttons.append(applyRow, apply);
-        }
-        details.scrollTop = detailsScroll;
-        container.scrollTop = containerScroll;
-      } catch (error) {
-        if (error?.name === "AbortError" || !container.isConnected || requestedSubscription !== selectedSubscriptionId ||
-          requestedSandboxSubscription !== selectedSandboxSubscriptionId ||
-          !discovery.isCurrent()) return;
-        clearElement(container);
-        appendText(container, "p", error.message, "error").setAttribute("role", "alert");
-        buttons.append(container, actionButton("Retry scan", () => { void loadGatewayControls(container, true); }));
-        const gatewayTier = tierById.get("gateway");
-        buttons.append(container, actionButton("Open guided gateway setup", () => {
-          window.appPlatformSettings.close();
-          openTierStudio(gatewayTier);
-        }, true));
-      }
     }
 
     function renderDeleteSettings(container) {
@@ -4422,8 +4076,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       gatewayBlock.className = "gateway-fields";
       gatewayBlock.style.marginTop = "16px";
       appendText(gatewayBlock, "h3", "AI Gateway & ACA Sandbox Group");
-      renderAppSettingsSection("connection", gatewayBlock);
       envSection.append(gatewayBlock);
+      renderAppSettingsSection("connection", gatewayBlock);
     }
 
     function openAppSettings(section) {
@@ -4434,31 +4088,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (section === "prereqs") { renderPrerequisitesSettings(container); return; }
       if (section === "ports") { renderPortControls(container); return; }
       if (section === "danger") { renderDeleteSettings(container); return; }
-      const appState = operationalState.app?.state;
-      if (appState === "failed" && operationalState.app?.operation === "configuring") {
-        appendText(container, "p", operationalState.app.error, "error").setAttribute("role", "alert");
-      }
-      const readiness = operationalState.readiness;
-      const configuring = appState === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring" || gatewayApplying;
-      appendText(container, "p", configuring
-        ? "Applying connection for " + (readiness?.activeGateway?.name || "AI Gateway") + "…"
-        : readiness?.gatewayConfigured
-          ? "Connected: " + readiness.model + " · " + readiness.activeGateway.name +
-            (readiness.sandboxGroup?.name ? " · Sandbox: " + readiness.sandboxGroup.name : " · Local simulation")
-          : "Connect an AI Gateway and model to enable the agent workflow.");
-      if (ACTIVE_LIFECYCLE_STATES.includes(appState)) {
-        appendText(container, "p", appState === "configuring"
-          ? "Validating gateway endpoint, API key, and model in the background…"
-          : humanize(appState) + " is in progress. Model access can be changed when it finishes.");
-        return;
-      }
-      if (!operationalState.app) {
-        appendText(container, "p", "Checking app status before changing model access.");
-        return;
-      }
-      const controls = appendText(container, "div", "", "gateway-fields");
-      appendText(controls, "p", "Loading available AI Gateways & Sandbox Groups...");
-      return loadGatewayControls(controls);
+      const page = container.classList.contains("connections-mount");
+      connections.render(container, { page, scrollTop: page ? connectionScroll : null });
     }
 
     window.addEventListener("app-platform-settings-ready", () => {
@@ -4471,8 +4102,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         deleteConfirming = false;
         deleteError = "";
         portReview = null;
-        gatewayDiscovery.invalidate();
-        if (panelMode === "connections") renderConnectionsPanel({ focus: false });
+        connections.invalidate();
+        connections.updateRuntime();
       });
     });
 
@@ -4643,12 +4274,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         runtimeEntrypoints = app.entrypoints || [];
         updateAppStatusBadge();
-        if (changed && !gatewayApplying) window.appPlatformSettings?.refreshApp();
-        if (changed && panelMode === "connections" && !gatewayApplying &&
-          !window.appPlatformSettings?.isOpen() && !details.querySelector("select:focus")) renderConnectionsPanel({ focus: false });
+        if (changed && !gatewayApplying && !window.appPlatformSettings?.isOpen("connection")) window.appPlatformSettings?.refreshApp();
+        connections.updateRuntime();
         if (changed) {
           const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
-          const interactionActive = gatewayApplying || diagnosticsContainer.querySelector("#run-panel-environment select:focus");
+          const interactionActive = gatewayApplying || diagnosticsContainer.querySelector("#run-panel-environment .connections-root");
           if (onEnvironmentTab && interactionActive) {
             const envTab = diagnosticsContainer.querySelector('[data-run-tab="environment"]');
             if (envTab) {
@@ -4675,10 +4305,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         readinessError = "Unable to refresh app readiness: " + error.message;
         runtimeEntrypoints = [];
         updateAppStatusBadge();
-        if (changed) window.appPlatformSettings?.refreshApp();
+        if (changed && !window.appPlatformSettings?.isOpen("connection")) window.appPlatformSettings?.refreshApp();
         if (changed && panelMode === "manage") renderManagePanel();
         if (changed && panelMode !== "manage") runWorkspace.render({ primary: false });
-        if (changed && panelMode === "connections") renderConnectionsPanel({ focus: false });
+        connections.updateRuntime();
         setStatus("Unable to refresh app readiness: " + error.message, true);
       } finally { operationalRefreshing = false; }
     }
