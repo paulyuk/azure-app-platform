@@ -354,20 +354,43 @@ with an always-visible map. There is no shared status/Guide footer, reserved bot
 row, or Guide popover. Runtime status remains a compact badge immediately after
 the app name, and Status Brief explains runtime, agent, connection and request
 evidence without treating a running app as a successful test. Essential action
-feedback uses the existing live status region without reserving space. Errors
-appear as explicit alerts above workspace content; they are not hidden with Logs.
+feedback uses the existing live status region without reserving space. Workspace errors
+appear as explicit alerts above workspace content; invocation errors stay in their result.
 Open app shares existing header utilities. Workspace changes retain task payloads
 and the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
+Before the first invocation, the result box shows a static decorative task
+40px illustration with **Your result will appear here** and guidance to choose an event
+or enter a task, then select **Invoke agent**. The SVG ships with the plugin and needs no CDN or dependency
+restore. Idle and in-flight states inline the shipped artwork with shared illustration
+tokens: the theme's brand blue and its pale tint, blue outlines, a warm task card
+and off-white object interiors. These are artwork colors, not control-surface or
+generic UI accent colors; light interiors remain visible in dark themes. The blue
+inherits the host's `--true-color-blue` with the source brand blue as a fallback.
+Both source SVGs remain byte-preserved. Preparation, endpoint startup and request
+waiting show a compact phase summary with one shared spinner, without a separate
+step list or repeated progress notes.
+After 30 seconds of request waiting, the copy explains that the request continues;
+this is a message-only timer, not a new request timeout. **View logs** opens the
+existing Output tab. Failures retain the task and literal error details, distinguish
+an unsent task from an uncertain backend outcome, and offer the same log access.
+Only the result heading uses error color; the border, error details and retained-task
+guidance stay neutral. A failed invocation does not change runtime/connection health,
+repeat its error in workspace alerts, or raise a global diagnostics warning.
+Its failed HTTP record remains available in Operations; actual runtime, readiness,
+log-fetch and other operation failures keep their existing diagnostics.
+Successful responses remain plain response text. Invocation payloads, runtime
+readiness, backend deadlines and tool reports are unchanged.
 **Status Brief** leads the tester with separate runtime, agent-endpoint and model
 connection facts. A running web app, configured gateway or Azure operation never
 establishes agent availability or successful policy enforcement. Stopped, starting,
 preview, missing prerequisites/connection and unavailable agent states explain the
-next step; invoking, result received and failed invocation states describe the
-current or last task independently of those facts. Readiness-fetch errors are explicit.
+next step; invoking and result received states describe the current or last task
+independently of those facts. Failed invocations are reported only in their result;
+Status Brief resumes showing current availability. Readiness-fetch errors are explicit.
 Readiness, prerequisite commands, runtime errors and recovery details share this
 single card instead of separate readiness banners. Contextual recovery/setup actions
 are secondary buttons aligned to the right, wrapping within compact panes. The small
