@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const assets = new Map([
+  ["/assets/run-ready-spot.svg", { path: fileURLToPath(new URL("./assets/run-ready-spot.svg", import.meta.url)), type: "image/svg+xml" }],
   ["/assets/app-platform-symbol.png", { path: fileURLToPath(new URL("./assets/app-platform-symbol.png", import.meta.url)), type: "image/png" }],
   ["/assets/app-platform-intro.mp4", { path: fileURLToPath(new URL("./assets/app-platform-intro.mp4", import.meta.url)), type: "video/mp4" }],
   ["/canvas-ui/base.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/base.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],
@@ -19,7 +20,7 @@ const assets = new Map([
 export async function serveStudioAsset(request, response, pathname) {
   const asset = assets.get(pathname);
   if (!asset || !["GET", "HEAD"].includes(request.method)) return false;
-  // Only explicitly shipped brand/toolkit assets are cached, never workspace files.
+  // Only explicitly shipped UI assets are cached, never workspace files.
   const content = asset.content ??= await readFile(asset.path);
   response.setHeader("Content-Type", asset.type);
   response.setHeader("X-Content-Type-Options", "nosniff");

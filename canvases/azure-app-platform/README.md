@@ -362,6 +362,10 @@ Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
+Before the first invocation, the result box shows a static decorative task
+illustration with **Your next run starts here** and guidance to choose an event
+or enter a task. The SVG ships with the plugin and needs no CDN or dependency
+restore. Invocation, response text, errors and runtime readiness are unchanged.
 **Status Brief** leads the tester with separate runtime, agent-endpoint and model
 connection facts. A running web app, configured gateway or Azure operation never
 establishes agent availability or successful policy enforcement. Stopped, starting,

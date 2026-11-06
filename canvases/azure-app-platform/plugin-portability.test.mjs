@@ -42,6 +42,8 @@ test("installed payload opens and materializes templates without checkout depend
       'import "../../../canvases/azure-app-platform/extension.mjs";');
     assert.equal((await readFile(join(payload, "vendor/toolkit/.gitattributes"), "utf8")).trim(), "* -text",
       "Vendored asset hashes must survive Git newline conversion on Windows");
+    assert.equal((await readFile(join(payload, "assets/.gitattributes"), "utf8")).trim(), "run-ready-spot.svg -text",
+      "The extracted illustration must survive Git newline conversion on Windows");
     for (const path of ["README.md", ...manifest.skills.map((skill) => `${skill}/SKILL.md`)]) {
       const instructions = await readFile(join(payload, path), "utf8");
       assert.doesNotMatch(instructions, /bootstrap-extension\.mjs/);
@@ -138,12 +140,12 @@ test("installed payload opens and materializes templates without checkout depend
         } finally { await canvas.onClose({ instanceId: standaloneContext.instanceId }); }
         assert.equal(new URL(opened.url).searchParams.has("intro"), false);
         assert.doesNotMatch(html, /id="skip-studio-intro"/);
-        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4"]) {
+        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg"]) {
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);
           const expected = await readFile(join(payload, "assets", name));
           assert.equal(asset.status, 200);
-          assert.equal(asset.headers.get("content-type"), name.endsWith(".png") ? "image/png" : "video/mp4");
+          assert.equal(asset.headers.get("content-type"), name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "video/mp4");
           assert.equal(asset.headers.get("content-length"), String(expected.length));
           assert.deepEqual(Buffer.from(await asset.arrayBuffer()), expected);
           const head = await fetch(assetUrl, { method: "HEAD" });

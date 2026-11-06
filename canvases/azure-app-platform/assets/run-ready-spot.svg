@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="illustration-title illustration-description">
+<title id="illustration-title">A task ready for dispatch</title>
+<desc id="illustration-description">A warm task card waits above an open intake tray, with a small dispatch arrow pointing into the workflow.</desc>
+<svg id="subject-intake" x="8" y="80" width="416" height="416" viewBox="5508 1224 512 512" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+<defs><mask id="part-0-stroke24_262_230" fill="white" xmlns="http://www.w3.org/2000/svg"><use xlink:href="#part-0-stroke23_262_230" xmlns:xlink="http://www.w3.org/1999/xlink" /></mask>
+<path id="part-0-stroke23_262_230" d="M5604 1412C5604 1378.86 5630.86 1352 5664 1352H5864C5897.14 1352 5924 1378.86 5924 1412V1535.5C5924 1557.59 5906.09 1575.5 5884 1575.5H5644C5621.91 1575.5 5604 1557.59 5604 1535.5V1412Z" xmlns="http://www.w3.org/2000/svg" /></defs>
+<use xlink:href="#part-0-stroke23_262_230" fill="#F5F5F5" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" />
+<path d="M5644 1575.5H5884C5906.09 1575.5 5924 1557.59 5924 1535.5V1412C5924 1378.86 5897.14 1352 5864 1352H5664C5630.86 1352 5604 1378.86 5604 1412V1535.5C5604 1557.59 5621.91 1575.5 5644 1575.5Z" stroke-width="4" stroke="#294482" mask="url(#part-0-stroke24_262_230)" xmlns="http://www.w3.org/2000/svg" />
+<path d="M5652 1436C5652 1413.91 5669.91 1396 5692 1396H5836C5858.09 1396 5876 1413.91 5876 1436V1559C5876 1581.09 5858.09 1599 5836 1599H5692C5669.91 1599 5652 1581.09 5652 1559V1436Z" fill="#CEDEFF" xmlns="http://www.w3.org/2000/svg" />
+<path d="M5684.19 1598.24C5686.72 1598.74 5689.33 1599 5692 1599H5701M5669.78 1592.26C5665.41 1589.34 5661.66 1585.59 5658.74 1581.22M5652.76 1566.81C5652.26 1564.28 5652 1561.67 5652 1559V1548.75M5652 1528.25V1507.75M5652 1487.25V1466.75M5652 1446.25V1436C5652 1433.33 5652.26 1430.72 5652.76 1428.19M5658.74 1413.78C5661.66 1409.41 5665.41 1405.66 5669.78 1402.74M5684.19 1396.76C5686.72 1396.26 5689.33 1396 5692 1396H5701M5719 1396H5737M5755 1396H5773M5791 1396H5809M5827 1396H5836C5838.67 1396 5841.28 1396.26 5843.81 1396.76M5858.22 1402.74C5862.59 1405.66 5866.34 1409.41 5869.26 1413.78M5875.24 1428.19C5875.74 1430.72 5876 1433.33 5876 1436V1446.25M5876 1466.75V1487.25M5876 1507.75V1528.25M5876 1548.75V1559C5876 1561.67 5875.74 1564.28 5875.24 1566.81M5869.26 1581.22C5866.34 1585.59 5862.59 1589.34 5858.22 1592.26M5843.81 1598.24C5841.28 1598.74 5838.67 1599 5836 1599H5827M5809 1599H5791M5773 1599H5755M5737 1599H5719" stroke-width="2" stroke-linecap="round" stroke="#294482" xmlns="http://www.w3.org/2000/svg" />
+<path d="M5923 1600C5923 1622.09 5905.09 1640 5883 1640H5645C5622.91 1640 5605 1622.09 5605 1600V1490L5605 1492C5605 1514.09 5622.91 1532 5645 1532H5714C5722.28 1532 5728.71 1538.99 5731.99 1546.59C5737.46 1559.27 5749.84 1568.17 5764.45 1568.17C5779.07 1568.17 5791.5 1559.27 5796.99 1546.59C5800.28 1538.99 5806.72 1532 5815 1532H5883C5905.09 1532 5923 1514.09 5923 1492V1490V1600Z" fill="#F5F5F5" stroke-width="2" stroke="#294482" xmlns="http://www.w3.org/2000/svg" />
+</svg>
+
+<g id="subject-task" stroke="#294482" stroke-width="2" stroke-linejoin="round">
+  <path d="M183 83H278L309 114V227Q309 245 291 245H183Q165 245 165 227V101Q165 83 183 83Z" fill="#FFE4B4"/>
+  <path d="M278 83V103Q278 114 289 114H309" fill="#F5F5F5"/>
+  <path d="M191 139H265M191 162H249M191 185H232" stroke-linecap="round"/>
+</g>
+<g id="connection-dispatch" stroke="#294482" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="343" cy="254" r="36" fill="#5C8DF8"/>
+  <path d="M343 239V269M332 258L343 269L354 258" stroke="#FFFFFF" stroke-width="5"/>
+  <path d="M329 312V329Q329 341 317 341H297" fill="none" stroke-dasharray="6 8"/>
+</g>
+<g id="supporting-detail" fill="#CEDEFF">
+  <circle cx="129" cy="121" r="8"/>
+  <circle cx="348" cy="154" r="5"/>
+</g>
+</svg>

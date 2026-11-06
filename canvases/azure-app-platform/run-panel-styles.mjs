@@ -79,6 +79,15 @@ export const RUN_PANEL_CONTENT_CSS = `
 #details[data-mode="manage"] .agent-response { min-height:96px; max-height:300px; overflow:auto; padding:14px 16px; border:1px solid var(--studio-line); border-radius:7px; background:var(--studio-panel); color:var(--studio-ink); white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.65 var(--font-sans, system-ui); }
 #details[data-mode="manage"] .agent-response[data-state="failed"] { border-color:var(--studio-danger); color:var(--studio-danger); }
 #details[data-mode="manage"] .agent-response:focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
+#details[data-mode="manage"] .agent-result-summary { display:flex; align-items:center; gap:12px; min-width:0; white-space:normal; }
+#details[data-mode="manage"] .agent-result-illustration { display:block; flex:none; width:80px; height:80px; }
+#details[data-mode="manage"] .agent-result-copy { min-width:0; }
+#details[data-mode="manage"] .agent-result-title { display:block; font-size:14px; line-height:1.45; }
+#details[data-mode="manage"] .agent-result-copy p { margin:4px 0 0; font-size:12px; line-height:1.5; }
+@media (max-width:350px) {
+  #details[data-mode="manage"] .agent-result-illustration { width:64px; height:64px; }
+  #details[data-mode="manage"] .agent-result-summary { gap:8px; }
+}
 #details[data-mode="manage"] .run-document > summary, #details[data-mode="manage"] .run-tool-activity > summary, #details[data-mode="manage"] .agent-tester > details > summary { color:var(--studio-muted); cursor:pointer; font-size:12px; padding:5px 0; overflow-wrap:anywhere; }
 #details[data-mode="manage"] .document-input { display:grid; gap:8px; min-width:0; padding:8px 0; }
 #details[data-mode="manage"] .document-input p { margin:0; }

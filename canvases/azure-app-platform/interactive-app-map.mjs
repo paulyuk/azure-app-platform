@@ -5,6 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
+import { renderIdleAgentResponse } from "./agent-response.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -3463,7 +3464,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.tabIndex = 0;
       response.dataset.runScrollKey = "agent-result";
       response.dataset.state = agentRequestState;
-      response.textContent = agentResponseText;
+      if (agentRequestState === "idle") (${renderIdleAgentResponse.toString()})(response);
+      else response.textContent = agentResponseText;
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);
