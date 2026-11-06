@@ -88,7 +88,8 @@ test("Build is a focused read-only customization workspace with document and Run
 
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.addStyleTag({ content: BUILD_EXPLORER_CSS });
-    await page.getByRole("heading", { name: "Build your app", exact: true }).waitFor();
+    await page.locator(".build-workspace").waitFor();
+    assert.equal(await page.locator(".build-heading,.build-help").count(), 0);
 
     const files = page.getByRole("navigation", { name: "Build files", exact: true });
     assert.deepEqual(await files.locator("summary").allTextContents(), ["Agents (1)", "Tools (2)", "Source (1)"]);
@@ -114,37 +115,6 @@ test("Build is a focused read-only customization workspace with document and Run
     assert.equal(await page.getByRole("button", { name: /review changes|save reviewed changes|discard draft/i }).count(), 0);
     assert.equal(await page.locator(".build-diff,.build-review-summary").count(), 0);
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
-
-    const help = page.getByRole("button", { name: "About Build", exact: true });
-    const tooltip = page.getByRole("tooltip");
-    assert.equal(await help.getAttribute("aria-describedby"), "build-help-tooltip");
-    assert.equal(await tooltip.isHidden(), true);
-    await help.hover();
-    await tooltip.waitFor();
-    assert.match(await tooltip.innerText(), /Browse saved source.*Edit.*Adjust with AI.*template/si);
-    await tooltip.hover();
-    assert.equal(await tooltip.isVisible(), true, "Pointer can move into the tooltip");
-    await page.mouse.move(900, 700);
-    await tooltip.waitFor({ state: "hidden" });
-    await help.focus();
-    await tooltip.waitFor();
-    await page.keyboard.press("Escape");
-    assert.equal(await tooltip.isHidden(), true);
-    await help.click();
-    assert.equal(await tooltip.isVisible(), true);
-    await page.mouse.move(900, 700);
-    assert.equal(await tooltip.isVisible(), true, "Click pins the tooltip");
-    await page.getByRole("button", { name: "Refresh source", exact: true }).focus();
-    await tooltip.waitFor({ state: "hidden" });
-    await page.setViewportSize({ width: 380, height: 800 });
-    await help.hover();
-    const [tooltipBounds, detailsBounds] = await Promise.all([
-      tooltip.boundingBox(), page.locator("#details").boundingBox(),
-    ]);
-    assert.ok(tooltipBounds.x >= detailsBounds.x
-      && tooltipBounds.x + tooltipBounds.width <= detailsBounds.x + detailsBounds.width + 1,
-    "The tooltip stays within compact Build bounds");
-    await page.setViewportSize({ width: 1000, height: 800 });
 
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
     await page.getByRole("button", { name: "Test with a document", exact: true }).click();

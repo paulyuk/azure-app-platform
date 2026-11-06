@@ -5,20 +5,10 @@ import { octiconMask } from "./studio-icons.mjs";
 export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] { --build-code-bg:light-dark(var(--studio-raised),color-mix(in srgb,var(--studio-panel) 94%,var(--studio-ink))); display:flex; flex-direction:column; overflow:hidden; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
 :is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-height:0; width:100%; margin-inline:auto; padding:20px 24px 0; }
-:is(#details, #customize-content)[data-mode="build"] .build-heading { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:12px; }
-:is(#details, #customize-content)[data-mode="build"] .build-heading > :first-child { flex:1; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] h2 { margin:0; font-size:15px; line-height:22px; font-weight:600; color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; line-height:20px; }
-:is(#details, #customize-content)[data-mode="build"] .build-heading p { max-width:60ch; margin-bottom:0; }
-:is(#details, #customize-content)[data-mode="build"] .build-heading-title { position:relative; display:flex; align-items:center; gap:8px; }
-:is(#details, #customize-content)[data-mode="build"] .build-help-button { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; min-height:28px; padding:4px; border:0; background:transparent; color:var(--studio-muted); }
-:is(#details, #customize-content)[data-mode="build"] .build-help-button:hover { background:var(--studio-panel); color:var(--studio-ink); }
-:is(#details, #customize-content)[data-mode="build"] .build-help-tooltip { position:absolute; z-index:3; inset-inline-start:0; top:calc(100% + 6px); box-sizing:border-box; width:320px; max-width:100%; padding:12px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); box-shadow:0 8px 24px rgb(0 0 0 / .18); font:12px/1.5 var(--font-sans,system-ui); }
 :is(#details, #customize-content)[data-mode="build"] button:not([role="tab"]) { ${ACTION_BUTTON_STYLE} }
 :is(#details, #customize-content)[data-mode="build"] :is(button,select,summary,.build-source-preview):focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
-:is(#details, #customize-content)[data-mode="build"] .build-refresh { flex:none; min-height:28px; padding:4px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font-size:12px; font-weight:500; }
-:is(#details, #customize-content)[data-mode="build"] .build-refresh:hover:not(:disabled) { border-color:var(--studio-accent); background:var(--studio-panel); }
-:is(#details, #customize-content)[data-mode="build"] .build-heading-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; flex:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-area { margin:0; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-area-header { display:grid; gap:4px; margin-bottom:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-area-title { margin:0; font-size:14px; line-height:20px; font-weight:600; color:var(--studio-ink); }
@@ -111,7 +101,6 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-add-form p { margin:0; font-size:12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-template-path { font:11px/18px var(--font-mono,monospace); overflow-wrap:anywhere; }
 @container build-panel (max-width:600px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-heading { gap:8px; }
   :is(#details, #customize-content)[data-mode="build"] .build-workspace { padding:12px 12px 0; }
   :is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-condensed,8px); }
 }
@@ -136,7 +125,7 @@ export const BUILD_EXPLORER_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-file-header .build-file-actions { flex-direction:row; align-items:center; justify-content:flex-end; gap:4px; max-width:100%; margin:0; margin-inline-start:auto; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-overflow { display:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-compact-navigation { display:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-compact-actions { width:100%; justify-content:space-between; }
+:is(#details, #customize-content)[data-mode="build"] .build-compact-actions { display:flex; align-items:center; width:100%; justify-content:space-between; gap:8px; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-header { padding-block:8px; border-bottom:1px solid var(--studio-line); }
 :is(#details, #customize-content)[data-mode="build"] .build-block-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-heading .build-area-title { min-width:0; overflow-wrap:anywhere; }
@@ -175,7 +164,7 @@ export const BUILD_EXPLORER_CSS = `
   :is(#details, #customize-content)[data-mode="build"] .build-content { grid-area:1 / 1; }
   :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] .build-explorer { display:flex; }
   :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] .build-content { visibility:hidden; }
-  :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] [data-compact-add] { display:none; }
+  :is(#details, #customize-content)[data-mode="build"] .build-workspace[data-files-open="true"] [data-compact-block-actions] { display:none; }
   :is(#details, #customize-content)[data-mode="build"] .build-explorer-heading { flex-wrap:nowrap; }
 }
 `;
@@ -496,46 +485,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     editorSettingsSaving = busy;
     editorSettingsVersion++;
     if (isActive()) updateEditorControls();
-  }
-  function renderHelp(parent) {
-    const help = element("span", undefined, parent, "build-help");
-    const control = button(help, "", () => {
-      pinned = !pinned;
-      dismissed = !pinned;
-      tooltip.hidden = !pinned;
-    });
-    buttons.update(control, { className: "build-help-button", appearance: "subtle" });
-    control.setAttribute("aria-label", "About Build");
-    control.setAttribute("aria-describedby", "build-help-tooltip");
-    control.dataset.focusKey = "help";
-    buttons.update(control, { icon: buttons.icon(helpIcon) });
-    const tooltip = element("span", "Browse saved source by building block. Use Edit to open a file, Adjust with AI to request a change, or Add to start from a template.", help, "build-help-tooltip");
-    tooltip.id = "build-help-tooltip";
-    tooltip.setAttribute("role", "tooltip");
-    tooltip.hidden = true;
-    let pinned = false, dismissed = false, leaveTimer;
-    function reveal() {
-      clearTimeout(leaveTimer);
-      if (!dismissed) tooltip.hidden = false;
-    }
-    function leave() {
-      dismissed = false;
-      clearTimeout(leaveTimer);
-      leaveTimer = setTimeout(() => {
-        if (!pinned && !help.contains(document.activeElement) && !help.matches(":hover")) tooltip.hidden = true;
-      }, 120);
-    }
-    help.addEventListener("pointerenter", reveal);
-    help.addEventListener("pointerleave", leave);
-    help.addEventListener("focusin", reveal);
-    help.addEventListener("focusout", () => { pinned = false; leave(); });
-    help.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      pinned = false;
-      dismissed = true;
-      tooltip.hidden = true;
-    });
   }
   function wrapSourceLines(highlight) {
     function linesFor(node) {
@@ -1179,14 +1128,6 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   function renderWorkspace(diagnostics) {
     workspace = element("div", undefined, container, "build-workspace");
     workspace.dataset.filesOpen = String(compactFilesOpen);
-    const header = element("div", undefined, workspace, "build-heading");
-    const intro = element("div", undefined, header);
-    const title = element("div", undefined, intro, "build-heading-title");
-    element("h2", "Build your app", title);
-    renderHelp(title);
-    element("p", "Preview code, edit files, and add building blocks.", intro);
-    const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
-    renderRefreshButton(headerActions);
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
@@ -1218,7 +1159,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       element("div", undefined, empty, "build-handoff-feedback").dataset.artifactId = "workspace";
     }
     const compactNavigation = element("div", undefined, workspace, "build-compact-navigation");
-    const compactActions = buttons.actionGroup(compactNavigation, { className: "build-compact-actions", "aria-label": "File navigation" });
+    const compactActions = element("div", undefined, compactNavigation, "build-compact-actions");
+    compactActions.setAttribute("role", "toolbar");
+    compactActions.setAttribute("aria-label", "File navigation");
     const filesToggle = button(compactActions, "Files", () => setFileListOpen(!compactFilesOpen));
     buttons.update(filesToggle, {
       appearance: "secondary", icon: fileIcon("files"),
@@ -1226,8 +1169,11 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     });
     filesToggle.dataset.filesToggle = "true";
     filesToggle.dataset.focusKey = "files-toggle";
-    const compactAdd = button(compactActions, "+ Add", startAdding);
-    buttons.update(compactAdd, { appearance: "secondary", "aria-label": "+ Add building block" });
+    const compactBlockActions = buttons.actionGroup(compactActions, { "aria-label": "Building block actions" });
+    compactBlockActions.dataset.compactBlockActions = "true";
+    renderRefreshButton(compactBlockActions);
+    const compactAdd = button(compactBlockActions, "", startAdding);
+    buttons.update(compactAdd, { appearance: "subtle", icon: fileIcon("add"), "aria-label": "+ Add building block", title: "Add building block" });
     compactAdd.dataset.focusKey = "compact-add-block";
     compactAdd.dataset.compactAdd = "true";
     const browser = element("div", undefined, workspace, "build-browser");
@@ -1242,10 +1188,12 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const explorerHeader = element("div", undefined, explorer, "build-explorer-header");
     const explorerHeading = element("div", undefined, explorerHeader, "build-explorer-heading");
     element("strong", "Building blocks", explorerHeading);
-    const add = button(explorerHeading, "+ Add", startAdding);
+    const explorerActions = buttons.actionGroup(explorerHeading, { "aria-label": "Building block actions" });
+    renderRefreshButton(explorerActions);
+    const add = button(explorerActions, "", startAdding);
     add.setAttribute("aria-label", "+ Add building block");
     add.dataset.focusKey = "add-block";
-    buttons.update(add, { appearance: "secondary" });
+    buttons.update(add, { appearance: "subtle", icon: fileIcon("add"), title: "Add building block" });
     if (!artifacts.some((artifact) => artifact.id === selectedArtifact)) selectedArtifact = artifacts[0]?.id;
     const searchHost = element("div", undefined, explorerHeader, "build-file-search");
     const search = field(searchHost, {
@@ -1301,6 +1249,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     restoreOnShow = false;
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
+    const initiatingFocusKey = container.contains(document.activeElement)
+      ? document.activeElement.dataset.focusKey : undefined;
+    let restoreFocusKey;
     refreshing = true;
     setRefreshDisabled(true);
     let loading;
@@ -1327,7 +1278,8 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         return;
       }
       rememberView();
-      const focusKey = container.contains(document.activeElement) ? document.activeElement.dataset.focusKey : undefined;
+      const focusKey = container.contains(document.activeElement) ? document.activeElement.dataset.focusKey
+        : document.activeElement === document.body ? initiatingFocusKey : undefined;
       artifacts = next;
       supportsDocuments = state.supportsDocuments === true;
       renderedState = signature;
@@ -1336,8 +1288,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       container.replaceChildren();
       renderWorkspace(state.diagnostics);
       container.scrollTop = panelScroll;
-      if (focusKey) [...container.querySelectorAll("[data-focus-key]")]
-        .find((node) => node.dataset.focusKey === focusKey)?.focus({ preventScroll: true });
+      restoreFocusKey = focusKey;
     } catch (cause) {
       if (isActive() && version === loadVersion) {
         loading?.remove();
@@ -1350,12 +1301,14 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       if (version === loadVersion) {
         refreshing = false;
         setRefreshDisabled(false);
+        if (restoreFocusKey) [...container.querySelectorAll("[data-focus-key]")]
+          .find((node) => node.dataset.focusKey === restoreFocusKey && node.checkVisibility())?.focus({ preventScroll: true });
       }
     }
   }
   function renderRefreshButton(parent) {
     const refresh = buttons.create({
-      className: "build-refresh", appearance: "secondary", size: "small", disabled: refreshing,
+      className: "build-refresh", appearance: "subtle", size: "small", disabled: refreshing,
       icon: fileIcon("refresh"), "aria-label": "Refresh source", title: "Refresh source",
       "data-focus-key": "refresh", onClick: () => show({ refresh: true }),
     });

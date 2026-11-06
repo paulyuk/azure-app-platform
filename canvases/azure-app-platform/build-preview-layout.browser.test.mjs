@@ -685,6 +685,24 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(await configPage.getAttribute("aria-pressed"), "true", "File choices remain on the right");
       await page.getByRole("button", { name: "Refresh source", exact: true }).click();
       assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Source refresh preserves the selected layout");
+      for (const width of [1000, 380]) {
+        await page.setViewportSize({ width, height: 900 });
+        artifacts[0].content += "\n";
+        await page.locator(".build-workspace").evaluate(workspace => { window.beforeRefreshWorkspace = workspace; });
+        await page.getByRole("button", { name: "Refresh source", exact: true }).focus();
+        await page.getByRole("button", { name: "Refresh source", exact: true }).press("Space");
+        await page.waitForFunction(() => document.querySelector(".build-workspace") !== window.beforeRefreshWorkspace);
+        assert.ok(await page.getByRole("button", { name: "Refresh source", exact: true }).evaluate(button =>
+          button === document.activeElement && button.checkVisibility()),
+        `Changed source restores focus to the visible Refresh control at ${width}px`);
+      }
+      await page.locator("[data-files-toggle]").click();
+      assert.equal(await page.getByRole("button", { name: "Refresh source", exact: true }).count(), 1,
+        "Opening compact Files exposes only the explorer Refresh control");
+      assert.equal(await page.getByRole("button", { name: "+ Add building block", exact: true }).count(), 1,
+        "Opening compact Files exposes only the explorer Add control");
+      await page.locator("[data-files-toggle]").click();
+      await page.setViewportSize({ width: 1000, height: 900 });
       await page.locator('[data-file-choice="first"]').click();
       assert.equal(await stackView.count(), 0, "Single files have no layout switch");
       await page.locator('[data-file-choice="deal-implementation"]').click();

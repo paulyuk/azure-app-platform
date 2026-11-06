@@ -252,19 +252,25 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator(".build-source-preview").first().waitFor();
       const refreshView = page.getByRole("button", { name: "Refresh source", exact: true });
       assert.equal(await refreshView.getAttribute("title"), "Refresh source");
-      assert.equal(await refreshView.getAttribute("data-appearance"), "secondary");
+      assert.equal(await refreshView.getAttribute("data-appearance"), "subtle");
       assert.equal(await refreshView.innerText(), "");
       assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).count(), 0);
-      assert.equal(await page.locator(".build-heading-actions button").count(), 1);
+      assert.equal(await page.locator(".build-heading").count(), 0);
       assert.equal(await page.locator("#workspace-header-actions .build-refresh").count(), 0);
       for (const width of [320, 380, 1000]) {
         await page.setViewportSize({ width, height: 800 });
         assert.equal(await refreshView.evaluate(button => {
           const refresh = button.getBoundingClientRect();
-          const heading = button.closest(".build-heading").getBoundingClientRect();
-          return Math.abs(refresh.right - heading.right) <= 1 &&
-            Math.abs(refresh.top - heading.top) <= 1 && refresh.right <= innerWidth;
-        }), true, "Refresh source stays alone at the Build page's top right");
+          const group = button.closest('[aria-label="Building block actions"]');
+          const add = group.querySelector('[aria-label="+ Add building block"]');
+          const bounds = add.getBoundingClientRect();
+          const files = document.querySelector("[data-files-toggle]");
+          const inlineFiles = !files.checkVisibility() ||
+            Math.abs(files.getBoundingClientRect().top - refresh.top) <= 1;
+          return refresh.right < bounds.left && Math.abs(refresh.top - bounds.top) <= 1 &&
+            bounds.right <= innerWidth && add.textContent.trim() === "" &&
+            add.dataset.appearance === "subtle" && inlineFiles;
+        }), true, "Refresh and Add stay icon-only and subtle, with refresh immediately to the left");
       }
       await refreshView.click();
       await page.waitForFunction(() => !document.querySelector(".build-refresh").disabled);

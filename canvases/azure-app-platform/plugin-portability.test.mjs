@@ -408,9 +408,9 @@ test("installed payload opens and materializes templates without checkout depend
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /data-studio-presentation="github-app"/);
-        assert.match(mapHtml, /Build your app/);
+        assert.match(mapHtml, /Building block actions/);
         assert.match(mapHtml, /aria-label="Preferred external editor"/);
-        assert.match(mapHtml, /build-help-tooltip/);
+        assert.doesNotMatch(mapHtml, /build-help-tooltip|Build your app/);
         assert.doesNotMatch(mapHtml, /About these customization points/);
         assert.doesNotMatch(mapHtml, /Resize key files/);
         checkpoint("workspace actions verified");

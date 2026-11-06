@@ -637,10 +637,11 @@ of scrolling horizontally. The buttons stay left-aligned immediately after the
 visible filenames, with plus last, and never extend past the row's right edge.
 Opening the overflow menu does not push the buttons to the right.
 Editor, AI, and section-specific actions stay in each file's header. The plus button opens
-the existing template-first creation flow. The secondary **Refresh source** icon
-sits by itself at the top right of the Build page, including in compact panes;
-its tooltip names the action. It is not part of the shared Logs toolbar.
-Build has no separate Run & Debug shortcut.
+the existing template-first creation flow. The icon-only **Refresh source** action
+sits immediately before the icon-only **Add building block** action in the
+building-blocks header, or the compact Files toolbar. Both use subtle appearance
+and retain their tooltips and accessible labels. Build has no introductory title,
+tagline, or separate Run & Debug shortcut.
 The selected layout, per-page scroll
 positions, expanded stack previews, and AI drafts survive switching views.
 File headers and their editor/AI actions stay pinned while scrolling in either
@@ -814,9 +815,8 @@ The chosen editor must already be installed, with its CLI available where
 required; Studio reports launch failures rather than opening another editor.
 Changes in Settings update Build and app-creation actions together. External
 launches are disabled while the preference is loading/saving; failed saves retain
-the confirmed editor and surface an error. A small **About Build** info button
-beside the page heading provides additional context. Its tooltip is
-available on hover, keyboard focus, or click, and dismisses with Escape.
+the confirmed editor and surface an error. Build starts directly with its
+source browser, without a repeated introductory heading or help banner.
 Save changes in Files or the external editor, then return to Build. Focus and
 visibility changes refresh saved source, as does re-entering Build.
 **Refresh source** provides an explicit retry or refresh without leaving the
