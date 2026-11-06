@@ -255,8 +255,7 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
-pattern. Its Simple home introduces **Automate real tasks within boundaries you set.**
-with **Isolate tool execution and govern access to shared models and tools.** and presents
+pattern. Its Simple home asks **What would you like to do?** and presents
 **Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
 compact task cards, in that order. The content container uses one, two, or three
 columns at 520px and 760px of available content width, with 12px gaps and an
