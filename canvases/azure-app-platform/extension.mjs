@@ -118,6 +118,7 @@ function trackedAzureRunner(root, { signal, timeout = 12_000 } = {}) {
       const result = await runCommand(command, args, { signal, timeout });
       await activity.finish(id, {
         ok: result.ok,
+        cancelled: result.aborted,
         note: result.ok ? "" : result.aborted ? "Cancelled" : result.stderr || result.error,
       });
       return result;

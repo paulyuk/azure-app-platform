@@ -38,6 +38,7 @@ export const AGENT_STATUS_CSS = `
 
 export const RUN_PANEL_CONTENT_CSS = `
 #workspace-diagnostics { flex:none; min-width:0; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.5 var(--font-sans,system-ui,sans-serif); }
+body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] { display:none; }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) {
   color:var(--studio-ink); background:var(--studio-raised);
   font:13px/1.5 var(--font-sans, system-ui, sans-serif); padding:24px;

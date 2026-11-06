@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createCommandActivity } from "./command-activity.mjs";
 import { createDiscoveryTracker } from "./discovery-tracker.mjs";
+import { runCommand } from "./discovery.mjs";
 import { summarizeAgentResult } from "./agent-result.mjs";
 import { discoverGatewayModels, gatewayCommandEnvironment, loadGatewayModelOptions } from "./gateway-state.mjs";
 
@@ -62,6 +63,42 @@ test("discovery is single-flight, aborts superseded or cancelled scans, and reje
   const refresh = tracker.begin("a", async () => "new", true);
   assert.equal(await refresh.promise, "new");
   assert.equal(refresh.isCurrent(), true);
+});
+
+test("cancelled discovery stays distinct from command failures and timeouts across reloads", async () => {
+  const root = await mkdtemp(join(tmpdir(), "unity-cancelled-activity-"));
+  try {
+    const file = join(root, "activity.json");
+    const store = createCommandActivity(file);
+    const controller = new AbortController();
+    const cancelledRun = runCommand(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { signal: controller.signal });
+    controller.abort();
+    const results = [
+      await cancelledRun,
+      await runCommand(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { timeout: 50 }),
+      await runCommand(process.execPath, ["-e", "process.exit(1)"]),
+    ];
+    assert.equal(results[0].aborted, true);
+    assert.equal(results[1].timedOut, true);
+    for (const result of results) {
+      const id = await store.start({ kind: "az", label: "Azure discovery", command: "az aigateway list" });
+      await store.finish(id, {
+        ok: result.ok, cancelled: result.aborted,
+        note: result.aborted ? "Cancelled" : result.error || "Exit 1",
+      });
+    }
+    assert.deepEqual((await store.list()).map(record => record.status), ["failed", "failed", "cancelled"]);
+    assert.deepEqual((await createCommandActivity(file).list()).map(record => record.status), ["failed", "failed", "cancelled"]);
+
+    await writeFile(file, JSON.stringify([
+      { kind: "az", label: "Azure discovery", status: "failed", note: "Cancelled", error: "" },
+      { kind: "az", label: "Azure discovery", status: "failed", note: "Forbidden", error: "" },
+      { kind: "az", label: "Azure discovery", status: "failed", note: "Cancelled", error: "Unexpected failure" },
+      { kind: "http", label: "Invoke agent", status: "failed", note: "Cancelled", error: "" },
+    ]));
+    assert.deepEqual((await createCommandActivity(file).list()).map(record => record.status),
+      ["cancelled", "failed", "failed", "failed"], "Only known legacy discovery cancellations are reclassified");
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test("gateway models span providers and include callable aliases; empty gateways are skipped for new default selection", async () => {

@@ -14,6 +14,7 @@ export function createRunWorkspace({
   const disclosures = new Map();
   const scrolling = new Map();
   const selections = new Map();
+  const deferredPanels = new WeakMap();
   let selectedTab = "output";
   let lastState;
   let failures = 0;
@@ -65,6 +66,7 @@ export function createRunWorkspace({
     }
     support.hidden = !diagnosticsOpen;
     separator.hidden = !diagnosticsOpen;
+    renderSelectedPanel();
     shell.dataset.diagnostics = diagnosticsOpen ? "open" : "closed";
     const issues = [
       attention,
@@ -164,7 +166,17 @@ export function createRunWorkspace({
     for (const panel of shell.querySelectorAll('[role="tabpanel"]')) {
       panel.hidden = panel.dataset.runPanel !== id;
     }
+    renderSelectedPanel();
     restoreScrolling(shell);
+  }
+
+  function renderSelectedPanel() {
+    if (!diagnosticsOpen) return;
+    const panel = diagnosticsContainer.querySelector('[data-run-panel="' + selectedTab + '"]');
+    const render = deferredPanels.get(panel);
+    if (!render) return;
+    render(panel);
+    deferredPanels.delete(panel);
   }
 
   function createTab(tablist, id, label, iconId = id) {
@@ -198,7 +210,7 @@ export function createRunWorkspace({
     return tab;
   }
 
-  function createPanel(parent, id, render) {
+  function createPanel(parent, id, render, { deferred = false } = {}) {
     const panel = document.createElement("section");
     panel.id = "run-panel-" + id;
     panel.className = "run-tab-panel studio-tab-panel";
@@ -208,7 +220,8 @@ export function createRunWorkspace({
     panel.setAttribute("aria-labelledby", "run-tab-" + id);
     panel.tabIndex = 0;
     parent.append(panel);
-    render(panel);
+    if (deferred) deferredPanels.set(panel, render);
+    else render(panel);
     return panel;
   }
 
@@ -317,7 +330,7 @@ export function createRunWorkspace({
       const panels = text(support, "div", "", "run-tab-panels");
       createPanel(panels, "output", renderOutput);
       createPanel(panels, "services", renderServices);
-      if (renderEnvironment) createPanel(panels, "environment", renderEnvironment);
+      if (renderEnvironment) createPanel(panels, "environment", renderEnvironment, { deferred: true });
       createPanel(panels, "operations", renderOperations);
       activateTab(shell, selectedTab, { captureState: false });
       syncDiagnostics();
