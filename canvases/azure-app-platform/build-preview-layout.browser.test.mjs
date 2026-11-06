@@ -195,7 +195,7 @@ for (const [name, engine, presentationProfile] of [
                 badgeBounds.bottom <= header.getBoundingClientRect().bottom + 1,
               redundantHeaders: pane.querySelectorAll(".build-preview-help,.build-preview-title,.build-preview-toolbar").length,
               direction: getComputedStyle(pane.querySelector('.build-actions[aria-label="File actions"]')).flexDirection,
-              iconOnlyEditor: pane.querySelector("[data-file-open] button")?.textContent.trim() === "" &&
+              labeledEditor: pane.querySelector("[data-file-open] button")?.textContent.trim() === "Edit" &&
                 pane.querySelector("[data-file-open] button")?.getAttribute("data-appearance") === "secondary",
               secondaryVisible: [...pane.querySelectorAll("[data-file-secondary]")].some(control => getComputedStyle(control).display !== "none"),
               overflow: pane.scrollWidth - pane.clientWidth,
@@ -205,8 +205,8 @@ for (const [name, engine, presentationProfile] of [
             `${name} ${theme} ${width}px keeps the read-only label inside its pane: ${JSON.stringify(cues)}`);
           assert.equal(cues.redundantHeaders, 0, "Code follows its file header without repeated preview guidance");
           assert.equal(cues.direction, "row", "The file toolbar does not become a stack of full-width buttons");
-          assert.equal(cues.iconOnlyEditor, true,
-            "The secondary editor action stays icon-only, including in compact panes");
+          assert.equal(cues.labeledEditor, true,
+            "The secondary editor action keeps its Edit label, including in compact panes");
           assert.equal(cues.secondaryVisible, false, "Generic source has no document-only secondary actions");
           assert.equal(await page.getByRole("button", { name: "More file actions", exact: true }).isVisible(),
             false, "Generic source needs no redundant More menu alongside the split button");

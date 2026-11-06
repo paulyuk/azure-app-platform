@@ -214,7 +214,8 @@ for (const status of [400, 503]) {
       const row = page.locator('.build-file[data-artifact="agent"]');
       const edit = row.getByRole("button", { name: "Edit in VS Code", exact: true });
       await edit.waitFor();
-      assert.equal(await edit.innerText(), "", "The editor action is icon-only in compact panes");
+      assert.equal(await edit.innerText(), "Edit", "The editor action keeps its visible label in compact panes");
+      assert.equal(await edit.locator("svg.vscode-icon").count(), 1);
       assert.equal(await edit.getAttribute("data-appearance"), "secondary");
       assert.equal(await edit.getAttribute("title"), "Edit in VS Code");
       assert.equal(await row.locator(".build-preview-badge .build-icon-preview").count(), 1);
@@ -298,6 +299,7 @@ test("Build follows shared editor settings without owning a picker or accepting 
     await launches.first().waitFor();
     assert.equal(await page.locator(".build-discovery,[data-editor-select]").count(), 0);
     assert.deepEqual(await launchLabels(), ["Edit in VS Code"]);
+    assert.deepEqual(await launches.allTextContents(), ["Edit"]);
 
     workspaceGate = { started: deferred(), reply: deferred(), completed: deferred() };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -306,6 +308,8 @@ test("Build follows shared editor settings without owning a picker or accepting 
     await page.evaluate((settings) => window.buildPanel.setEditorSettings({ settings, busy: true }),
       { editorId: "cursor", editors });
     assert.deepEqual(await launchLabels(), ["Edit in Cursor"]);
+    assert.deepEqual(await launches.allTextContents(), ["Edit"],
+      "The visible action label is retained when the preferred editor changes");
     assert.equal(await launches.first().isDisabled(), true);
     assert.equal(await page.getByRole("button", { name: "Open with", exact: true }).isDisabled(), true,
       "The canonical split button is unavailable while its selected editor is being saved");

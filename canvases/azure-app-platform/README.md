@@ -668,9 +668,9 @@ content, guidance, and forms retain internal toolkit spacing, condensed in narro
 panes, so text and form focus rings stay clear of the divider and scrollbars.
 File actions and AI forms share consistent spacing without nested card padding.
 The compact file header pairs the source identity with an eye icon and **Preview**
-label, a secondary icon-only editor split button, and a named AI icon button. **More file actions**
+label, a secondary **Edit** split button with the destination icon, and a named AI icon button. **More file actions**
 uses the toolkit menu only for document/model actions hidden in narrow source
-panes. The editor icon retains its accessible name and tooltip, such as **Edit in VS Code**, at every width.
+panes. The editor button retains its visible **Edit** label, accessible name and tooltip, such as **Edit in VS Code**, at every width.
 Secondary buttons
 move into the menu in narrow source panes, including
 when dragging the divider in a wide window. The **More file actions** menu is

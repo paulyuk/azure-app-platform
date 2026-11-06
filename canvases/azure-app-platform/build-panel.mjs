@@ -613,7 +613,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       menuButton: { title: "Open with", "data-focus-key": "open-with-" + artifact.id },
       positioning: { position: "below", align: "end" },
       button: {
-        children: "", "aria-label": label, title: label, size: "small", appearance: "secondary",
+        children: "Edit", "aria-label": label, title: label, size: "small", appearance: "secondary",
         icon: native ? fileIcon("files") : editorIcon,
         disabled: opening || (!native && editorSettingsSaving),
         onClick: () => openArtifact(artifact, native),
