@@ -642,6 +642,8 @@ sits immediately before the icon-only **Add building block** action in the
 building-blocks header, or the compact Files toolbar. Both use subtle appearance
 and retain their tooltips and accessible labels. Build has no introductory title,
 tagline, or separate Run & Debug shortcut.
+Instruction textboxes wrap long lines and unbroken text within the pane;
+long drafts remain vertically scrollable without a horizontal scrollbar.
 The selected layout, per-page scroll
 positions, expanded stack previews, and AI drafts survive switching views.
 File headers and their editor/AI actions stay pinned while scrolling in either

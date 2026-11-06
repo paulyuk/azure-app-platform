@@ -856,6 +856,29 @@ for (const [name, engine, presentationProfile] of [
       await page.locator('[data-collection-path="src/skills/deal-doc"]').click();
       await page.locator(".build-explorer-body").evaluate(element => { element.scrollTop = element.scrollHeight; });
       await page.getByRole("button", { name: "Add building block", exact: true }).click();
+      const optionalInstructions = page.getByRole("textbox", { name: "Instructions (optional)", exact: true });
+      const instructionText = "Use this source: https://example.test/" + "document".repeat(40) +
+        "\nReturn " + "identifier".repeat(30) + "\n    Preserve indentation and line breaks.\n" +
+        "Keep every instruction editable.\n".repeat(15);
+      await optionalInstructions.fill(instructionText);
+      for (const width of [320, 380, 620, 1000]) {
+        await page.setViewportSize({ width, height: 900 });
+        const inputGeometry = await optionalInstructions.evaluate(input => {
+          input.scrollLeft = 10000;
+          input.scrollTop = input.scrollHeight;
+          const style = getComputedStyle(input);
+          return { client: input.clientWidth, scroll: input.scrollWidth, left: input.scrollLeft,
+            top: input.scrollTop, overflowX: style.overflowX, overflowY: style.overflowY,
+            wrap: style.overflowWrap };
+        });
+        assert.ok(inputGeometry.scroll <= inputGeometry.client && inputGeometry.left === 0 &&
+          inputGeometry.overflowX === "hidden" && inputGeometry.wrap === "anywhere",
+        `${name} ${width}px wraps long instructions without sideways scrolling: ${JSON.stringify(inputGeometry)}`);
+        assert.ok(inputGeometry.top > 0 && inputGeometry.overflowY === "auto",
+          "Long instructions remain vertically scrollable and accessible");
+        assert.equal(await optionalInstructions.inputValue(), instructionText, "Wrapping preserves the complete draft");
+      }
+      await optionalInstructions.fill("");
       await page.getByRole("textbox", { name: "Block name", exact: true }).fill("lookup");
       const retainedWidth = await railWidth();
       await page.getByRole("button", { name: "Create from template", exact: true }).click();

@@ -94,6 +94,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-source-preview:focus-visible { outline-offset:-2px; }
 :is(#details, #customize-content)[data-mode="build"] .build-content > :not(.build-file) { flex:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-add-form { display:grid; gap:var(--canvas-spacing-normal,16px); padding:0 0 var(--canvas-spacing-normal,16px); border:0; border-radius:0; background:transparent; }
+:is(#details, #customize-content)[data-mode="build"] .build-add-form textarea { white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:hidden; }
 :is(#details, #customize-content)[data-mode="build"] .build-ai-form { flex:none; padding-top:var(--canvas-spacing-normal,16px); }
 :is(#details, #customize-content)[data-mode="build"] .build-add-form .build-actions { margin:0; }
 :is(#details, #customize-content)[data-mode="build"] .studio-field-mount { min-width:0; }
