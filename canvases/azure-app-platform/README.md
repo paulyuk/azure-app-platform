@@ -360,7 +360,7 @@ navigation disposes the shell binding and restores retained slots; persisted
 Build retains its selected area, project, expanded preview, source/page scroll and focused
 source control across navigation and Back/Forward. **Model connection** opens scoped Settings
 above the Build page and returns to the same control and preview. Settings alone remains
-modal. **Run & Debug** and **Test with a document** navigate to Run and focus the existing
+modal. **Test with a document** navigates to Run and focuses the existing
 task tester; **+ Add building block** opens the existing App Map controls. Task/document
 drafts, selections, results and assessments survive Build visits. Source and external-editor
 handoffs keep their existing behavior. Source connection
@@ -637,8 +637,10 @@ of scrolling horizontally. The buttons stay left-aligned immediately after the
 visible filenames, with plus last, and never extend past the row's right edge.
 Opening the overflow menu does not push the buttons to the right.
 Editor, AI, and section-specific actions stay in each file's header. The plus button opens
-the existing template-first creation flow; **Refresh source** stays in the page
-header. The selected layout, per-page scroll
+the existing template-first creation flow. The secondary **Refresh view** icon
+sits immediately to the right of **Logs** in the workspace header while Build
+is active; its tooltip names the action. Build has no separate Run & Debug shortcut.
+The selected layout, per-page scroll
 positions, expanded stack previews, and AI drafts survive switching views.
 File headers and their editor/AI actions stay pinned while scrolling in either
 layout and in single-file previews. Stack headers sit below the sticky block
@@ -662,9 +664,9 @@ content, guidance, and forms retain internal toolkit spacing, condensed in narro
 panes, so text and form focus rings stay clear of the divider and scrollbars.
 File actions and AI forms share consistent spacing without nested card padding.
 The compact file header pairs the source identity with an eye icon and **Preview**
-label, a primary **Edit** split button, and a named AI icon button. **More file actions**
+label, a secondary icon-only editor split button, and a named AI icon button. **More file actions**
 uses the toolkit menu only for document/model actions hidden in narrow source
-panes. The editor split button keeps its visible **Edit** text at every width.
+panes. The editor icon retains its accessible name and tooltip, such as **Edit in VS Code**, at every width.
 Secondary buttons
 move into the menu in narrow source panes, including
 when dragging the divider in a wide window. The **More file actions** menu is
@@ -816,7 +818,7 @@ beside the page heading provides additional context. Its tooltip is
 available on hover, keyboard focus, or click, and dismisses with Escape.
 Save changes in Files or the external editor, then return to Build. Focus and
 visibility changes refresh saved source, as does re-entering Build.
-**Refresh source** provides an explicit retry or refresh without leaving the
+**Refresh view** provides an explicit retry or refresh without leaving the
 page. File selection, category/preview expansion, keyboard focus, and page/preview scroll positions
 are retained in the panel. Unchanged refreshes preserve the preview DOM and text
 selection. Late refresh responses cannot replace another workspace or overwrite

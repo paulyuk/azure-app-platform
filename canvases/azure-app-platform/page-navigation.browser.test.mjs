@@ -128,7 +128,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
               themeBorder: getComputedStyle(document.querySelector("#workspace-runtime-bar")).borderBottomColor,
-              buttons: [...menu.querySelectorAll("button")].map(button => {
+              buttons: [...menu.querySelectorAll("button")].filter(button => button.checkVisibility()).map(button => {
                 const style = getComputedStyle(button);
                 return {
                   toolkit: button.classList.contains("ct-button"), size: button.dataset.size,
@@ -250,8 +250,22 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(new URL(page.url()).hash, "", "The one-time creation destination is consumed");
       assert.equal(await back.isDisabled(), true, "Creation starts history at Build, not an unseen Run page");
       await page.locator(".build-source-preview").first().waitFor();
+      const refreshView = page.getByRole("button", { name: "Refresh view", exact: true });
+      assert.equal(await refreshView.getAttribute("title"), "Refresh view");
+      assert.equal(await refreshView.getAttribute("data-appearance"), "secondary");
+      assert.equal(await refreshView.innerText(), "");
+      assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).count(), 0);
+      assert.equal(await page.locator(".build-heading-actions").count(), 0);
+      assert.equal(await refreshView.evaluate(button => {
+        const refresh = button.getBoundingClientRect();
+        const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+        return refresh.left > logs.right && Math.abs(refresh.top - logs.top) <= 1;
+      }), true);
+      await refreshView.click();
+      await page.waitForFunction(() => !document.querySelector("#build-refresh-view").disabled);
       await select("manage-app");
       await mode("manage");
+      assert.equal(await refreshView.isVisible(), false);
       await back.click();
       await mode("build");
       fixture.state.app = "stopped";

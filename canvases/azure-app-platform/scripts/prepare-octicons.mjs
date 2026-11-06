@@ -14,7 +14,7 @@ const names = [
   "code", "codespaces", "database", "dot-fill", "eye", "gear",
   "info", "link", "list-unordered", "meter", "plus", "question", "screen-full",
   "shield-check", "shield-lock", "sidebar-collapse", "skip",
-  "stopwatch", "terminal", "tools", "trash", "workflow", "x",
+  "stopwatch", "sync", "terminal", "tools", "trash", "workflow", "x",
   "zoom-in", "zoom-out", "play", "browser", "link-external", "cloud",
 ];
 const icons = Object.fromEntries(names.sort().map((name) => {

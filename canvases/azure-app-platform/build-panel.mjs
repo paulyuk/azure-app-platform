@@ -47,6 +47,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-file-action-icon { display:inline-block; flex:none; width:16px; height:16px; background:currentColor; mask-position:center; mask-size:contain; mask-repeat:no-repeat; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-files { mask-image:${octiconMask("project")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-editor { mask-image:${octiconMask("code")}; }
+:is(#details, #customize-content)[data-mode="build"] .build-icon-refresh { mask-image:${octiconMask("sync")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-ai { mask-image:${octiconMask("agent")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-more { mask-image:${octiconMask("chevron-down")}; }
 :is(#details, #customize-content)[data-mode="build"] .build-icon-add { mask-image:${octiconMask("plus")}; }
@@ -180,7 +181,7 @@ export const BUILD_EXPLORER_CSS = `
 
 export const BUILD_PANEL_CSS = STUDIO_TABS_CSS + BUILD_PANEL_CONTENT_CSS + BUILD_EXPLORER_CSS;
 
-export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon, vsCodeIconMarkup }) {
+export function createBuildPanel({ container, root, request, isActive, onRun, onModel, onSourceChange, syntax, editorSettings: initialEditorSettings, buttons, helpIcon, vsCodeIconMarkup, refreshButton }) {
   const areas = [
     { id: "web", tab: "User Experience" },
     { id: "triggers", tab: "Triggers" },
@@ -661,7 +662,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       menuButton: { title: "Open with", "data-focus-key": "open-with-" + artifact.id },
       positioning: { position: "below", align: "end" },
       button: {
-        children: "Edit", "aria-label": label, title: label, size: "small", appearance: "primary",
+        children: "", "aria-label": label, title: label, size: "small", appearance: "secondary",
         icon: native ? fileIcon("files") : editorIcon,
         disabled: opening || (!native && editorSettingsSaving),
         onClick: () => openArtifact(artifact, native),
@@ -1183,15 +1184,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     element("h2", "Build your app", title);
     renderHelp(title);
     element("p", "Preview code, edit files, and add building blocks.", intro);
-    const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
-    if (typeof onRun === "function") {
-      const quickRun = button(headerActions, "Run & Debug", onRun);
-      buttons.update(quickRun, { className: "build-quick-run", appearance: "primary" });
-      quickRun.dataset.focusKey = "quick-run";
+    if (!refreshButton) {
+      const headerActions = buttons.actionGroup(header, { className: "build-heading-actions", "aria-label": "Build actions" });
+      renderRefreshButton(headerActions);
     }
-    const refresh = button(headerActions, "Refresh source", () => show({ refresh: true }));
-    buttons.update(refresh, { className: "build-refresh", appearance: "secondary", disabled: refreshing });
-    refresh.dataset.focusKey = "refresh";
     for (const diagnostic of diagnostics ?? []) {
       element("p", (diagnostic.path ? diagnostic.path + ": " : "") + diagnostic.message, workspace, "build-warning");
     }
@@ -1307,7 +1303,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     const version = ++loadVersion;
     const settingsVersion = editorSettingsVersion;
     refreshing = true;
-    for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, true);
+    setRefreshDisabled(true);
     let loading;
     if (!refresh || !container.childElementCount) {
       rememberView();
@@ -1347,16 +1343,28 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       if (isActive() && version === loadVersion) {
         loading?.remove();
         error(container, "Could not refresh saved files: " + cause.message);
-        if (!container.querySelector(".build-refresh")) {
-          buttons.update(button(container, "Refresh source", () => show({ refresh: true })), { className: "build-refresh" });
+        if (!refreshButton && !container.querySelector(".build-refresh")) {
+          renderRefreshButton(container);
         }
       }
     } finally {
       if (version === loadVersion) {
         refreshing = false;
-        for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, false);
+        setRefreshDisabled(false);
       }
     }
+  }
+  function renderRefreshButton(parent) {
+    const refresh = buttons.create({
+      className: "build-refresh", appearance: "secondary", size: "small", disabled: refreshing,
+      icon: fileIcon("refresh"), "aria-label": "Refresh view", title: "Refresh view",
+      "data-focus-key": "refresh", onClick: () => show({ refresh: true }),
+    });
+    buttons.append(parent, refresh);
+  }
+  function setRefreshDisabled(disabled) {
+    if (refreshButton) buttons.setDisabled(refreshButton, disabled);
+    for (const control of container.querySelectorAll(".build-refresh")) buttons.setDisabled(control, disabled);
   }
   function scheduleRefresh() {
     if (!isActive() || document.visibilityState === "hidden") return;
@@ -1369,6 +1377,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     loadVersion++;
     clearTimeout(refreshTimer);
     refreshing = false;
+    setRefreshDisabled(false);
     rememberView();
     restoreOnShow = true;
     disposeSplitPane?.();

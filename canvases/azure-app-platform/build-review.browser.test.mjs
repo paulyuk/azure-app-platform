@@ -113,7 +113,7 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
 
     const unchangedResponse = page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/build-workspace");
-    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh view", exact: true }).click();
     await unchangedResponse;
     assert.equal(await preview.getAttribute("data-identity-probe"), "same-preview",
       "An unchanged refresh retains the preview DOM");
@@ -124,7 +124,7 @@ test("Build refresh preserves area, preview, scroll, selection, and keyboard foc
     assert.equal(await disclosure.locator("summary,details").count(), 0, "Source has no redundant disclosure header");
     const visibleResponse = page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/build-workspace");
-    await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh view", exact: true }).click();
     await visibleResponse;
     assert.equal(await disclosure.isVisible(), true, "Source remains directly visible after refresh");
     await preview.waitFor();
@@ -201,7 +201,7 @@ test("Build ignores stale refreshes while interaction changes or the workspace i
     }
     await route.fulfill({ json: { artifacts: artifacts(source) } });
   }, async (page) => {
-    const refresh = page.getByRole("button", { name: "Refresh source", exact: true });
+    const refresh = page.getByRole("button", { name: "Refresh view", exact: true });
     const agentDisclosure = page.locator(
       '.build-file[data-artifact="agent"] .build-file-source[data-preview-for="agent"]');
     const agentPreview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });

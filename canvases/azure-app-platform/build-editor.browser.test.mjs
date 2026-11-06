@@ -214,8 +214,9 @@ for (const status of [400, 503]) {
       const row = page.locator('.build-file[data-artifact="agent"]');
       const edit = row.getByRole("button", { name: "Edit in VS Code", exact: true });
       await edit.waitFor();
-      assert.equal(await edit.innerText(), "Edit", "The primary label stays visible in compact panes");
-      assert.equal(await edit.getAttribute("data-appearance"), "primary");
+      assert.equal(await edit.innerText(), "", "The editor action is icon-only in compact panes");
+      assert.equal(await edit.getAttribute("data-appearance"), "secondary");
+      assert.equal(await edit.getAttribute("title"), "Edit in VS Code");
       assert.equal(await row.locator(".build-preview-badge .build-icon-preview").count(), 1);
       assert.match(await row.locator(".build-source-preview").getAttribute("title"), /Preview.*Edit.*VS Code/);
       for (const fail of [false, true]) {

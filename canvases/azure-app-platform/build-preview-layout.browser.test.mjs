@@ -195,7 +195,8 @@ for (const [name, engine, presentationProfile] of [
                 badgeBounds.bottom <= header.getBoundingClientRect().bottom + 1,
               redundantHeaders: pane.querySelectorAll(".build-preview-help,.build-preview-title,.build-preview-toolbar").length,
               direction: getComputedStyle(pane.querySelector('.build-actions[aria-label="File actions"]')).flexDirection,
-              splitLabelVisible: pane.querySelector("[data-file-open] button")?.textContent.trim() === "Edit",
+              iconOnlyEditor: pane.querySelector("[data-file-open] button")?.textContent.trim() === "" &&
+                pane.querySelector("[data-file-open] button")?.getAttribute("data-appearance") === "secondary",
               secondaryVisible: [...pane.querySelectorAll("[data-file-secondary]")].some(control => getComputedStyle(control).display !== "none"),
               overflow: pane.scrollWidth - pane.clientWidth,
             };
@@ -204,8 +205,8 @@ for (const [name, engine, presentationProfile] of [
             `${name} ${theme} ${width}px keeps the read-only label inside its pane: ${JSON.stringify(cues)}`);
           assert.equal(cues.redundantHeaders, 0, "Code follows its file header without repeated preview guidance");
           assert.equal(cues.direction, "row", "The file toolbar does not become a stack of full-width buttons");
-          assert.equal(cues.splitLabelVisible, true,
-            "The primary Edit label remains visible, including in compact panes");
+          assert.equal(cues.iconOnlyEditor, true,
+            "The secondary editor action stays icon-only, including in compact panes");
           assert.equal(cues.secondaryVisible, false, "Generic source has no document-only secondary actions");
           assert.equal(await page.getByRole("button", { name: "More file actions", exact: true }).isVisible(),
             false, "Generic source needs no redundant More menu alongside the split button");
@@ -595,7 +596,7 @@ for (const [name, engine, presentationProfile] of [
         const bounds = header.getBoundingClientRect();
         return bounds.top >= pane.top - 1 && bounds.bottom <= pane.bottom + 1;
       })), "Both block file headers fit together at the desktop height");
-      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
       assert.ok(await implementation.locator(".build-source-preview").evaluate(preview => preview === window.retainedBlockPreview),
         "An unchanged source refresh preserves the entire block");
       await implementation.getByRole("button", { name: "Show full file", exact: true }).click();
@@ -682,7 +683,7 @@ for (const [name, engine, presentationProfile] of [
       assert.ok(await implementation.locator(".build-source-preview").evaluate(source => source === window.retainedPageSource));
       await configPage.click();
       assert.equal(await configPage.getAttribute("aria-pressed"), "true", "File choices remain on the right");
-      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
       assert.equal(await stackView.getAttribute("aria-pressed"), "false", "Source refresh preserves the selected layout");
       await page.locator('[data-file-choice="first"]').click();
       assert.equal(await stackView.count(), 0, "Single files have no layout switch");
@@ -775,7 +776,7 @@ for (const [name, engine, presentationProfile] of [
         projectPath: "src/tools/document-validation", projectName: "Document validation",
         available: true, content: "# Document validation\n",
       })));
-      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
       await chooseFile("validation-0");
       await page.setViewportSize({ width: 480, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -818,7 +819,7 @@ for (const [name, engine, presentationProfile] of [
         available: true, content: "value = " + index + "\n",
       }));
       artifacts.push(...longFiles);
-      await page.getByRole("button", { name: "Refresh source", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh view", exact: true }).click();
       await chooseFile("long-first");
       await page.setViewportSize({ width: 380, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

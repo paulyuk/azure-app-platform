@@ -134,10 +134,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.equal(sourceRequests.length, 1);
           assert.deepEqual(sourceRequests[0], { root: "/fixture/dealer", id: "runtime" });
           fail = true;
-          await build.getByRole("button", { name: "Refresh source", exact: true }).click();
+          await page.getByRole("button", { name: "Refresh view", exact: true }).click();
           await build.getByRole("alert").filter({ hasText: "Source discovery unavailable." }).waitFor();
           fail = false;
-          await build.getByRole("button", { name: "Refresh source", exact: true }).click();
+          await page.getByRole("button", { name: "Refresh view", exact: true }).click();
           await build.getByRole("alert").waitFor({ state: "hidden" });
         }
         if (!(await disclosure.evaluate(node => node.open))) await disclosure.locator("summary").click();
