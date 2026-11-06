@@ -80,7 +80,7 @@ export const RUN_PANEL_CONTENT_CSS = `
 #details[data-mode="manage"] .agent-response[data-state="failed"] { border-color:var(--studio-danger); color:var(--studio-danger); }
 #details[data-mode="manage"] .agent-response:focus-visible { outline:2px solid var(--studio-focus); outline-offset:2px; }
 #details[data-mode="manage"] .agent-result-summary { display:flex; align-items:center; gap:12px; min-width:0; white-space:normal; }
-#details[data-mode="manage"] .agent-result-illustration { display:block; flex:none; width:80px; height:80px; }
+#details[data-mode="manage"] .agent-result-illustration { display:block; flex:none; width:80px; height:80px; --run-art-brand:var(--true-color-blue, #5c8df8); --run-art-soft-blue:color-mix(in srgb, var(--run-art-brand) 20%, #ffffff); --run-art-outline:#294482; --run-art-paper:#f5f5f5; --run-art-task:#ffe4b4; --run-art-highlight:#ffffff; }
 #details[data-mode="manage"] .agent-result-copy { min-width:0; }
 #details[data-mode="manage"] .agent-result-title { display:block; font-size:14px; line-height:1.45; }
 #details[data-mode="manage"] .agent-result-copy p { margin:4px 0 0; font-size:12px; line-height:1.5; }

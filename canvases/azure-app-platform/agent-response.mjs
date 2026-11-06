@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 
 export const RUN_READY_ILLUSTRATION_MARKUP = readFileSync(new URL("./assets/run-ready-spot.svg", import.meta.url), "utf8")
-  .replaceAll("#294482", "var(--studio-muted)")
-  .replaceAll("#F5F5F5", "var(--studio-raised)")
-  .replaceAll("#CEDEFF", "var(--studio-accent-soft)")
-  .replaceAll("#FFE4B4", "var(--studio-accent-soft)")
-  .replaceAll("#5C8DF8", "var(--studio-accent)")
-  .replaceAll("#FFFFFF", "var(--studio-on-accent)");
+  .replaceAll("#294482", "var(--run-art-outline)")
+  .replaceAll("#F5F5F5", "var(--run-art-paper)")
+  .replaceAll("#CEDEFF", "var(--run-art-soft-blue)")
+  .replaceAll("#FFE4B4", "var(--run-art-task)")
+  .replaceAll("#5C8DF8", "var(--run-art-brand)")
+  .replaceAll("#FFFFFF", "var(--run-art-highlight)");
 
 export function renderIdleAgentResponse(root, illustrationMarkup) {
   const summary = document.createElement("div");

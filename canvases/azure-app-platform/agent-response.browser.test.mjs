@@ -8,7 +8,7 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Idle SVG follows standalone and host colors without changing its geometry in ${name}`, {
+  test(`Idle SVG retains its brand palette and follows theme blue without changing geometry in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const browser = await engine.launch({ headless: true });
@@ -28,10 +28,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 const hostColors = theme === "light"
                   ? { "--background-color-overlay": "#fdf7e8", "--text-color-muted": "#805030",
                     "--text-color-accent": "#b02070", "--background-color-accent-muted": "#f8d0e8",
-                    "--text-color-button-primary-rest": "#fffaf0" }
+                    "--text-color-button-primary-rest": "#fffaf0", "--true-color-blue": "#1473e6" }
                   : { "--background-color-overlay": "#201d30", "--text-color-muted": "#d0b090",
                     "--text-color-accent": "#e090c0", "--background-color-accent-muted": "#403050",
-                    "--text-color-button-primary-rest": "#302010" };
+                    "--text-color-button-primary-rest": "#302010", "--true-color-blue": "#82baff" };
                 for (const [token, value] of Object.entries(hostColors)) document.documentElement.style.setProperty(token, value);
               }, theme);
             }
@@ -44,11 +44,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 return getComputedStyle(probe).fill;
               };
               const colors = [
-                [getComputedStyle(node.querySelector("#subject-intake > use")).fill, resolve("--studio-raised")],
-                [getComputedStyle(node.querySelector("#subject-intake > path")).stroke, resolve("--studio-muted")],
-                [getComputedStyle(node.querySelector("#subject-task > path")).fill, resolve("--studio-accent-soft")],
-                [getComputedStyle(node.querySelector("#connection-dispatch > circle")).fill, resolve("--studio-accent")],
-                [getComputedStyle(node.querySelector("#connection-dispatch > path")).stroke, resolve("--studio-on-accent")],
+                [getComputedStyle(node.querySelector("#subject-intake > use")).fill, resolve("--run-art-paper")],
+                [getComputedStyle(node.querySelector("#subject-intake > path")).stroke, resolve("--run-art-outline")],
+                [getComputedStyle(node.querySelector("#subject-task > path")).fill, resolve("--run-art-task")],
+                [getComputedStyle(node.querySelector("#connection-dispatch > circle")).fill, resolve("--true-color-blue")],
+                [getComputedStyle(node.querySelector("#connection-dispatch > path")).stroke, resolve("--run-art-highlight")],
+                [getComputedStyle(node.querySelector("#subject-intake > path[fill]")).fill, resolve("--run-art-soft-blue")],
               ];
               probe.remove();
               return colors;
@@ -57,10 +58,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             palettes.push(palette.map(([actual]) => actual));
             assert.deepEqual(await svg.evaluate(node => [...node.querySelectorAll("path")].map(path => path.getAttribute("d"))), geometry);
           }
-          assert.notDeepEqual(palettes[0], palettes[1], `${presentationProfile} illustration must change with theme colors`);
+          assert.notDeepEqual(palettes[0], palettes[1], `${presentationProfile} brand blue must follow theme colors`);
+          for (const palette of palettes) {
+            assert.deepEqual(palette.slice(0, 3), ["rgb(245, 245, 245)", "rgb(41, 68, 130)", "rgb(255, 228, 180)"],
+              "Light object interiors, blue outlines and warm task color must survive dark surfaces and purple UI accents");
+            assert.equal(palette[4], "rgb(255, 255, 255)");
+          }
           if (presentationProfile === "github-app") {
-            assert.deepEqual(palettes[0], ["rgb(253, 247, 232)", "rgb(128, 80, 48)", "rgb(248, 208, 232)", "rgb(176, 32, 112)", "rgb(255, 250, 240)"]);
-            assert.deepEqual(palettes[1], ["rgb(32, 29, 48)", "rgb(208, 176, 144)", "rgb(64, 48, 80)", "rgb(224, 144, 192)", "rgb(48, 32, 16)"]);
+            assert.equal(palettes[0][3], "rgb(20, 115, 230)");
+            assert.equal(palettes[1][3], "rgb(130, 186, 255)");
           }
           assert.equal(await svg.locator('[fill^="#"],[stroke^="#"]').count(), 0, "No fixed palette remains in rendered artwork");
         } finally { await page.close(); await fixture.close(); }
