@@ -363,15 +363,21 @@ presets (including their sample document attachment), and **Autonomous run resul
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
 Before the first invocation, the result box shows a static decorative task
-illustration with **Your next run starts here** and guidance to choose an event
-or enter a task. The SVG ships with the plugin and needs no CDN or dependency
-restore. The idle renderer inlines the shipped artwork with dedicated illustration
+illustration with **Your result will appear here** and guidance to choose an event
+or enter a task, then select **Invoke agent**. The SVG ships with the plugin and needs no CDN or dependency
+restore. Idle and in-flight states inline the shipped artwork with shared illustration
 tokens: the theme's brand blue and its pale tint, blue outlines, a warm task card
 and off-white object interiors. These are artwork colors, not control-surface or
 generic UI accent colors; light interiors remain visible in dark themes. The blue
 inherits the host's `--true-color-blue` with the source brand blue as a fallback.
-The source SVG remains byte-preserved. Invocation, response text, errors and
-runtime readiness are unchanged.
+Both source SVGs remain byte-preserved. Preparation, endpoint startup and request
+waiting show three evidence-backed steps with a shared current-step spinner.
+After 30 seconds of request waiting, the copy explains that the request continues;
+this is a message-only timer, not a new request timeout. **View logs** opens the
+existing Output tab. Failures retain the task and literal error details, distinguish
+an unsent task from an uncertain backend outcome, and offer the same log access.
+Successful responses remain plain response text. Invocation payloads, runtime
+readiness, backend deadlines and tool reports are unchanged.
 **Status Brief** leads the tester with separate runtime, agent-endpoint and model
 connection facts. A running web app, configured gateway or Azure operation never
 establishes agent availability or successful policy enforcement. Stopped, starting,

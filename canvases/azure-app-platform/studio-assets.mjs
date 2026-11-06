@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const assets = new Map([
   ["/assets/run-ready-spot.svg", { path: fileURLToPath(new URL("./assets/run-ready-spot.svg", import.meta.url)), type: "image/svg+xml" }],
+  ["/assets/run-working-spot.svg", { path: fileURLToPath(new URL("./assets/run-working-spot.svg", import.meta.url)), type: "image/svg+xml" }],
   ["/assets/app-platform-symbol.png", { path: fileURLToPath(new URL("./assets/app-platform-symbol.png", import.meta.url)), type: "image/png" }],
   ["/assets/app-platform-intro.mp4", { path: fileURLToPath(new URL("./assets/app-platform-intro.mp4", import.meta.url)), type: "video/mp4" }],
   ["/canvas-ui/base.mjs", { path: fileURLToPath(new URL("./vendor/toolkit/ui/browser/base.mjs", import.meta.url)), type: "text/javascript; charset=utf-8" }],

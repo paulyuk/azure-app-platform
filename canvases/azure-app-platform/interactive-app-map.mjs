@@ -5,7 +5,7 @@ import { createDiscoveryTracker } from "./discovery-tracker.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
-import { renderIdleAgentResponse, RUN_READY_ILLUSTRATION_MARKUP } from "./agent-response.mjs";
+import { getAgentResponsePresentation, renderAgentResponse, RUN_ILLUSTRATION_MARKUP } from "./agent-response.mjs";
 import { BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
@@ -1034,6 +1034,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let agentPromptTouched = false;
     let agentResponseText = "No task has run yet.";
     let agentRequestState = "idle";
+    let agentResponsePhase = "preparing";
+    let agentResponseSlow = false;
+    let agentResponseWaitTimer;
     let invokingAgent = false;
     let agentDocument = null;
     let documentTestNotice = "";
@@ -1099,7 +1102,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       },
     });
     const getAgentStatus = (${getAgentStatus.toString()});
+    const getAgentResponsePresentation = (${getAgentResponsePresentation.toString()});
+    const renderAgentResponse = (${renderAgentResponse.toString()});
+    const runIllustrations = ${JSON.stringify(RUN_ILLUSTRATION_MARKUP)};
     const agentStatusRoot = document.createElement("div");
+    const agentResponseSpinnerRoot = document.createElement("span");
+    agentResponseSpinnerRoot.className = "agent-result-step-spinner";
+    agentResponseSpinnerRoot.setAttribute("aria-hidden", "true");
+    const agentResponseSpinnerView = toolkit.mountCanvasComponent(
+      agentResponseSpinnerRoot, toolkit.Spinner, { size: "tiny", "aria-hidden": true });
     const documentTestNoticeRoot = document.createElement("div");
     const documentMenuRoot = document.createElement("div");
     documentMenuRoot.className = "studio-toolkit";
@@ -1177,12 +1188,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       navigationDisposed = true;
       clearInterval(operationalTimer);
       clearInterval(outputTimer);
+      clearTimeout(agentResponseWaitTimer);
       window.removeEventListener("resize", resizeWorkspace);
       workspaceResizeObserver.disconnect();
       appLogs?.dispose();
       buildPanel.hide();
       components.dispose();
       agentStatusView.dispose();
+      agentResponseSpinnerView.dispose();
       runtimeStatusView.dispose();
       runWorkspace.dispose();
     });
@@ -3384,6 +3397,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       invokingAgent = true;
       agentRequestState = "invoking";
+      agentResponsePhase = "preparing";
+      agentResponseSlow = false;
+      clearTimeout(agentResponseWaitTimer);
       agentRawResponse = "";
       agentToolActivity = [];
       clearDocumentAssessment();
@@ -3392,18 +3408,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const updateResponseNode = (text) => {
         agentResponseText = text;
         const currentResponse = details.querySelector(".agent-response");
-        if (currentResponse) currentResponse.textContent = text;
+        if (currentResponse) renderResponse(currentResponse);
+        const presentation = getAgentResponsePresentation({
+          state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
+        });
+        if (agentRequestState === "invoking") {
+          setStatus(presentation.title + ". " + presentation.description);
+        }
       };
       updateResponseNode(agentResponseText);
       updateAgentStatusBrief();
       if (panelMode === "manage") renderManagePanel();
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
+          agentResponsePhase = "starting";
           updateResponseNode(msg);
           if (panelMode === "manage") renderManagePanel();
         });
-        updateResponseNode("Waiting for the local agent…");
-        const result = await apiRequest("/api/agent-invoke", {
+        agentResponsePhase = "endpoint";
+        updateResponseNode("Agent endpoint available.");
+        const request = apiRequest("/api/agent-invoke", {
           method: "POST",
           body: JSON.stringify({
             root: MODEL.root,
@@ -3412,6 +3436,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             ...(operationalState.readiness?.documentInput && agentDocument ? { document: agentDocument } : {}),
           }),
         });
+        agentResponsePhase = "waiting";
+        updateResponseNode("Waiting for the local agent…");
+        agentResponseWaitTimer = setTimeout(() => {
+          if (!invokingAgent || controlsDisposed) return;
+          agentResponseSlow = true;
+          updateResponseNode("Still waiting for the local agent…");
+        }, 30_000);
+        const result = await request;
         agentRawResponse = typeof result.response === "string"
           ? result.response : JSON.stringify(result.response, null, 2);
         if (agentDocument && assessmentEpoch === documentAssessmentEpoch) {
@@ -3431,11 +3463,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         updateResponseNode(error.message);
         setStatus(error.message, true);
       } finally {
+        clearTimeout(agentResponseWaitTimer);
         invokingAgent = false;
         updateAgentStatusBrief();
         syncAgentInputControls();
         if (panelMode === "manage") renderManagePanel();
       }
+    }
+
+    function renderResponse(response) {
+      renderAgentResponse(response, {
+        state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
+        text: agentResponseText, buttons,
+        pendingIndicator: agentResponseSpinnerRoot,
+        illustrations: runIllustrations,
+        onLogs: () => runWorkspace.openDiagnostics("output"),
+      });
     }
 
     function renderAgentTester(container) {
@@ -3463,9 +3506,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       response.setAttribute("aria-label", "Agent response");
       response.tabIndex = 0;
       response.dataset.runScrollKey = "agent-result";
-      response.dataset.state = agentRequestState;
-      if (agentRequestState === "idle") (${renderIdleAgentResponse.toString()})(response, ${JSON.stringify(RUN_READY_ILLUSTRATION_MARKUP)});
-      else response.textContent = agentResponseText;
+      renderResponse(response);
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
       const send = actionButton("Invoke agent", () => executeAgentInvocation(prompt), true);

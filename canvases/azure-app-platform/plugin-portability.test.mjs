@@ -42,8 +42,9 @@ test("installed payload opens and materializes templates without checkout depend
       'import "../../../canvases/azure-app-platform/extension.mjs";');
     assert.equal((await readFile(join(payload, "vendor/toolkit/.gitattributes"), "utf8")).trim(), "* -text",
       "Vendored asset hashes must survive Git newline conversion on Windows");
-    assert.equal((await readFile(join(payload, "assets/.gitattributes"), "utf8")).trim(), "run-ready-spot.svg -text",
-      "The extracted illustration must survive Git newline conversion on Windows");
+    assert.deepEqual((await readFile(join(payload, "assets/.gitattributes"), "utf8")).trim().split(/\r?\n/),
+      ["run-ready-spot.svg -text", "run-working-spot.svg -text"],
+      "Both extracted illustrations must survive Git newline conversion on Windows");
     for (const path of ["README.md", ...manifest.skills.map((skill) => `${skill}/SKILL.md`)]) {
       const instructions = await readFile(join(payload, path), "utf8");
       assert.doesNotMatch(instructions, /bootstrap-extension\.mjs/);
@@ -140,7 +141,7 @@ test("installed payload opens and materializes templates without checkout depend
         } finally { await canvas.onClose({ instanceId: standaloneContext.instanceId }); }
         assert.equal(new URL(opened.url).searchParams.has("intro"), false);
         assert.doesNotMatch(html, /id="skip-studio-intro"/);
-        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg"]) {
+        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg", "run-working-spot.svg"]) {
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);
           const expected = await readFile(join(payload, "assets", name));
@@ -148,6 +149,11 @@ test("installed payload opens and materializes templates without checkout depend
             assert.equal(createHash("sha256").update(expected).digest("hex"),
               "b6f9a1ee443748d58af4011c379bbd1509b5c9db0e67865d0413516d3e3ab97a",
               "Idle illustration bytes must match the artwork extracted from PR #58");
+          }
+          if (name === "run-working-spot.svg") {
+            assert.equal(createHash("sha256").update(expected).digest("hex"),
+              "31701112fbede6ba767b27e28c059632f64527c00029b546edff92d51e3df6da",
+              "Waiting illustration bytes must match the artwork extracted from PR #58");
           }
           assert.equal(asset.status, 200);
           assert.equal(asset.headers.get("content-type"), name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "video/mp4");
