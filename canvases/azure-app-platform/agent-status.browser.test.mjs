@@ -268,7 +268,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
       await invoke.focus();
       await invoke.press("Enter");
-      await page.locator('.agent-status-brief[data-state="failed"]').waitFor();
+      await page.locator('.agent-response[data-state="failed"]').waitFor();
+      assert.equal(await status.getAttribute("data-state"), "ready");
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true,
         "A temporarily disabled invocation action keeps focus in its result, not the page body.");
@@ -280,7 +281,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true);
       await page.locator("#map-app").click();
       await page.locator("#manage-app").click();
-      await page.locator('.agent-status-brief[data-state="failed"]').waitFor();
+      await page.locator('.agent-status-brief[data-state="stopping"]').waitFor();
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await prompt.inputValue(), payload);
       assert.equal(await document.inputValue(), documentText);

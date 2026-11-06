@@ -35,16 +35,24 @@ test("Status Brief classifies runtime, agent availability and connection evidenc
   assert.match(getAgentStatus({ app: { state: "failed", error: "Installer failed" }, readiness: ready }).runtimeError, /Installer failed/);
 });
 
-test("invocation failure and results survive readiness transitions without claiming current readiness", () => {
+test("invocation failures do not override independent availability and runtime health", () => {
+  for (const appState of ["stopped", "starting", "stopping", "configuring", "running", "failed", "provisioning", "deploying"]) {
+    for (const agentReady of [false, true]) {
+      const input = { app: { state: appState }, readiness: ready, agentReady };
+      assert.deepEqual(getAgentStatus({ ...input, requestState: "failed" }), getAgentStatus(input));
+    }
+  }
+});
+
+test("invocation progress and results retain separate availability facts", () => {
   for (const appState of ["stopped", "starting", "stopping", "configuring", "running", "failed", "provisioning", "deploying"]) {
     for (const [requestState, title] of [
-      ["invoking", "Task in progress"], ["failed", "Task execution failed"], ["succeeded", "Task result received"],
+      ["invoking", "Task in progress"], ["succeeded", "Task result received"],
     ]) {
       const status = getAgentStatus({ app: { state: appState }, readiness: ready, requestState });
       assert.equal(status.state, requestState);
       assert.equal(status.title, title);
       assert.equal(status.agent, "Not ready");
-      if (requestState === "failed") assert.match(status.description, /last invocation failed; its error is retained/);
       if (requestState === "succeeded") assert.match(status.description, /not proof of safety or tool success/);
     }
   }
@@ -58,6 +66,6 @@ test("readiness fetch errors are explicit, not stopped or success-shaped default
   assert.equal(status.connection, "Unknown");
   assert.equal(status.description, "Status endpoint unavailable");
   const failure = getAgentStatus({ readinessError: "Status unavailable", requestState: "failed" });
-  assert.equal(failure.state, "failed");
+  assert.equal(failure.state, "unavailable");
   assert.match(failure.description, /Status unavailable/);
 });

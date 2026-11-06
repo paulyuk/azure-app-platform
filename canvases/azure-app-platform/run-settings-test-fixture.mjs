@@ -3,7 +3,7 @@ import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
 import { getTierDefinition } from "./tier-definitions.mjs";
 
-export async function createRunSettingsFixture({ preview = false } = {}) {
+export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone" } = {}) {
   const graph = {
     root: "/fixture/dealer", generatedAt: new Date().toISOString(),
     nodes: [
@@ -39,7 +39,7 @@ export async function createRunSettingsFixture({ preview = false } = {}) {
         return;
       }
       if (path === "/app-map" || path === "/preview") {
-        let html = renderInteractiveAppMapHtml(graph, { apiToken: "fixture", appName: "Dealer · UI preview", theme: state.theme });
+        let html = renderInteractiveAppMapHtml(graph, { apiToken: "fixture", appName: "Dealer · UI preview", theme: state.theme, presentationProfile });
         if (preview) html = html.replace("</body>", `<script>
           window.addEventListener("app-platform-ready", () => {
             document.querySelector("#manage-app").click();

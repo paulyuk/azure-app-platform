@@ -76,10 +76,6 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
     state = "invoking";
     title = "Task in progress";
     description = "Waiting for task execution. Runtime readiness is listed separately; tool activity appears only when reported.";
-  } else if (requestState === "failed") {
-    state = "failed";
-    title = "Task execution failed";
-    description = "The last invocation failed; its error is retained below. " + description;
   } else if (requestState === "succeeded") {
     state = "succeeded";
     title = "Task result received";
@@ -98,7 +94,7 @@ export function createAgentStatusComponent(toolkit) {
   return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError,
     command, errorDetail, prerequisites = [], actions = [], onConnection, connectionIcon }) {
     const tone = state === "ready" ? "success"
-      : ["failed", "runtime-failed", "unavailable"].includes(state) ? "danger"
+      : ["runtime-failed", "unavailable"].includes(state) ? "danger"
       : ["ports", "prerequisites", "preview", "connection", "agent-unavailable"].includes(state) ? "warning"
       : ["checking", "starting", "stopping", "configuring", "provisioning", "deploying", "invoking"].includes(state) ? "busy"
       : "neutral";
