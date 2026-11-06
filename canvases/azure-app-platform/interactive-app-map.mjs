@@ -3145,6 +3145,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       documentError = "";
       documentLoading = false;
       documentInputExpanded = expanded;
+      const existingDisclosure = details.querySelector(".run-document");
+      if (existingDisclosure) existingDisclosure.open = expanded;
       documentPasteOpen = false;
       documentEditMode = false;
       documentPasteDraft = "";
@@ -3384,50 +3386,38 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let testEgressBtn = null;
     let restoreBoundaryDialogFocus = true;
 
-    async function runAdversarialTest(mode) {
+    function stageAdversarialTest(mode) {
       if (!operationalState.readiness?.documentInput) return;
       finishAgentPromptTyping();
       const maxBytes = operationalState.readiness?.documentInput?.maxBytes || 65536;
       documentReadVersion += 1;
       documentError = "";
-      documentInputExpanded = false;
+      documentPasteOpen = false;
+      documentEditMode = false;
+      documentPasteDraft = "";
+      documentInputExpanded = true;
+      const existingDisclosure = details.querySelector(".run-document");
+      if (existingDisclosure) existingDisclosure.open = true;
       const prepared = ensureAdversarialDocument(agentDocument, mode, maxBytes);
       agentDocument = prepared.document;
+      if (!agentPromptDraft.trim()) {
+        agentPromptDraft = hasSandboxNode
+          ? "Process document"
+          : "Summarize how you can help and run a sample check";
+      }
       const addition = mode === "egress" ? "an outbound credential/PII probe" : "override text";
       const purpose = mode === "egress" ? "egress protections" : "redaction and approval-bypass protections";
       setDocumentTestNotice(
         (prepared.synthetic ? "Created a synthetic document with " : "Added to the document: ") +
-          addition + " to test " + purpose + ". See the separate test result for the outcome.",
+          addition + " to test " + purpose + ". Select Invoke agent to run the test.",
         "document",
       );
-      const document = agentDocument;
       clearDocumentAssessment();
-      const epoch = documentAssessmentEpoch;
-      documentTesting = true;
-      documentResultText = "Running document checks without a model call...";
-      renderManagePanel();
-      try {
-        await ensureAgentReadyForAction((msg) => {
-          documentResultText = msg;
-          if (panelMode === "manage") renderManagePanel();
-        });
-        documentResultText = "Running document checks without a model call...";
-        if (panelMode === "manage") renderManagePanel();
-        const result = await apiRequest("/api/document-test", {
-          method: "POST", body: JSON.stringify({ root: MODEL.root, document }),
-        });
-        documentResultText = JSON.stringify(result, null, 2);
-        if (epoch === documentAssessmentEpoch) documentAssessment = result.documentAssessment ?? { state: "unverified" };
-        setStatus(result.verdict === "rejected" ? "Document rejected by enforcement." : "Document enforcement completed.",
-          result.verdict === "rejected");
-      } catch (error) {
-        documentResultText = error.message;
-        if (epoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
-        setStatus(error.message, true);
-      } finally {
-        documentTesting = false;
-        if (panelMode === "manage") renderManagePanel();
-      }
+      setStatus("Boundary test ready. Select Invoke agent to run it.");
+      if (panelMode === "manage") renderManagePanel();
+      else syncAgentInputControls();
+      const invokeBtn = details.querySelector("[data-invoke-agent]");
+      if (invokeBtn && !invokeBtn.disabled) invokeBtn.focus({ preventScroll: true });
     }
 
     function ensureSafetyBoundaryDialog() {
@@ -3471,7 +3461,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       testOverrideBtn = actionButton("Test unsafe override", () => {
         restoreBoundaryDialogFocus = false;
         if (safetyBoundaryDialog.open) safetyBoundaryDialog.close();
-        void runAdversarialTest("override");
+        stageAdversarialTest("override");
       });
       testOverrideBtn.dataset.testDocument = "true";
       testOverrideBtn.dataset.actionKey = "test-document";
@@ -3485,7 +3475,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       testEgressBtn = actionButton("Test unsafe egress", () => {
         restoreBoundaryDialogFocus = false;
         if (safetyBoundaryDialog.open) safetyBoundaryDialog.close();
-        void runAdversarialTest("egress");
+        stageAdversarialTest("egress");
       });
       testEgressBtn.dataset.testEgress = "true";
       testEgressBtn.dataset.actionKey = "test-egress";
@@ -3659,7 +3649,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
-    async function executeAgentInvocation(promptInput) {
+    async function executeAgentInvocation(promptInput, invocationDocument = agentDocument) {
       if (invokingAgent) return;
       finishAgentPromptTyping();
       const message = promptInput.value.trim();
@@ -3708,7 +3698,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             root: MODEL.root,
             port: readyEntry.port,
             message,
-            ...(operationalState.readiness?.documentInput && agentDocument ? { document: agentDocument } : {}),
+            ...(operationalState.readiness?.documentInput && invocationDocument ? { document: invocationDocument } : {}),
           }),
         });
         agentResponsePhase = "waiting";
@@ -3721,7 +3711,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const result = await request;
         agentRawResponse = typeof result.response === "string"
           ? result.response : JSON.stringify(result.response, null, 2);
-        if (agentDocument && assessmentEpoch === documentAssessmentEpoch) {
+        if (invocationDocument && assessmentEpoch === documentAssessmentEpoch) {
           documentAssessment = result.documentAssessment ?? { state: "unverified" };
         }
         agentToolActivity = result.summary?.tools || [];
@@ -3734,7 +3724,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         setStatus("Agent response received.");
       } catch (error) {
         agentRequestState = "failed";
-        if (agentDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
+        if (invocationDocument && assessmentEpoch === documentAssessmentEpoch) documentAssessment = { state: "unverified" };
         updateResponseNode(error.message);
         setStatus("");
       } finally {
