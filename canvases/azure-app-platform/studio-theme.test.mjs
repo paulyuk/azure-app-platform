@@ -85,7 +85,8 @@ test("home and map render explicit initial preference with shared settings and a
 test("landing uses canonical home components in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const html = renderStudioHtml("studio", "token", { theme });
-    assert.match(html, /h\(ActionCard,/);
+    assert.match(html, /h\(Button,/);
+    assert.match(html, /h\(Disclosure,/);
     assert.match(html, /simple-home-introduction/);
     assert.match(html, /id: "new-app", title: "Create a new app"/);
     assert.doesNotMatch(html, /h\(FeaturePanel,/);

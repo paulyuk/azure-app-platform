@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="assemble-title assemble-description">
+  <title id="assemble-title">Assemble existing projects</title>
+  <desc id="assemble-description">A source project, cylindrical data resource, and existing tool connect through a shared entry point into a bounded app map.</desc>
+  <g id="connection" stroke="#294482" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M154 152H179Q195 152 195 168V256"/>
+    <path d="M154 256H220"/>
+    <path d="M154 360H179Q195 360 195 344V256"/>
+  </g>
+  <g id="source-project" stroke="#294482" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="72" y="110" width="82" height="84" rx="18" fill="#F5F5F5"/>
+    <path d="M90 110H136C146 110 154 118 154 128V136H72V128C72 118 80 110 90 110Z" fill="#CEDEFF"/>
+    <path d="M100 151L89 162L100 173M126 151L137 162L126 173"/>
+  </g>
+  <g id="data-resource" stroke="#294482" stroke-width="2" stroke-linejoin="round">
+    <path d="M72 232V280C72 287.7 90.4 294 113 294C135.6 294 154 287.7 154 280V232Z" fill="#5C8DF8"/>
+    <ellipse cx="113" cy="232" rx="41" ry="13" fill="#CEDEFF"/>
+  </g>
+  <g id="existing-tool" stroke="#294482" stroke-width="2" stroke-linecap="round">
+    <rect x="72" y="322" width="82" height="76" rx="18" fill="#FFE4B4"/>
+    <path d="M96 348H130M96 372H130"/>
+    <circle cx="106" cy="348" r="6" fill="#F5F5F5"/>
+    <circle cx="120" cy="372" r="6" fill="#F5F5F5"/>
+  </g>
+  <g id="app-boundary" stroke="#294482" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M234 218V157C234 139 249 124 267 124H405C423 124 438 139 438 157V355C438 373 423 388 405 388H267C249 388 234 373 234 355V294" fill="#CEDEFF"/>
+    <path d="M252 218V160C252 150 260 142 270 142H402C412 142 420 150 420 160V352C420 362 412 370 402 370H270C260 370 252 362 252 352V294" fill="#F5F5F5"/>
+  </g>
+  <g id="entry-point">
+    <rect x="218" y="219" width="52" height="74" rx="16" fill="#5C8DF8"/>
+    <path d="M232 256H256M248 248L256 256L248 264" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="subject">
+    <path d="M270 256H296M328 228V205Q328 191 342 191H377M328 280V307Q328 321 342 321H377" stroke="#294482" stroke-width="3" stroke-linecap="round"/>
+    <rect x="296" y="225" width="64" height="62" rx="18" fill="#5C8DF8"/>
+    <circle cx="328" cy="256" r="10" fill="#294482"/>
+    <circle cx="384" cy="191" r="15" fill="#CEDEFF" stroke="#294482" stroke-width="2"/>
+    <rect x="369" y="306" width="30" height="30" rx="8" fill="#FFE4B4" stroke="#294482" stroke-width="2"/>
+  </g>
+</svg>

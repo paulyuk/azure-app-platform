@@ -1,55 +1,118 @@
-export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble, onOpenRecent, recentApps = null, recentError = null }) {
-  const { createElement: h, mountCanvasComponent, ActionCard, SectionHeader, WorkItem, Button, SymbolIcon } = toolkit;
+export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble, onOpenRecent, recentApps = null, recentError = null, busy = false }) {
+  const { createElement: h, mountCanvasComponent, SectionHeader, WorkItem, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
   const tasks = [
-    { id: "new-app", title: "Create a new app", description: "Start from a Sandboxes app template and customize.", icon: "code", onClick: onCreate },
-    { id: "open-app", title: "Open an app", description: "Continue building, running, or managing an app.", icon: "file-code", onClick: onOpen },
-    { id: "assemble-app", title: "Assemble existing projects", description: "Combine source projects, ACA Sandboxes, and Azure resources.", icon: "workflow", onClick: onAssemble },
+    { id: "new-app", title: "Create a new app", description: "Start with a template. Make it yours.", illustration: "create", onClick: onCreate },
+    { id: "open-app", title: "Open an app", description: "Pick up where you left off.", illustration: "open", onClick: onOpen },
+    { id: "assemble-app", title: "Assemble existing projects", description: "Bring your projects and Azure resources together.", illustration: "assemble", onClick: onAssemble },
   ];
-  function AppPlatformHome() {
-    return h("div", { className: "simple-home" },
+  const questions = [
+    ["What makes up an app?", "An app can include agents, tools, a web experience, and Azure resources. The App Map shows its components and connections; what is included depends on your template and configuration."],
+    ["How is tool execution isolated?", "ACA Sandboxes can isolate tool execution from the agent. Local subprocess execution is a simulation, not that isolation boundary."],
+    ["How is shared access governed?", "AI Gateway can govern access to shared models and tools. The controls that apply depend on your app's configuration; mapping a resource does not itself grant permission."],
+    ["How do I check that things work?", "Review your connections, run a tool-backed task, and inspect the results and logs. These controls need to be configured and verified for each app."],
+  ];
+  function AppPlatformHome({ busy: currentBusy = busy, recentApps: currentApps = recentApps, recentError: currentError = recentError } = {}) {
+    const [query, setQuery] = useState("");
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const visibleApps = (currentApps || []).filter(app =>
+      (app.name + " " + app.path).toLocaleLowerCase().includes(normalizedQuery)).slice(0, 5);
+    return h("fieldset", { className: "simple-home", disabled: currentBusy, "aria-label": "App home", "aria-busy": currentBusy },
       h("style", null, `
-        #studio-home { width: min(888px, 100vw); margin-inline-start: 50%; translate: -50% 0; }
-        .simple-home { max-width: 888px; box-sizing: border-box; margin: 0 auto; padding: 24px; color: var(--canvas-fg); }
+        body:has(#studio-home) { padding-inline: 0; }
+        body:has(#studio-home) .studio-site-nav { margin-inline: 0; }
+        main:has(#studio-home) { padding-block: 0; }
+        #studio-home { width: 100%; container: simple-home-shell / inline-size; }
+        .simple-home { width: 100%; max-width: 888px; min-width: 0; box-sizing: border-box; border: 0; margin: 0 auto; padding: 24px; color: var(--canvas-fg); }
         .simple-home-start { display: grid; gap: 24px; container: simple-home / inline-size; }
         .simple-home-start > *, .simple-home-tasks > * { min-width: 0; }
         .simple-home-introduction h1 { margin: 0; font-size: var(--text-title-size, 20px); line-height: var(--text-title-line-height, 28px); font-weight: var(--font-weight-semibold, 600); }
         .simple-home-introduction p { margin: 8px 0 0; color: var(--canvas-muted); font-size: var(--canvas-body); line-height: 20px; font-weight: 400; }
         .simple-home-tasks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-        .simple-home .simple-home-task.simple-home-task { min-height: 88px; height: 100%; }
-        .simple-home .simple-home-task[data-default-selected="true"] {
-          border-color: var(--studio-accent, #6b3fd6);
-          box-shadow: 0 0 0 1px var(--studio-accent, #6b3fd6) inset;
-          background: color-mix(in srgb, var(--studio-accent, #6b3fd6) 6%, var(--studio-raised, transparent));
+        .simple-home .simple-home-task.simple-home-task { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; height: 100%; min-height: 100px; padding: 12px; text-align: start; border: 1px solid var(--canvas-border); border-radius: var(--canvas-radius-large, 12px); background: var(--canvas-bg); color: var(--canvas-fg); }
+        .simple-home .simple-home-task.simple-home-task:hover:not(:disabled) { background: var(--canvas-hover); }
+        .simple-home-art { display: flex; justify-content: center; align-items: center; width: 84px; height: 74px; }
+        .simple-home-art img { width: 84px; height: 74px; object-fit: contain; }
+        .simple-home-task-copy { display: grid; gap: 4px; min-width: 0; }
+        .simple-home-task-title { font-size: var(--canvas-body); line-height: 20px; font-weight: var(--font-weight-semibold, 600); }
+        .simple-home-task-description { color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 18px; font-weight: 400; }
+        .simple-home-recent { margin-top: 24px; padding: 20px; border: 1px solid var(--canvas-border); border-radius: var(--canvas-radius-large, 12px); }
+        .simple-home-recent-heading { flex-wrap: wrap; }
+        .simple-home .simple-home-browse.simple-home-browse { font-size: var(--canvas-small); }
+        .simple-home-search { width: 100%; box-sizing: border-box; }
+        .simple-home-search-toolbar { column-gap: 0; }
+        .simple-home-results { display: grid; gap: 4px; margin-top: 8px; }
+        .simple-home .simple-home-recent-item { position: relative; flex-wrap: nowrap; padding: 12px; border: 0; border-radius: var(--canvas-radius-control, 6px); }
+        .simple-home-recent-item:has(button:enabled):hover { background: var(--canvas-hover); }
+        .simple-home-recent-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--canvas-radius-control, 6px); background: var(--canvas-tint); }
+        .simple-home .simple-home-recent-open.simple-home-recent-open { position: static; justify-content: flex-start; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--canvas-accent); text-align: start; font: inherit; }
+        .simple-home-recent-open::after { content: ""; position: absolute; inset: 0; border-radius: var(--canvas-radius-control, 6px); }
+        .simple-home-recent-item:hover .simple-home-recent-open:not(:disabled) { text-decoration: underline; }
+        .simple-home .simple-home-recent-open:focus-visible { outline: none; }
+        .simple-home-recent-open:focus-visible::after { outline: 2px solid var(--canvas-focus); outline-offset: 2px; }
+        .simple-home-help { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--canvas-border); }
+        .simple-home-questions { padding-inline-start: 16px; }
+        .simple-home-questions p { margin: 0 0 12px; max-width: 620px; color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 20px; }
+        @container simple-home-shell (max-width: 519px) {
+          .simple-home { padding: 24px 16px; }
+          .simple-home-recent { padding: 16px; }
         }
-        .simple-home-recent { margin-top: 24px; }
-        @container simple-home (min-width: 520px) { .simple-home-tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @container simple-home (min-width: 760px) { .simple-home-tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @container simple-home (min-width: 640px) {
+          .simple-home-tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .simple-home .simple-home-task.simple-home-task { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 16px; }
+          .simple-home-art { width: 100%; height: 116px; margin-bottom: 12px; }
+          .simple-home-art img { width: 144px; height: 116px; }
+          .simple-home-task-title { min-height: 40px; }
+        }
       `),
       h("div", { className: "simple-home-start" },
         h("div", { className: "simple-home-introduction" },
           h("h1", null, "What would you like to do?"),
-          h("p", null, "Start a new app, assemble existing projects, or continue working on an app you already have.")),
-        h("div", { className: "simple-home-tasks" },
-          ...tasks.map((task, index) => h(ActionCard, {
+          h("p", null, "Start a new app, bring existing projects together, or pick up where you left off.")),
+        h("div", { className: "simple-home-tasks", role: "group", "aria-label": "Ways to start" },
+          ...tasks.map(task => h(Button, {
             key: task.id, id: task.id, className: "simple-home-task", type: "button",
-            "data-default-selected": index === 0 ? "true" : undefined,
-            title: task.title, description: task.description,
-            icon: h(SymbolIcon, { name: task.icon }), compact: true, onClick: task.onClick,
-          })))),
+            "aria-label": task.title, disabled: currentBusy, onClick: task.onClick,
+          }, h("span", { className: "simple-home-art", "aria-hidden": true },
+            h("img", { src: "/assets/homepage-" + task.illustration + ".svg", alt: "", width: 144, height: 116 })),
+          h("span", { className: "simple-home-task-copy" },
+            h("span", { className: "simple-home-task-title" }, task.title),
+            h("span", { className: "simple-home-task-description" }, task.description)))))),
       h("section", { className: "simple-home-recent", "aria-labelledby": "recent-apps-title" },
-        h(SectionHeader, { title: h("span", { id: "recent-apps-title" }, "Recently viewed") }),
-        recentError
+        h(SectionHeader, {
+          className: "simple-home-recent-heading",
+          title: h("span", { id: "recent-apps-title" }, "Get back to your app"),
+          actions: h(Button, { className: "simple-home-browse", type: "button", appearance: "subtle", icon: h(SymbolIcon, { name: "forward", size: 16 }), iconPosition: "after", disabled: currentBusy, onClick: onOpen }, "Browse apps"),
+        }),
+        h(FilterToolbar, { className: "simple-home-search-toolbar", search: {
+          id: "recent-app-search", className: "simple-home-search", type: "search",
+          "aria-label": "Find a recent app", placeholder: "Find a recent app", "aria-controls": "recent-app-results",
+          value: query, onChange: (_, data) => setQuery(data.value),
+          disabled: currentBusy || currentApps === null || Boolean(currentError),
+        } }),
+        h("div", { className: "simple-home-results", id: "recent-app-results", "aria-live": "polite" },
+        currentError
           ? h("p", { role: "status" }, "Recent apps could not be refreshed. Use Open an app to retry.")
-          : recentApps === null
+          : currentApps === null
             ? h("p", null, "Recent apps have not been loaded. Use Open an app to find your existing apps.")
-            : recentApps.length === 0
+            : currentApps.length === 0
               ? h("p", null, "No recently viewed apps were found.")
-              : recentApps.slice(0, 5).map(app => h(WorkItem, {
-                key: app.path, title: app.name, description: app.path,
-                icon: h(SymbolIcon, { name: "file-code" }),
+              : visibleApps.length === 0
+                ? h("p", { role: "status" }, "No recent apps match. Try a different name or path.")
+                : visibleApps.map(app => h(WorkItem, {
+                key: app.path, className: "simple-home-recent-item", description: app.path,
+                title: h(Button, {
+                  className: "simple-home-recent-open", appearance: "subtle", type: "button",
+                  "data-recent-app": app.path, disabled: currentBusy,
+                  onClick: () => onOpenRecent(app.path), "aria-label": "Open " + app.name,
+                }, app.name),
+                icon: h("span", { className: "simple-home-recent-icon" }, h(SymbolIcon, { name: "file-code" })),
                 metadata: h("time", { dateTime: app.lastOpenedAt }, "Last opened " + new Date(app.lastOpenedAt).toLocaleString()),
-                actions: h(Button, { type: "button", "data-recent-app": app.path, onClick: () => onOpenRecent(app.path), "aria-label": "Open " + app.name }, "Open"),
-              }))));
+              })))),
+      h("aside", { className: "simple-home-help", "aria-label": "App guidance" },
+        h(Disclosure, { title: "How apps work", keepMounted: true },
+          h("div", { className: "simple-home-questions" },
+            ...questions.map(([title, answer]) => h(Disclosure, { key: title, title, keepMounted: true },
+              h("p", null, answer)))))));
   }
   return mountCanvasComponent(element, AppPlatformHome);
 }

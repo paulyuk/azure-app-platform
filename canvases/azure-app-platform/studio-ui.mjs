@@ -475,8 +475,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function setBusy(busy, message = "") {
         appBusy = busy;
+        homeHandle?.update({
+          busy,
+          recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
+          recentError: sourcesError,
+        });
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
-          buttons.setDisabled(control, busy);
+          if (!control.closest("#studio-home")) buttons.setDisabled(control, busy);
         });
         syncEditorControls();
         status.textContent = message;
@@ -596,6 +601,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           onOpenRecent: openAppMap,
           recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
           recentError: sourcesError,
+          busy: appBusy,
         });
         focusPrimaryAction("#new-app");
         window.dispatchEvent(new Event("app-platform-home-ready"));
@@ -1699,8 +1705,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       renderLanding();
       void loadSources().then(() => {
-        if (draft.journey === null) renderLanding();
-      }).catch(() => {});
+        if (draft.journey === null && document.activeElement === document.body) focusPrimaryAction("#new-app");
+      }).catch(cause => {
+        if (draft.journey === null) error(cause.message);
+      });
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}
       window.appPlatformReady = true;

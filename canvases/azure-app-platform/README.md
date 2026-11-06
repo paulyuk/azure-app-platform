@@ -255,33 +255,47 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
-pattern. Its Simple home asks **What would you like to do?** and presents
-**Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
-compact task cards, in that order. The content container uses one, two, or three
-columns at 520px and 760px of available content width, with 12px gaps and an
-88px minimum card height. A compact canonical header replaces the large Home
+pattern. Its home asks **What would you like to do?** and presents
+**Create a new app**, **Open an app**, and **Assemble existing projects** as equal,
+arrow-free illustrated buttons, in that order. Cards stack with artwork beside
+their labels below 640px of available content width; at 640px they become three
+equal columns with artwork above the labels. The content is at most 888px wide,
+with 12px card gaps and 16px narrow / 24px wide outer padding.
+A compact canonical header replaces the large Home
 masthead; the opening animation and existing Docs/Settings actions are preserved.
 The header begins 8px below the viewport, followed by 24px before the Home
 introduction. The introduction is the page's h1 because the brand is a Home
 button, not a heading; its visual type remains 20px/28px/600.
-The home composes the public toolkit `ActionCard`, `SectionHeader`, `WorkItem`,
-`Button`, and `SymbolIcon` components from the shipped browser
-bundle; it does not duplicate their markup or styles. The shared controls
+The home composes public toolkit `Button`, `SectionHeader`, `WorkItem`,
+`FilterToolbar` (including its search input), `Disclosure`, and `SymbolIcon` components from the shipped browser
+bundle. Illustrated cards use Button composition because ActionCard always
+includes an arrow. Each recent WorkItem uses its title Button as one stretched
+row target, with rounded hover and focus states and no duplicate Open button.
+No toolkit internals are hidden or changed. The shared controls
 bootstrap completes before the home and intro become interactive. A failed
 bundle load is explicit and asks the user to reload to retry. Returning from a
 journey restores focus to Create, as does skipping the intro.
-Recently viewed uses only genuine, already-loaded source inventory with recorded
+**Get back to your app** uses only genuine source inventory with recorded
 last-opened timestamps, showing at most the newest five in the source catalog's
 existing recency order. This Home-only limit does not truncate stored history or
-the full inventory available through Open an app. Initially it explicitly says apps have not been loaded;
-Open an app remains the route to load them. Successful-empty and failed refresh
-states are distinct. No launch scan, new history store, or sample recents are added.
+the full inventory available through Open an app or **Browse apps**. Search
+filters cached names and paths before applying that five-row limit; it does not
+make discovery requests. The existing initial local source refresh is preserved,
+without Azure discovery. Until it completes, Home reports that apps have not been
+loaded; successful-empty and failed refresh states remain distinct. Updates keep
+the same React root, search text, disclosure state and focus. No new history store
+or sample recents are added.
 
-The layout is adapted product source from the approved, uncommitted canonical
-Simple home example (frozen reference digest
-`6a0e96514f235682a972cd1b11a1550b3e99448ec503d09504790e93ac2a2e70`),
-not a public component, workbench import, or template claimed to exist at the
-toolkit's pinned commit. The toolkit runtime and provenance are unchanged.
+**How apps work** is collapsed by default, with four opt-in explanations covering
+app components, sandbox isolation, gateway governance and per-app verification.
+Opening guidance performs no setup, execution or permission changes.
+
+The layout adopts approved homepage prototype `v02`, revision `8` (source digest
+`a7324c2baf464ecee002c9d6acf1e1ef31dd7363eaec861d04689d9c254b6eb9`),
+translated into product-owned components and existing handlers, not prototype
+mock operations or preview infrastructure. The self-contained SVGs ship with the
+plugin; no build, dependency restore or CDN is needed to show them. The toolkit
+runtime and provenance are unchanged.
 
 The three supported journeys are:
 
