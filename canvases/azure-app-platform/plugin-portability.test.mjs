@@ -142,7 +142,8 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(new URL(opened.url).searchParams.has("intro"), false);
         assert.doesNotMatch(html, /id="skip-studio-intro"/);
         for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg", "run-working-spot.svg",
-          "homepage-create.svg", "homepage-open.svg", "homepage-assemble.svg"]) {
+          "homepage-create.svg", "homepage-open.svg", "homepage-assemble.svg",
+          "homepage-create-dark.svg", "homepage-open-dark.svg", "homepage-assemble-dark.svg"]) {
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);
           const expected = await readFile(join(payload, "assets", name));

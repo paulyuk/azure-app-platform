@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="assemble-title assemble-description">
+  <title id="assemble-title">Assemble existing projects - dark material</title>
+  <desc id="assemble-description">Existing source and resource pieces connect into a deep blue app window, with a blue module fitting into its matching slot.</desc>
+  <defs>
+    <linearGradient id="assemble-neutral" x1="432" y1="96" x2="150" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A446F"/>
+      <stop offset="1" stop-color="#091F2C"/>
+    </linearGradient>
+    <linearGradient id="assemble-highlight" x1="366" y1="156" x2="250" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#365987"/>
+      <stop offset="1" stop-color="#1A3147"/>
+    </linearGradient>
+    <linearGradient id="assemble-azure" x1="422" y1="32" x2="160" y2="432" gradientUnits="userSpaceOnUse">
+      <stop offset="0.421312" stop-color="#49C5B1"/>
+      <stop offset="0.933804" stop-color="#0078D4"/>
+    </linearGradient>
+    <linearGradient id="assemble-violet" x1="270" y1="322" x2="270" y2="168" gradientUnits="userSpaceOnUse">
+      <stop offset="0.498686" stop-color="#C03BC4"/>
+      <stop offset="1" stop-color="#C03BC4" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="assemble-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="4" dy="-4"/>
+      <feGaussianBlur stdDeviation="2"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+      <feBlend mode="multiply" in2="shape" result="edge"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="8" dy="-8"/>
+      <feGaussianBlur stdDeviation="12"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+      <feBlend mode="multiply" in2="edge" result="depth"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="-2" dy="8"/>
+      <feGaussianBlur stdDeviation="3"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
+      <feBlend mode="normal" in2="depth" result="highlight"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="-4"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0"/>
+      <feBlend mode="normal" in2="highlight" result="lower-edge"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="2"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.12 0"/>
+      <feBlend mode="normal" in2="lower-edge"/>
+    </filter>
+    <filter id="assemble-shell-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="4" dy="-4"/>
+      <feGaussianBlur stdDeviation="2"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+      <feBlend mode="multiply" in2="shape" result="edge"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="8" dy="-8"/>
+      <feGaussianBlur stdDeviation="12"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+      <feBlend mode="multiply" in2="edge" result="depth"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="-2" dy="8"/>
+      <feGaussianBlur stdDeviation="3"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0"/>
+      <feBlend mode="normal" in2="depth" result="highlight"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="-4"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0"/>
+      <feBlend mode="normal" in2="highlight" result="lower-edge"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="2"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
+      <feBlend mode="normal" in2="lower-edge"/>
+    </filter>
+  </defs>
+  <g id="connection" stroke="url(#assemble-azure)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M144 168H180Q202 168 202 190V316Q202 338 224 338H288"/>
+    <path d="M144 356H178Q202 356 202 332V286H288"/>
+  </g>
+  <g id="subject">
+    <rect x="246" y="102" width="202" height="304" rx="34" fill="url(#assemble-neutral)" filter="url(#assemble-shell-bevel)"/>
+    <rect x="266" y="158" width="162" height="226" rx="20" fill="url(#assemble-highlight)" filter="url(#assemble-shell-bevel)"/>
+    <rect x="274" y="124" width="68" height="12" rx="6" fill="#8DC8E8"/>
+    <rect x="286" y="182" width="122" height="66" rx="16" fill="url(#assemble-neutral)" filter="url(#assemble-shell-bevel)"/>
+    <rect x="286" y="268" width="48" height="94" rx="14" fill="url(#assemble-azure)" filter="url(#assemble-bevel)"/>
+    <rect x="350" y="268" width="58" height="94" rx="14" fill="url(#assemble-neutral)" filter="url(#assemble-shell-bevel)"/>
+  </g>
+  <g id="source-project" filter="url(#assemble-shell-bevel)">
+    <rect x="56" y="116" width="96" height="96" rx="25" fill="url(#assemble-neutral)"/>
+    <path d="M92 150L78 164L92 178M116 150L130 164L116 178" stroke="#8DC8E8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="resource" filter="url(#assemble-shell-bevel)">
+    <rect x="56" y="310" width="96" height="96" rx="25" fill="url(#assemble-neutral)"/>
+    <path d="M82 342H126M82 370H126" stroke="#8DC8E8" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="96" cy="342" r="9" fill="white"/>
+    <circle cx="114" cy="370" r="9" fill="white"/>
+  </g>
+  <g id="fitting-module" transform="rotate(-8 278 196)" filter="url(#assemble-bevel)">
+    <rect x="212" y="136" width="126" height="96" rx="24" fill="url(#assemble-azure)"/>
+    <rect x="212" y="136" width="126" height="96" rx="24" fill="url(#assemble-violet)"/>
+    <path d="M242 170H304M242 194H282" stroke="white" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

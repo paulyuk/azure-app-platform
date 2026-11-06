@@ -48,8 +48,12 @@ test("home composes public toolkit primitives with the selected illustrations an
   tree.find(node => node.props.className === "simple-home-browse").props.onClick();
   assert.deepEqual(calls, ["create", "open", "assemble", "open"]);
   assert.deepEqual(tree.filter(node => node.type === "img").map(node => [node.props.src, node.props.alt]), [
-    ["/assets/homepage-create.svg", ""], ["/assets/homepage-open.svg", ""], ["/assets/homepage-assemble.svg", ""],
+    ["/assets/homepage-create.svg", ""], ["/assets/homepage-create-dark.svg", ""],
+    ["/assets/homepage-open.svg", ""], ["/assets/homepage-open-dark.svg", ""],
+    ["/assets/homepage-assemble.svg", ""], ["/assets/homepage-assemble-dark.svg", ""],
   ]);
+  assert.deepEqual(tree.filter(node => node.type === "img").map(node => node.props["data-home-art-theme"]),
+    ["light", "dark", "light", "dark", "light", "dark"]);
   assert.deepEqual(tree.filter(node => node.type === "h1").map(node => node.children), [["What would you like to do?"]]);
   assert.ok(JSON.stringify(tree).includes("Start a new app, bring existing projects together, or pick up where you left off."));
 });

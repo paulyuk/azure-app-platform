@@ -297,6 +297,36 @@ mock operations or preview infrastructure. The self-contained SVGs ship with the
 plugin; no build, dependency restore or CDN is needed to show them. The toolkit
 runtime and provenance are unchanged.
 
+The three homepage illustrations use matched `assets/homepage-{create,open,assemble}.svg`
+light materials and `homepage-{create,open,assemble}-dark.svg` dark materials:
+rounded soft-neutral or deep-blue surfaces,
+Azure blue/teal/violet gradients and restrained vector bevel lighting adapted
+from the supplied Azure illustration reference. Their new compositions depict
+creating an app, reopening a project folder, and fitting existing pieces into
+an app. Each is a static, editable, self-contained 512px SVG, designed to remain
+legible in the compact 84px by 74px art slot.
+
+The paired files keep the same geometry and colored focal details. Dark shells
+use `#2A446F` to `#091F2C`, lifted blue inset surfaces, and separately tuned
+bevel highlights; small blue line symbols use the pale-blue reference ink for
+contrast. Object interiors remain opaque and the outer canvas transparent.
+Do not recolor materials with foreground tokens or expect document CSS variables
+to cross the external `img` boundary. The surrounding cards, labels, borders,
+hover and focus states continue to use the toolkit's semantic `--canvas-*`
+aliases and host-delivered theme. The images retain empty `alt` text inside `aria-hidden` art wrappers;
+their standalone SVG title and description are not duplicate button labels.
+CSS displays exactly one shipped variant per card without remounting controls.
+For the embedded GitHub app presentation, valid host `data-theme-tone` takes
+precedence over valid compatibility `data-color-mode`; the saved
+`data-studio-theme` preference is the fallback when neither supplies a tone.
+Standalone uses its saved preference. OS appearance does not override either.
+Late host delivery, live theme changes and host-theme removal use the same
+cascade; no runtime dependency, image filter or CDN is required.
+
+Home does not preselect or automatically focus a starting point, including
+after its initial source refresh or the optional intro. Keyboard navigation
+retains visible focus; the intro restores an existing prior focus when present.
+
 The three supported journeys are:
 
 1. **Create a new app** — choose the editable **Empty Unity app**, the headless

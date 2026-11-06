@@ -18,6 +18,12 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
       (app.name + " " + app.path).toLocaleLowerCase().includes(normalizedQuery)).slice(0, 5);
     return h("fieldset", { className: "simple-home", disabled: currentBusy, "aria-label": "App home", "aria-busy": currentBusy },
       h("style", null, `
+        :root { --home-art-light: block; --home-art-dark: none; }
+        :root[data-studio-theme="dark"] { --home-art-light: none; --home-art-dark: block; }
+        :root.studio-shared-presentation[data-theme-tone="light"],
+        :root.studio-shared-presentation:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="light"] { --home-art-light: block; --home-art-dark: none; }
+        :root.studio-shared-presentation[data-theme-tone="dark"],
+        :root.studio-shared-presentation:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="dark"] { --home-art-light: none; --home-art-dark: block; }
         body:has(#studio-home) { padding-inline: 0; }
         body:has(#studio-home) .studio-site-nav { margin-inline: 0; }
         main:has(#studio-home) { padding-block: 0; }
@@ -32,6 +38,8 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
         .simple-home .simple-home-task.simple-home-task:hover:not(:disabled) { background: var(--canvas-hover); }
         .simple-home-art { display: flex; justify-content: center; align-items: center; width: 84px; height: 74px; }
         .simple-home-art img { width: 84px; height: 74px; object-fit: contain; }
+        .simple-home-art [data-home-art-theme="light"] { display: var(--home-art-light); }
+        .simple-home-art [data-home-art-theme="dark"] { display: var(--home-art-dark); }
         .simple-home-task-copy { display: grid; gap: 4px; min-width: 0; }
         .simple-home-task-title { font-size: var(--canvas-body); line-height: 20px; font-weight: var(--font-weight-semibold, 600); }
         .simple-home-task-description { color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 18px; font-weight: 400; }
@@ -73,7 +81,10 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
             key: task.id, id: task.id, className: "simple-home-task", type: "button",
             "aria-label": task.title, disabled: currentBusy, onClick: task.onClick,
           }, h("span", { className: "simple-home-art", "aria-hidden": true },
-            h("img", { src: "/assets/homepage-" + task.illustration + ".svg", alt: "", width: 144, height: 116 })),
+            ...["light", "dark"].map(theme => h("img", {
+              key: theme, src: "/assets/homepage-" + task.illustration + (theme === "dark" ? "-dark" : "") + ".svg",
+              "data-home-art-theme": theme, alt: "", width: 144, height: 116,
+            }))),
           h("span", { className: "simple-home-task-copy" },
             h("span", { className: "simple-home-task-title" }, task.title),
             h("span", { className: "simple-home-task-description" }, task.description)))))),

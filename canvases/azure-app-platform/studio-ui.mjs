@@ -603,7 +603,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           recentError: sourcesError,
           busy: appBusy,
         });
-        focusPrimaryAction("#new-app");
         window.dispatchEvent(new Event("app-platform-home-ready"));
       }
 
@@ -1704,9 +1703,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       renderLanding();
-      void loadSources().then(() => {
-        if (draft.journey === null && document.activeElement === document.body) focusPrimaryAction("#new-app");
-      }).catch(cause => {
+      void loadSources().catch(cause => {
         if (draft.journey === null) error(cause.message);
       });
       ${intro ? renderStudioIntroClientScript() : ""}

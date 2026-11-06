@@ -16,6 +16,113 @@ try { playwright = requireWeb("playwright"); } catch (error) { if (error.code !=
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
 for (const engine of ["chromium", "webkit"]) {
+  test(`homepage SVG materials remain passive, opaque and visible in ${engine}`, {
+    skip: !playwright && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const { serveStudioAsset } = await import("./studio-assets.mjs");
+    const server = createServer((request, response) => {
+      void (async () => {
+        if (await serveStudioAsset(request, response, new URL(request.url, "http://localhost").pathname)) return;
+        response.writeHead(200, { "Content-Type": "text/html" }).end("<!doctype html><title>Artwork verification</title>");
+      })().catch(error => response.writeHead(500).end(error.message));
+    });
+    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+    let browser;
+    try {
+      browser = await playwright[engine].launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(`http://127.0.0.1:${server.address().port}`);
+      const lightMaterials = new Map();
+      for (const [name, neutralPoint] of [["create", [112, 220]], ["open", [160, 290]], ["assemble", [400, 150]]]) for (const theme of ["light", "dark"]) {
+        const suffix = theme === "dark" ? "-dark" : "";
+        const svg = await readFile(new URL(`./assets/homepage-${name}${suffix}.svg`, import.meta.url), "utf8");
+        assert.doesNotMatch(svg, /<!DOCTYPE|<!ENTITY|<\?xml-stylesheet|currentColor|var\(/i);
+        const result = await page.evaluate(async ({ name, neutralPoint, suffix }) => {
+          const response = await fetch(`/assets/homepage-${name}${suffix}.svg`);
+          if (!response.ok || response.headers.get("Content-Type") !== "image/svg+xml") throw new Error("Missing packaged SVG");
+          const source = await response.text();
+          const doc = new DOMParser().parseFromString(source, "image/svg+xml");
+          const allowed = new Set(["svg", "title", "desc", "defs", "g", "path", "rect", "circle", "linearGradient", "stop",
+            "filter", "feFlood", "feBlend", "feColorMatrix", "feOffset", "feGaussianBlur", "feComposite"]);
+          const ids = [], references = [], problems = [];
+          for (const node of doc.querySelectorAll("*")) {
+            if (!allowed.has(node.localName)) problems.push(`Unexpected element ${node.localName}`);
+            if (node.id) ids.push(node.id);
+            for (const attribute of node.attributes) {
+              if (/^on/i.test(attribute.name) || ["style", "href", "xlink:href"].includes(attribute.name)) problems.push(attribute.name);
+              for (const match of attribute.value.matchAll(/url\(([^)]+)\)/g)) references.push(match[1]);
+            }
+            if (node.localName === "feColorMatrix") {
+              const coefficients = node.getAttribute("values").trim().split(/\s+/).map(Number);
+              if (node.getAttribute("type") !== "matrix" || coefficients.length !== 20 || coefficients.some(value => !Number.isFinite(value))) {
+                problems.push("Invalid color matrix");
+              }
+            }
+          }
+          if (new Set(ids).size !== ids.length) problems.push("Duplicate IDs");
+          for (const ref of references) if (!ref.startsWith("#") || !ids.includes(ref.slice(1))) problems.push(`Invalid reference ${ref}`);
+          const root = doc.documentElement;
+          if (root.getAttribute("role") !== "img" || root.getAttribute("viewBox") !== "0 0 512 512") problems.push("Missing standalone image geometry or role");
+          for (const id of (root.getAttribute("aria-labelledby") || "").split(/\s+/)) {
+            if (!doc.getElementById(id)?.textContent.trim()) problems.push("Missing standalone accessible label");
+          }
+          const image = new Image();
+          image.src = `/assets/homepage-${name}${suffix}.svg`;
+          await image.decode();
+          const samples = [];
+          for (const size of [512, 128, 74]) {
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = size;
+            const context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0, size, size);
+            const pixels = context.getImageData(0, 0, size, size).data;
+            let opaque = 0, black = 0;
+            for (let index = 0; index < pixels.length; index += 4) {
+              if (pixels[index + 3] < 240) continue;
+              opaque++;
+              const threshold = suffix ? 8 : 40;
+              if (pixels[index] < threshold && pixels[index + 1] < threshold && pixels[index + 2] < threshold) black++;
+            }
+            const [x, y] = neutralPoint.map(value => Math.floor(value * size / 512));
+            const material = [...context.getImageData(x, y, 1, 1).data];
+            const corner = [...context.getImageData(0, 0, 1, 1).data];
+            samples.push({ size, coverage: opaque / (size * size), black, material, corner });
+          }
+          const geometry = [...root.querySelectorAll("g, path, rect, circle")].map(node => ({
+            tag: node.localName,
+            attributes: [...node.attributes].filter(attribute => !["fill", "stroke", "filter"].includes(attribute.name))
+              .map(attribute => [attribute.name, attribute.value]),
+          }));
+          const accents = ["azure", "violet"].map(role => doc.getElementById(`${name}-${role}`).outerHTML);
+          const focal = root.querySelector("#add-control, #continue-control, #fitting-module")?.outerHTML;
+          return { problems, samples, geometry, accents, focal };
+        }, { name, neutralPoint, suffix });
+        assert.deepEqual(result.problems, [], name);
+        for (const sample of result.samples) {
+          assert.ok(sample.coverage > 0.25 && sample.coverage < 0.75, `${name} at ${sample.size}px must paint its objects, not just load: ${sample.coverage}`);
+          assert.equal(sample.black, 0, `${name} must not acquire hard black filter edges`);
+          assert.equal(sample.material[3], 255, `${name} neutral interiors must stay opaque over either theme`);
+          assert.equal(sample.corner[3], 0, `${name} canvas must remain transparent`);
+          if (theme === "light") {
+            assert.ok(sample.material.slice(0, 3).every(channel => channel > 180), `${name} must retain neutral reference materials`);
+          } else {
+            const [r, g, b] = sample.material;
+            assert.ok(r < 90 && g < 120 && b < 155 && b > r + 10, `${name} must use deep-blue shells, not white artwork on dark`);
+          }
+        }
+        if (theme === "light") lightMaterials.set(name, result);
+        else {
+          const light = lightMaterials.get(name);
+          assert.deepEqual(result.geometry, light.geometry, `${name} theme pair must preserve geometry`);
+          assert.deepEqual(result.accents, light.accents, `${name} theme pair must preserve colored materials`);
+          assert.equal(result.focal, light.focal, `${name} theme pair must preserve focal controls and lighting`);
+        }
+      }
+    } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  });
+}
+
+for (const engine of ["chromium", "webkit"]) {
   test(`Home boundary copy preserves compact journeys and recent actions in ${engine}`, {
     skip: !playwright && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -68,7 +175,14 @@ for (const engine of ["chromium", "webkit"]) {
           assert.equal(await page.locator("#studio-home .ct-action-card-arrow").count(), 0);
           assert.equal(await page.locator("[data-recent-app]").count(), 5);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
-          await page.locator("#new-app").focus();
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          assert.equal(await page.locator(".simple-home-task:focus").count(), 0, "Home must not automatically focus a starting point");
+          for (let step = 0; step < 8; step++) {
+            if (await page.locator("#new-app").evaluate(element => element === document.activeElement)) break;
+            await page.keyboard.press("Tab");
+          }
+          assert.equal(await page.locator("#new-app").evaluate(element => element === document.activeElement), true, "The first starting point remains keyboard reachable");
+          assert.equal(await page.locator("#new-app").evaluate(element => getComputedStyle(element).outlineStyle), "solid", "Keyboard focus remains visible");
           await page.keyboard.press("Enter");
           await page.locator('input[name="template"]').waitFor();
           await page.locator("#top-back").click();
@@ -137,6 +251,17 @@ test("packaged simple home preserves the three explicit journeys", {
       const errors = [], requests = [];
       page.on("pageerror", error => errors.push(error.message));
       page.on("request", request => requests.push(request.url()));
+      const expectArtwork = async tone => {
+        const visible = page.locator(".simple-home-art img:visible");
+        assert.equal(await visible.count(), 3, "Exactly one material is visible per card");
+        assert.deepEqual(await visible.evaluateAll(images => images.map(image => ({
+          file: new URL(image.src).pathname, theme: image.dataset.homeArtTheme, alt: image.alt,
+          decorative: image.closest(".simple-home-art").getAttribute("aria-hidden"),
+        }))), ["create", "open", "assemble"].map(name => ({
+          file: `/assets/homepage-${name}${tone === "dark" ? "-dark" : ""}.svg`,
+          theme: tone, alt: "", decorative: "true",
+        })));
+      };
       let sourceMode = "ready", recentCount = 7, releaseSources, notifySourcePending;
       const recentInventory = [
         { name: "Customer portal", path: "projects/customer-portal" },
@@ -176,12 +301,14 @@ test("packaged simple home preserves the three explicit journeys", {
       });
       for (const tone of ["light", "dark"]) {
         theme = tone;
+        await page.emulateMedia({ colorScheme: tone === "light" ? "dark" : "light" });
         for (const width of [390, 900, 1440]) {
           await page.setViewportSize({ width, height: width === 1440 ? 1100 : 1000 });
           const beforeRequests = requests.length;
           await page.goto(origin);
           await page.locator("#new-app:not(:disabled)").waitFor();
           await page.waitForFunction(() => [...document.images].every(image => image.complete));
+          if (!baseline) await expectArtwork(tone);
           assert.equal(requests.slice(beforeRequests).filter(url => new URL(url).pathname === "/api/sources").length, 1,
             "Home preserves its existing local source refresh");
           assert.ok(!requests.slice(beforeRequests).some(url => /\/api\/discovery/.test(url)),
@@ -417,6 +544,7 @@ test("packaged simple home preserves the three explicit journeys", {
         }
       }
       if (!baseline) {
+        theme = "light";
         await page.goto(origin);
         await page.locator("#new-app").waitFor();
         await page.locator("#new-app").focus();
@@ -449,6 +577,37 @@ test("packaged simple home preserves the three explicit journeys", {
         assert.equal(await page.evaluate(() => window.originalHome === document.querySelector("#studio-home .ct-provider")
           && window.originalCreate === document.activeElement
           && window.originalHeader === document.querySelector(".studio-site-nav .ct-header")), true, "Late host delivery must preserve roots and focus");
+        await expectArtwork("light");
+        for (const [tone, compatibility, expected] of [
+          ["dark", "light", "dark"], ["light", "dark", "light"],
+          ["invalid", "dark", "dark"], ["invalid", "light", "light"],
+          ["invalid", "auto", "light"], [null, null, "light"],
+        ]) {
+          await page.evaluate(({ tone, compatibility }) => {
+            const root = document.documentElement;
+            if (tone === null) delete root.dataset.themeTone;
+            else root.dataset.themeTone = tone;
+            if (compatibility === null) delete root.dataset.colorMode;
+            else root.dataset.colorMode = compatibility;
+          }, { tone, compatibility });
+          await expectArtwork(expected);
+          assert.equal(await page.evaluate(() => window.originalHome === document.querySelector("#studio-home .ct-provider")
+            && window.originalCreate === document.activeElement), true, "Host theme changes preserve roots and focus");
+        }
+        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("dark");
+        await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
+        await expectArtwork("dark");
+        await page.evaluate(() => { document.documentElement.dataset.themeTone = "light"; });
+        await expectArtwork("light");
+        await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("light");
+        await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "light");
+        await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("dark");
+        await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
+        await expectArtwork("light");
+        await page.evaluate(() => { delete document.documentElement.dataset.themeTone; });
+        await expectArtwork("dark");
+        await page.getByRole("button", { name: "Close settings", exact: true }).click();
         if (output) {
           const label = `after-${engine}-synthetic-host-tokens`;
           await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
@@ -472,6 +631,14 @@ test("packaged simple home preserves the three explicit journeys", {
         const search = page.getByRole("searchbox", { name: "Find a recent app" });
         await search.fill("Retained search");
         await page.getByRole("button", { name: "How apps work", exact: true }).click();
+        await search.focus();
+        await page.evaluate(() => { document.documentElement.dataset.themeTone = "light"; });
+        await expectArtwork("light");
+        assert.equal(await search.inputValue(), "Retained search");
+        assert.equal(await search.evaluate(element => element === document.activeElement), true);
+        assert.equal(await page.getByRole("button", { name: "How apps work", exact: true }).getAttribute("aria-expanded"), "true");
+        await page.evaluate(() => { delete document.documentElement.dataset.themeTone; });
+        await expectArtwork("dark");
         await page.evaluate(() => { window.busyHome = document.querySelector("#studio-home .ct-provider"); });
         sourceMode = "pending";
         await page.locator("#open-app").click();
@@ -518,7 +685,7 @@ test("packaged simple home preserves the three explicit journeys", {
         releaseToolkit();
         await page.locator("#new-app").waitFor();
         await page.getByRole("button", { name: "Skip", exact: true }).click();
-        assert.equal(await page.locator("#new-app").evaluate(element => element === document.activeElement), true);
+        assert.equal(await page.locator(".simple-home-task:focus").count(), 0, "Intro dismissal must not choose a starting point");
         await page.unroute("**/canvas-ui/base.mjs");
         await page.emulateMedia({ reducedMotion: "reduce" });
         await page.route("**/canvas-ui/base.mjs", route => route.abort());
