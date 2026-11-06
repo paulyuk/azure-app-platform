@@ -70,11 +70,11 @@ const standaloneAliases = `
 const sharedPresentationLayout = `
   :root.studio-shared-presentation { font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); }
   :root.studio-shared-presentation body { background: var(--studio-bg); }
-  :root.studio-shared-presentation #details code {
+  :root.studio-shared-presentation :is(#details, #customize-content) code {
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
   }
   :root.studio-shared-presentation body,
-  :root.studio-shared-presentation #details[data-mode="build"],
+  :root.studio-shared-presentation :is(#details, #customize-content)[data-mode="build"],
   :root.studio-shared-presentation #details[data-mode="manage"],
   :root.studio-shared-presentation .studio-settings {
     font: var(--text-body-medium, 14px)/var(--leading-body-medium, 1.25rem) var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
@@ -94,20 +94,22 @@ const sharedPresentationLayout = `
     min-height: var(--studio-control-height); padding: var(--studio-control-padding);
   }
   :root.studio-shared-presentation :is(.journey, .choice, .capability, .mapping, .review-row, .surface, .subsurface, .tier-card, .map-node, .map-empty, .map-loading, .header-actions, .endpoint-row, .action-card, .management-section),
-  :root.studio-shared-presentation #details :is(.build-file, .run-card, .agent-response, .document-assessment, .command-output, .action-card, .management-section) {
+  :root.studio-shared-presentation #details :is(.run-card, .agent-response, .document-assessment, .command-output, .action-card, .management-section) {
     border-radius: var(--studio-surface-radius);
   }
   :root.studio-shared-presentation :is(.journey, .choice, .capability, .mapping, .review-row, .subsurface, .tier-card),
-  :root.studio-shared-presentation #details :is(.build-file, .run-card, .agent-response, .document-assessment) {
+  :root.studio-shared-presentation #details :is(.run-card, .agent-response, .document-assessment) {
     padding: var(--studio-space-normal);
   }
   :root.studio-shared-presentation :is(.studio-settings, .confirm-dialog) { border-radius: var(--studio-dialog-radius); }
   :root.studio-shared-presentation :is(.studio-settings-heading, .studio-settings-content, .confirm-dialog) { padding: var(--studio-space-normal); }
   :root.studio-shared-presentation :is(.journeys, .actions, .actions-right) { gap: var(--studio-space-condensed); }
-  :root.studio-shared-presentation #details .build-workspace,
+  :root.studio-shared-presentation :is(#details, #customize-content) .build-workspace { padding: var(--studio-space-spacious) var(--studio-space-spacious) 0; }
   :root.studio-shared-presentation #details[data-mode="manage"] { padding: var(--studio-space-spacious); }
+  @container build-panel (max-width: 620px) {
+    :root.studio-shared-presentation :is(#details, #customize-content) .build-workspace { padding: var(--studio-space-normal) var(--studio-space-normal) 0; }
+  }
   @media (max-width: 620px) {
-    :root.studio-shared-presentation #details .build-workspace,
     :root.studio-shared-presentation #details[data-mode="manage"] { padding: var(--studio-space-normal); }
   }
 `;

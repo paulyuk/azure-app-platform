@@ -276,6 +276,46 @@ test("installed payload opens and materializes templates without checkout depend
         const artifact = state.artifacts.find((item) => item.id === "instructions");
         assert.equal(artifact.customizationArea, "behavior");
         assert.equal("editable" in artifact, false);
+        const templates = await api("/api/build-templates?root=.");
+        assert.equal(templates.status, 200);
+        const blockTemplates = (await templates.json()).templates;
+        assert.deepEqual(blockTemplates.map(item => item.id), [
+          "hosted-skill", "agent-instructions", "user-experience", "http-trigger", "timer-trigger",
+          "event-trigger", "queue-trigger", "connector", "orchestration", "sandbox", "operations",
+        ]);
+        for (const template of blockTemplates.filter(item => !["hosted-skill", "agent-instructions"].includes(item.id))) {
+          const created = await api("/api/build-block", { root: ".", templateId: template.id, name: template.id });
+          const block = await created.json();
+          assert.equal(created.status, 201, template.id + ": " + JSON.stringify(block));
+          const entry = ({ "user-experience": "index.html", connector: "connector.json", sandbox: "main.py", operations: "sre-agent.yaml" })[template.id] ?? "function_app.py";
+          assert.ok(block.paths.includes(block.projectPath + "/" + entry), template.id + " entry must be discovered");
+          assert.ok((await api("/api/build-workspace?root=.")).ok);
+        }
+        const newBlock = await api("/api/build-block", { root: ".", templateId: "hosted-skill", name: "lookup" });
+        const newBlockResult = await newBlock.json();
+        assert.equal(newBlock.status, 201, JSON.stringify(newBlockResult));
+        assert.equal(newBlockResult.projectPath, "src/skills/lookup");
+        assert.ok(newBlockResult.paths.includes("src/skills/lookup/function_app.py"));
+        assert.match(await readFile("src/skills/lookup/function_app.py", "utf8"), /status_code=501/);
+        const { requestBuildAdjustment } = await import(base + "build-blocks.mjs");
+        for (const [id, skillName] of [
+          [newBlockResult.artifactId, "azure-app-platform-hosted-skill"],
+          [artifact.id, "azure-app-platform-agent-instructions"],
+        ]) {
+          let adjustmentPrompt;
+          await requestBuildAdjustment({
+            root: process.cwd(), id, instructions: "Customize the saved base.", targetSessionId: "app-session",
+            session: { send: async ({ prompt }) => { adjustmentPrompt = prompt; return "requested"; } },
+          });
+          const skill = await readFile(join(payload, "skills", skillName, "SKILL.md"), "utf8");
+          assert.ok(adjustmentPrompt.includes(skill), "Installed payload must carry the complete block authoring skill");
+        }
+        const duplicateBlock = await api("/api/build-block", { root: ".", templateId: "hosted-skill", name: "lookup" });
+        assert.equal(duplicateBlock.ok, false);
+        assert.match((await duplicateBlock.json()).error, /already exists/);
+        const unauthorizedBlock = await api("/api/build-block", { root: "..", templateId: "hosted-skill", name: "outside" });
+        assert.equal(unauthorizedBlock.ok, false);
+        await unauthorizedBlock.arrayBuffer();
         const native = await api("/api/open-build-file-canvas", { root: ".", id: artifact.id });
         const nativeResult = await native.json();
         assert.equal(native.status, 200, JSON.stringify(nativeResult));
@@ -381,9 +421,9 @@ test("installed payload opens and materializes templates without checkout depend
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /data-studio-presentation="github-app"/);
-        assert.match(mapHtml, /Build your app/);
+        assert.match(mapHtml, /Building block actions/);
         assert.match(mapHtml, /aria-label="Preferred external editor"/);
-        assert.match(mapHtml, /build-help-tooltip/);
+        assert.doesNotMatch(mapHtml, /build-help-tooltip|Build your app/);
         assert.doesNotMatch(mapHtml, /About these customization points/);
         assert.doesNotMatch(mapHtml, /Resize key files/);
         checkpoint("workspace actions verified");

@@ -1,0 +1,11 @@
+name: __BLOCK_NAME__
+kind: sre-agent-configuration
+status: not-configured
+telemetry:
+  resourceId: null
+  healthSignals: []
+alerts: []
+remediation:
+  enabled: false
+  approvalRequired: true
+  allowedActions: []

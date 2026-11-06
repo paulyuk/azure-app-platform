@@ -170,10 +170,10 @@ test("Run shares optional document input with invocation and enforcement across 
     await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
     assert.deepEqual(invocations[1], { root: graph.root, port: 8091, message: "Summarize these terms.", document: expected });
     await selectWorkspace(page, "build-workspace");
-    await page.getByRole("tab", { name: "Runtime", exact: true }).click();
+    await page.locator('[data-file-choice="runtime"]').click();
     const preview = page.getByRole("region", { name: "Runtime configuration source preview", exact: true });
     await preview.waitFor();
-    assert.equal(await page.locator('[data-artifact="runtime"] .build-source-disclosure').evaluate((el) => el.open), true);
+    assert.equal(await page.locator('[data-artifact="runtime"] .build-file-source').isVisible(), true);
     assert.equal(await page.locator("#customize-content textarea,#customize-content [contenteditable=true]").count(), 0);
     assert.equal(await page.locator("#customize-content").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     await preview.evaluate((element) => { element.dataset.previewProbe = "preserved"; });

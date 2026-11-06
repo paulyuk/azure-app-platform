@@ -51,6 +51,8 @@ import { COPILOT_PRESENTATION, getStudioPresentation, STUDIO_PRESENTATION_IDS } 
 import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./editor-settings.mjs";
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 import { openBuildFileCanvas } from "./build-file-canvas.mjs";
+import { BUILD_BLOCK_TEMPLATES, createdBuildBlock, requestBuildAdjustment } from "./build-blocks.mjs";
+import { materializeBuildBlock } from "./template-materializer.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
 import { parseLogTail, readAppLogs, readComponentLogs } from "./runtime-logs.mjs";
@@ -116,6 +118,7 @@ function trackedAzureRunner(root, { signal, timeout = 12_000 } = {}) {
       const result = await runCommand(command, args, { signal, timeout });
       await activity.finish(id, {
         ok: result.ok,
+        cancelled: result.aborted,
         note: result.ok ? "" : result.aborted ? "Cancelled" : result.stderr || result.error,
       });
       return result;
@@ -1977,6 +1980,26 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         id: projectSource ? input.projectPath : input.id,
         ...(projectSource ? { artifactResolver: resolveProjectSourcePath } : {}),
       }));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/build-templates") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      sendJson(response, 200, { templates: BUILD_BLOCK_TEMPLATES.map(({ source, entry, ...template }) => template) });
+      return;
+    }
+    if (request.method === "POST" && ["/api/build-block", "/api/adjust-build-file"].includes(url.pathname)) {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
+      if (url.pathname === "/api/build-block") {
+        releaseAppMutation = reserveAppMutation(root);
+        const block = await materializeBuildBlock({ root, templateId: input.templateId, name: input.name });
+        sendJson(response, 201, await createdBuildBlock(root, block.projectPath, block.entry));
+      } else {
+        const targetSessionId = await ensureAppSession(root, workspaceRoot);
+        sendJson(response, 202, await requestBuildAdjustment({ session, root, id: input.id, instructions: input.instructions, targetSessionId }));
+      }
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {

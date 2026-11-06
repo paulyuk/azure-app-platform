@@ -8,6 +8,79 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
+  test(`Build defers hidden discovery and keeps closed diagnostics out of source browsing in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.commands = [{
+      id: "cancelled", kind: "az", label: "Azure discovery", command: "az aigateway list",
+      status: "cancelled", startedAt: 1, durationMs: 10, note: "Cancelled",
+    }];
+    const browser = await engine.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 900 } });
+      page.setDefaultTimeout(10000);
+      const scans = [], errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      page.on("request", request => {
+        if (new URL(request.url()).pathname === "/api/gateway-options") scans.push(request.url());
+      });
+      await page.goto(fixture.origin + "/app-map#build");
+      await page.waitForFunction(() => window.appPlatformReady &&
+        document.querySelector("#run-tab-operations-summary")?.textContent === "1 recorded");
+      const logs = page.locator("#run-diagnostics-toggle");
+      const dock = page.locator("#workspace-diagnostics");
+      const support = page.locator("#run-diagnostics");
+      assert.equal(await dock.isVisible(), false);
+      assert.equal(await logs.getAttribute("aria-label"), "Logs");
+      assert.equal(scans.length, 0, "Creation landing does not start discovery");
+
+      await page.locator("#manage-app").click();
+      await page.locator("#build-workspace").click();
+      fixture.state.health = "Readiness settled in Build";
+      await page.waitForFunction(() => document.querySelector("#run-panel-services").textContent.includes("Readiness settled"));
+      assert.equal(scans.length, 0, "Navigation and readiness polling do not scan hidden Environment");
+      await logs.click();
+      assert.equal(await support.isVisible(), true);
+      assert.equal(scans.length, 0, "Opening Output does not scan Environment");
+      await page.locator("#run-tab-operations").click();
+      const cancelled = page.locator('[data-run-disclosure="cancelled"]');
+      assert.equal(await cancelled.getAttribute("data-status"), "cancelled");
+      assert.match(await cancelled.innerText(), /Cancelled/);
+      assert.equal(await logs.getAttribute("aria-label"), "Logs");
+      await logs.click();
+
+      fixture.state.commands.push({
+        id: "failed", kind: "az", label: "Azure discovery", command: "az aigateway list",
+        status: "failed", startedAt: 2, durationMs: 10, note: "Forbidden",
+      });
+      await page.waitForFunction(() => document.querySelector("#run-diagnostics-toggle").getAttribute("aria-label").includes("1 failed operation"));
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+        assert.equal(await dock.isVisible(), false, "Closed Build has no diagnostics gutter");
+        assert.equal(await logs.locator(".logs-warning-badge").isVisible(), true, "Real failures remain discoverable");
+      }
+      await logs.click();
+      assert.equal(await support.isVisible(), true);
+      assert.equal(await page.locator("#diagnostics-status").innerText(), "1 failed operation in Operations.");
+      await page.locator('[data-run-disclosure="failed"] > summary').click();
+      assert.match(await page.locator('[data-run-disclosure="failed"]').innerText(), /Forbidden/);
+      await Promise.all([
+        page.waitForResponse(response => new URL(response.url()).pathname === "/api/gateway-options"),
+        page.locator("#run-tab-environment").click(),
+      ]);
+      assert.equal(scans.length, 1, "Explicit Environment selection starts discovery");
+      await logs.click();
+      fixture.state.health = "Closed Environment does not scan";
+      await page.waitForFunction(() => document.querySelector("#run-panel-services").textContent.includes("Closed Environment"));
+      assert.equal(scans.length, 1);
+      assert.equal(await dock.isVisible(), false);
+      await page.locator("#manage-app").click();
+      assert.equal(await page.locator("#diagnostics-status").isVisible(), true, "Run retains its real failure strip");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
+  });
+
   test(`Header Logs shares one bottom pane across workspaces and reports real issues in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -338,10 +411,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             await page.locator('body[data-workspace="' + mode + '"]').waitFor();
             const geometry = await page.evaluate(() => {
               const main = document.querySelector("#app-workspace-main").getBoundingClientRect();
-              const dock = document.querySelector("#workspace-diagnostics").getBoundingClientRect();
+              const dockNode = document.querySelector("#workspace-diagnostics");
+              const dock = dockNode.getBoundingClientRect();
               const content = document.querySelector("#workspace-content").getBoundingClientRect();
               return {
-                noGap: Math.abs(main.bottom - dock.top) <= 1 && Math.abs(dock.bottom - content.bottom) <= 1,
+                noGap: dockNode.checkVisibility()
+                  ? Math.abs(main.bottom - dock.top) <= 1 && Math.abs(dock.bottom - content.bottom) <= 1
+                  : Math.abs(main.bottom - content.bottom) <= 1,
                 fits: document.documentElement.scrollWidth <= innerWidth,
                 footer: document.querySelector("footer,#action-center,#guide-rail"),
               };

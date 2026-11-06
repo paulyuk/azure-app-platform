@@ -36,6 +36,7 @@ const TEXT_EXTENSIONS = new Set([
   ".bicep",
   ".cs",
   ".go",
+  ".html",
   ".java",
   ".js",
   ".json",
@@ -53,6 +54,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const ALWAYS_READ_FILES = new Set([
+  "requirements.txt",
   "Dockerfile",
   "agent.yaml",
   "agents.config.yaml",
@@ -68,6 +70,8 @@ const ALWAYS_READ_FILES = new Set([
 ]);
 
 const PROJECT_MARKERS = new Set([
+  "connector.json",
+  "sre-agent.yaml",
   "Dockerfile",
   "agent.yaml",
   "agents.config.yaml",
@@ -309,6 +313,11 @@ function collectFileEvidence(file, projectRoots) {
   }
   if (file.name === "function_app.py") {
     addMatch("skills", "hosted-skill-entrypoint", "high", /azure_functions_agents|create_function_app\s*\(/, "Hosted skill Function App entry point");
+    if (!/azure\.durable_functions/.test(content)) {
+      for (const [kind, decorator] of [["http", "route"], ["timer", "timer_trigger"], ["event", "event_grid_trigger"], ["queue", "queue_trigger"]]) {
+        addMatch("skills", `function-trigger-${kind}`, "high", new RegExp(`@app\\.${decorator}\\s*\\(`), "Azure Functions trigger entry point");
+      }
+    }
   }
   if (!isDocumentation) {
     addMatch("skills", "tool-declaration", "medium", /@tool\b|mcpToolTrigger|builtin_endpoints\.mcp/, "Tool or MCP endpoint declaration");

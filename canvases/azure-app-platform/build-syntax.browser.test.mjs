@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { BUILD_PANEL_CSS, createBuildPanel } from "./build-panel.mjs";
-import { renderOcticon } from "./studio-icons.mjs";
+import { renderOcticon, VSCODE_ICON_MARKUP } from "./studio-icons.mjs";
 import { BUILD_SYNTAX_SCRIPT } from "./build-syntax.mjs";
 import { renderThemeStyles } from "./studio-theme.mjs";
 
@@ -12,7 +12,7 @@ const requireWeb = createRequire(new URL("../../src/web/package.json", import.me
 let chromium;
 try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
-test("Build lazily renders accessible, scrollable and injection-safe source previews", {
+test("Build renders accessible, scrollable and injection-safe source previews", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",
 }, async () => {
   const longLine = `# ${"wide source ".repeat(120)}`;
@@ -43,7 +43,7 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     ${renderThemeStyles()} ${BUILD_PANEL_CSS}
     </style><aside id="details" data-mode="build"></aside><script>
     ${BUILD_SYNTAX_SCRIPT}
-    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))},
+    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
       container: document.querySelector("#details"), root: "/fixture", isActive: () => true, syntax: buildSyntax,
       onRun() {}, onModel() {},
       request: async (path, options) => {
@@ -76,8 +76,8 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.locator('.build-file[data-artifact="python"]').waitFor();
     const pythonDisclosure = page.locator(
-      '.build-file[data-artifact="python"] .build-source-disclosure[data-preview-for="python"]');
-    assert.equal(await pythonDisclosure.evaluate((element) => element.open), true);
+      '.build-file[data-artifact="python"] .build-file-source[data-preview-for="python"]');
+    assert.equal(await pythonDisclosure.isVisible(), true);
     const preview = page.getByRole("region", { name: "Agent implementation source preview", exact: true });
     const lineNumbers = preview.locator(".build-line-numbers");
     const highlight = preview.locator("pre.build-highlight");
@@ -93,13 +93,15 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     assert.equal(renderedLines.at(-1), "83");
     assert.equal(await page.locator("textarea,[contenteditable=true],.cm-editor").count(), 0);
     assert.equal(await page.getByRole("textbox").count(), 0);
-    assert.equal(await pythonDisclosure.locator(".build-language").textContent(), "Python");
+    assert.match(await preview.getAttribute("aria-description"), /Language: Python/);
+    assert.equal(await pythonDisclosure.locator("summary,.build-preview-toolbar").count(), 0);
     assert.deepEqual(await highlight.locator(".keyword").allTextContents(), ["def", "return"]);
     assert.equal(await lineNumbers.evaluate((element) => getComputedStyle(element).userSelect), "none");
     assert.ok(await preview.evaluate((element) => element.scrollWidth > element.clientWidth));
     assert.ok(await preview.evaluate((element) => element.scrollHeight > element.clientHeight));
+    await page.waitForFunction(() => document.querySelector(".build-source-preview")?.scrollTop > 0);
     assert.ok(await preview.evaluate((element) => element.scrollTop > 0),
-      "The first lazy render scrolls the focusLine into view");
+      "The first source render scrolls the focusLine into view");
     const [previewBounds, gutterBounds, sourceBounds] = await Promise.all([
       preview.boundingBox(), lineNumbers.boundingBox(), highlight.boundingBox(),
     ]);
@@ -122,11 +124,7 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     await page.keyboard.insertText("This must not edit source.");
     assert.equal(await highlight.textContent(), textBeforeTyping);
 
-    await pythonDisclosure.locator(":scope > summary").press("Space");
-    assert.equal(await pythonDisclosure.evaluate((element) => element.open), false);
-    assert.equal(await pythonDisclosure.locator(".build-source-preview").count(), 1,
-      "Closing a rendered preview may keep its DOM cached");
-    await pythonDisclosure.locator(":scope > summary").press("Space");
+    await page.locator("html").evaluate(element => { element.dataset.studioTheme = "light"; });
     assert.equal(await preview.getAttribute("data-cache-probe"), "python");
     assert.deepEqual(await preview.evaluate((element) => [element.scrollTop, element.scrollLeft]), cachedScroll);
 
@@ -135,24 +133,24 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
     const darkKeyword = await highlight.locator(".keyword").first().evaluate((element) => getComputedStyle(element).color);
     assert.notEqual(lightKeyword, darkKeyword);
 
-    await page.getByRole("tab", { name: "Runtime", exact: true }).click();
-    const runtime = page.locator('.build-area[data-area-id="runtime"]');
-    const jsonDisclosure = runtime.locator('.build-source-disclosure[data-preview-for="json"]');
-    assert.equal(await jsonDisclosure.evaluate((element) => element.open), true);
+    await page.locator('[data-file-choice="json"]').click();
+    const runtime = page.locator('.build-area[data-area-id="application"]');
+    const jsonDisclosure = runtime.locator('.build-file-source[data-preview-for="json"]');
+    assert.equal(await jsonDisclosure.isVisible(), true);
     const jsonPreview = page.getByRole("region", { name: "App configuration source preview", exact: true });
     await jsonPreview.waitFor();
     assert.equal(await jsonPreview.getAttribute("data-language"), "json");
-    assert.equal(await jsonDisclosure.locator(".build-language").textContent(), "JSON");
+    assert.match(await jsonPreview.getAttribute("aria-description"), /Language: JSON/);
     assert.ok(await jsonPreview.locator(".property").count() > 0);
 
-    await page.getByRole("tab", { name: "Policies", exact: true }).click();
-    const policies = page.locator('.build-area[data-area-id="policies"]');
-    const plainDisclosure = policies.locator('.build-source-disclosure[data-preview-for="plain"]');
-    assert.equal(await plainDisclosure.evaluate((element) => element.open), true);
+    await page.locator('[data-file-choice="plain"]').click();
+    const policies = page.locator('.build-area[data-area-id="sandbox"]');
+    const plainDisclosure = policies.locator('.build-file-source[data-preview-for="plain"]');
+    assert.equal(await plainDisclosure.isVisible(), true);
     const plainPreview = page.getByRole("region", { name: "Custom source source preview", exact: true });
     await plainPreview.waitFor();
     assert.equal(await plainPreview.getAttribute("data-language"), "plain");
-    assert.equal(await plainDisclosure.locator(".build-language").textContent(), "Plain text");
+    assert.match(await plainPreview.getAttribute("aria-description"), /Language: Plain text/);
     assert.equal(await plainPreview.locator(".build-highlight").textContent(), artifacts[3].content);
     assert.equal(await plainPreview.locator("script,img,.token").count(), 0);
     assert.equal(await page.evaluate(() => window.injected), undefined);
@@ -161,11 +159,10 @@ test("Build lazily renders accessible, scrollable and injection-safe source prev
       window.originalBuildHighlight = buildSyntax.highlight;
       buildSyntax.highlight = () => { throw new Error("Simulated tokenizer failure."); };
     });
-    await page.getByRole("tab", { name: "Behavior", exact: true }).click();
-    await page.locator('.build-project-list [data-project-path="src/fallback"]').click();
+    await page.locator('[data-file-choice="fallback"]').click();
     const fallbackDisclosure = page.locator(
-      '.build-file[data-artifact="fallback"] .build-source-disclosure[data-preview-for="fallback"]');
-    assert.equal(await fallbackDisclosure.evaluate((element) => element.open), true);
+      '.build-file[data-artifact="fallback"] .build-file-source[data-preview-for="fallback"]');
+    assert.equal(await fallbackDisclosure.isVisible(), true);
     const fallbackPreview = page.getByRole("region", { name: "Fallback source source preview", exact: true });
     await page.getByRole("alert").filter({ hasText: /plain text preview is still available/i }).waitFor();
     assert.equal(await fallbackPreview.locator(".build-highlight").textContent(), artifacts[1].content);

@@ -61,7 +61,7 @@ test("home and map render explicit initial preference with shared settings and a
   assert.match(workspace, /value: "build", label: "Build", button: \{ id: "build-app"/);
   assert.match(workspace, /id="workspace-location">Build<\/strong>/);
   assert.match(workspace, /mode === "build" \? "Build workspace"/);
-  assert.match(workspace, /"aria-label", "About Build"/);
+  assert.doesNotMatch(workspace, /About Build|Build your app/);
   assert.doesNotMatch(workspace, /About Customize|return to Customize|Customize shows recognized|Customize only shows/);
   assert.match(workspace, /"id":"build","label":"Build"/);
   assert.match(workspace, /"Build: edit app structure"/);

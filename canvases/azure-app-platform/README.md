@@ -162,7 +162,27 @@ unchanged notice owner. `renderButton`/`update` retain roots and latest callback
 `clear`/`dispose` unmount before DOM replacement. Imperative actions append the
 owned mount through `append`/`host`, not by moving a React-owned button out of
 its root. Disabled and label updates go through the component. Settings,
-Customize, Run and log teardown release their owned subtrees before replacing them.
+Build, Run and log teardown release their owned subtrees before replacing them.
+The same keyed owner also mounts Build's canonical `FormField` with `TextInput`,
+`Textarea`, and `Select`, `ActionGroup` using public `DomContent` slots, and
+`MessageBar` feedback. Field updates preserve native drafts and required/disabled
+state. Nested child roots are disposed before their enclosing action group, so
+refresh, retry, and navigation cannot leave detached React roots.
+
+Build follows the pinned toolkit's Forms and choices and Content and actions
+patterns. Labels and hints are associated by `FormField`; action buttons retain
+canonical appearance and geometry; errors and handoff status use `MessageBar`.
+Consumer CSS owns pane sizing and responsive placement, not private component
+classes or duplicated input borders, padding, and typography.
+The categorized file rail intentionally remains product-owned, with a **Files**
+toggle for full-width navigation in compact canvases. Its draggable vertical divider is also product-owned:
+the pinned `SplitPane` provides a width slider below its content and stacks
+narrow panes, rather than a draggable divider. Build uses a focusable ARIA
+separator with pointer capture and keyboard resizing, without changing toolkit
+internals or adding a second controller around its slider.
+The read-only source viewer retains highlighting,
+sticky line numbers, and saved scroll/selection behavior;
+the toolkit's plain `CodeBlock` does not provide those features.
 Back/forward-cache suspension retains roots; final page departure disposes them.
 Startup waits for the shipped module before wiring actions, ignores a late load
 after departure, and reports a load failure with a reload-to-retry message rather
@@ -282,6 +302,9 @@ the selected journey needs them. Workspace requests preload relevant specialist
 studios and may open the resulting worktree in the user's selected code editor.
 
 After creation or selection, the app workspace becomes the primary interface.
+Newly created workspaces open **Build** first so users can inspect their source
+before connecting or running it. Opening an existing app still starts in **Run**;
+explicit App Map navigation remains unchanged.
 The Unity logo and **Azure App Platform** control return home; there is no separate Home button.
 An optional editor launch failure does not roll back the new worktree; the workspace
 opens with a clear warning so the user can continue.
@@ -337,7 +360,7 @@ navigation disposes the shell binding and restores retained slots; persisted
 Build retains its selected area, project, expanded preview, source/page scroll and focused
 source control across navigation and Back/Forward. **Model connection** opens scoped Settings
 above the Build page and returns to the same control and preview. Settings alone remains
-modal. **Run & Debug** and **Test with a document** navigate to Run and focus the existing
+modal. **Test with a document** navigates to Run and focuses the existing
 task tester; **+ Add building block** opens the existing App Map controls. Task/document
 drafts, selections, results and assessments survive Build visits. Source and external-editor
 handoffs keep their existing behavior. Source connection
@@ -416,13 +439,18 @@ Resizing the window clamps its displayed size without losing the
 preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
 and disclosures survive close/reopen, navigation and lifecycle polling for the current
-visit. Closing it does not stop output polling or hide errors: unavailable logs and
-failed operation counts stay visible in the lower warning strip. A red warning-sign
-badge on Logs also reports these issues, runtime/readiness failures and failed agent
-requests; its accessible label explains them. It clears when the reported issues clear,
+visit. Closing it does not stop output polling. Unavailable logs and failed operation
+counts stay visible in the lower warning strip outside Build; Build hides the closed
+strip to keep source browsing focused. A red warning-sign badge on Logs still reports
+these issues and runtime/readiness failures in every workspace; its accessible label
+explains them. Invocation errors remain in their result. The badge clears when the reported issues clear,
 and does not treat an ordinarily stopped app as a failure. Output continues polling
 from every workspace. Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
+Environment discovery starts only when its Diagnostics tab is opened or connection
+settings are requested, not when hidden Diagnostics panels are initialized.
+Superseded or explicitly cancelled Azure scans remain in Operations as **Cancelled**,
+not failed operations; timeouts and real discovery errors still count as failures.
 The Status Brief retains truthful runtime, agent, request and failure information.
 Its bordered summary card places the current state icon, title and explanation
 above a shaded three-column row for **Runtime**, **Agent** and **Connection**.
@@ -584,90 +612,254 @@ runtime settings. Apps without recorded history appear last, labeled Not recorde
 inventory and readiness polling do not change the timestamp.
 Missing tiers are scaffoldable rather than inferred from the platform catalog.
 
-**Customize** selects artifacts from the app's own source and `azure-app.yaml` scope,
-not one universal template checklist. It is a focused workspace for changing your
-app, not a file explorer, embedded IDE, or vertical catalog. Compact **Behavior**,
-**Tools**, **Runtime**, and **Policies** tabs appear only when backed by available
-source. Only the selected area is visible, with a short explanation of what you
-can change. The first available area is selected initially. Arrow keys, Home, and
-End move between tabs; Tab continues into the selected panel. Customize, Run, and
-Observe use the same compact Studio tab treatment: purpose-specific line icons,
-rounded outlines on every tab, an accent border and fill for the selected tab,
-and clear hover/focus styling. There is no shared underline or trailing baseline.
-Where Tools has several source projects, a native **Tool** dropdown selects one
-by name, retaining a fixed footprint even with a large catalog. Other areas use
-compact named choices when needed. Tools shows only the selected tool's implementation,
-configuration, and contract rows, not every tool and file at once. Duplicate
-names include their project path as a qualifier. Area and project selections
-survive refreshes and workspace switches. Semantic labels lead, with actual
-file paths as secondary references. There is no sidebar, selected-file state,
-resizable split, or collapsed file rail.
+**Build** selects recognized artifacts from the app's own source and
+`azure-app.yaml` scope, not one universal template checklist. A categorized list
+on the left shows one item per parent collection, named for its discovered source
+project or parent directory rather than an individual file. Collections appear
+once under architecture-aligned categories: **User Experience**, **Triggers**,
+**Agents**, **Connectors**, **Tools**, **Orchestrations**, **Operations**, and
+**App Configuration**. Hosted skills and sandbox tool implementations share
+**Tools**. Collections with sandbox metadata show a **Sandboxed** badge in the
+file list and preview heading; it describes configuration, not verified deployment
+or isolation.
+Existing **AI Gateway**, **Data**, and uncategorized **Source** implementations
+remain available. Agent manifests, instructions, and runtime configuration stay
+with their agent; App Service Builder files stay with their web project.
+App-wide inventory and domain configuration form an Application collection.
+Clicking a collection opens its saved source previews on the right, with an editor split
+button and **Adjust with AI**. The split button defaults to the configured external
+editor. Its **Open with** menu lists **Files** and that editor with their icons.
+Choosing a destination opens the file and makes that destination the primary
+action for subsequent files in this Build session, without changing global editor
+preferences. If Files cannot open an isolated worktree or the host lacks an
+editor canvas, Build automatically opens the same file in the configured
+external editor, explains the fallback, and resets the primary destination.
+If both handoffs fail, both errors are shown. Collections with duplicate names
+show their project paths.
+File names remain in the right-hand Page selector and file headers. Searching
+by a filename, title, or path finds its parent collection and opens a matching file
+without filtering out its siblings. Category and result counts refer to collections.
+The right-pane heading shows only the parent block name, or the filename when
+no source-project parent is known, without a category description or file-count subtitle.
+Up/Down, Home, and End navigate collection choices; category summaries support native
+keyboard expansion. Returning to a collection restores its selected file. The selected file,
+category expansion, and preview scroll survive refreshes and workspace switches.
+Files sharing a source project or parent directory can appear together as stacked previews capped at
+240px each, without internal scrollbars, and with per-file editor/AI actions.
+Long lines wrap while retaining syntax highlighting and line numbers.
+A subtle lower border and shadow separate stacked files. A lower fade appears
+only when the code is clipped, alongside **Show full file** to reveal its full
+height. **Show less** returns to the compact preview. Short, complete files show
+neither a fade nor an unnecessary expansion action. Page view has no fade or
+stack boundary. Only the surrounding file pane scrolls.
+Multi-file blocks have a sticky header with a **Stack view** toggle button before
+the filename choices. Stack is the default and shows the files together. Selecting
+a filename switches to its complete individual page, filling the preview pane.
+The Stack button switches back to the full stack; toggling it off returns to the
+selected page. **More files** appears only when some filenames do not fit, lists only those
+hidden files, and marks the selected file when it is in the menu.
+Selecting an overflow filename also switches to its individual page.
+The **+ Add building block** button sits immediately after the filenames while
+they fit. When space runs out, whole filenames move into **More files** instead
+of scrolling horizontally. The buttons stay left-aligned immediately after the
+visible filenames, with plus last, and never extend past the row's right edge.
+Opening the overflow menu does not push the buttons to the right.
+Editor, AI, and section-specific actions stay in each file's header. The plus button opens
+the existing template-first creation flow. The icon-only **Refresh source** action
+sits immediately before the icon-only **Add building block** action in the
+building-blocks header, or the compact Files toolbar. Both use subtle appearance
+and retain their tooltips and accessible labels. Build has no introductory title,
+tagline, or separate Run & Debug shortcut.
+Instruction textboxes wrap long lines and unbroken text within the pane;
+long drafts remain vertically scrollable without a horizontal scrollbar.
+The selected layout, per-page scroll
+positions, expanded stack previews, and AI drafts survive switching views.
+File headers and their editor/AI actions stay pinned while scrolling in either
+layout and in single-file previews. Stack headers sit below the sticky block
+header, with their offset following its responsive height.
+Clicking a sibling filename brings it into view without rebuilding the other
+previews or discarding an open AI draft. Expansion is retained across source
+refreshes and workspace switches. Collections containing only one file retain
+the full-height single-file preview.
+Wider canvas panes retain the resizable list on the left. At 520px or narrower,
+**Files** opens the categorized list at full width instead of squeezing both
+panes. Selecting a file returns to full-width source; Escape closes the list and
+restores focus to **Files** (or clears an active filter first). Arrow keys can
+browse files without closing the list. **+ Add** remains available in either view.
+Navigation preserves source nodes, scroll positions, and creation/AI drafts.
+This adapts to the canvas container, not the surrounding desktop window.
+Long filenames wrap in the list.
+Single-file source scrolls inside its preview rather than widening the workspace.
+The file header fills the right pane. Source sits inside an evenly inset,
+rounded frame with a lighter code background and a default pointer cursor. Header
+content, guidance, and forms retain internal toolkit spacing, condensed in narrow
+panes, so text and form focus rings stay clear of the divider and scrollbars.
+File actions and AI forms share consistent spacing without nested card padding.
+The compact file header pairs the source identity with an eye icon and **Preview**
+label, a secondary **Edit** split button with the destination icon, and a named AI icon button. **More file actions**
+uses the toolkit menu only for document/model actions hidden in narrow source
+panes. The editor button retains its visible **Edit** label, accessible name and tooltip, such as **Edit in VS Code**, at every width.
+Secondary buttons
+move into the menu in narrow source panes, including
+when dragging the divider in a wide window. The **More file actions** menu is
+hidden when all actions are already visible. Code follows the file header
+directly, without a repeated **Source preview** disclosure or editing-guidance
+row. The **Preview** label stays visible; the source region's accessible
+description retains editing guidance and the detected language, and its hover
+hint names the current editing destination. Read-only source
+remains selectable and copyable.
+Unchanged tool, contract, and policy previews do not show static enforcement
+warning banners. Runtime caveats and actual configuration errors remain visible;
+file presence alone never warrants a claim that code runs in an ACA Sandbox.
+Section-specific actions use the same availability rules in the toolbar and
+compact menu: **Test with a document** is limited to the document app's instruction
+file, and **Model connection** to its runtime configuration. Both require their
+host callback. Generic source projects, tools, and policies do not inherit those
+actions from their category or filename.
+The file-list header keeps **+ Add** and the toolkit **Filter files** search
+field pinned above the independently scrolling files. Filtering matches file
+names, paths, titles, and source-project names without case sensitivity; empty
+categories and projects disappear, and matching categories expand temporarily.
+Escape clears the filter and restores category expansion preferences. A filter
+does not replace the selected preview or discard an open creation/AI draft, and
+it survives source refresh and workspace switches within the loaded Canvas.
+Drag the divider to resize the file list, or focus **File list width** and use
+Left/Right (16px), Shift+Left/Right (40px), Home, or End. Width limits preserve
+usable file and source panes. The chosen proportion survives file selection,
+source refresh, and workspace switches within the loaded Canvas; it is not saved
+across reloads. Resizing retains source scroll and form drafts, and observers
+and pointer listeners are released when leaving Build.
+
+**+ Add** opens a template-first form inside Build. Choose a starter, name the
+block, and choose **Create from template**:
+
+| Starter | Saved base |
+| --- | --- |
+| User Experience | Static web page, build script, and App Service Builder manifest |
+| Trigger | HTTP, timer, Event Grid, or Storage queue Azure Function, with uv project and host configuration |
+| Agent | Instructions, `agent.yaml`, and an unconfigured `runtime.json` seam |
+| Connector | External API / SaaS / Graph connection contract and implementation guidance |
+| Hosted skill | HTTP-triggered Azure Function with a bounded-operation seam |
+| Orchestration | Durable orchestrator and activity, with a guarded HTTP start route |
+| Sandbox | Bounded stdin/stdout Python tool, input/output contract, non-root container, and egress-policy guidance |
+| Operations | Observability / SRE Agent configuration seam and runbook |
+
+Optionally describe the desired behavior in **Instructions (optional)**.
+Blank instructions create only the starter. With instructions, the saved template
+is created first, then Copilot receives a scoped customization request.
+If that request fails, the template stays saved and the instructions remain in
+**Adjust with AI** for retry; the block is not created again.
+`template-materializer.mjs` copies shipped files deterministically, refuses
+existing destination paths and symlinked parents, and adds the source project
+to an existing app inventory. Capability mappings are converted to component
+lists when necessary so multiple blocks can share a capability without
+replacing existing entries. Existing metadata and connections are retained.
+Apps without an inventory continue using source discovery.
+The new file is selected immediately, ready to open in Files or an external
+editor, or adjust with AI. These starters are not automatically connected,
+started, or deployed. HTTP trigger, Hosted skill, and orchestration start routes
+return HTTP 501 until implemented. Timer, queue, and event handlers fail explicitly
+rather than acknowledging unfinished work. Agent configuration still needs a
+runtime. The Sandbox starter validates bounded input and exits with an explicit
+`not_implemented` error until its operation is written. Its files live under
+`src/sandboxes/<name>`; local `uv run --offline main.py` checks use synthetic data,
+not an isolation boundary. Configure the actual ACA Sandbox connection, execution
+timeout, output limit, and egress policy separately.
+Connector and operations starters are design contracts, not live adapters,
+Azure resources, active monitoring, or enforced limits.
+Use **Observe → App Map** to review connections and other capabilities.
+
+**Adjust with AI** asks for the intended change and sends a source-scoped request
+to the app's Copilot session; it does not invoke the running application agent.
+Requests use the same allowlisted file resolution as editor handoffs. Review
+Copilot's saved changes and refresh source before running or deploying.
+Hosted skill and agent blocks use the plugin's registered
+`azure-app-platform-hosted-skill` and `azure-app-platform-agent-instructions`
+authoring skills respectively. Web, trigger, connector, orchestration, sandbox, and
+operations blocks use `azure-app-platform-block-authoring`, which includes
+type-specific accessibility, delivery/retry, authentication, Durable replay,
+bounded sandbox execution, and approval-bounded operations guidance. The server selects guidance from discovered
+source, not a client-provided path, and includes the shipped skill content in
+the request so a child app session can apply it without plugin-path access.
+The skills cover bounded contracts, validation and explicit errors, untrusted
+input, dependency/runtime compatibility, and focused checks. They do not
+authorize cloud access, runtime connections, or deployment.
+Template, creation, and AI request failures are displayed inline with retry
+available; creation errors retain the entered name.
+Opening App Map after adding a block refreshes its graph from the saved source.
 
 Dealer exposes its inline instructions in `src/agent/main.py`, actual Hosted
 Skills, and app settings. Empty Unity exposes its prompt, declared skill, and
-runtime configuration, not its HTTP-server boilerplate. Inline instructions stay
+runtime configuration. Inline instructions stay
 in the original source file; a recognized declaration supplies the initial preview
-position. Web implementation files, package manifests, container build files, and
-other general source remain outside this focused UI. The existing scoped catalog
-and read/open authorization remain scoped. Custom component paths reuse App
-Map discovery. Unsupported areas are omitted, not shown as missing features.
+position. Recognized implementation files, package manifests, container build
+files, and other general source appear under their architecture category, or
+Source when uncategorized, without exposing environment
+secrets or unrestricted filesystem browsing. The catalog and read/open authorization
+remain scoped. Custom component paths reuse App Map discovery.
 An app with no supported customization points gets an explicit explanation and
 an **Open in &lt;editor&gt;** workspace handoff.
-Each file has its own bordered, subtly shaded container grouping its heading,
-path, edit actions, and **Preview source**, open by default for the selected project.
-Users can collapse individual previews; those choices survive refreshes and
-switching areas/projects. Source is created only for visited content, and its
-height is bounded so it does not take over the workspace.
+The file list and selected-source pane fill the available Build workspace height,
+separated by a divider. Each file has a heading, path, edit actions, and an inset
+**Preview** card. Stack view shows the collection's files with expandable previews;
+Page view shows one full-height preview. Layout, selected file, and expansion
+choices survive refreshes and workspace switches.
 The read-only preview highlights source using its filename: Python, JavaScript/TypeScript
 (including JSX/TSX), JSON, YAML, Markdown, Dockerfiles, and other supported source
 languages. Unknown extensions stay plain text. Highlighting follows the Studio
 theme and keeps native text selection and copying. A noninteractive 1-based
 line-number gutter includes the final blank line when the source ends with a
-newline. Long lines scroll horizontally inside the preview without moving the
-gutter or widening the Customize pane; high-contrast mode uses readable plain text.
+newline. Stack view wraps long lines without internal scrollbars; Page view
+allows horizontal code scrolling without widening the Build pane. Filename
+choices never scroll horizontally: names that do not fit move to **More files**.
+High-contrast mode uses readable plain text.
 A tokenizer failure reports the problem and keeps plain-text preview available.
 The same reading order works in compact and wide panes. Container-aware spacing
 and wrapping keep actions and paths within the available canvas width.
 
-**Edit in Files** is the primary action. It opens the selected, saved source
-file in the app's native Files canvas in the current session, not a scratch
-buffer or copied artifact. The server resolves the artifact through the
+The primary **Edit** split button initially opens the configured external editor.
+Its **Open with** menu offers **Files** and that editor. Choosing a destination
+opens the selected file and retains that destination for subsequent edits in the
+loaded Build session.
+
+**Files** opens saved source in the app's native Files canvas in the current
+session, not a scratch buffer or copied artifact. The server resolves the artifact through the
 allowlisted catalog and passes its path relative to the session worktree to the
 host's repository-scoped editor canvas. Nested app roots retain their complete
-worktree-relative path. Files outside that worktree cannot use this handoff;
-Studio reports the limitation and the external-editor action remains available.
-Missing host support or a failed handoff produces a visible error, not a
-fallback to an unrelated file or editor.
+worktree-relative path. If Files cannot open the app's isolated worktree or the
+host does not provide an editor canvas, Build falls back to the configured
+external editor for the same file, explains the fallback, and resets Edit to that
+editor. If both handoffs fail, both errors are shown.
 
-The secondary **Open in &lt;editor&gt;** action opens the app worktree and
-chosen file in VS Code or the saved preferred editor. The **Preferred external
-editor** picker lives in shared **Settings**, rather than taking space on Customize.
+The external-editor destination opens the app worktree and chosen file in VS Code
+or the saved preferred editor. The **Preferred external
+editor** picker lives in shared **Settings**, rather than taking space on Build.
 It retains native keyboard
 navigation and a visible focus outline. A **Code editor** field is also available
 when reviewing a new app. Supported choices are **VS Code**,
 **VS Code Insiders**, **Cursor**, **Windsurf**, **Zed**, or **Sublime Text**.
 The preference is saved per user in `editor-preferences.json`, independently of
-appearance settings, and is shared by Customize, App Map source actions, and app
+appearance settings, and is shared by Build, App Map source actions, and app
 creation. Custom executable paths and commands are not supported.
 The chosen editor must already be installed, with its CLI available where
 required; Studio reports launch failures rather than opening another editor.
-Changes in Settings update Customize and app-creation actions together. External
+Changes in Settings update Build and app-creation actions together. External
 launches are disabled while the preference is loading/saving; failed saves retain
-the confirmed editor and surface an error. A small **About Customize** info button
-beside the page heading replaces the former footer explanation. Its tooltip is
-available on hover, keyboard focus, or click, and dismisses with Escape.
-Save changes in Files or the external editor, then return to Customize. Focus and
-visibility changes refresh saved source, as does re-entering Customize.
+the confirmed editor and surface an error. Build starts directly with its
+source browser, without a repeated introductory heading or help banner.
+Save changes in Files or the external editor, then return to Build. Focus and
+visibility changes refresh saved source, as does re-entering Build.
 **Refresh source** provides an explicit retry or refresh without leaving the
-page. Area/project selection, preview expansion, keyboard focus, and page/preview scroll positions
+page. File selection, category/preview expansion, keyboard focus, and page/preview scroll positions
 are retained in the panel. Unchanged refreshes preserve the preview DOM and text
 selection. Late refresh responses cannot replace another workspace or overwrite
-newer results. Handoff feedback belongs to its own customization row, even when
+newer results. Handoff feedback belongs to its own file, even when
 different files open out of order. Refresh failures retain the previous guide
 and show an error.
 
-Customize does not edit files, hold unsaved source drafts, or implement review/save
-controls. Its former diff and source-write endpoints are removed. Native Files
+The source preview does not edit files, hold unsaved source drafts, or implement review/save
+controls. Its former diff and source-write endpoints remain removed. Template creation
+and AI adjustment requests are explicit actions, separate from previewing. Native Files
 and external editors own editing and saving; their changes do not pass through
 the former Build stopped-app save gate. Restart the app or rebuild deployed
 images when needed for saved runtime/code changes. No crash-recovery guarantee
@@ -688,7 +880,7 @@ npm run vendor:syntax --prefix canvases/azure-app-platform
 
 **Known discovery limitation (for design discussion):** this is best-effort
 recognition, not a universal file catalog or language-aware parser. Component
-directories can be arbitrary when mapped in `azure-app.yaml`, but Customize selects
+directories can be arbitrary when mapped in `azure-app.yaml`, but Build selects
 known per-tier filenames and source files matched by existing framework/code
 patterns. A manifest path alone does not enumerate every file or identify its
 role. Unfamiliar frameworks, filenames, external prompt/configuration storage,

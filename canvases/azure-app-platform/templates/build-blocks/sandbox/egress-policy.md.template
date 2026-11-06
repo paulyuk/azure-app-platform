@@ -1,0 +1,9 @@
+# __BLOCK_NAME__ egress
+
+Use deny-by-default outbound access when connecting this tool to an ACA Sandbox.
+Add only the destinations required by the implemented operation. Do not pass
+agent-host credentials, environment secrets, or host filesystem mounts.
+
+This file documents the intended policy. Apply and verify it on the Sandbox
+connection before using untrusted input; the container image does not configure
+Azure networking.

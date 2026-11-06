@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>__BLOCK_NAME__</title>
+</head>
+<body>
+  <main>
+    <h1>__BLOCK_NAME__</h1>
+    <p>Web starter. Connect your application's endpoints before adding live actions.</p>
+  </main>
+</body>
+</html>

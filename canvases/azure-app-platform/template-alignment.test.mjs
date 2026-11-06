@@ -31,7 +31,8 @@ test("fresh template synchronizes catalog, runtime, Build paths, instructions an
     await assert.rejects(access(join(root, "src/sandbox/tool")), { code: "ENOENT" });
 
     const { artifacts } = await readBuildWorkspace(root);
-    assert.equal(artifacts.length, 5);
+    assert.ok(artifacts.length >= 5);
+    assert.equal(new Set(artifacts.map(item => item.path)).size, artifacts.length);
     for (const artifact of artifacts) {
       assert.equal(artifact.available, true, artifact.path);
       assert.equal(await resolveBuildArtifactPath(root, artifact.id), join(await realpath(root), artifact.path));

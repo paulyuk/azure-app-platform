@@ -77,9 +77,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#build-workspace").getAttribute("aria-current"), "page");
       assert.equal(await page.locator("dialog[open]").count(), 0);
       await page.locator(".build-source-preview").first().waitFor();
-      await page.getByRole("tab", { name: "Runtime", exact: true }).click();
-      const buildDisclosure = page.locator('.build-file[data-artifact="configuration"] .build-source-disclosure');
-      if (await buildDisclosure.evaluate(node => node.open)) await buildDisclosure.locator("summary").click();
+      await page.getByRole("toolbar", { name: "File pages", exact: true })
+        .getByRole("button", { name: "config.json", exact: true }).click();
+      const buildSource = page.locator('.build-file[data-artifact="configuration"] .build-file-source');
+      await buildSource.waitFor();
+      await buildSource.evaluate(node => { window.retainedBuildSource = node; });
       await back.click();
       await mode("manage");
       assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
@@ -126,7 +128,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
               themeBorder: getComputedStyle(document.querySelector("#workspace-runtime-bar")).borderBottomColor,
-              buttons: [...menu.querySelectorAll("button")].map(button => {
+              buttons: [...menu.querySelectorAll("button")].filter(button => button.checkVisibility()).map(button => {
                 const style = getComputedStyle(button);
                 return {
                   toolkit: button.classList.contains("ct-button"), size: button.dataset.size,
@@ -195,9 +197,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await back.isDisabled(), true);
       await select("build-workspace");
       await mode("build");
-      await buildDisclosure.waitFor({ state: "attached" });
-      assert.equal(await page.getByRole("tab", { name: "Runtime", exact: true }).getAttribute("aria-selected"), "true");
-      assert.equal(await buildDisclosure.evaluate(node => node.open), false);
+      await buildSource.waitFor();
+      assert.equal(await page.getByRole("toolbar", { name: "File pages", exact: true })
+        .getByRole("button", { name: "config.json", exact: true }).getAttribute("aria-pressed"), "true");
+      assert.equal(await buildSource.evaluate(node => node === window.retainedBuildSource), true);
+      const divider = page.getByRole("separator", { name: "File list width", exact: true });
+      await divider.focus();
+      const retainedWidth = Number(await divider.getAttribute("aria-valuenow"));
+      await page.keyboard.press("ArrowRight");
+      assert.ok(Number(await divider.getAttribute("aria-valuenow")) > retainedWidth,
+        "Retained Build panes remain resizable after navigation");
       assert.equal(await back.isDisabled(), false);
       assert.equal(await forward.isDisabled(), true, "Build is a new history destination");
       await back.click();
@@ -234,6 +243,42 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(fixture.mutations.at(-1).body.message, "Preserve this event payload.");
       assert.equal(fixture.mutations.at(-1).body.document.name, "sample-loan-note.md");
       assert.equal(await page.locator(".conversation-list,.chat-bubble").count(), 0);
+      await page.goto(origin + "/app-map?created=1#build");
+      await page.waitForFunction(() => window.appPlatformReady && document.body.dataset.workspace === "build");
+      await page.locator("#header-runtime-action").evaluate(node => { window.navigationRuntimeAction = node; });
+      assert.equal(await page.locator("#workspace-location").textContent(), "Build");
+      assert.equal(new URL(page.url()).hash, "", "The one-time creation destination is consumed");
+      assert.equal(await back.isDisabled(), true, "Creation starts history at Build, not an unseen Run page");
+      await page.locator(".build-source-preview").first().waitFor();
+      const refreshView = page.getByRole("button", { name: "Refresh source", exact: true });
+      assert.equal(await refreshView.getAttribute("title"), "Refresh source");
+      assert.equal(await refreshView.getAttribute("data-appearance"), "subtle");
+      assert.equal(await refreshView.innerText(), "");
+      assert.equal(await page.getByRole("button", { name: "Run & Debug", exact: true }).count(), 0);
+      assert.equal(await page.locator(".build-heading").count(), 0);
+      assert.equal(await page.locator("#workspace-header-actions .build-refresh").count(), 0);
+      for (const width of [320, 380, 1000]) {
+        await page.setViewportSize({ width, height: 800 });
+        assert.equal(await refreshView.evaluate(button => {
+          const refresh = button.getBoundingClientRect();
+          const group = button.closest('[aria-label="Building block actions"]');
+          const add = group.querySelector('[aria-label="+ Add building block"]');
+          const bounds = add.getBoundingClientRect();
+          const files = document.querySelector("[data-files-toggle]");
+          const inlineFiles = !files.checkVisibility() ||
+            Math.abs(files.getBoundingClientRect().top - refresh.top) <= 1;
+          return refresh.right < bounds.left && Math.abs(refresh.top - bounds.top) <= 1 &&
+            bounds.right <= innerWidth && add.textContent.trim() === "" &&
+            add.dataset.appearance === "subtle" && inlineFiles;
+        }), true, "Refresh and Add stay icon-only and subtle, with refresh immediately to the left");
+      }
+      await refreshView.click();
+      await page.waitForFunction(() => !document.querySelector(".build-refresh").disabled);
+      await select("manage-app");
+      await mode("manage");
+      assert.equal(await refreshView.isVisible(), false);
+      await back.click();
+      await mode("build");
       fixture.state.app = "stopped";
       await page.locator("#header-open-app").waitFor({ state: "hidden" });
       await select("deploy-workspace");

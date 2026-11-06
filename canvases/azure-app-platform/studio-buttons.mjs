@@ -3,10 +3,39 @@ export function createStudioButtons(toolkit) {
   const views = new Map();
   const controls = new WeakMap();
 
-  function render(element, props) {
+  function Field({ kind, label, hint, fieldError, options, ...props }) {
+    return createElement(toolkit.FormField, { label, hint, error: fieldError, required: props.required },
+      createElement(toolkit[kind], props, options?.map(option =>
+        createElement("option", { key: option.value, value: option.value }, option.label))));
+  }
+  function Menu({ items, ...props }) {
+    return createElement(toolkit.MenuButton, props, items.map(({ id, label, ...item }) =>
+      createElement(toolkit.MenuItem, { key: id, ...item }, label)));
+  }
+  function Split({ heading, items, ...props }) {
+    return createElement(toolkit.SplitButton, props,
+      createElement(toolkit.MenuGroup, null,
+        createElement(toolkit.MenuGroupHeader, null, heading),
+        items.map(({ id, label, ...item }) => createElement(toolkit.MenuItem, { key: id, ...item }, label))));
+  }
+  function Segmented({ items, value, onValueChange, onReselect, iconOnly = false, ...props }) {
+    return createElement(toolkit.ActionToolbar, props, items.map(item => createElement(toolkit.ToolbarToggleButton, {
+      key: item.value, name: "selection", value: item.value, icon: item.icon,
+      checked: item.value === value,
+      onChange: (event, data) => {
+        if (data.checked) onValueChange(item.value);
+        else if (item.value === value) onReselect?.(item.value);
+      },
+      appearance: "subtle", size: "small",
+      "aria-label": item.label, title: item.title ?? item.label, "aria-controls": item.controls,
+      "data-focus-key": item.focusKey,
+    }, iconOnly ? undefined : item.label)));
+  }
+
+  function render(element, props, component = Button, selector = "button") {
     let view = views.get(element);
     if (!view) {
-      view = { props: {}, callbacks: new Map(), handle: null };
+      view = { props: {}, callbacks: new Map(), handle: null, component, selector };
       views.set(element, view);
     }
     const changed = {};
@@ -23,15 +52,15 @@ export function createStudioButtons(toolkit) {
       if (Object.keys(changed).length) view.handle.update(changed);
     } else {
       try {
-        view.handle = mountCanvasComponent(element, Button, Object.fromEntries(
+        view.handle = mountCanvasComponent(element, component, Object.fromEntries(
           Object.entries(view.props).map(([key, value]) =>
             [key, typeof value === "function" ? view.callbacks.get(key) : value])));
       } catch (cause) {
         views.delete(element);
         throw cause;
       }
-      view.control = element.querySelector("button");
-      controls.set(view.control, element);
+      view.control = selector ? element.querySelector(selector) : null;
+      if (view.control) controls.set(view.control, element);
     }
     return view.control;
   }
@@ -41,16 +70,58 @@ export function createStudioButtons(toolkit) {
     element.className = "studio-button-mount";
     return render(element, { type: "button", ...props });
   }
+  function field(props) {
+    if (!["TextInput", "Textarea", "Select"].includes(props.kind)) throw new Error("Choose a supported toolkit form control.");
+    const element = document.createElement("div");
+    element.className = "studio-field-mount";
+    return render(element, props, Field, "input,textarea,select");
+  }
+  function menu(props) {
+    const element = document.createElement("span");
+    element.className = "studio-button-mount";
+    return render(element, props, Menu);
+  }
+  function split(props) {
+    const element = document.createElement("span");
+    element.className = "studio-button-mount";
+    return render(element, props, Split, '[role="group"]');
+  }
+  function segmented(props) {
+    const element = document.createElement("div");
+    element.className = "studio-segmented-mount";
+    return render(element, props, Segmented, '[role="toolbar"]');
+  }
+  function renderComponent(element, name, props) {
+    const view = views.get(element);
+    if (view && view.component !== toolkit[name]) throw new Error("Cannot replace an owned toolkit component without clearing it.");
+    render(element, props, toolkit[name], null);
+  }
+  function actionGroup(parent, props = {}) {
+    const element = document.createElement("div");
+    element.className = "studio-action-mount";
+    parent.append(element);
+    renderComponent(element, "ActionGroup", props);
+    views.get(element).actionChildren = [];
+    return element;
+  }
   function host(control) {
     return controls.get(control) ?? control;
   }
   function append(parent, ...children) {
-    parent.append(...children.map(host));
+    const group = views.get(parent);
+    if (group?.actionChildren) {
+      group.actionChildren.push(...children.map(host));
+      renderComponent(parent, "ActionGroup", {
+        children: group.actionChildren.map((element, index) =>
+          createElement(toolkit.DomContent, { key: index, element })),
+      });
+    } else parent.append(...children.map(host));
   }
   function update(control, props) {
     const element = controls.get(control);
     if (!element || !views.has(element)) throw new Error("Cannot update an unowned Studio button.");
-    return render(element, props);
+    const view = views.get(element);
+    return render(element, props, view.component, view.selector);
   }
   function setDisabled(control, disabled) {
     if (controls.has(control)) update(control, { disabled });
@@ -61,8 +132,8 @@ export function createStudioButtons(toolkit) {
     else control.textContent = children;
   }
   function clear(root) {
-    for (const [element, view] of views) {
-      if (root !== element && !root.contains(element)) continue;
+    const owned = [...views].filter(([element]) => root === element || root.contains(element));
+    for (const [element, view] of owned.reverse()) {
       views.delete(element);
       controls.delete(view.control);
       view.handle.dispose();
@@ -113,11 +184,13 @@ export function createStudioButtons(toolkit) {
   function dispose() {
     for (const element of [...views.keys()]) clear(element);
   }
-  return { renderButton: render, create, host, append, update, setDisabled, setText, icon, clear, mountAll, replace, dispose };
+  return { renderButton: render, create, field, menu, split, segmented, renderComponent, actionGroup, host, append, update, setDisabled, setText, icon, clear, mountAll, replace, dispose };
 }
 
 export const STUDIO_BUTTON_MOUNT_CSS = `
   :root[data-studio-theme="light"] { color-scheme: light; }
   :root[data-studio-theme="dark"] { color-scheme: dark; }
-  .studio-button-mount, .studio-button-mount > .ct-provider { display: contents; }
+  .studio-button-mount, .studio-button-mount > .ct-provider,
+  .studio-action-mount, .studio-action-mount > .ct-provider,
+  .studio-segmented-mount > .ct-provider { display: contents; }
 `;

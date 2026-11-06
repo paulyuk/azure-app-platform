@@ -17,9 +17,16 @@ export function createCommandActivity(filePath) {
     try {
       const saved = JSON.parse(await readFile(filePath, "utf8"));
       if (!Array.isArray(saved)) throw new Error("Invalid command activity history.");
-      records = saved.slice(0, 60).map((record) => record.status === "running"
-        ? { ...record, status: "unknown", note: "Provider reloaded; review command output for completion." }
-        : record);
+      records = saved.slice(0, 60).map((record) => {
+        if (record.status === "running") {
+          return { ...record, status: "unknown", note: "Provider reloaded; review command output for completion." };
+        }
+        if (record.kind === "az" && record.label === "Azure discovery" &&
+            record.status === "failed" && record.note === "Cancelled" && !record.error) {
+          return { ...record, status: "cancelled" };
+        }
+        return record;
+      });
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
       records = [];
@@ -48,12 +55,12 @@ export function createCommandActivity(filePath) {
       await update(() => { records.unshift(record); records.length = Math.min(records.length, 60); });
       return record.id;
     },
-    async finish(id, { ok, note = "", error = "" }) {
+    async finish(id, { ok, cancelled = false, note = "", error = "" }) {
       await update(() => {
         const record = records.find((item) => item.id === id);
         if (!record) return;
         Object.assign(record, {
-          status: ok ? "succeeded" : "failed", durationMs: Date.now() - record.startedAt,
+          status: cancelled ? "cancelled" : ok ? "succeeded" : "failed", durationMs: Date.now() - record.startedAt,
           note: redactActivityText(note).slice(0, 1000),
           error: redactActivityText(error).slice(0, 4000),
         });

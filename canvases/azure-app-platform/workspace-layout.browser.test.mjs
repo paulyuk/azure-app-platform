@@ -133,15 +133,10 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await page.locator("#studio-workspace-navigation").waitFor();
     await selectWorkspace(page, "build-workspace");
     const buildRow = page.locator('.build-file[data-artifact="instructions"]');
-    const buildDisclosure = buildRow.locator(
-      '.build-source-disclosure[data-preview-for="instructions"]');
     const preview = page.getByRole("region", { name: "Agent instructions source preview", exact: true });
     const source = preview.locator(".build-highlight");
     const openBuildPreview = async () => {
       await buildRow.waitFor();
-      if (!await buildDisclosure.evaluate((element) => element.open)) {
-        await buildDisclosure.locator(":scope > summary").click();
-      }
       await preview.waitFor();
     };
     await buildRow.waitFor();
@@ -243,9 +238,10 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
       assert.equal(styles.selectedBorderWidth, "3px");
       assert.equal(styles.overflow, false);
     };
-    assert.deepEqual(await buttonFormat(page.locator("#details .build-edit-files")), toolkitButton);
-    assert.equal(await page.locator("#details .build-header").count(), 0);
-    assert.equal(await page.locator("#details").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
+    assert.deepEqual(await buttonFormat(page.locator("#customize-content [data-file-open] > button").first()),
+      { ...toolkitButton, size: "12px", radius: "6px 0px 0px 6px", padding: "0px", height: 28 });
+    assert.equal(await page.locator("#customize-content .build-header").count(), 0);
+    assert.equal(await page.locator("#customize-content").getByRole("button", { name: "Run/Debug", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Test with a document", exact: true }).count(), 1);
     await openWorkspaceNavigation(page);
     await page.locator("#manage-app").focus();
