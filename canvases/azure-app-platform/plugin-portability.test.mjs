@@ -144,6 +144,11 @@ test("installed payload opens and materializes templates without checkout depend
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);
           const expected = await readFile(join(payload, "assets", name));
+          if (name === "run-ready-spot.svg") {
+            assert.equal(createHash("sha256").update(expected).digest("hex"),
+              "b6f9a1ee443748d58af4011c379bbd1509b5c9db0e67865d0413516d3e3ab97a",
+              "Idle illustration bytes must match the artwork extracted from PR #58");
+          }
           assert.equal(asset.status, 200);
           assert.equal(asset.headers.get("content-type"), name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "video/mp4");
           assert.equal(asset.headers.get("content-length"), String(expected.length));
