@@ -15,6 +15,7 @@ test("sandbox gateway runtime template has strict document and ACA contracts", a
     runtime,
     contract,
     agent,
+    extension,
     tool,
     prompt,
     posixStart,
@@ -25,6 +26,7 @@ test("sandbox gateway runtime template has strict document and ACA contracts", a
     readFile(join(root, "config", "runtime.json.template"), "utf8").then(JSON.parse),
     readFile(join(root, "src", "tools", "document-validation", "contract.json"), "utf8").then(JSON.parse),
     readFile(join(root, "src", "agent", "main.py.template"), "utf8"),
+    readFile(join(root, "..", "..", "extension.mjs"), "utf8"),
     readFile(join(root, "src", "tools", "document-validation", "main.py.template"), "utf8"),
     readFile(join(root, "src", "agent", "prompts", "system.md.template"), "utf8"),
     readFile(join(root, "scripts", "dev-start.sh"), "utf8"),
@@ -48,7 +50,10 @@ test("sandbox gateway runtime template has strict document and ACA contracts", a
   assert.match(agent, /mode="empty"/);
   assert.match(agent, /approved_document_result/);
   assert.match(agent, /local-process-simulation/);
+  assert.match(agent, /subscription_key and subscription_key != api_key/);
   assert.doesNotMatch(agent, /def _call_gateway/);
+  assert.match(extension, /AI_GATEWAY_API_KEY_HEADER=api-key/);
+  assert.doesNotMatch(extension, /AI_GATEWAY_SUBSCRIPTION_KEY=\$\{apiKey\}/);
   assert.match(tool, /limited-deterministic-patterns/);
   assert.match(prompt, /Never claim complete PII detection/);
   assert.match(posixStart, /uv run main\.py/);

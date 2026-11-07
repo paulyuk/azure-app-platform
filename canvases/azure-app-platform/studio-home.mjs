@@ -27,8 +27,8 @@ export function mountStudioHome(element, { toolkit, onCreate, onOpen, onAssemble
       `),
       h("div", { className: "simple-home-start" },
         h("div", { className: "simple-home-introduction" },
-          h("h1", null, "Automate real tasks within boundaries you set."),
-          h("p", null, "Isolate tool execution and govern access to shared models and tools.")),
+          h("h1", null, "What would you like to do?"),
+          h("p", null, "Start a new app, assemble existing projects, or continue working on an app you already have.")),
         h("div", { className: "simple-home-tasks" },
           ...tasks.map((task, index) => h(ActionCard, {
             key: task.id, id: task.id, className: "simple-home-task", type: "button",

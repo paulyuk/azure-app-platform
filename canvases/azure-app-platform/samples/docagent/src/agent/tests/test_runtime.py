@@ -260,6 +260,19 @@ class RuntimeTests(unittest.TestCase):
         })
         self.assertEqual(status, 422)
         self.assertEqual(result["toolResult"]["reasonCode"], "instruction-override")
+        self.assertEqual(
+            result["blockedResponse"]["contractVersion"],
+            "agent-blocked-response/1.0",
+        )
+        self.assertEqual(result["blockedResponse"]["responseOrigin"], "agent-harness")
+        self.assertEqual(result["blockedResponse"]["upstreamHttpStatus"], 422)
+        self.assertEqual(result["blockedResponse"]["mode"], "local-simulation")
+        self.assertEqual(result["blockedResponse"]["stages"][2]["state"], "not-attempted")
+        self.assertEqual(
+            result["blockedResponse"]["stages"][3]["detail"],
+            "Not part of this test",
+        )
+        self.assertFalse(result["blockedResponse"]["evidence"]["modelAuthoredTextShown"])
         self.assertEqual(gateway.calls, [])
 
     def test_model_cannot_supply_policy_overrides(self):
@@ -278,8 +291,18 @@ class RuntimeTests(unittest.TestCase):
         gateway = RecordingGateway()
         gateway.reply = lambda *args: "Contact jane@example.com"
         service = agent.AgentHarness(self.config, gateway_client=gateway)
-        with self.assertRaisesRegex(agent.HttpFailure, "blocked by deterministic policy"):
+        with self.assertRaisesRegex(
+            agent.HttpFailure,
+            "blocked by deterministic policy",
+        ) as raised:
             service.invoke({"message": "Tell me an email address"})
+        blocked = raised.exception.blocked_response
+        self.assertIsNotNone(blocked)
+        self.assertEqual(blocked["upstreamHttpStatus"], 502)
+        self.assertEqual(blocked["testKind"], "agent-output-policy")
+        self.assertEqual(blocked["stages"][2]["detail"], "Response received")
+        self.assertEqual(blocked["stages"][3]["state"], "blocked")
+        self.assertFalse(blocked["evidence"]["modelAuthoredTextShown"])
 
     def test_canvas_gateway_bindings_use_responses_api(self):
         calls = []
@@ -301,6 +324,26 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["model"], "gpt-latest")
         self.assertEqual(calls[0][1]["max_output_tokens"], 4096)
         self.assertEqual(calls[0][1]["input"][0]["content"], "Use approved data")
+
+    def test_duplicate_gateway_key_uses_only_the_api_key_header(self):
+        environment = {
+            "AI_GATEWAY_BASE_URL": "https://gateway.example/default/models/openai/v1",
+            "AI_GATEWAY_API_KEY": "shared-key",
+            "AI_GATEWAY_SUBSCRIPTION_KEY": "shared-key",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            settings = agent.GatewaySettings(self.config["gateway"], lambda _: "")
+            self.assertEqual(
+                settings.headers(),
+                {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "api-key": "shared-key",
+                },
+            )
+            self.assertEqual(
+                settings.provider()["headers"],
+                {"api-key": "shared-key"},
+            )
 
     def test_reasoning_budget_exhaustion_retries_and_surfaces_incomplete_diagnostics(self):
         calls = []

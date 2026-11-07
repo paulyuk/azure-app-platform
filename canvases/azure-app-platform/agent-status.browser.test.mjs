@@ -79,6 +79,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
       assert.match(await status.innerText(), /Simulated startup failure/);
       assert.match(await status.locator(".command-code").first().innerText(), /aca run --config app.yaml/);
+      const openLogs = status.getByRole("button", { name: "Open logs", exact: true });
+      assert.equal(await openLogs.getAttribute("data-appearance"), "secondary");
       const disclosure = status.locator('[data-run-disclosure="runtime-error"]');
       await disclosure.locator("summary").click();
       await disclosure.locator("pre").evaluate(node => { node.scrollTop = 70; });
@@ -88,7 +90,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await disclosure.evaluate(node => node.open), true);
       assert.equal(await disclosure.locator("pre").evaluate(node => node.scrollTop), 70);
       assert.equal(await connection.evaluate(node => node === document.activeElement), true);
-      for (const width of [320, 380, 620]) {
+      for (const width of [320, 380, 620, 621, 800]) {
         await page.setViewportSize({ width, height: 480 });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
@@ -97,17 +99,28 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const actions = node.querySelector(".agent-status-actions").getBoundingClientRect();
             const shortcut = node.querySelector(".agent-connection-shortcut").getBoundingClientRect();
             const value = node.querySelector(".agent-connection-shortcut").previousElementSibling.getBoundingClientRect();
+            const cells = [...node.querySelectorAll(".agent-status-facts > div")].map(cell => cell.getBoundingClientRect());
             return {
               right: Math.abs(actions.right - (summary.right - 12)) <= 1,
               inlineConnection: shortcut.left >= value.right && Math.abs(shortcut.top + shortcut.height / 2 - (value.top + value.height / 2)) <= 1,
+              stacked: cells.every((cell, i) => Math.abs(cell.left - cells[0].left) < 1 &&
+                Math.abs(cell.width - cells[0].width) < 1 && (!i || cell.top >= cells[i - 1].bottom - 1)),
+              threeColumns: cells.every(cell => Math.abs(cell.top - cells[0].top) < 1) &&
+                cells[1].left >= cells[0].right - 1 && cells[2].left >= cells[1].right - 1,
               fits: node.scrollWidth <= node.clientWidth && document.documentElement.scrollWidth <= innerWidth,
               secondary: [...node.querySelectorAll("button")].every(button => button.dataset.appearance === "secondary"),
             };
           });
-          assert.ok(geometry.right && geometry.inlineConnection && geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
+          assert.ok(geometry.right && geometry.inlineConnection &&
+            (width <= 620 ? geometry.stacked : geometry.threeColumns) &&
+            geometry.fits && geometry.secondary, JSON.stringify({ width, theme, geometry }));
         }
       }
       await page.setViewportSize({ width: 620, height: 800 });
+      await openLogs.click();
+      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
+      assert.equal(await page.locator('[data-run-tab="output"]').getAttribute("aria-selected"), "true");
+      await page.locator("#run-diagnostics-toggle").click();
       await status.getByRole("button", { name: "Retry startup", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
       assert.deepEqual(operations.at(-1), { root: "/fixture/dealer", operation: "run-local" });
@@ -204,17 +217,60 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await status.innerText(), /Invoke agent starts the local app/);
       assert.equal(await page.locator("#header-open-app").isVisible(), false);
       assert.equal(await page.locator(".run-primary").getByRole("button", { name: "Open app", exact: true }).count(), 0);
-      await page.locator('[data-event-preset="loan.document.submitted"]').click();
+      const eventTriggerSelect = page.getByRole("combobox", { name: "Event triggers", exact: true });
+      assert.equal(await eventTriggerSelect.isVisible(), true);
+      assert.equal(await page.locator("button.event-preset-chip").count(), 0);
+      await eventTriggerSelect.selectOption("loan.document.submitted");
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       const document = page.getByLabel("Document text", { exact: true });
+      const notice = page.locator("[data-document-test-notice] .ct-message");
+      await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
+      assert.equal(await notice.getAttribute("data-intent"), "info");
       assert.equal(await page.locator(".document-name").textContent(), "sample-loan-note.md");
       assert.equal(await page.locator(".run-document").evaluate(node => node.open), false);
+      const noticeBetween = await page.evaluate(() => {
+        const promptBox = globalThis.document.querySelector('[aria-label="Agent message"]').getBoundingClientRect();
+        const noticeBox = globalThis.document.querySelector("[data-document-test-notice] .ct-message").getBoundingClientRect();
+        const docBox = globalThis.document.querySelector(".document-attachment").getBoundingClientRect();
+        return {
+          afterPrompt: noticeBox.top >= promptBox.bottom - 1,
+          beforeDocs: noticeBox.bottom <= docBox.top + 1,
+        };
+      });
+      assert.deepEqual(noticeBetween, { afterPrompt: true, beforeDocs: true },
+        "MessageBar sits between the Agent message textarea and the document attachment.");
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       assert.match(await prompt.inputValue(), /^Event \[loan.document.submitted\]/);
       assert.match(await document.inputValue(), /Residential Auto Loan Intake/);
       await prompt.fill("Event [test.task.received]: verify this document without a conversation.");
+      await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('.agent-status-brief[data-state="invoking"]').waitFor();
+      assert.deepEqual(await page.evaluate(() => {
+        const button = document.querySelector("[data-invoke-agent]");
+        const buttonRing = button?.querySelector(".agent-invoke-spinner .ct-spinner-ring");
+        const heading = document.querySelector(".agent-status-brief h3");
+        const statusIcon = document.querySelector(".agent-status-brief .agent-status-icon");
+        const iconMask = statusIcon ? (getComputedStyle(statusIcon, "::before").maskImage || getComputedStyle(statusIcon, "::before").webkitMaskImage) : "";
+        return {
+          buttonLabel: button?.textContent.trim(),
+          buttonInvoking: button?.dataset.invoking,
+          buttonSpin: buttonRing ? getComputedStyle(buttonRing).animationName : "",
+          buttonColorMatches: Boolean(button && buttonRing && getComputedStyle(buttonRing).borderTopColor === getComputedStyle(button).color),
+          statusSpinnerCount: document.querySelectorAll(".agent-status-brief .agent-status-spinner").length,
+          statusIconTimer: decodeURIComponent(iconMask).includes('data-octicon="stopwatch"'),
+          statusColorMatches: Boolean(heading && statusIcon && getComputedStyle(statusIcon).backgroundColor === getComputedStyle(heading).color),
+        };
+      }), {
+        buttonLabel: "Invoking agent…",
+        buttonInvoking: "true",
+        buttonSpin: "ct-spin",
+        buttonColorMatches: true,
+        statusSpinnerCount: 0,
+        statusIconTimer: true,
+        statusColorMatches: true,
+      });
       assert.equal(await prompt.isDisabled(), true);
       assert.equal(commands.length, 1, "The existing auto-start path runs once.");
       assert.equal(requests.length, 0, "A running app alone cannot dispatch a task.");
@@ -228,6 +284,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Not running"));
       release();
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
+      assert.equal(await page.locator(".agent-status-brief .agent-status-spinner").count(), 0);
+      assert.equal(await page.locator("[data-invoke-agent] .agent-invoke-spinner").count(), 0);
+      assert.equal(await page.locator("[data-invoke-agent]").textContent(), "Invoke agent");
       assert.deepEqual(requests[0], {
         root: "/fixture/dealer", port: 8088, message: payload, document: { name: "sample-loan-note.md", content: documentText },
       });
@@ -266,10 +325,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
       fail = true;
       const invoke = page.getByRole("button", { name: "Invoke agent", exact: true });
+      assert.equal(await invoke.getAttribute("data-appearance"), "primary");
+      assert.equal(await invoke.locator('svg[data-octicon="agent"]').count(), 1);
       await invoke.focus();
       await invoke.press("Enter");
       await page.locator('.agent-response[data-state="failed"]').waitFor();
       assert.equal(await status.getAttribute("data-state"), "ready");
+      assert.equal(await page.locator("#status").getAttribute("role"), "status");
+      assert.equal(await page.locator("#status").evaluate(node => node.classList.contains("visually-hidden")), true,
+        "Failed task execution must not render duplicate error text above the Status Brief.");
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true,
         "A temporarily disabled invocation action keeps focus in its result, not the page body.");
@@ -285,6 +349,69 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
       assert.equal(await prompt.inputValue(), payload);
       assert.equal(await document.inputValue(), documentText);
+      available = true;
+      fixture.state.app = "running";
+      fail = false;
+      await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
+      await page.evaluate(() => {
+        window.__promptValueTrace = [];
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+        Object.defineProperty(HTMLTextAreaElement.prototype, "value", {
+          configurable: true,
+          get() {
+            return descriptor.get.call(this);
+          },
+          set(next) {
+            descriptor.set.call(this, next);
+            if (this.getAttribute("aria-label") === "Agent message") {
+              window.__promptValueTrace.push(String(next));
+            }
+          },
+        });
+      });
+      await eventTriggerSelect.selectOption("applicant.intake.received");
+      await page.waitForFunction(() => {
+        const node = document.querySelector('[aria-label="Agent message"]');
+        return node && node.dataset.typing === "true" && node.value.length > 0;
+      });
+      await eventTriggerSelect.selectOption("compliance.audit.scheduled");
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
+      const interruptedTrace = await page.evaluate(() => window.__promptValueTrace.slice());
+      const auditTarget = await prompt.inputValue();
+      assert.match(auditTarget, /^Event \[compliance\.audit\.scheduled\]/);
+      assert.equal(interruptedTrace[0], "", "Selecting a preset trigger must clear the textarea first.");
+      const secondClearIndex = interruptedTrace.lastIndexOf("");
+      assert.ok(secondClearIndex > 0, "Selecting another preset mid-animation must clear the textarea again.");
+      const auditFrames = interruptedTrace.slice(secondClearIndex + 1);
+      const expectedAuditChars = Array.from(auditTarget);
+      assert.equal(auditFrames.length, expectedAuditChars.length);
+      assert.deepEqual(
+        auditFrames,
+        expectedAuditChars.map((_, index) => expectedAuditChars.slice(0, index + 1).join("")),
+        "Preset prompt must animate character by character after clearing.",
+      );
+      await page.evaluate(() => { window.__promptValueTrace = []; });
+      await eventTriggerSelect.selectOption("loan.document.submitted");
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
+      const loanTrace = await page.evaluate(() => window.__promptValueTrace.slice());
+      const loanTarget = await prompt.inputValue();
+      assert.match(loanTarget, /^Event \[loan\.document\.submitted\]/);
+      assert.equal(loanTrace[0], "", "Selecting loan.document.submitted must clear the textarea first.");
+      const expectedLoanChars = Array.from(loanTarget);
+      assert.deepEqual(
+        loanTrace.slice(1),
+        expectedLoanChars.map((_, index) => expectedLoanChars.slice(0, index + 1).join("")),
+        "loan.document.submitted preset must animate in character by character.",
+      );
+      await eventTriggerSelect.selectOption("applicant.intake.received");
+      await page.waitForFunction(() => {
+        const node = document.querySelector('[aria-label="Agent message"]');
+        return node && node.dataset.typing === "true" && node.value.length > 0;
+      });
+      await invoke.click();
+      await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
+      assert.match(requests.at(-1).message, /^Event \[applicant\.intake\.received\].*missing borrower attestations\.$/);
+      assert.equal(await prompt.inputValue(), requests.at(-1).message);
       assert.equal(await page.locator(".conversation-list,.chat-bubble,[data-conversation]").count(), 0);
       assert.equal(await brief.count(), 1);
       for (const [width, height] of [[320, 480], [620, 800]]) {
@@ -359,27 +486,36 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
               const first = document.querySelector("#build-workspace").getBoundingClientRect();
               const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+              const brief = document.querySelector(".agent-status-brief").getBoundingClientRect();
               const style = getComputedStyle(node);
               return {
                 sameRow: Math.abs(button.top - first.top) <= 1,
                 belowMenu: button.top >= menu.bottom + 4,
                 actionsTogether: Math.abs(button.top - logs.top) <= 1 && button.right < logs.left,
                 rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
+                briefLeftAligned: Math.abs(brief.left - menu.left) <= 1,
+                briefCentered: brief.width <= 960 && Math.abs(brief.left - menu.left) > 1,
                 separated: button.left >= menu.right + 7,
                 fits: button.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth,
                 taskHeight: document.querySelector("#app-workspace-main").getBoundingClientRect().height,
                 toolkit: node.classList.contains("ct-button"), size: node.dataset.size,
                 height: button.height, padding: style.padding, appearance: node.dataset.appearance,
+                invokeAppearance: document.querySelector("[data-invoke-agent]")?.dataset.appearance,
+                isPlaying: ["Running locally", "Local preview"].includes(document.querySelector("#app-status-badge")?.textContent),
+                operation: node.dataset.operation,
                 prominent: style.backgroundColor !== getComputedStyle(document.querySelector("#build-workspace")).backgroundColor,
               };
             });
             assert.ok((width <= 680 ? geometry.belowMenu : geometry.sameRow && geometry.separated) &&
               geometry.actionsTogether && geometry.rightAligned &&
+              (width <= 960 ? geometry.briefLeftAligned : geometry.briefCentered) &&
               geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
             assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
               [true, "small", 28, "3px 8px"]);
-            assert.equal(geometry.appearance, "primary");
-            assert.equal(geometry.prominent, true);
+            const isStop = geometry.operation === "stop-local";
+            assert.equal(geometry.appearance, isStop ? "secondary" : "primary");
+            assert.equal(geometry.invokeAppearance, geometry.isPlaying ? "primary" : "secondary");
+            if (!isStop) assert.equal(geometry.prominent, true);
           }
         }
       };
@@ -403,7 +539,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
       assert.equal(await action.innerText(), "Stopping…");
       assert.equal(await action.isDisabled(), true);
-      assert.equal(await action.getAttribute("data-appearance"), "primary");
+      assert.equal(await action.getAttribute("data-appearance"), "secondary");
       assert.equal(await invoke.isDisabled(), true);
       release();
       holdStop = false;
@@ -485,18 +621,26 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await status.getByRole("button", { name: "Open connections", exact: true }).count(), 1);
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await prompt.fill("Retain this task while runtime facts change.");
+      const toneColors = new Map();
       for (const [state, expected, tone] of [["stopped", "stopped", "neutral"], ["failed", "runtime-failed", "danger"], ["running", "ready", "success"]]) {
         fixture.state.app = state;
         fixture.state.error = state === "failed" ? "Simulated failure with a long diagnostic identifier: " + "x".repeat(120) : "";
         await page.locator('.agent-status-brief[data-state="' + expected + '"]').waitFor();
         assert.equal(await status.locator(".agent-status-icon").getAttribute("data-tone"), tone);
         assert.equal(await status.locator(".agent-status-icon").getAttribute("aria-hidden"), "true");
-        if (state === "failed") assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
-        for (const width of [320, 380, 620]) {
+        toneColors.set(tone, await status.locator(".agent-status-icon").evaluate(node => getComputedStyle(node).backgroundColor));
+        if (state === "failed") {
+          assert.ok((await status.locator(".agent-status-summary .error").textContent()).includes(fixture.state.error));
+          assert.equal(
+            await status.locator(".agent-status-icon").evaluate(node => getComputedStyle(node).backgroundColor),
+            await status.locator("h3").evaluate(node => getComputedStyle(node).color),
+          );
+        }
+        for (const width of [320, 380, 620, 621, 800, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
             await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-            const geometry = await status.evaluate(node => {
+            const geometry = await status.evaluate((node, stacked) => {
               const style = getComputedStyle(node), box = node.getBoundingClientRect();
               const summary = node.querySelector(".agent-status-summary"), facts = node.querySelector("dl");
               const cells = [...facts.children], boxes = cells.map(cell => cell.getBoundingClientRect());
@@ -504,24 +648,32 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 bounded: ["Top", "Right", "Bottom", "Left"].every(side => style["border" + side + "Width"] === "1px") &&
                   parseFloat(style.borderRadius) > 0,
                 divided: getComputedStyle(facts).borderTopWidth === "1px" &&
-                  cells.slice(1).every(cell => getComputedStyle(cell).borderInlineStartWidth === "1px"),
+                  cells.slice(1).every(cell => stacked
+                    ? getComputedStyle(cell).borderTopWidth === "1px" && getComputedStyle(cell).borderInlineStartWidth === "0px"
+                    : getComputedStyle(cell).borderInlineStartWidth === "1px" && getComputedStyle(cell).borderTopWidth === "0px"),
                 shaded: getComputedStyle(facts).backgroundColor !== getComputedStyle(summary).backgroundColor,
                 summaryFirst: summary.getBoundingClientRect().bottom <= facts.getBoundingClientRect().top,
-                threeColumns: boxes.every(cell => Math.abs(cell.top - boxes[0].top) < 1 &&
-                  Math.abs(cell.height - boxes[0].height) < 1) && boxes[1].left >= boxes[0].right - 1 &&
-                  boxes[2].left >= boxes[1].right - 1,
+                cellLayout: stacked
+                  ? boxes.every((cell, i) => Math.abs(cell.left - boxes[0].left) < 1 &&
+                    Math.abs(cell.width - boxes[0].width) < 1 && (!i || cell.top >= boxes[i - 1].bottom - 1))
+                  : boxes.every(cell => Math.abs(cell.top - boxes[0].top) < 1 &&
+                    Math.abs(cell.height - boxes[0].height) < 1) && boxes[1].left >= boxes[0].right - 1 &&
+                    boxes[2].left >= boxes[1].right - 1,
                 fits: box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth &&
                   document.documentElement.scrollWidth <= innerWidth &&
                   cells.every(cell => cell.scrollWidth <= cell.clientWidth),
-                icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none",
+                icon: getComputedStyle(node.querySelector(".agent-status-icon"), "::before").webkitMaskImage !== "none" &&
+                  getComputedStyle(node.querySelector(".agent-status-icon")).backgroundColor !== getComputedStyle(facts).backgroundColor &&
+                  getComputedStyle(node.querySelector(".agent-status-icon")).backgroundColor !== getComputedStyle(summary).backgroundColor,
               };
-            });
+            }, width <= 620);
             assert.ok(Object.values(geometry).every(Boolean), JSON.stringify({ width, theme, state, geometry }));
           }
         }
         assert.equal(await prompt.inputValue(),
           "Retain this task while runtime facts change.");
       }
+      assert.equal(new Set(toneColors.values()).size, 3, "Neutral, danger and success tones use distinct filled status icon colors.");
       assert.deepEqual(fixture.mutations, []);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }
@@ -576,7 +728,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         recovered = recovery;
         await page.waitForFunction(value => document.querySelector("#app-status-badge").textContent === value, label);
         assert.equal(await badge.getAttribute("data-color"), color);
-        assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"), "primary");
+        assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"),
+          ["running", "starting", "stopping"].includes(state) ? "secondary" : "primary");
         assert.equal(await badge.getAttribute("aria-live"), "polite");
         assert.match(await page.locator("#app-status-control").getAttribute("aria-label"), new RegExp(label));
         for (const width of [320, 380, 620, 1280]) {

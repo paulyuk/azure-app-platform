@@ -30,7 +30,7 @@ export const SETTINGS_CSS = `
   .studio-settings .field-group { display:grid; gap:8px; min-width:0; }
   .studio-settings .field-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .studio-settings .actions { display:flex; flex-wrap:wrap; gap:8px; margin:0; }
-  .studio-settings button:not(.studio-settings-close) { width:fit-content; max-width:100%; min-height:32px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:600 12px/1.4 system-ui; white-space:normal; cursor:pointer; }
+  .studio-settings button:not(.studio-settings-close, .ct-button, .ct-combobox) { width:fit-content; max-width:100%; min-height:32px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); font:600 12px/1.4 system-ui; white-space:normal; cursor:pointer; }
   .studio-settings button:hover:not(:disabled) { border-color:var(--studio-accent); }
   .studio-settings button.primary { background:var(--studio-accent); border-color:var(--studio-accent); color:var(--studio-on-accent); }
   .studio-settings button.danger, .studio-settings .error { color:var(--studio-danger); }

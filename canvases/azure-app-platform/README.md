@@ -255,8 +255,7 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
-pattern. Its Simple home introduces **Automate real tasks within boundaries you set.**
-with **Isolate tool execution and govern access to shared models and tools.** and presents
+pattern. Its Simple home asks **What would you like to do?** and presents
 **Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
 compact task cards, in that order. The content container uses one, two, or three
 columns at 520px and 760px of available content width, with 12px gaps and an
@@ -329,9 +328,9 @@ current page visit, without changing browser history or stored app recency.
 **Deploy** in the five-item main navigation opens existing deployment options;
 it does not provision or deploy. There is no duplicate right-side/runtime-bar Deploy
 button. **Open app** remains in the existing header utilities. The app lifecycle
-control sits at the top right of the same row as the main menu: **Run app** with a
-filled play glyph when stopped and ready, **Stop app** when running. At canvas widths
-of 680px or less, the menu takes the upper row (wrapping only if needed), and the
+control sits at the top right of the same row as the main menu: primary **Run app** with a
+filled play glyph when stopped and ready, secondary **Stop app** when running. Workspace content aligns with the 12px horizontal margin of the header buttons up to its max-width. At canvas widths
+of 680px or less, the menu stretches across the full upper row (wrapping only if needed), and the
 lifecycle control, divider and icon-only **Logs** button stay together on a second
 row below it, aligned to the right. Wider panes retain the single-row layout.
 Open app appears only when a
@@ -383,6 +382,9 @@ Open app shares existing header utilities. Workspace changes retain task payload
 and the selected Customize preview.
 Run retains **Autonomous event / task payload**, the **Event triggers:**
 presets (including their sample document attachment), and **Autonomous run result**.
+Selecting an event trigger clears the payload textarea first and animates the new
+preset text in character by character while immediately storing the full target
+payload for retention and invocation.
 It dispatches tasks/events through the existing invocation path; it is not a
 conversation view and adds no chat bubbles or conversation history.
 Before the first invocation, the result box shows a static decorative task
@@ -439,11 +441,10 @@ Resizing the window clamps its displayed size without losing the
 preferred height. Escape inside Diagnostics or activating **Logs** again closes it and
 returns focus to its toggle. Its visibility, height, active tab, content scrolling
 and disclosures survive close/reopen, navigation and lifecycle polling for the current
-visit. Closing it does not stop output polling. Unavailable logs and failed operation
-counts stay visible in the lower warning strip outside Build; Build hides the closed
-strip to keep source browsing focused. A red warning-sign badge on Logs still reports
-these issues and runtime/readiness failures in every workspace; its accessible label
-explains them. Invocation errors remain in their result. The badge clears when the reported issues clear,
+visit. Closing it does not stop output polling or hide errors: a red warning-sign
+badge on Logs reports unavailable logs, failed operation counts and runtime/readiness
+failures without a separate lower warning strip; its accessible label explains them.
+Invocation errors remain in their result. The badge clears when the reported issues clear,
 and does not treat an ordinarily stopped app as a failure. Output continues polling
 from every workspace. Status Brief, task errors,
 prerequisite warnings and safety/document evidence remain in the primary tester.
@@ -453,7 +454,8 @@ Superseded or explicitly cancelled Azure scans remain in Operations as **Cancell
 not failed operations; timeouts and real discovery errors still count as failures.
 The Status Brief retains truthful runtime, agent, request and failure information.
 Its bordered summary card places the current state icon, title and explanation
-above a shaded three-column row for **Runtime**, **Agent** and **Connection**.
+above a shaded three-column row for **Runtime**, **Agent** and **Connection**
+(stacking into full-width rows on narrower views of 620px or less).
 The facts remain an accessible definition list, with theme-owned horizontal and
 vertical dividers and wrapping values at compact widths, not a second readiness
 claim or a table of invented checks.
@@ -462,12 +464,12 @@ in the app-name row through navigation and polling. The public toolkit Badge use
 neutral gray for stopped, green for running, blue/accent for checking and active
 operations, amber for preview/partial startup, and red for failure, with readable
 state labels and theme-owned colors in light and dark. Activating it opens Run.
-The same small primary toolkit
+The same small toolkit
 lifecycle control stays right-aligned beside Build / Connect / Run / Observe / Deploy
 (below the menu in narrow panes)
-across workspace visits: **Run app** / **Run preview** or **Stop app** /
+across workspace visits: primary **Run app** / **Run preview** or secondary **Stop app** /
 **Stop preview**, with existing readiness, busy and stopping-state gating.
-Task actions contain only **Invoke agent** and **Document**, without duplicate
+Task actions contain only secondary **Invoke agent** (with a primary-colored `agent` Octicon) and **Document**, without duplicate
 Start/Stop buttons. The inline badge still shows previews, startup/recovery, stopping,
 failures and cloud operations; startup cancellation, partial-startup recovery and
 setup use the same navigation-row control. Navigation alone never performs a lifecycle
@@ -955,10 +957,15 @@ updates the exact text sent to invocation/tests, and clears stale document asses
 results and insertion notices. Cancel preserves the committed attachment and evidence.
 Edit drafts, selection and scrolling survive polling/navigation. Invocation/tests
 wait for Save or Cancel; UTF-8 limits and busy/read gating apply to edits too.
-Unsafe override/egress tests show an informational message beside the attachment:
-what test text was added (or a synthetic document supplied) and which protections
-it probes. This is not a test result. The message survives polling/navigation and
-clears when the document is edited, replaced, removed or reset to a sample.
+Unsafe override/egress tests are launched from the compact **Try a boundary test** row
+(with its value tagline explaining why to verify prompt-override and sensitive-data leak
+protections before untrusted input reaches the model, plus **Choose test** opening a modal
+for **Test unsafe override** and **Test unsafe egress**). When any non-user-authored text or document is added (clicking an event trigger
+preset, choosing **Add sample**, or running **Test unsafe override** / **Test unsafe egress**),
+a default-style informational MessageBar appears between the **Agent message**
+textarea and the document attachment with a brief explanation of what was added
+and what it tests. This is not a test result. The message survives polling/navigation
+and updates or clears when the user edits, replaces, or removes the prompt or document.
 This is a safe text preview, not HTML/Markdown execution: links, images and scripts
 are inert and cannot fetch content. Exact original text is sent for invocation and assessment.
 Choose **Paste a document** to attach pasted text; use **Edit document** to change an attachment.
@@ -1194,7 +1201,9 @@ is preselected in Settings, then validated and applied only when the user choose
 **Connect gateway** or **Apply or reconfigure** while the app is stopped. Opening
 Run or Settings never applies model configuration. Failures stay visible and
 require an explicit retry. The subscription and gateway remain editable,
-and **Create or manage gateways** opens specialist setup if no gateway exists.
+with bundled toolkit filterable subscription pickers that match by subscription
+name or ID in both Connect and Settings. **Create or manage gateways** opens
+specialist setup if no gateway exists.
 Once validated, Run shows the connected model/gateway summary. No Azure resources
 are created automatically.
 

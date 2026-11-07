@@ -463,7 +463,8 @@ search, filters, other-resource visibility, and reset are grouped under
 **Search & layout**. These controls occupy map space only, not an extra header
 row. Status Brief retains runtime availability and failures. A bounded
 summary card groups its state icon, title and explanation above shaded, divided
-**Runtime**, **Agent** and **Connection** cells. The facts retain definition-list
+**Runtime**, **Agent** and **Connection** cells (stacking into full-width rows at
+canvas widths of 620px or less). The facts retain definition-list
 semantics and wrap within compact panes; no merge actions or progress bars are
 invented. Prerequisite commands, error details and recovery guidance live inside
 that same card, with secondary contextual actions aligned right. The connection
@@ -473,14 +474,14 @@ status Badge sits immediately after the app name, including **Running locally** 
 **Not running**, with no separate runtime row. Neutral gray means stopped, green
 running, accent blue checking/active operation, amber preview/partial startup, and
 red failure; explicit labels accompany theme-owned colors in both themes.
-The badge retains its keyboard-accessible Run shortcut. A single small primary toolkit lifecycle control
-is top-right on the main-menu row across workspaces: **Run app** / **Run preview**
-with the shipped filled play glyph when ready, or **Stop app** / **Stop preview** when running.
-At canvas widths of 680px or less, the menu occupies the upper row, wrapping only
+The badge retains its keyboard-accessible Run shortcut. A single small toolkit lifecycle control
+is top-right on the main-menu row across workspaces: primary **Run app** / **Run preview**
+with the shipped filled play glyph when ready, or secondary **Stop app** / **Stop preview** when running. Workspace content aligns with the 12px horizontal margin of the header buttons up to its max-width.
+At canvas widths of 680px or less, the menu stretches to 100% of the upper row, wrapping only
 as needed. The lifecycle control, divider and icon-only Logs group move together
 to a second row below the menu, aligned to the right; wider panes keep both on
 one row. The same mounted controls retain their keyboard order. Task actions retain only
-**Invoke agent** and **Document**. Preview, startup/recovery, failure and active-operation
+secondary **Invoke agent** (with a primary-colored `agent` Octicon) and **Document**. Preview, startup/recovery, failure and active-operation
 notices remain visible; cancellation, partial-startup recovery, setup and stopping/busy
 gating reuse the same control and lifecycle operations. Navigation alone does not run
 or stop the app. The icon-only **Logs** button sits immediately to its right, separated by a divider, and
@@ -583,8 +584,8 @@ scroll/disclosures, ongoing output polling and keyboard focus survive page visit
 It is resizable with pointer or keyboard, bounded against the current shell and
 visible alert height; Escape closes it and returns focus to Logs. Failure warnings stay
 visible when it is hidden.
-A compact secondary **+ Document** toolkit menu immediately to the right of **Invoke agent**
-appears only when readiness advertises document support. Its three actions are
+A compact secondary **+ Document** toolkit MenuButton with a trailing dropdown chevron
+immediately to the right of **Invoke agent** appears only when readiness advertises document support. Its three actions are
 **Upload document**, **Paste a document** and **Add sample**. The public MenuButton
 owns keyboard navigation, dismissal and focus return. Paste opens an on-demand,
 confirmable editor, not a second permanent control row; Cancel preserves the attachment
@@ -593,10 +594,16 @@ tests wait for Add or Cancel; no clipboard-read permission is assumed.
 Invoke and Document share a non-wrapping pair inside the wrapping task actions,
 separate from the menu-row lifecycle controls. The textarea has no document overlay
 or reserved bottom padding.
-Its tooltip explains analysis and safety-policy testing. Override/egress additions
-show a polite informational MessageBar describing the inserted test text and its
-purpose, separate from the test outcome. It updates with the test mode, survives
-polling/navigation and clears on document editing, replacement, removal or sample reset.
+Its tooltip explains analysis and safety-policy testing. Below the task actions, a compact
+**Try a boundary test** row explains why to verify prompt-override and sensitive-data leak
+protections before untrusted input reaches the model and opens a modal via **Choose test**
+housing the **Test unsafe override** and **Test unsafe egress** security tests. Whenever text or documents
+are added that the user did not author directly (event trigger presets, **Add sample**,
+or override/egress safety probes), a polite default-style informational MessageBar
+placed between the **Agent message** textarea and the document attachment explains
+what was added and its purpose, separate from the test outcome. It updates in place,
+survives polling/navigation, and clears or updates when the user edits, replaces,
+or removes the prompt or document.
 The attachment summary keeps its native disclosure marker, a truncating filename
 and a muted neutral **Untrusted source** badge immediately to its right; Remove
 remains separate from the summary. The full filename is available in its tooltip.
@@ -646,7 +653,10 @@ it never escalates automatically to newly respawned owners.
 AI model connection defaults to the saved/current subscription and a valid
 gateway with models; model discovery uses the workspace-wide ARM models
 collection across providers. Saved selections are preserved, stale discovery
-cannot overwrite user choices, and empty gateways cannot be applied.
+cannot overwrite user choices, and empty gateways cannot be applied. Connect and
+Settings render subscription choices through the bundled toolkit filterable
+dropdown, matching typed subscription names or IDs without adding a runtime
+dependency.
 Explicit Connect/Apply receives the selected model and validates it before the
 Run summary reports the connection. Creation remains an explicit specialist
 action. Source projects without managed endpoints appear in Components & endpoints

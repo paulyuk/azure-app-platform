@@ -46,7 +46,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
         assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "Stop app");
         assert.equal(await action.locator('svg[data-octicon="play"]').count(), fixture.state.app === "stopped" ? 1 : 0);
-        assert.equal(await action.getAttribute("data-appearance"), "primary");
+        assert.equal(await action.getAttribute("data-appearance"), fixture.state.app === "stopped" ? "primary" : "secondary");
         assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
         assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
@@ -89,7 +89,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByText("Event triggers:", { exact: true }).waitFor();
       await page.getByText("Autonomous run result", { exact: true }).waitFor();
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
-      await page.locator("[data-event-preset]").first().click();
+      await page.locator("[data-event-preset-select]").selectOption("loan.document.submitted");
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
       assert.match(await draft.inputValue(), /^Event \[/);
       assert.match(await page.locator(".document-input").innerText(), /sample-loan-note\.md/);
       await draft.fill("Preserve this event payload.");
@@ -124,6 +125,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               actionsTogether: Math.abs(action.top - logs.top) <= 1 && action.right < logs.left,
               rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 12)) <= 1,
               primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
+              runtimeAppearance: document.querySelector("#header-runtime-action").dataset.appearance,
               menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
@@ -140,14 +142,17 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.equal(geometry.overflow, false, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.headerFits, true, JSON.stringify({ width, tone, geometry }));
           assert.ok(geometry.mainHeight > 150 && geometry.mainTop >= geometry.barBottom);
-          assert.ok(geometry.navRight <= width && geometry.groupWidth < 400, "Destinations stay content-width");
+          assert.ok(geometry.navRight <= width &&
+            (width <= 680 ? Math.abs(geometry.groupWidth - (width - 24)) <= 1 : geometry.groupWidth < 400),
+            JSON.stringify({ width, tone, geometry }));
           assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
           assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
           assert.ok(geometry.menuHeight <= (width <= 680 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
           assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
             geometry.actionsTogether && geometry.rightAligned, JSON.stringify({ width, tone, geometry }));
           assert.equal(geometry.buttons.length, 7);
-          assert.deepEqual(geometry.primaryActions, ["header-runtime-action"]);
+          assert.deepEqual(geometry.primaryActions, []);
+          assert.equal(geometry.runtimeAppearance, "secondary");
           for (const button of geometry.buttons) {
             assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
           }

@@ -336,6 +336,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .danger-zone { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--studio-line); }
       .danger-zone button { color: var(--studio-danger); border-color: color-mix(in srgb, var(--studio-danger) 45%, var(--studio-line)); }
       #status { min-height: 22px; margin-top: 16px; color: var(--studio-muted); }
+      #send-agent-prompt svg[data-octicon="agent"] { color: var(--background-color-button-primary-rest, var(--canvas-button-primary-bg, var(--studio-accent))); }
       @media (max-width: 720px) {
         body { padding-inline: 14px; }
         .actions { align-items: stretch; flex-direction: column-reverse; }
@@ -1409,7 +1410,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
              if (agentReady && !componentActions.querySelector(".agent-tester")) {
                buttons.replace(componentActions, '<div class="agent-tester"><strong>Invoke agent</strong>' +
                  '<textarea id="agent-prompt" maxlength="2000" placeholder="Send a message to the running agent"></textarea>' +
-                 '<div><button data-studio-button="secondary" type="button" id="send-agent-prompt">Invoke agent</button> ' +
+                 '<div><button data-studio-button="secondary" type="button" id="send-agent-prompt">' +
+                 ${JSON.stringify(renderOcticon("agent"))} + 'Invoke agent</button> ' +
                  '<button data-studio-button="secondary" type="button" id="open-agent-studio">Open agent studio</button></div>' +
                  '<pre class="agent-response" id="agent-response"></pre></div>');
                document.getElementById("send-agent-prompt").addEventListener("click", async () => {

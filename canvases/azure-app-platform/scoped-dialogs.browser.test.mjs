@@ -63,7 +63,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       assert.equal(reads, 0);
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
-      await page.locator("[data-event-preset]").first().click();
+      await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       await prompt.fill("Preserve this unattended event.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('[data-document-assessment][data-state="approved"]').waitFor();

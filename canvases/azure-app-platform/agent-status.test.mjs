@@ -35,11 +35,13 @@ test("Status Brief classifies runtime, agent availability and connection evidenc
   assert.match(getAgentStatus({ app: { state: "failed", error: "Installer failed" }, readiness: ready }).runtimeError, /Installer failed/);
 });
 
-test("invocation failures do not override independent availability and runtime health", () => {
+test("invocation failures and policy blocks do not override independent availability and runtime health", () => {
   for (const appState of ["stopped", "starting", "stopping", "configuring", "running", "failed", "provisioning", "deploying"]) {
     for (const agentReady of [false, true]) {
       const input = { app: { state: appState }, readiness: ready, agentReady };
-      assert.deepEqual(getAgentStatus({ ...input, requestState: "failed" }), getAgentStatus(input));
+      for (const requestState of ["failed", "blocked"]) {
+        assert.deepEqual(getAgentStatus({ ...input, requestState }), getAgentStatus(input));
+      }
     }
   }
 });

@@ -54,6 +54,8 @@ class HttpFailure(RuntimeError):
         *,
         verdict: str = "error",
         tool_result: dict[str, Any] | None = None,
+        runtime: dict[str, Any] | None = None,
+        blocked_response: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.status = status
@@ -61,6 +63,57 @@ class HttpFailure(RuntimeError):
         self.message = message
         self.verdict = verdict
         self.tool_result = tool_result
+        self.runtime = runtime
+        self.blocked_response = blocked_response
+
+
+BLOCKED_RESPONSE_CONTRACT_VERSION = "agent-blocked-response/1.0"
+
+
+def _blocked_agent_response(
+    *,
+    status: int,
+    test_kind: str,
+    reason_code: str,
+    operator_message: str,
+    summary: str,
+    stages: list[dict[str, str]],
+    runtime: dict[str, Any],
+) -> dict[str, Any]:
+    if runtime["agentRuntime"] == AGENT_RUNTIME_COPILOT_SANDBOX:
+        mode = "aca-session"
+    elif runtime["documentToolRuntime"] == "aca-custom-container-session":
+        mode = "aca-document-session"
+    else:
+        mode = "local-simulation"
+    limitations = [
+        "no-model-call" if test_kind == "document-input" else "model-output-not-shown",
+        "no-hostile-outbound-probe",
+        (
+            "local-process-not-isolation-boundary"
+            if mode == "local-simulation"
+            else "cloud-isolation-not-verified"
+        ),
+    ]
+    return {
+        "contractVersion": BLOCKED_RESPONSE_CONTRACT_VERSION,
+        "kind": "blocked-agent-response",
+        "responseOrigin": "agent-harness",
+        "upstreamHttpStatus": status,
+        "executionKind": "agent-invocation",
+        "testKind": test_kind,
+        "mode": mode,
+        "reasonCode": reason_code,
+        "operatorMessage": operator_message,
+        "summary": summary,
+        "stages": stages,
+        "limitations": limitations,
+        "evidence": {
+            "runtime": runtime,
+            "modelAuthoredTextShown": False,
+            "outboundDenialProbeAttempted": False,
+        },
+    }
 
 
 def _template_aware_path(path: Path) -> Path:
@@ -337,7 +390,7 @@ class GatewaySettings:
             headers[header] = api_key
             if include_provider_auth and header.lower() == "authorization":
                 headers[header] = f"Bearer {self._bare_token(api_key)}"
-        if subscription_key:
+        if subscription_key and subscription_key != api_key:
             header = self.config.get("subscriptionKeyHeader", "Ocp-Apim-Subscription-Key")
             if not isinstance(header, str) or not header:
                 raise ConfigurationError("gateway.subscriptionKeyHeader must be a non-empty string")
@@ -367,7 +420,7 @@ class GatewaySettings:
                 provider["bearer_token"] = self._bare_token(api_key)
             else:
                 provider_headers[api_key_header] = api_key
-        if subscription_key:
+        if subscription_key and subscription_key != api_key:
             subscription_header = self.config.get(
                 "subscriptionKeyHeader", "Ocp-Apim-Subscription-Key"
             )
@@ -1240,11 +1293,12 @@ class AgentHarness:
         self._refresh_local_document_tool_if_needed()
         remote = self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
         aca_group_tool = self.document_tool if isinstance(self.document_tool, AcaSandboxGroupDocumentTool) else None
+        remote_document = remote or aca_group_tool is not None
         payload: dict[str, Any] = {
             "agentRuntime": self.agent_runtime,
             "agentIsolation": "aca-custom-container-session" if remote else "local-process",
             "documentToolRuntime": (
-                "aca-custom-container-session" if remote else "local-process-simulation"
+                "aca-custom-container-session" if remote_document else "local-process-simulation"
             ),
             "agentSessionDispatched": agent_dispatched,
             "documentSessionDispatched": document_dispatched or (aca_group_tool is not None and bool(aca_group_tool.last_sandbox_id)),
@@ -1311,12 +1365,39 @@ class AgentHarness:
             except UpstreamError as error:
                 raise HttpFailure(502, "document-tool-failed", str(error)) from error
             if tool_result["verdict"] == "rejected":
+                runtime = self.evidence(
+                    document_dispatched=self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
+                )
+                operator_message = (
+                    f"Document rejected before any model call: {tool_result['message']}"
+                )
                 return 422, {
-                    "message": f"Document rejected before any model call: {tool_result['message']}",
+                    "message": operator_message,
                     "verdict": "rejected",
                     "toolResult": tool_result,
-                    "runtime": self.evidence(
-                        document_dispatched=self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
+                    "runtime": runtime,
+                    "blockedResponse": _blocked_agent_response(
+                        status=422,
+                        test_kind="document-input",
+                        reason_code=tool_result["reasonCode"],
+                        operator_message=operator_message,
+                        summary="The hostile document did not reach the model in this request.",
+                        stages=[
+                            {"id": "agent-harness", "state": "succeeded", "detail": "Request received"},
+                            {
+                                "id": "document-tool",
+                                "state": "rejected",
+                                "detail": "Rejected",
+                                "reasonCode": tool_result["reasonCode"],
+                            },
+                            {"id": "model", "state": "not-attempted", "detail": "Not attempted"},
+                            {
+                                "id": "approval-disclosure",
+                                "state": "not-applicable",
+                                "detail": "Not part of this test",
+                            },
+                        ],
+                        runtime=runtime,
                     ),
                 }
         elif isinstance(self.document_tool, AcaSandboxGroupDocumentTool) or any(
@@ -1404,7 +1485,48 @@ class AgentHarness:
         try:
             require_safe_output(reply)
         except ValueError as error:
-            raise HttpFailure(502, "agent-output-policy-blocked", "Agent output was blocked by deterministic policy.") from error
+            operator_message = "Agent output was blocked by deterministic policy."
+            document_stage = (
+                {
+                    "id": "document-tool",
+                    "state": "succeeded",
+                    "detail": "Approved and sanitized",
+                }
+                if tool_result is not None
+                else {
+                    "id": "document-tool",
+                    "state": "not-applicable",
+                    "detail": "Not part of this request",
+                }
+            )
+            blocked_response = _blocked_agent_response(
+                status=502,
+                test_kind="agent-output-policy",
+                reason_code="agent-output-policy-blocked",
+                operator_message=operator_message,
+                summary="A model response was received but blocked before disclosure.",
+                stages=[
+                    {"id": "agent-harness", "state": "succeeded", "detail": "Request received"},
+                    document_stage,
+                    {"id": "model", "state": "succeeded", "detail": "Response received"},
+                    {
+                        "id": "approval-disclosure",
+                        "state": "blocked",
+                        "detail": "Output blocked by policy",
+                        "reasonCode": "agent-output-policy-blocked",
+                    },
+                ],
+                runtime=evidence,
+            )
+            raise HttpFailure(
+                502,
+                "agent-output-policy-blocked",
+                operator_message,
+                verdict=tool_result["verdict"] if tool_result else "not-requested",
+                tool_result=tool_result,
+                runtime=evidence,
+                blocked_response=blocked_response,
+            ) from error
         return 200, {
             "message": reply,
             "verdict": tool_result["verdict"] if tool_result else "not-requested",
@@ -1484,19 +1606,23 @@ class Handler(BaseHTTPRequestHandler):
             return
         except HttpFailure as failure:
             runtime = (
-                self.service.evidence()
+                failure.runtime
+                or self.service.evidence()
                 if isinstance(self.service, AgentHarness)
                 else self.service.health()["runtime"]
             )
+            response = {
+                "message": failure.message,
+                "verdict": failure.verdict,
+                "toolResult": failure.tool_result,
+                "runtime": runtime,
+                "error": {"code": failure.code, "message": failure.message},
+            }
+            if failure.blocked_response is not None:
+                response["blockedResponse"] = failure.blocked_response
             self._send_json(
                 failure.status,
-                {
-                    "message": failure.message,
-                    "verdict": failure.verdict,
-                    "toolResult": failure.tool_result,
-                    "runtime": runtime,
-                    "error": {"code": failure.code, "message": failure.message},
-                },
+                response,
             )
             return
         self._send_json(status, response)

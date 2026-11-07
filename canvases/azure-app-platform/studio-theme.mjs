@@ -156,7 +156,10 @@ export function renderThemeClientScript(apiToken, editorSettings = { editorId: "
       window.appPlatformSettings = (${createStudioSettings.toString()})({
         dialog, trigger: document.querySelector("[data-studio-settings-toggle]"),
         onOpen: () => { void editorPreference.refresh(); },
-        onClear: element => window.appPlatformButtons?.clear(element),
+        onClear: element => {
+          window.appPlatformToolkitComponents?.clear(element);
+          window.appPlatformButtons?.clear(element);
+        },
       });
       window.dispatchEvent(new Event("app-platform-settings-ready"));
       let saving = false;

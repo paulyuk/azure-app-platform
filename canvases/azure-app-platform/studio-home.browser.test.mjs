@@ -60,8 +60,8 @@ for (const engine of ["chromium", "webkit"]) {
           await page.setViewportSize({ width, height: 800 });
           await page.goto(origin);
           await page.locator("[data-recent-app]").nth(4).waitFor();
-          assert.equal(await page.locator(".simple-home-introduction h1").innerText(), "Automate real tasks within boundaries you set.");
-          assert.equal(await page.locator(".simple-home-introduction p").innerText(), "Isolate tool execution and govern access to shared models and tools.");
+          assert.equal(await page.locator(".simple-home-introduction h1").innerText(), "What would you like to do?");
+          assert.equal(await page.locator(".simple-home-introduction p").innerText(), "Start a new app, assemble existing projects, or continue working on an app you already have.");
           assert.equal(await page.locator("#studio-home .ct-action-card").count(), 3);
           assert.equal(await page.locator("[data-recent-app]").count(), 5);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -185,7 +185,7 @@ test("packaged simple home preserves the three explicit journeys", {
           assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           if (!baseline) {
-            assert.equal(await page.getByRole("heading", { name: "Automate real tasks within boundaries you set.", exact: true }).count(), 1);
+            assert.equal(await page.getByRole("heading", { name: "What would you like to do?", exact: true }).count(), 1);
             assert.equal(await page.locator("#studio-home .ct-feature-panel").count(), 0);
             assert.equal(await page.locator("#studio-home .ct-action-card").count(), 3);
             assert.equal(await page.locator("#studio-home").getByRole("button").count(), 3);
