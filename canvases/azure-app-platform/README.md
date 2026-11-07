@@ -20,10 +20,15 @@ top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
 **Open an app** provides a simple, divider-free list with the app name and a
-short distinct folder path. Full worktree paths appear
+parent folder and app folder, separated by bullets, expanding only when needed
+to distinguish locations. When recorded, a compact relative opening time follows
+(for example, `projects • app-name • opened 5m ago`) and refreshes each minute.
+Apps without a recorded opening time show only their folders. Full worktree paths appear
 on hover or keyboard focus and remain the source for search, opening, and deletion.
 Search filters by name or full path.
-Each row's right-aligned three-dot menu contains **Delete app**; deletion
+Each row's right-aligned three-dot menu contains **Copy full path** and
+**Delete app**. Copying uses the exact full worktree path and reports success
+or clipboard failure; deletion
 still requires confirmation and only removes the local worktree and its
 Canvas-created branch, not Azure resources.
 When no apps are found, **Create an app** opens the existing template-selection
