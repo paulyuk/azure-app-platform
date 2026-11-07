@@ -69,6 +69,8 @@ for (const engine of ["chromium", "webkit"]) {
       const origin = "http://127.0.0.1:" + server.address().port;
       const output = process.env.OPEN_APPS_EVIDENCE_DIR;
       const baseline = process.env.OPEN_APPS_BASELINE === "1";
+      const openAppsModuleSha256 = createHash("sha256")
+        .update(await readFile(new URL("./studio-open-apps.mjs", import.meta.url))).digest("hex");
       const captures = [];
       if (output) await mkdir(output, { recursive: true });
       for (const tone of ["light", "dark"]) {
@@ -88,14 +90,50 @@ for (const engine of ["chromium", "webkit"]) {
               })).digest("hex") });
           }
           if (baseline) continue;
+          await page.mouse.move(0, 0);
+          await page.getByRole("searchbox", { name: "Search apps" }).focus();
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           const geometry = await page.locator(".open-app-row").evaluateAll(rows => rows.map(row => {
             const rect = row.getBoundingClientRect();
             const menu = row.querySelector("[data-app-actions]").getBoundingClientRect();
-            return { height: rect.height, rightGap: rect.right - menu.right };
+            const style = getComputedStyle(row);
+            return {
+              height: rect.height, rightGap: rect.right - menu.right,
+              centeredMenu: Math.abs(rect.top + rect.height / 2 - menu.top - menu.height / 2),
+              borders: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+              borderRadius: style.borderRadius, background: style.backgroundColor,
+            };
           }));
-          assert.ok(geometry.every(row => row.height <= 104), JSON.stringify(geometry));
-          assert.ok(geometry.every(row => row.rightGap >= 0 && row.rightGap <= 13), JSON.stringify(geometry));
+          assert.ok(geometry.every(row => row.height <= 72), JSON.stringify(geometry));
+          assert.ok(geometry.every(row => row.rightGap >= 0 && row.rightGap <= 9 && row.centeredMenu <= 1), JSON.stringify(geometry));
+          assert.ok(geometry.every(row => row.borders.every(border => border === "0px")
+            && row.borderRadius === "0px" && row.background === "rgba(0, 0, 0, 0)"), JSON.stringify(geometry));
+          assert.deepEqual(await page.locator(".open-app-path").allTextContents(), [
+            "customer-portal", "inventory-dashboard", "support-assistant", "review",
+            "customer-app\\source", "internal-app\\source", "document-helper",
+          ]);
+          assert.equal(await page.locator(".open-app-row time, .open-app-meta").count(), 0);
+          assert.equal(await page.getByText(/^Opened /).count(), 0);
+          assert.equal(await page.getByText("Opened: not recorded", { exact: true }).count(), 0);
+          assert.equal(await page.getByText(/\d+ capabilit/).count(), 0);
+          const duplicate = page.locator("[data-existing-app]").nth(4);
+          await duplicate.focus();
+          assert.notEqual(await duplicate.locator("..").evaluate(row => getComputedStyle(row).backgroundColor),
+            "rgba(0, 0, 0, 0)", "Keyboard focus highlights the row");
+          const tooltip = page.getByRole("tooltip");
+          await tooltip.waitFor();
+          assert.equal(await tooltip.innerText(), initialApps[4].path);
+          assert.ok(await duplicate.getAttribute("aria-describedby"));
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+          await page.keyboard.press("Escape");
+          await tooltip.waitFor({ state: "hidden" });
+          assert.equal(await duplicate.evaluate(link => link === document.activeElement), true);
+          await page.getByRole("searchbox", { name: "Search apps" }).focus();
+          await duplicate.hover();
+          await tooltip.waitFor();
+          assert.equal(await tooltip.innerText(), initialApps[4].path);
+          await page.mouse.move(0, 0);
+          await tooltip.waitFor({ state: "hidden" });
           assert.equal(await page.getByRole("menuitem", { name: "Delete app" }).count(), 0);
           const search = page.getByRole("searchbox", { name: "Search apps" });
           await search.fill("PARAKEET");
@@ -104,6 +142,10 @@ for (const engine of ["chromium", "webkit"]) {
           await search.fill(" internal-app ");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 1);
           assert.equal(await page.locator("[data-existing-app]").getAttribute("data-existing-app"), initialApps[5].path);
+          assert.equal(await page.locator(".open-app-path").innerText(), "internal-app\\source",
+            "Filtering must not change the displayed identity of same-name apps");
+          await search.fill("C:\\projects");
+          await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 7);
           await search.fill("no matching app");
           await page.getByText("No apps match your search.", { exact: true }).waitFor();
           await page.getByRole("button", { name: "Clear search", exact: true }).click();
@@ -113,7 +155,7 @@ for (const engine of ["chromium", "webkit"]) {
         }
         if (output) await writeFile(join(output, `${baseline ? "before" : "after"}-${engine}.json`), JSON.stringify({
           build: process.env.OPEN_APPS_BUILD_LABEL || "working-tree",
-          engine, browserVersion: browser.version(), fixture: initialApps, captures,
+          engine, browserVersion: browser.version(), fixture: initialApps, openAppsModuleSha256, captures,
         }, null, 2));
       }
       async function captureEmpty() {
@@ -292,6 +334,28 @@ for (const engine of ["chromium", "webkit"]) {
         await captureEmpty();
         return;
       }
+      const longPath = "C:\\Users\\developer\\.copilot\\repos\\copilot-worktrees\\workspace-with-a-long-folder-name\\document-helper";
+      apps = [{ ...initialApps[6], path: longPath }];
+      await page.setViewportSize({ width: 320, height: 900 });
+      await page.goto(origin);
+      await page.locator("#open-app").click();
+      const longPathLink = page.locator("[data-existing-app]");
+      await longPathLink.waitFor();
+      assert.equal(await page.locator(".open-app-path").innerText(), "document-helper");
+      await longPathLink.focus();
+      const longPathTooltip = page.getByRole("tooltip");
+      await longPathTooltip.waitFor();
+      assert.equal(await longPathTooltip.innerText(), longPath);
+      const tooltipBounds = await longPathTooltip.boundingBox();
+      assert.ok(tooltipBounds.x >= 0 && tooltipBounds.x + tooltipBounds.width <= 320, JSON.stringify(tooltipBounds));
+      assert.equal(await longPathTooltip.evaluate(node => node.scrollWidth <= node.clientWidth), true);
+      await page.keyboard.press("Escape");
+      await longPathTooltip.waitFor({ state: "hidden" });
+      apps = [...initialApps];
+      await page.setViewportSize({ width: 620, height: 900 });
+      await page.goto(origin);
+      await page.locator("#open-app").click();
+      await page.locator("[data-existing-app]").nth(6).waitFor();
       const menu = page.locator("[data-app-actions]").first();
       await menu.focus();
       await page.keyboard.press("Enter");

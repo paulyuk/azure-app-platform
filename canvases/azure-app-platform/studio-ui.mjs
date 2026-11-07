@@ -9,7 +9,7 @@ import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
-import { mountStudioOpenApps } from "./studio-open-apps.mjs";
+import { getAppPathLabels, mountStudioOpenApps } from "./studio-open-apps.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 const OPEN_APP_EMPTY_ILLUSTRATIONS = Object.fromEntries(["light", "dark"].map(theme => [
@@ -668,6 +668,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<h1>Open an app</h1><p>Select an app to build, run, or inspect.</p>') + '<div id="studio-open-apps"></div>');
         openAppsHandle = (${mountStudioOpenApps.toString()})(document.getElementById("studio-open-apps"), {
           toolkit, apps: sources?.apps || [], initialSearch: existingAppSearch, disabled: appBusy,
+          getAppPathLabels: ${getAppPathLabels.toString()},
           emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
           onSearchChange: value => { existingAppSearch = value; },
           appHref: root => "/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken),

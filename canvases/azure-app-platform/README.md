@@ -19,9 +19,11 @@ name is **App home** (retained for non-breaking compatibility). Docs and the wor
 top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
-**Open an app** provides compact cards with the app name, worktree path,
-capability count, and last-opened date. Search filters by name or path.
-Each card's right-aligned three-dot menu contains **Delete app**; deletion
+**Open an app** provides a simple, divider-free list with the app name and a
+short distinct folder path. Full worktree paths appear
+on hover or keyboard focus and remain the source for search, opening, and deletion.
+Search filters by name or full path.
+Each row's right-aligned three-dot menu contains **Delete app**; deletion
 still requires confirmation and only removes the local worktree and its
 Canvas-created branch, not Azure resources.
 When no apps are found, **Create an app** opens the existing template-selection

@@ -1,23 +1,48 @@
-export function mountStudioOpenApps(element, { toolkit, ...props }) {
-  const { createElement: h, mountCanvasComponent, useState, useRef, Button, TextInput, MenuButton, MenuItem } = toolkit;
+export function getAppPathLabels(paths) {
+  const entries = paths.map(path => ({
+    path, parts: path.split(/[\\/]/).filter(Boolean),
+    separator: path.includes("\\") ? "\\" : "/",
+    windows: /^[A-Za-z]:[\\/]|\\/.test(path),
+  }));
+  return new Map(entries.map(entry => {
+    let depth = 1;
+    while (depth < entry.parts.length && entries.some(other => {
+      if (other === entry) return false;
+      const suffix = entry.parts.slice(-depth).join("/");
+      const otherSuffix = other.parts.slice(-depth).join("/");
+      return entry.windows || other.windows
+        ? suffix.toLowerCase() === otherSuffix.toLowerCase()
+        : suffix === otherSuffix;
+    })) depth++;
+    return [entry.path, depth >= entry.parts.length ? entry.path : entry.parts.slice(-depth).join(entry.separator)];
+  }));
+}
 
-  function AppCard({ app, appHref, onDelete, disabled }) {
+export function mountStudioOpenApps(element, { toolkit, getAppPathLabels, ...props }) {
+  const { createElement: h, mountCanvasComponent, useState, useRef, Button, TextInput, MenuButton, MenuItem, Tooltip } = toolkit;
+
+  function AppRow({ app, pathLabel, appHref, onDelete, disabled }) {
     const trigger = useRef(null);
-    const opened = Number.isFinite(Date.parse(app.lastOpenedAt));
     return h("li", { className: "open-app-row" },
+      h(Tooltip, { content: h("span", { className: "open-app-full-path" }, app.path) },
       h("a", {
         className: "open-app-target", href: appHref(app.path), "data-existing-app": app.path,
+        "aria-label": app.name,
         "aria-disabled": disabled || undefined, tabIndex: disabled ? -1 : undefined,
         onClick: event => { if (disabled) event.preventDefault(); },
+        onKeyDown: event => {
+          if (event.key !== "Escape") return;
+          const popup = event.currentTarget.ownerDocument.getElementById(event.currentTarget.getAttribute("aria-describedby"));
+          if (popup?.matches(":popover-open")) {
+            // WebKit does not dismiss native hint popovers on Escape.
+            popup.hidePopover();
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        },
       },
       h("strong", { className: "open-app-name", title: app.name }, app.name),
-      h("span", { className: "open-app-path", title: app.path }, app.path),
-      h("span", { className: "open-app-meta" },
-        h("span", null, app.capabilityIds.length + (app.capabilityIds.length === 1 ? " capability" : " capabilities")),
-        opened
-          ? h("time", { dateTime: app.lastOpenedAt, title: new Date(app.lastOpenedAt).toLocaleString() },
-            "Opened " + new Date(app.lastOpenedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }))
-          : h("span", null, "Opened: not recorded"))),
+      h("span", { className: "open-app-path" }, pathLabel))),
       h(MenuButton, {
         label: null, positioning: "below-end",
         button: {
@@ -32,6 +57,7 @@ export function mountStudioOpenApps(element, { toolkit, ...props }) {
   function OpenApps({ apps, initialSearch = "", onSearchChange, appHref, onDelete, onCreate, onRetry, emptyIllustrations, loadError = null, disabled = false }) {
     const [query, setQuery] = useState(initialSearch);
     const search = useRef(null);
+    const pathLabels = getAppPathLabels(apps.map(app => app.path));
     const filtered = apps.filter(app => (app.name + " " + app.path).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
     function changeSearch(value) {
       setQuery(value);
@@ -52,14 +78,14 @@ export function mountStudioOpenApps(element, { toolkit, ...props }) {
         .open-app-search { display: flex; align-items: center; gap: 8px; margin-block: 16px 8px; }
         .open-app-search > :first-child { flex: 1; min-width: 0; }
         .open-app-count { color: var(--studio-muted); font-size: 12px; }
-        .open-app-list { display: grid; gap: 6px; list-style: none; margin-block: 8px; padding: 0; }
-        .open-app-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 12px; border: 1px solid var(--studio-line); border-radius: var(--studio-surface-radius, 8px); background: var(--studio-raised); }
-        .open-app-row:hover, .open-app-row:focus-within { border-color: var(--studio-accent-2); }
+        .open-app-list { list-style: none; margin-block: 8px; padding: 0; }
+        .open-app-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px; border: 0; }
+        .open-app-row:hover, .open-app-row:focus-within { background: var(--studio-panel); }
         .open-app-target { display: grid; gap: 2px; min-width: 0; color: var(--studio-ink); text-decoration: none; }
         .open-app-target:focus-visible { outline: 2px solid var(--color-focus-outline, #0969da); outline-offset: 3px; border-radius: 2px; }
         .open-app-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 18px; overflow-wrap: anywhere; }
         .open-app-path { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--studio-muted); font-size: 12px; line-height: 18px; }
-        .open-app-meta { display: flex; flex-wrap: wrap; column-gap: 12px; color: var(--studio-muted); font-size: 12px; line-height: 18px; }
+        .open-app-full-path { display: block; max-width: min(360px, calc(100vw - 40px)); overflow-wrap: anywhere; }
         .open-app-delete { color: var(--studio-danger); }
         .open-app-empty { margin-top: 16px; }
         .open-app-recovery { margin-top: 16px; }
@@ -101,7 +127,7 @@ export function mountStudioOpenApps(element, { toolkit, ...props }) {
           h("div", { className: "open-app-count", role: "status", "aria-live": "polite", "aria-atomic": true },
             query.trim() ? filtered.length + " of " + apps.length + " apps" : apps.length + (apps.length === 1 ? " app" : " apps")),
           h("ul", { className: "open-app-list", id: "open-app-list" },
-            ...filtered.map(app => h(AppCard, { key: app.path, app, appHref, onDelete, disabled }))),
+            ...filtered.map(app => h(AppRow, { key: app.path, app, pathLabel: pathLabels.get(app.path), appHref, onDelete, disabled }))),
           filtered.length === 0 ? h("p", { className: "open-app-empty" }, "No apps match your search.") : null));
   }
   return mountCanvasComponent(element, OpenApps, props);
