@@ -34,6 +34,17 @@ for (const engine of ["chromium", "webkit"]) {
       browser = await playwright[engine].launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
       const page = await browser.newPage({ reducedMotion: "reduce" });
       page.setDefaultTimeout(5000);
+      await page.addInitScript(() => {
+        Date.now = () => Date.parse("2026-11-06T16:51:28Z");
+        window.copiedPaths = [];
+        window.failCopy = false;
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+          writeText: async path => {
+            if (window.failCopy) throw new Error("Clipboard permission denied.");
+            window.copiedPaths.push(path);
+          },
+        } });
+      });
       const errors = [], deletions = [], renames = [];
       page.on("pageerror", error => errors.push(error.message));
       const initialApps = [
@@ -125,10 +136,12 @@ for (const engine of ["chromium", "webkit"]) {
           assert.ok(geometry.every(row => row.borders.every(border => border === "0px")
             && row.borderRadius === "0px" && row.background === "rgba(0, 0, 0, 0)"), JSON.stringify(geometry));
           assert.deepEqual(await page.locator(".open-app-path").allTextContents(), [
-            "customer-portal", "inventory-dashboard", "support-assistant", "review",
-            "customer-app\\source", "internal-app\\source", "document-helper",
+            "projects \u2022 customer-portal", "projects \u2022 inventory-dashboard", "projects \u2022 support-assistant", "projects \u2022 review",
+            "customer-app \u2022 source", "internal-app \u2022 source", "projects \u2022 document-helper",
           ]);
-          assert.equal(await page.locator(".open-app-row time, .open-app-meta").count(), 0);
+          assert.equal(await page.locator(".open-app-row time").count(), 1);
+          assert.equal(await page.locator(".open-app-row time").innerText(), "\u2022 opened 5m ago");
+          assert.equal(await page.locator(".open-app-row time").getAttribute("datetime"), initialApps[0].lastOpenedAt);
           assert.equal(await page.getByText(/^Opened /).count(), 0);
           assert.equal(await page.getByText("Opened: not recorded", { exact: true }).count(), 0);
           assert.equal(await page.getByText(/\d+ capabilit/).count(), 0);
@@ -169,7 +182,7 @@ for (const engine of ["chromium", "webkit"]) {
           await search.fill(" internal-app ");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 1);
           assert.equal(await page.locator("[data-existing-app]").getAttribute("data-existing-app"), initialApps[5].path);
-          assert.equal(await page.locator(".open-app-path").innerText(), "internal-app\\source",
+          assert.equal(await page.locator(".open-app-path").innerText(), "internal-app \u2022 source",
             "Filtering must not change the displayed identity of same-name apps");
           await search.fill("C:\\projects");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 7);
@@ -179,6 +192,19 @@ for (const engine of ["chromium", "webkit"]) {
           assert.equal(await search.inputValue(), "");
           assert.equal(await search.evaluate(element => element === document.activeElement), true);
           assert.equal(await page.locator("[data-existing-app]").count(), 7);
+          const menu = page.locator("[data-app-actions]").first();
+          await menu.click();
+          assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Copy full path", "Rename app", "Delete app"]);
+          await page.getByRole("menuitem", { name: "Copy full path", exact: true }).click();
+          await page.getByText("Full path copied.", { exact: true }).waitFor();
+          assert.deepEqual(await page.evaluate(() => window.copiedPaths), [initialApps[0].path]);
+          assert.equal(await page.locator("[data-existing-app]").count(), 7);
+          await page.evaluate(() => { window.failCopy = true; });
+          await menu.click();
+          await page.getByRole("menuitem", { name: "Copy full path", exact: true }).click();
+          await page.getByText("Could not copy full path: Clipboard permission denied.", { exact: true }).waitFor();
+          assert.deepEqual(await page.evaluate(() => window.copiedPaths), [initialApps[0].path]);
+          await page.evaluate(() => { window.failCopy = false; });
         }
         if (output) await writeFile(join(output, `${baseline ? "before" : "after"}-${engine}.json`), JSON.stringify({
           build: process.env.OPEN_APPS_BUILD_LABEL || "working-tree",
@@ -367,7 +393,7 @@ for (const engine of ["chromium", "webkit"]) {
         await page.goto(origin);
         await page.locator("#open-app").click();
         await page.locator("[data-app-actions]").first().click();
-        assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Rename app", "Delete app"]);
+        assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Copy full path", "Rename app", "Delete app"]);
         if (output) await page.screenshot({ path: join(output, `after-${engine}-${tone}-380-menu.png`) });
         await page.getByRole("menuitem", { name: "Rename app", exact: true }).click();
         const dialog = page.getByRole("dialog", { name: "Rename app", exact: true });
@@ -424,7 +450,7 @@ for (const engine of ["chromium", "webkit"]) {
       await page.locator("#open-app").click();
       const longPathLink = page.locator("[data-existing-app]");
       await longPathLink.waitFor();
-      assert.equal(await page.locator(".open-app-path").innerText(), "document-helper");
+      assert.equal(await page.locator(".open-app-path").innerText(), "workspace-with-a-long-folder-name \u2022 document-helper");
       await longPathLink.focus();
       const longPathTooltip = page.getByRole("tooltip");
       await longPathTooltip.waitFor();

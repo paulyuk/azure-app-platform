@@ -9,7 +9,7 @@ import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
-import { getAppPathLabels, mountStudioOpenApps } from "./studio-open-apps.mjs";
+import { getAppOpenedLabel, getAppPathLabels, mountStudioOpenApps } from "./studio-open-apps.mjs";
 import { showAppRenameDialog } from "./app-rename-dialog.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
@@ -598,6 +598,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus("App renamed.");
       }
 
+      async function copyAppPath(root) {
+        try {
+          await navigator.clipboard.writeText(root);
+          clearStatus("Full path copied.");
+        } catch (cause) {
+          error("Could not copy full path: " + cause.message);
+        }
+      }
+
       async function deleteApp(root, appName, returnFocus) {
         if (!await askDeleteConfirmation(appName, returnFocus)) return;
         setBusy(true, "Deleting app worktree…");
@@ -682,10 +691,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         openAppsHandle = (${mountStudioOpenApps.toString()})(document.getElementById("studio-open-apps"), {
           toolkit, apps: sources?.apps || [], initialSearch: existingAppSearch, disabled: appBusy,
           getAppPathLabels: ${getAppPathLabels.toString()},
+          getAppOpenedLabel: ${getAppOpenedLabel.toString()},
           emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
           onSearchChange: value => { existingAppSearch = value; },
           appHref: root => "/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken),
-          onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
+          onCopyPath: copyAppPath, onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
         });
         wireTopBack(renderLanding);
       }
