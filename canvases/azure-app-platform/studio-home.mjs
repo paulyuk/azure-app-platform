@@ -49,17 +49,15 @@ export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, o
           --art-accent-end: var(--canvas-accent);
           --art-accent-shade: color-mix(in srgb, var(--canvas-accent) 80%, var(--canvas-fg));
         }
-        .simple-home-art [id$="-neutral"] stop:first-child { stop-color: var(--art-shell-start); }
-        .simple-home-art [id$="-neutral"] stop:last-child { stop-color: var(--art-shell-end); }
-        .simple-home-art [id$="-highlight"] stop:first-child { stop-color: var(--art-inset-start); }
-        .simple-home-art [id$="-highlight"] stop:last-child { stop-color: var(--art-inset-end); }
-        .simple-home-art [id$="-azure"] stop:first-child { stop-color: var(--art-accent-start); }
-        .simple-home-art [id$="-azure"] stop:last-child { stop-color: var(--art-accent-end); }
-        .simple-home-art [id$="-violet"] stop { stop-color: var(--art-accent-shade); }
-        .simple-home-art [fill="#8DC8E8"] { fill: var(--canvas-muted); }
-        .simple-home-art [stroke="#0078D4"], .simple-home-art [stroke="#8DC8E8"] { stroke: var(--canvas-accent); }
-        .simple-home-art [stroke="white"] { stroke: var(--canvas-bg); }
-        .simple-home-art [fill="white"] { fill: var(--canvas-fg); }
+        .simple-home-art [data-art-material="shell"] stop:first-child { stop-color: var(--art-shell-start); }
+        .simple-home-art [data-art-material="shell"] stop:last-child { stop-color: var(--art-shell-end); }
+        .simple-home-art [data-art-material="recess"] stop:first-child { stop-color: var(--art-inset-start); }
+        .simple-home-art [data-art-material="recess"] stop:last-child { stop-color: var(--art-inset-end); }
+        .simple-home-art [data-art-material="accent"] stop:first-child { stop-color: var(--art-accent-start); }
+        .simple-home-art [data-art-material="accent"] stop:last-child { stop-color: var(--art-accent-end); }
+        .simple-home-art [data-art-material="accent-shade"] stop { stop-color: var(--art-accent-shade); }
+        .simple-home-art [data-art-material="detail"] { fill: var(--canvas-muted); }
+        .simple-home-art [data-art-material="ink"] { stroke: var(--canvas-accent); }
         .simple-home-task-copy { display: grid; gap: 4px; min-width: 0; }
         .simple-home-task-title { font-size: var(--canvas-body); line-height: 20px; font-weight: var(--font-weight-semibold, 600); }
         .simple-home-task-description { color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 18px; font-weight: 400; }

@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="create-title create-description">
   <title id="create-title">Create a new app</title>
-  <desc id="create-description">A softly rounded app window takes shape from a template, with blue interface blocks and a raised add control.</desc>
+  <desc id="create-description">A softly rounded app window with a recessed workspace and a raised blue add symbol, ready to become a new app.</desc>
   <defs>
-    <linearGradient id="create-neutral" x1="400" y1="96" x2="126" y2="430" gradientUnits="userSpaceOnUse">
+    <linearGradient id="create-neutral" data-art-material="shell" x1="400" y1="96" x2="126" y2="430" gradientUnits="userSpaceOnUse">
       <stop stop-color="#F4F3F5"/>
       <stop offset="1" stop-color="#E8E6DF"/>
     </linearGradient>
-    <linearGradient id="create-highlight" x1="270" y1="150" x2="162" y2="366" gradientUnits="userSpaceOnUse">
+    <linearGradient id="create-highlight" data-art-material="recess" x1="270" y1="150" x2="162" y2="366" gradientUnits="userSpaceOnUse">
       <stop stop-color="white"/>
       <stop offset="1" stop-color="#F4F3F5"/>
     </linearGradient>
-    <linearGradient id="create-azure" x1="560" y1="110" x2="330" y2="446" gradientUnits="userSpaceOnUse">
+    <linearGradient id="create-azure" data-art-material="accent" x1="430" y1="280" x2="312" y2="424" gradientUnits="userSpaceOnUse">
       <stop offset="0.421312" stop-color="#49C5B1"/>
       <stop offset="0.933804" stop-color="#0078D4"/>
     </linearGradient>
-    <linearGradient id="create-violet" x1="320" y1="584" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+    <linearGradient id="create-violet" data-art-material="accent-shade" x1="370" y1="440" x2="370" y2="312" gradientUnits="userSpaceOnUse">
       <stop offset="0.498686" stop-color="#C03BC4"/>
       <stop offset="1" stop-color="#C03BC4" stop-opacity="0"/>
     </linearGradient>
-    <filter id="create-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+    <filter id="create-bevel" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
       <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
@@ -51,24 +51,15 @@
       <feBlend mode="normal" in2="lower-edge"/>
     </filter>
   </defs>
-  <g id="template" transform="rotate(-8 242 252)" filter="url(#create-bevel)">
-    <rect x="64" y="100" width="310" height="296" rx="38" fill="url(#create-neutral)"/>
-  </g>
   <g id="subject">
-    <rect x="104" y="92" width="316" height="296" rx="36" fill="url(#create-neutral)" filter="url(#create-bevel)"/>
-    <rect x="126" y="150" width="272" height="214" rx="20" fill="url(#create-highlight)" filter="url(#create-bevel)"/>
-    <g id="window-chrome" fill="#8DC8E8">
-      <circle cx="142" cy="122" r="6"/>
-      <rect x="160" y="116" width="54" height="12" rx="6"/>
-    </g>
-    <rect x="148" y="172" width="54" height="170" rx="15" fill="url(#create-neutral)" filter="url(#create-bevel)"/>
-    <rect x="222" y="172" width="154" height="76" rx="18" fill="url(#create-azure)" filter="url(#create-bevel)"/>
-    <rect x="222" y="266" width="68" height="76" rx="16" fill="url(#create-neutral)" filter="url(#create-bevel)"/>
-    <rect x="308" y="266" width="68" height="76" rx="16" fill="url(#create-neutral)" filter="url(#create-bevel)"/>
+    <rect x="64" y="96" width="352" height="304" rx="40" fill="url(#create-neutral)" filter="url(#create-bevel)"/>
+    <rect x="88" y="164" width="304" height="212" rx="24" fill="url(#create-highlight)" filter="url(#create-bevel)"/>
+    <rect x="104" y="124" width="72" height="12" rx="6" fill="#8DC8E8" data-art-material="detail"/>
+    <rect x="112" y="196" width="112" height="20" rx="10" fill="url(#create-neutral)"/>
+    <rect x="112" y="236" width="172" height="20" rx="10" fill="url(#create-neutral)"/>
   </g>
-  <g id="add-control" filter="url(#create-bevel)">
-    <circle cx="370" cy="356" r="78" fill="url(#create-azure)"/>
-    <circle cx="370" cy="356" r="78" fill="url(#create-violet)"/>
-    <path d="M370 322V390M336 356H404" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <g id="add-control" filter="url(#create-bevel)" stroke-width="40" stroke-linecap="round">
+    <path d="M370 296V412M312 354H428" stroke="url(#create-azure)"/>
+    <path d="M370 296V412M312 354H428" stroke="url(#create-violet)"/>
   </g>
 </svg>

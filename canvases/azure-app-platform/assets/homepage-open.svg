@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="open-title open-description">
   <title id="open-title">Open an app</title>
-  <desc id="open-description">An existing app window emerges from an open project folder. A raised blue forward arrow invites continuing work.</desc>
+  <desc id="open-description">An existing app window rests in an open project folder. A raised blue arrow on the folder points forward to continue work.</desc>
   <defs>
-    <linearGradient id="open-neutral" x1="406" y1="96" x2="122" y2="426" gradientUnits="userSpaceOnUse">
+    <linearGradient id="open-neutral" data-art-material="shell" x1="406" y1="96" x2="122" y2="426" gradientUnits="userSpaceOnUse">
       <stop stop-color="#F4F3F5"/>
       <stop offset="1" stop-color="#E8E6DF"/>
     </linearGradient>
-    <linearGradient id="open-highlight" x1="330" y1="238" x2="212" y2="466" gradientUnits="userSpaceOnUse">
+    <linearGradient id="open-highlight" data-art-material="recess" x1="330" y1="238" x2="212" y2="466" gradientUnits="userSpaceOnUse">
       <stop stop-color="white"/>
       <stop offset="1" stop-color="#F4F3F5"/>
     </linearGradient>
-    <linearGradient id="open-azure" x1="560" y1="110" x2="330" y2="446" gradientUnits="userSpaceOnUse">
+    <linearGradient id="open-azure" data-art-material="accent" x1="412" y1="96" x2="260" y2="416" gradientUnits="userSpaceOnUse">
       <stop offset="0.421312" stop-color="#49C5B1"/>
       <stop offset="0.933804" stop-color="#0078D4"/>
     </linearGradient>
-    <linearGradient id="open-violet" x1="352" y1="584" x2="352" y2="320" gradientUnits="userSpaceOnUse">
+    <linearGradient id="open-violet" data-art-material="accent-shade" x1="352" y1="380" x2="352" y2="288" gradientUnits="userSpaceOnUse">
       <stop offset="0.498686" stop-color="#C03BC4"/>
       <stop offset="1" stop-color="#C03BC4" stop-opacity="0"/>
     </linearGradient>
-    <filter id="open-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+    <filter id="open-bevel" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
       <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
@@ -52,23 +52,19 @@
     </filter>
   </defs>
   <g id="folder-back" filter="url(#open-bevel)">
-    <path d="M68 196C68 178 82 164 100 164H170C183 164 191 168 200 178L220 198H388C406 198 420 212 420 230V382C420 402 404 418 384 418H104C84 418 68 402 68 382Z" fill="url(#open-neutral)"/>
-    <rect x="90" y="222" width="308" height="170" rx="24" fill="url(#open-azure)"/>
+    <path d="M56 212C56 192 72 176 92 176H156C170 176 180 180 190 190L210 208H404C424 208 440 224 440 244V380C440 400 424 416 404 416H92C72 416 56 400 56 380Z" fill="url(#open-neutral)"/>
   </g>
-  <g id="existing-app" transform="rotate(6 278 222)">
-    <rect x="154" y="82" width="240" height="274" rx="30" fill="url(#open-neutral)" filter="url(#open-bevel)"/>
-    <rect x="174" y="102" width="200" height="234" rx="18" fill="url(#open-highlight)" filter="url(#open-bevel)"/>
-    <rect x="194" y="124" width="160" height="64" rx="16" fill="url(#open-azure)" filter="url(#open-bevel)"/>
-    <rect x="194" y="208" width="64" height="76" rx="14" fill="url(#open-neutral)" filter="url(#open-bevel)"/>
-    <rect x="278" y="208" width="76" height="76" rx="14" fill="url(#open-neutral)" filter="url(#open-bevel)"/>
+  <g id="existing-app">
+    <rect x="160" y="76" width="240" height="252" rx="32" fill="url(#open-neutral)" filter="url(#open-bevel)"/>
+    <rect x="180" y="140" width="200" height="168" rx="20" fill="url(#open-highlight)" filter="url(#open-bevel)"/>
+    <rect x="200" y="104" width="64" height="12" rx="6" fill="#8DC8E8" data-art-material="detail"/>
+    <rect x="200" y="160" width="160" height="52" rx="16" fill="url(#open-azure)" filter="url(#open-bevel)"/>
   </g>
   <g id="folder-front" filter="url(#open-bevel)">
-    <path d="M104 276C108 258 122 246 140 246H218C232 246 243 242 252 232L268 216C276 208 286 204 298 204H410C430 204 444 222 440 242L410 388C406 406 392 418 374 418H100C80 418 66 400 70 380Z" fill="url(#open-highlight)"/>
-    <rect x="122" y="306" width="96" height="18" rx="9" fill="#8DC8E8"/>
+    <path d="M56 284C56 264 72 248 92 248H202C216 248 226 244 236 234L248 222C258 212 268 208 282 208H404C424 208 440 224 440 244V380C440 400 424 416 404 416H92C72 416 56 400 56 380Z" fill="url(#open-neutral)"/>
   </g>
-  <g id="continue-control" filter="url(#open-bevel)">
-    <circle cx="368" cy="356" r="78" fill="url(#open-azure)"/>
-    <circle cx="368" cy="356" r="78" fill="url(#open-violet)"/>
-    <path d="M332 356H400M376 332L400 356L376 380" stroke="white" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <g id="continue-control" filter="url(#open-bevel)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M280 320H376M344 288L376 320L344 352" stroke="url(#open-azure)"/>
+    <path d="M280 320H376M344 288L376 320L344 352" stroke="url(#open-violet)"/>
   </g>
 </svg>

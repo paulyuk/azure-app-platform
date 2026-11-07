@@ -305,10 +305,13 @@ The three homepage illustrations use matched `assets/homepage-{create,open,assem
 light materials and `homepage-{create,open,assemble}-dark.svg` dark materials:
 rounded soft-neutral or deep-blue surfaces,
 Azure blue/teal/violet gradients and restrained vector bevel lighting adapted
-from the supplied Azure illustration reference. Their new compositions depict
-creating an app, reopening a project folder, and fitting existing pieces into
-an app. Assemble shows the source and resource connected to an unobstructed app
-window, without an overlapping card. Each is a static, editable, self-contained 512px SVG, designed to remain
+from the supplied Azure illustration reference. The simplified compositions use
+the supplied folder, document-add and connected-node construction as anchors:
+an app window with a raised plus, a project folder holding an app with a forward
+arrow, and two existing components joining one app. Broad rounded surfaces and
+restrained inset details replace stacked mini-panels and circular action badges.
+Assemble keeps the source and resource connected to an unobstructed app window,
+without an overlapping card. Each is a static, editable, self-contained 512px SVG, designed to remain
 legible in the compact 84px by 74px art slot.
 
 The paired source files keep the same geometry and colored focal details. Dark shells
@@ -316,13 +319,30 @@ use `#2A446F` to `#091F2C`, lifted blue inset surfaces, and separately tuned
 bevel highlights; small blue line symbols use the pale-blue reference ink for
 contrast. Object interiors remain opaque and the outer canvas transparent.
 For product rendering, reviewed shipped SVGs are inlined with action/theme-scoped
-IDs so the actual host palette can reach their materials. Only these bundled
+IDs so the actual host palette can reach their explicit `data-art-material`
+roles, rather than matching hard-coded color values. Only these bundled
 assets enter the inline markup boundary; workspace or user-provided SVGs do not.
 Shell gradients blend host foreground, background and muted surface tokens;
-insets use raised background tones; accent gradients and line symbols use the
-host accent, and focal symbols use the contrasting host background. Neutral
+insets use raised background tones; accent gradients, raised plus/arrow symbols
+and line symbols use the host accent, while header marks use muted foreground. Neutral
 bevel lighting remains separate from those material roles. This replaces fixed
 Azure hues throughout the rendered artwork, not just its light/dark selection.
+
+| Artwork role | Product mapping in both themes |
+| --- | --- |
+| Shell | 18% `--canvas-fg` mixed with `--canvas-bg`, shading to `--canvas-tint` |
+| Recess | 8% `--canvas-fg` mixed with `--canvas-bg`, shading to `--canvas-bg` |
+| Accent | 70% `--canvas-accent` mixed with `--canvas-bg`, shading to `--canvas-accent` |
+| Accent shade | 80% `--canvas-accent` mixed with `--canvas-fg`, with the SVG's restrained overlay opacity |
+| Detail / ink | `--canvas-muted` fill / `--canvas-accent` stroke |
+
+These are role-specific sRGB derivations of the delivered palette, not exact-color
+palette restrictions or a new Azure palette. Embedded light/dark anchor values
+come from the host at runtime; standalone fallbacks use the toolkit's existing
+light/dark values. Source white/black inner-bevel overlays retain the reviewed
+lighting strengths (including the lifted dark-shell highlights); the object bodies
+remain opaque. The self-contained source SVGs retain reference hues for independent
+editing, while product rendering maps every colored material to the host.
 CSS palette changes update the existing SVG nodes without observers or remounts.
 The external SVG routes retain the editable reference-material sources; outer
 document variables do not cross external image boundaries.

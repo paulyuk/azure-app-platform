@@ -47,9 +47,17 @@ for (const engine of ["chromium", "webkit"]) {
           const ids = [], references = [], problems = [];
           for (const node of doc.querySelectorAll("*")) {
             if (!allowed.has(node.localName)) problems.push(`Unexpected element ${node.localName}`);
+            if (node.localName === "linearGradient"
+              && !["shell", "recess", "accent", "accent-shade"].includes(node.getAttribute("data-art-material"))) {
+              problems.push("Every gradient must declare its host-mapped material role");
+            }
             if (node.id) ids.push(node.id);
             for (const attribute of node.attributes) {
               if (/^on/i.test(attribute.name) || ["style", "href", "xlink:href"].includes(attribute.name)) problems.push(attribute.name);
+              if (["fill", "stroke"].includes(attribute.name) && /^(#|white$)/i.test(attribute.value)
+                && !["detail", "ink"].includes(node.getAttribute("data-art-material"))) {
+                problems.push("Direct colors must declare their host-mapped material role");
+              }
               for (const match of attribute.value.matchAll(/url\(([^)]+)\)/g)) references.push(match[1]);
             }
             if (node.localName === "feColorMatrix") {
@@ -97,9 +105,28 @@ for (const engine of ["chromium", "webkit"]) {
           const accents = (name === "assemble" ? ["azure"] : ["azure", "violet"])
             .map(role => doc.getElementById(`${name}-${role}`).outerHTML);
           const focal = root.querySelector("#add-control, #continue-control, #fitting-module")?.outerHTML;
-          return { problems, samples, geometry, accents, focal };
+          let focalTip = null;
+          if (name !== "assemble") {
+            const isolated = root.cloneNode(true);
+            for (const child of [...isolated.children]) {
+              if (!["title", "desc", "defs"].includes(child.localName)
+                && !["add-control", "continue-control"].includes(child.id)) child.remove();
+            }
+            const detail = new Image();
+            detail.src = "data:image/svg+xml," + encodeURIComponent(new XMLSerializer().serializeToString(isolated));
+            await detail.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 512;
+            const context = canvas.getContext("2d");
+            context.drawImage(detail, 0, 0);
+            const [x, y] = name === "create" ? [370, 277] : [344, 275];
+            focalTip = context.getImageData(x, y, 1, 1).data[3];
+          }
+          return { problems, samples, geometry, accents, focal, focalTip };
         }, { name, neutralPoint, suffix });
         assert.deepEqual(result.problems, [], name);
+        if (result.focalTip !== null) assert.ok(result.focalTip > 240,
+          `${name} filter extents must include the rounded stroke caps, not clip them flat`);
         for (const sample of result.samples) {
           assert.ok(sample.coverage > 0.25 && sample.coverage < 0.75, `${name} at ${sample.size}px must paint its objects, not just load: ${sample.coverage}`);
           assert.equal(sample.black, 0, `${name} must not acquire hard black filter edges`);
@@ -629,9 +656,11 @@ test("packaged simple home preserves the three explicit journeys", {
         await expectArtwork("light");
         const readMaterials = () => page.locator(".simple-home-art [data-home-art-theme]:visible svg").evaluateAll(images =>
           images.map(image => ({
-            shell: getComputedStyle(image.querySelector('[id$="-neutral"] stop')).stopColor,
-            accent: getComputedStyle(image.querySelector('[id$="-azure"] stop:last-child')).stopColor,
-            symbol: getComputedStyle(image.querySelector('[stroke="white"], [stroke="#0078D4"], [stroke="#8DC8E8"]')).stroke,
+            shell: getComputedStyle(image.querySelector('[data-art-material="shell"] stop')).stopColor,
+            recess: getComputedStyle(image.querySelector('[data-art-material="recess"] stop:last-child')).stopColor,
+            accent: getComputedStyle(image.querySelector('[data-art-material="accent"] stop:last-child')).stopColor,
+            detail: getComputedStyle(image.querySelector('[data-art-material="detail"]')).fill,
+            ink: [...image.querySelectorAll('[data-art-material="ink"]')].map(node => getComputedStyle(node).stroke),
           })));
         const originalMaterials = await readMaterials();
         assert.ok(originalMaterials.every(material => material.accent === "rgb(124, 47, 150)"),
@@ -641,13 +670,17 @@ test("packaged simple home preserves the three explicit journeys", {
           document.documentElement.style.setProperty("--background-color-default", "rgb(53, 58, 44)");
           document.documentElement.style.setProperty("--background-color-muted", "rgb(65, 70, 53)");
           document.documentElement.style.setProperty("--text-color-default", "rgb(241, 213, 171)");
+          document.documentElement.style.setProperty("--text-color-muted", "rgb(197, 173, 137)");
           document.documentElement.style.setProperty("--text-color-accent", "rgb(217, 171, 106)");
         });
         const oliveMaterials = await readMaterials();
         assert.ok(oliveMaterials.every((material, index) => material.accent === "rgb(217, 171, 106)"
           && material.shell !== originalMaterials[index].shell
-          && material.symbol === (index === 2 ? "rgb(217, 171, 106)" : "rgb(53, 58, 44)")),
-          "An olive host palette updates shells, accents and contrasting symbols without a tone change");
+          && material.recess === "rgb(53, 58, 44)"
+          && material.detail === "rgb(197, 173, 137)"
+          && material.ink.every(color => color === "rgb(217, 171, 106)")),
+          "An olive host palette updates every material role without a tone change");
+        assert.equal(oliveMaterials[2].ink.length, 2, "Both source and resource symbols consume the host accent");
         assert.equal(await page.evaluate(() => window.originalArtwork.every((svg, index) =>
           svg === document.querySelectorAll(".simple-home-art svg")[index]) && window.originalCreate === document.activeElement),
         true, "Live palette changes preserve artwork, controls and focus");

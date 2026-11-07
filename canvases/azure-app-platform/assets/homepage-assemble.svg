@@ -2,15 +2,15 @@
   <title id="assemble-title">Assemble existing projects</title>
   <desc id="assemble-description">A source project and an Azure resource connect into one rounded app window with clearly visible components.</desc>
   <defs>
-    <linearGradient id="assemble-neutral" x1="432" y1="96" x2="150" y2="430" gradientUnits="userSpaceOnUse">
+    <linearGradient id="assemble-neutral" data-art-material="shell" x1="432" y1="96" x2="150" y2="430" gradientUnits="userSpaceOnUse">
       <stop stop-color="#F4F3F5"/>
       <stop offset="1" stop-color="#E8E6DF"/>
     </linearGradient>
-    <linearGradient id="assemble-highlight" x1="366" y1="156" x2="250" y2="384" gradientUnits="userSpaceOnUse">
+    <linearGradient id="assemble-highlight" data-art-material="recess" x1="366" y1="156" x2="250" y2="384" gradientUnits="userSpaceOnUse">
       <stop stop-color="white"/>
       <stop offset="1" stop-color="#F4F3F5"/>
     </linearGradient>
-    <linearGradient id="assemble-azure" x1="422" y1="32" x2="160" y2="432" gradientUnits="userSpaceOnUse">
+    <linearGradient id="assemble-azure" data-art-material="accent" x1="422" y1="32" x2="160" y2="432" gradientUnits="userSpaceOnUse">
       <stop offset="0.421312" stop-color="#49C5B1"/>
       <stop offset="0.933804" stop-color="#0078D4"/>
     </linearGradient>
@@ -48,25 +48,23 @@
     </filter>
   </defs>
   <g id="connection" stroke="url(#assemble-azure)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M144 168H180Q202 168 202 190V316Q202 338 224 338H288"/>
-    <path d="M144 356H178Q202 356 202 332V286H288"/>
+    <path d="M158 168H180Q204 168 204 192V320Q204 344 180 344H158M204 256H264"/>
   </g>
   <g id="subject">
-    <rect x="246" y="102" width="202" height="304" rx="34" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
-    <rect x="266" y="158" width="162" height="226" rx="20" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
-    <rect x="274" y="124" width="68" height="12" rx="6" fill="#8DC8E8"/>
-    <rect x="286" y="182" width="122" height="66" rx="16" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
-    <rect x="286" y="268" width="48" height="94" rx="14" fill="url(#assemble-azure)" filter="url(#assemble-bevel)"/>
-    <rect x="350" y="268" width="58" height="94" rx="14" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
+    <rect x="240" y="104" width="220" height="304" rx="36" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
+    <rect x="262" y="166" width="176" height="220" rx="22" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
+    <rect x="280" y="130" width="64" height="12" rx="6" fill="#8DC8E8" data-art-material="detail"/>
+    <rect x="284" y="192" width="132" height="68" rx="18" fill="url(#assemble-azure)" filter="url(#assemble-bevel)"/>
+    <rect x="284" y="288" width="132" height="52" rx="16" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
   </g>
   <g id="source-project" filter="url(#assemble-bevel)">
-    <rect x="56" y="116" width="96" height="96" rx="25" fill="url(#assemble-neutral)"/>
-    <path d="M92 150L78 164L92 178M116 150L130 164L116 178" stroke="#0078D4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="48" y="112" width="110" height="110" rx="28" fill="url(#assemble-neutral)"/>
+    <path d="M88 150L72 166L88 182M118 150L134 166L118 182" stroke="#0078D4" data-art-material="ink" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <g id="resource" filter="url(#assemble-bevel)">
-    <rect x="56" y="310" width="96" height="96" rx="25" fill="url(#assemble-neutral)"/>
-    <path d="M82 342H126M82 370H126" stroke="#0078D4" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="96" cy="342" r="9" fill="white"/>
-    <circle cx="114" cy="370" r="9" fill="white"/>
+    <rect x="48" y="290" width="110" height="110" rx="28" fill="url(#assemble-neutral)"/>
+    <path d="M76 330H130M76 358H130" stroke="#0078D4" data-art-material="ink" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="92" cy="330" r="10" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
+    <circle cx="114" cy="358" r="10" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
   </g>
 </svg>
