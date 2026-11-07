@@ -62,9 +62,9 @@ export function renderStudioIntroClientScript() {
           console.warn(warning);
           document.querySelector(".studio-intro-notice").textContent = warning;
         }
-        const target = previousFocus?.isConnected && previousFocus !== document.body
-          ? previousFocus : document.getElementById("new-app");
-        target?.focus({ preventScroll: true });
+        if (previousFocus?.isConnected && previousFocus !== document.body) {
+          previousFocus.focus({ preventScroll: true });
+        }
       };
       const stalled = () => finish("The intro took too long to play. You can continue below.");
       const resetStallTimer = () => {

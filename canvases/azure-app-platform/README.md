@@ -255,33 +255,113 @@ This user-level preference lives under
 (`~/.copilot` when `COPILOT_HOME` is unset), not in app source.
 
 Azure App Platform is the guided app builder for the generic nine-tier Unity platform
-pattern. Its Simple home asks **What would you like to do?** and presents
-**Create a new app**, **Open an app**, and **Assemble existing pieces** as equal
-compact task cards, in that order. The content container uses one, two, or three
-columns at 520px and 760px of available content width, with 12px gaps and an
-88px minimum card height. A compact canonical header replaces the large Home
+pattern. Its home asks **What would you like to do?** and presents
+**Create a new app**, **Open an app**, and **Assemble existing projects** as equal,
+arrow-free illustrated buttons, in that order. Cards keep their compact artwork
+beside the labels at every width. Below 640px of available content width they
+stack; at 640px they use two equal columns. With an odd number of cards, the
+first spans the full row, followed by paired cards. The content is at most 888px wide,
+with 12px card gaps and 16px narrow / 24px wide outer padding.
+A compact canonical header replaces the large Home
 masthead; the opening animation and existing Docs/Settings actions are preserved.
 The header begins 8px below the viewport, followed by 24px before the Home
 introduction. The introduction is the page's h1 because the brand is a Home
 button, not a heading; its visual type remains 20px/28px/600.
-The home composes the public toolkit `ActionCard`, `SectionHeader`, `WorkItem`,
-`Button`, and `SymbolIcon` components from the shipped browser
-bundle; it does not duplicate their markup or styles. The shared controls
+The home composes public toolkit `Button`, `SectionHeader`, `WorkItem`,
+`FilterToolbar` (including its search input), `Disclosure`, and `SymbolIcon` components from the shipped browser
+bundle. Illustrated cards use Button composition because ActionCard always
+includes an arrow. Each recent WorkItem uses its title Button as one stretched
+row target, with rounded hover and focus states and no duplicate Open button.
+No toolkit internals are hidden or changed. The shared controls
 bootstrap completes before the home and intro become interactive. A failed
 bundle load is explicit and asks the user to reload to retry. Returning from a
-journey restores focus to Create, as does skipping the intro.
-Recently viewed uses only genuine, already-loaded source inventory with recorded
+journey does not automatically focus a starting point; the intro restores a
+meaningful previous focus when available.
+**Get back to your app** uses only genuine source inventory with recorded
 last-opened timestamps, showing at most the newest five in the source catalog's
 existing recency order. This Home-only limit does not truncate stored history or
-the full inventory available through Open an app. Initially it explicitly says apps have not been loaded;
-Open an app remains the route to load them. Successful-empty and failed refresh
-states are distinct. No launch scan, new history store, or sample recents are added.
+the full inventory available through Open an app or **Browse apps**. Search
+filters cached names and paths before applying that five-row limit; it does not
+make discovery requests. The existing initial local source refresh is preserved,
+without Azure discovery. Until it completes, Home reports that apps have not been
+loaded; successful-empty and failed refresh states remain distinct. Updates keep
+the same React root, search text, disclosure state and focus. No new history store
+or sample recents are added.
 
-The layout is adapted product source from the approved, uncommitted canonical
-Simple home example (frozen reference digest
-`6a0e96514f235682a972cd1b11a1550b3e99448ec503d09504790e93ac2a2e70`),
-not a public component, workbench import, or template claimed to exist at the
-toolkit's pinned commit. The toolkit runtime and provenance are unchanged.
+**How apps work** is collapsed by default, with four opt-in explanations covering
+app components, sandbox isolation, gateway governance and per-app verification.
+Opening guidance performs no setup, execution or permission changes.
+
+The homepage began with approved prototype `v02`, revision `8` (source digest
+`a7324c2baf464ecee002c9d6acf1e1ef31dd7363eaec861d04689d9c254b6eb9`),
+translated into product-owned components and existing handlers, not prototype
+mock operations or preview infrastructure. The responsive two-column layout
+and full-width first card for odd counts are subsequent product refinements.
+The self-contained SVGs ship with the
+plugin; no build, dependency restore or CDN is needed to show them. The toolkit
+runtime and provenance are unchanged.
+
+The three homepage illustrations use matched `assets/homepage-{create,open,assemble}.svg`
+light materials and `homepage-{create,open,assemble}-dark.svg` dark materials:
+rounded soft-neutral or deep-blue surfaces,
+Azure blue/teal/violet gradients and restrained vector bevel lighting adapted
+from the supplied Azure illustration reference. The simplified compositions use
+the supplied folder, document-add and connected-node construction as anchors:
+an app window with a raised plus, a project folder holding an app with a forward
+arrow, and two existing components joining one app. Broad rounded surfaces and
+restrained inset details replace stacked mini-panels and circular action badges.
+Assemble keeps the source and resource connected to an unobstructed app window,
+without an overlapping card. Each is a static, editable, self-contained 512px SVG, designed to remain
+legible in the compact 84px by 74px art slot.
+
+The paired source files keep the same geometry and colored focal details. Dark shells
+use `#2A446F` to `#091F2C`, lifted blue inset surfaces, and separately tuned
+bevel highlights; small blue line symbols use the pale-blue reference ink for
+contrast. Object interiors remain opaque and the outer canvas transparent.
+For product rendering, reviewed shipped SVGs are inlined with action/theme-scoped
+IDs so the actual host palette can reach their explicit `data-art-material`
+roles, rather than matching hard-coded color values. Only these bundled
+assets enter the inline markup boundary; workspace or user-provided SVGs do not.
+Shell gradients blend host foreground, background and muted surface tokens;
+insets use raised background tones; accent gradients, raised plus/arrow symbols
+and line symbols use the host accent, while header marks use muted foreground. Neutral
+bevel lighting remains separate from those material roles. This replaces fixed
+Azure hues throughout the rendered artwork, not just its light/dark selection.
+
+| Artwork role | Product mapping in both themes |
+| --- | --- |
+| Shell | 18% `--canvas-fg` mixed with `--canvas-bg`, shading to `--canvas-tint` |
+| Recess | 8% `--canvas-fg` mixed with `--canvas-bg`, shading to `--canvas-bg` |
+| Accent | 70% `--canvas-accent` mixed with `--canvas-bg`, shading to `--canvas-accent` |
+| Accent shade | 80% `--canvas-accent` mixed with `--canvas-fg`, with the SVG's restrained overlay opacity |
+| Detail / ink | `--canvas-muted` fill / `--canvas-accent` stroke |
+
+These are role-specific sRGB derivations of the delivered palette, not exact-color
+palette restrictions or a new Azure palette. Embedded light/dark anchor values
+come from the host at runtime; standalone fallbacks use the toolkit's existing
+light/dark values. Source white/black inner-bevel overlays retain the reviewed
+lighting strengths (including the lifted dark-shell highlights); the object bodies
+remain opaque. The self-contained source SVGs retain reference hues for independent
+editing, while product rendering maps every colored material to the host.
+CSS palette changes update the existing SVG nodes without observers or remounts.
+The external SVG routes retain the editable reference-material sources; outer
+document variables do not cross external image boundaries.
+The surrounding cards, labels, borders,
+hover and focus states continue to use the toolkit's semantic `--canvas-*`
+aliases and host-delivered theme. Inline artwork is non-focusable and hidden
+inside decorative wrappers; standalone SVG titles and descriptions do not
+become duplicate button labels.
+CSS displays exactly one shipped variant per card without remounting controls.
+For the embedded GitHub app presentation, valid host `data-theme-tone` takes
+precedence over valid compatibility `data-color-mode`; the saved
+`data-studio-theme` preference is the fallback when neither supplies a tone.
+Standalone uses its saved preference. OS appearance does not override either.
+Late host delivery, live theme changes and host-theme removal use the same
+cascade; no runtime dependency, image filter or CDN is required.
+
+Home does not preselect or automatically focus a starting point, including
+after its initial source refresh or the optional intro. Keyboard navigation
+retains visible focus; the intro restores an existing prior focus when present.
 
 The three supported journeys are:
 

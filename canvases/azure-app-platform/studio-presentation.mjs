@@ -79,7 +79,7 @@ const sharedPresentationLayout = `
   :root.studio-shared-presentation .studio-settings {
     font: var(--text-body-medium, 14px)/var(--leading-body-medium, 1.25rem) var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   }
-  :root.studio-shared-presentation :is(input, textarea, select),
+  :root.studio-shared-presentation :is(input, textarea, select):not(:where(#studio-home *)),
   :root.studio-shared-presentation #details :is(input, textarea, select),
   :root.studio-shared-presentation .studio-settings :is(input, textarea, select) {
     border-width: var(--studio-border-width);
@@ -88,7 +88,7 @@ const sharedPresentationLayout = `
     font-size: var(--text-body-ui, var(--text-body-medium, 14px));
     line-height: var(--leading-body-ui, var(--leading-body-medium, 1.25rem));
   }
-  :root.studio-shared-presentation :is(input[type="text"], input[type="search"], select),
+  :root.studio-shared-presentation :is(input[type="text"], input[type="search"], select):not(:where(#studio-home *)),
   :root.studio-shared-presentation #details :is(input[type="text"], input[type="search"], select),
   :root.studio-shared-presentation .studio-settings select {
     min-height: var(--studio-control-height); padding: var(--studio-control-padding);

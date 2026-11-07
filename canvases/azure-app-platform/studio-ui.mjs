@@ -8,7 +8,15 @@ import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
+import { readFileSync } from "node:fs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
+
+// Only reviewed, shipped SVGs enter this inline artwork boundary, never workspace content.
+const homepageArtwork = Object.fromEntries(["create", "open", "assemble"].map(name => [
+  name, Object.fromEntries(["light", "dark"].map(theme => [
+    theme, readFileSync(new URL("./assets/homepage-" + name + (theme === "dark" ? "-dark" : "") + ".svg", import.meta.url), "utf8"),
+  ])),
+]));
 
 function escapeHtml(value) {
   return String(value)
@@ -475,8 +483,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function setBusy(busy, message = "") {
         appBusy = busy;
+        homeHandle?.update({
+          busy,
+          recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
+          recentError: sourcesError,
+        });
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
-          buttons.setDisabled(control, busy);
+          if (!control.closest("#studio-home")) buttons.setDisabled(control, busy);
         });
         syncEditorControls();
         status.textContent = message;
@@ -592,12 +605,13 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         buttons.replace(app, '<div id="studio-home"></div>');
         const mount = document.getElementById("studio-home");
         homeHandle = (${mountStudioHome.toString()})(mount, {
+          artwork: ${JSON.stringify(homepageArtwork).replaceAll("<", "\\u003c")},
           toolkit, onCreate: beginNewApp, onOpen: beginOpenApp, onAssemble: beginAssembly,
           onOpenRecent: openAppMap,
           recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
           recentError: sourcesError,
+          busy: appBusy,
         });
-        focusPrimaryAction("#new-app");
         window.dispatchEvent(new Event("app-platform-home-ready"));
       }
 
@@ -1698,9 +1712,9 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       renderLanding();
-      void loadSources().then(() => {
-        if (draft.journey === null) renderLanding();
-      }).catch(() => {});
+      void loadSources().catch(cause => {
+        if (draft.journey === null) error(cause.message);
+      });
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}
       window.appPlatformReady = true;
