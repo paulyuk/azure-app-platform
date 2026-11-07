@@ -88,6 +88,15 @@ for (const engine of ["chromium", "webkit"]) {
               renderedHtmlSha256: createHash("sha256").update(renderStudioHtml("open-apps-test", "fixture", {
                 theme, presentationProfile: "github-app",
               })).digest("hex") });
+            if (width === 380) {
+              await page.locator("[data-existing-app]").nth(4).hover();
+              await page.getByRole("tooltip").waitFor();
+              const hoverFile = `${baseline ? "before" : "after"}-${engine}-${tone}-${width}-hover.png`;
+              await page.screenshot({ path: join(output, hoverFile) });
+              captures.push({ file: hoverFile, theme: tone, viewport: { width, height: 900 }, state: "full-path tooltip on hover" });
+              await page.mouse.move(0, 0);
+              await page.getByRole("tooltip").waitFor({ state: "hidden" });
+            }
           }
           if (baseline) continue;
           await page.mouse.move(0, 0);
@@ -123,6 +132,10 @@ for (const engine of ["chromium", "webkit"]) {
           const tooltip = page.getByRole("tooltip");
           await tooltip.waitFor();
           assert.equal(await tooltip.innerText(), initialApps[4].path);
+          assert.deepEqual(await tooltip.evaluate(popup => {
+            const style = getComputedStyle(popup);
+            return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+          }), ["0px", "0px", "0px", "0px"], "Full-path tooltips must not inherit the native popover border");
           assert.ok(await duplicate.getAttribute("aria-describedby"));
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
           await page.keyboard.press("Escape");
@@ -134,6 +147,13 @@ for (const engine of ["chromium", "webkit"]) {
           assert.equal(await tooltip.innerText(), initialApps[4].path);
           await page.mouse.move(0, 0);
           await tooltip.waitFor({ state: "hidden" });
+          await page.getByRole("searchbox", { name: "Search apps" }).focus();
+          await page.keyboard.press("Tab");
+          await duplicate.focus();
+          assert.equal(await duplicate.evaluate(link => link === document.activeElement && getComputedStyle(link).outlineStyle === "solid"), true,
+            "Removing the tooltip border must preserve keyboard focus");
+          await page.keyboard.press("Escape");
+          await page.getByRole("searchbox", { name: "Search apps" }).focus();
           assert.equal(await page.getByRole("menuitem", { name: "Delete app" }).count(), 0);
           const search = page.getByRole("searchbox", { name: "Search apps" });
           await search.fill("PARAKEET");

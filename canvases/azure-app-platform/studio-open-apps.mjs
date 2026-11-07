@@ -86,6 +86,7 @@ export function mountStudioOpenApps(element, { toolkit, getAppPathLabels, ...pro
         .open-app-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 18px; overflow-wrap: anywhere; }
         .open-app-path { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--studio-muted); font-size: 12px; line-height: 18px; }
         .open-app-full-path { display: block; max-width: min(360px, calc(100vw - 40px)); overflow-wrap: anywhere; }
+        [role="tooltip"]:has(.open-app-full-path) { border: 0; }
         .open-app-delete { color: var(--studio-danger); }
         .open-app-empty { margin-top: 16px; }
         .open-app-recovery { margin-top: 16px; }
