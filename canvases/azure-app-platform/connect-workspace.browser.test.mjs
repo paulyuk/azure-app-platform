@@ -221,6 +221,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await model.waitFor();
         await content.getByRole("region", { name: "Model access", exact: true }).waitFor();
         await content.getByRole("region", { name: "Sandbox execution", exact: true }).waitFor();
+        for (const label of ["Azure subscription", "Sandbox subscription"]) {
+          await content.getByRole("button", { name: label, exact: true }).waitFor();
+          assert.equal(await content.getByRole("combobox", { name: label, exact: true }).count(), 0);
+        }
         assert.equal(await model.inputValue(), "gpt-latest");
         await model.selectOption("gpt-alternate");
         assert.equal(await content.getByRole("radio").count(), 0, "Sandbox execution is required, not an optional mode");
@@ -505,7 +509,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.deepEqual(commands, [
         { root: "/fixture/dealer", operation: "bootstrap-starter-gateway", subscriptionId: "sub-b" },
         { root: "/fixture/dealer", operation: "create-sandbox-group", subscriptionId: "sub-a",
-          resourceGroup: "rg-sub-b", location: "eastus2", sandboxGroupName: "aca-sandboxes-dealer" },
+          resourceGroup: "rg-sub-b", location: "eastus2", sandboxGroupName: "aca-sandboxes-dealer-ui-preview" },
         { root: "/fixture/dealer", operation: "onboard-gateway-models", subscriptionId: "sub-b",
           resourceGroup: "rg-sub-b", gatewayName: "sub-b-first" },
       ]);
