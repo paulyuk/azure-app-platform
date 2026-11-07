@@ -46,5 +46,6 @@ test("Copilot profile maps public toolkit hooks without private component select
   assert.doesNotMatch(styles, /--canvas-[\w-]+\s*:/, "Shared structural values must not be redefined in Unity");
   assert.doesNotMatch(styles, /\.ct-|#[\da-f]{3,8}\b|--(?:text-color|background-color|font-sans)\s*:/i);
   assert.doesNotMatch(styles, /:root\.studio-shared-presentation\s*\{[^}]*font-size:/);
+  assert.match(styles, /input\[type="search"\][^\n]*:not\(:where\(#studio-home \*\)\)/, "Home inputs retain canonical search-icon spacing");
   assert.equal(renderPresentationStyles("standalone"), "");
 });

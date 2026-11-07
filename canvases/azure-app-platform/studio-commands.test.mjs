@@ -1323,7 +1323,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     ]) {
       assert.equal(html.includes(label), true, `expected ${label}`);
     }
-    assert.match(html, /ActionCard, SectionHeader, WorkItem, Button, SymbolIcon/);
+    assert.match(html, /SectionHeader, WorkItem, Button, SymbolIcon, FilterToolbar, Disclosure, useState/);
     assert.doesNotMatch(html, /advanced-journey/);
     assert.match(html, /What would you like to do/);
     assert.equal(html.includes("renderLanding();"), true);

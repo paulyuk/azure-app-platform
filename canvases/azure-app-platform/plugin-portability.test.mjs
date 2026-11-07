@@ -141,7 +141,9 @@ test("installed payload opens and materializes templates without checkout depend
         } finally { await canvas.onClose({ instanceId: standaloneContext.instanceId }); }
         assert.equal(new URL(opened.url).searchParams.has("intro"), false);
         assert.doesNotMatch(html, /id="skip-studio-intro"/);
-        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg", "run-working-spot.svg"]) {
+        for (const name of ["app-platform-symbol.png", "app-platform-intro.mp4", "run-ready-spot.svg", "run-working-spot.svg",
+          "homepage-create.svg", "homepage-open.svg", "homepage-assemble.svg",
+          "homepage-create-dark.svg", "homepage-open-dark.svg", "homepage-assemble-dark.svg"]) {
           const assetUrl = new URL("/assets/" + name, opened.url);
           const asset = await fetch(assetUrl);
           const expected = await readFile(join(payload, "assets", name));
@@ -156,7 +158,8 @@ test("installed payload opens and materializes templates without checkout depend
               "Waiting illustration bytes must match the artwork extracted from PR #58");
           }
           assert.equal(asset.status, 200);
-          assert.equal(asset.headers.get("content-type"), name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "video/mp4");
+          assert.equal(asset.headers.get("content-type"), name.endsWith(".png") ? "image/png" : name.endsWith(".svg") ? "image/svg+xml" : "video/mp4");
+          assert.equal(asset.headers.get("x-content-type-options"), "nosniff");
           assert.equal(asset.headers.get("content-length"), String(expected.length));
           assert.deepEqual(Buffer.from(await asset.arrayBuffer()), expected);
           const head = await fetch(assetUrl, { method: "HEAD" });

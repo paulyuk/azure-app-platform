@@ -54,7 +54,7 @@ test("Unity branding and opening animation work in the browser", {
   const assertFinished = async (page, warning = "") => {
     await page.locator(".studio-intro").waitFor({ state: "detached" });
     await page.locator("#new-app").waitFor();
-    assert.equal(await page.locator("#new-app").evaluate((element) => element === document.activeElement), true);
+    assert.equal(await page.locator(".simple-home-task:focus").count(), 0, "Finishing the intro must not choose a starting point");
     assert.match(await page.locator(".studio-intro-notice").textContent(), new RegExp(warning));
     assert.deepEqual(await page.evaluate(() => ({
       paused: window.introVideo.paused, source: window.introVideo.getAttribute("src"),
@@ -121,6 +121,22 @@ test("Unity branding and opening animation work in the browser", {
       assert.equal(await page.locator("#new-app").evaluate((button) => button === document.activeElement), false);
       await page.keyboard.press("Escape");
       await assertFinished(page);
+    });
+    await scenario("intro dismissal restores a previously focused control without choosing a starting point", async (page) => {
+      await page.addInitScript(() => window.addEventListener("app-platform-home-ready", () => {
+        const button = document.createElement("button");
+        button.id = "prior-focus";
+        button.textContent = "Prior control";
+        document.body.append(button);
+        button.focus();
+      }, { once: true }));
+      await installToolkitRoutes(page);
+      await page.goto(`${base}/?intro=1`);
+      await page.waitForFunction(() => window.appPlatformReady);
+      await rememberVideo(page);
+      await page.getByRole("button", { name: "Skip", exact: true }).click();
+      await assertFinished(page);
+      assert.equal(await page.locator("#prior-focus").evaluate(element => element === document.activeElement), true);
     });
     await scenario("reduced motion never fetches the animation", async (page) => {
       let mediaRequests = 0;
@@ -194,11 +210,11 @@ test("Unity branding and opening animation work in the browser", {
 
           await page.goto(`${base}/?theme=${theme}`);
           await page.waitForFunction(() => window.appPlatformReady);
-          await page.waitForFunction(() => [...document.images].every((image) => image.complete && image.naturalWidth === 394));
+          await page.waitForFunction(() => [...document.querySelectorAll(".studio-site-nav img")].every((image) => image.complete && image.naturalWidth === 394));
           assert.equal(await page.locator(".studio-site-nav img").getAttribute("src"), "/assets/app-platform-symbol.png");
           assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
           assert.equal(await page.getByRole("button", { name: "App home" }).isVisible(), true);
-          assert.equal(await page.locator("img:visible").count(), 1);
+          assert.equal(await page.locator(".studio-site-nav img:visible").count(), 1);
           assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
           assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
           if (width === 400) {
@@ -217,7 +233,7 @@ test("Unity branding and opening animation work in the browser", {
           assert.ok(Math.abs(utilities.x + utilities.width - nav.x - nav.width + 16) < 1, "Utilities remain right-aligned within header padding");
           assert.equal(await page.locator(".studio-tagline").count(), 0);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-          const images = await page.locator("img").evaluateAll((images) => images.map((image) => ({
+          const images = await page.locator(".studio-site-nav img").evaluateAll((images) => images.map((image) => ({
             fit: getComputedStyle(image).objectFit,
             ratio: image.getBoundingClientRect().width / image.getBoundingClientRect().height,
           })));
