@@ -1325,7 +1325,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     }
     assert.match(html, /SectionHeader, WorkItem, Button, SymbolIcon, FilterToolbar, Disclosure, useState/);
     assert.doesNotMatch(html, /advanced-journey/);
-    assert.match(html, /What would you like to work on/);
+    assert.match(html, /What would you like to do/);
     assert.equal(html.includes("renderLanding();"), true);
     assert.equal(html.includes('request("/api/discovery?azure=true")'), true);
     assert.equal(html.includes("inventory"), true);
