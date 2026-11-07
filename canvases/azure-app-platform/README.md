@@ -26,9 +26,10 @@ still requires confirmation and only removes the local worktree and its
 Canvas-created branch, not Azure resources.
 When no apps are found, **Create an app** opens the existing template-selection
 flow from a centered welcome with a decorative, editable Azure-style SVG pair.
-The same laptop, starter app, and connected add tile use soft neutral housing in
-light mode and deep-blue housing with adapted lighting in dark mode. Blue/teal
-app details and the warm add tile retain their meaning across themes.
+The same code window, original raised code brackets, and circular add control
+use opaque neutral housing and blue accents resolved from the Canvas's light/dark
+tokens. The add control overlaps the upper-right corner without covering the code.
+Source geometry, directional gradients, and adapted vector lighting are retained.
 Scoped `--open-app-art-light-display` / `--open-app-art-dark-display` tokens select
 the complete material, using host `data-theme-tone`, then `data-color-mode`,
 with the product's `data-studio-theme` as fallback. Standalone uses its product

@@ -151,9 +151,14 @@ for (const engine of ["chromium", "webkit"]) {
                   }
                   const liveIds = [...document.querySelectorAll("[id]")].map(node => node.id);
                   const parent = welcome.getBoundingClientRect(), bounds = svg.getBBox();
-                  const stops = suffix => [...svg.querySelectorAll(`[id$="-${suffix}"] > stop`)].map(node => [
-                    node.getAttribute("stop-color"), node.getAttribute("stop-opacity"),
-                  ]);
+                  const code = [...svg.querySelectorAll("use")].find(node =>
+                    (node.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "").endsWith("-stroke1_0_1"));
+                  const add = svg.querySelector('g[id$="-code-window-add-control"]');
+                  const codeBounds = code.getBoundingClientRect(), addBounds = add.getBoundingClientRect();
+                  const stops = node => {
+                    const id = node.getAttribute("fill").match(/^url\(#([^)]+)\)$/)[1];
+                    return [...svg.querySelectorAll(`[id="${id}"] > stop`)].map(stop => stop.getAttribute("stop-color"));
+                  };
                   return {
                     geometry: [...welcome.children].map(node => {
                       const rect = node.getBoundingClientRect();
@@ -162,7 +167,12 @@ for (const engine of ["chromium", "webkit"]) {
                     silhouette: [...svg.querySelectorAll("path, rect, g[transform]")].map(node => [
                       node.tagName, ...["d", "x", "y", "width", "height", "rx", "transform"].map(name => node.getAttribute(name)),
                     ]),
-                    shell: stops("shell"), blue: stops("blue"), warm: stops("warm"),
+                    shell: stops(svg.querySelector('rect[x="32"][y="64"]')),
+                    blue: stops(code),
+                    plusFill: add.querySelector("path").getAttribute("fill"),
+                    codePath: svg.querySelector('path[id$="-stroke1_0_1"]').getAttribute("d"),
+                    plusPath: add.querySelector("path").getAttribute("d"),
+                    addDoesNotCoverCode: addBounds.bottom <= codeBounds.top,
                     overflow: document.documentElement.scrollWidth > innerWidth,
                     xmlErrors: xml.querySelectorAll("parsererror").length,
                     duplicateIds: ids.length !== new Set(ids).size || liveIds.length !== new Set(liveIds).size,
@@ -192,9 +202,14 @@ for (const engine of ["chromium", "webkit"]) {
                 assert.ok(observed.lighting > 0 && observed.gradients > 0, "Azure materials retain vector lighting");
                 assert.equal(observed.filteredMaterials, 0, "Separate bevel overlays avoid WebKit banding on material gradients");
                 assert.equal(observed.artInBounds, true);
-                assert.deepEqual(observed.shell.map(stop => stop[0]), tone === "light" ? ["#F4F3F5", "#E8E6DF"] : ["#2A446F", "#091F2C"]);
-                assert.deepEqual(observed.blue.map(stop => stop[0]), ["#49C5B1", "#0078D4", "#0078D4"]);
-                assert.deepEqual(observed.warm.map(stop => stop[0]), ["#FFE399", "#FFB900"]);
+                assert.notEqual(observed.shell[0], observed.shell.at(-1), "Neutral housing retains directional material shading");
+                assert.ok(observed.blue.includes(tone === "light" ? "#0969da" : "#79b8ff"), "Code material retains the resolved Canvas accent");
+                assert.equal(observed.plusFill, tone === "light" ? "#ffffff" : "#0d1117");
+                assert.equal(createHash("sha256").update(observed.codePath).digest("hex"),
+                  "96d7d246bc92c0d2ff49c7d7e3562d024cf97f18b7abbada7f505980bba1b9f7", "Original code geometry is unchanged");
+                assert.equal(createHash("sha256").update(observed.plusPath).digest("hex"),
+                  "1dcedd041ca8f00898bba518909eeb884433ee1b40636b5c0955a5f9609331eb", "The supplied rounded plus is unchanged");
+                assert.equal(observed.addDoesNotCoverCode, true);
                 if (width === 620) silhouettes.push(observed.silhouette);
               }
               if (!output) continue;
