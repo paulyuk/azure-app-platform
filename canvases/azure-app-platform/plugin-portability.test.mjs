@@ -417,6 +417,27 @@ test("installed payload opens and materializes templates without checkout depend
           await discontinued.arrayBuffer();
         }
         assert.equal(await readFile("src/agent/prompts/system.md", "utf8"), "Use the tool.\\n\\n");
+        const notAnApp = await api("/api/rename-app", { root: ".", name: "Not an app" });
+        assert.equal(notAnApp.status, 400);
+        assert.match((await notAnApp.json()).error, /not a discovered app/);
+        await writeFile("azure-app.yaml", "capabilities:\\n  agent:\\n    path: src/agent\\n");
+        await mkdir(".azure-app-platform", { recursive: true });
+        const originalIdentity = { name: "Original app", runtime: { agentPort: 8088 }, managedBranch: "keep-branch" };
+        await writeFile(".azure-app-platform/app.json", JSON.stringify(originalIdentity));
+        const renameUnauthorized = await api("/api/rename-app", { root: "src/agent", name: "No access" });
+        assert.equal(renameUnauthorized.status, 403);
+        assert.match((await renameUnauthorized.json()).error, /authorized app workspace/);
+        const invalidRename = await api("/api/rename-app", { root: ".", name: "../escape" });
+        assert.equal(invalidRename.status, 400);
+        assert.deepEqual(JSON.parse(await readFile(".azure-app-platform/app.json", "utf8")), originalIdentity);
+        const renamedApp = await api("/api/rename-app", { root: ".", name: "Renamed app" });
+        const renamedResult = await renamedApp.json();
+        assert.equal(renamedApp.status, 200, JSON.stringify(renamedResult));
+        assert.equal(renamedResult.name, "Renamed app");
+        assert.deepEqual(JSON.parse(await readFile(".azure-app-platform/app.json", "utf8")),
+          { ...originalIdentity, name: "Renamed app" });
+        const renamedCatalog = await api("/api/sources");
+        assert.equal((await renamedCatalog.json()).apps.find(app => app.path === process.cwd()).name, "Renamed app");
         const mapUrl = new URL("/app-map", opened.url);
         mapUrl.searchParams.set("root", ".");
         mapUrl.searchParams.set("token", token);
@@ -425,6 +446,7 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /data-studio-presentation="github-app"/);
         assert.match(mapHtml, /Building block actions/);
+        assert.match(mapHtml, /id="app-title" title="Renamed app">Renamed app/);
         assert.match(mapHtml, /aria-label="Preferred external editor"/);
         assert.doesNotMatch(mapHtml, /build-help-tooltip|Build your app/);
         assert.doesNotMatch(mapHtml, /About these customization points/);

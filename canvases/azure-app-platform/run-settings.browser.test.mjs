@@ -1,13 +1,76 @@
 import { installToolkitRoutes } from "./toolkit-test-fixture.mjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
 import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
-let chromium;
-try { ({ chromium } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+let chromium, webkit;
+try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+
+for (const [engine, browserType] of [["chromium", chromium], ["webkit", webkit]]) {
+  test(`App General settings rename through the shared dialog in ${engine}`, {
+    skip: !browserType && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture({ presentationProfile: "github-app" });
+    const browser = await browserType.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 850 } });
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await installToolkitRoutes(page);
+      await page.goto(fixture.origin + "/app-map");
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+      await settings.locator("[data-settings-navigation]").selectOption("general");
+      await settings.getByRole("button", { name: "Rename app", exact: true }).waitFor();
+      const evidence = process.env.OPEN_APPS_EVIDENCE_DIR;
+      if (evidence) {
+        await mkdir(evidence, { recursive: true });
+        await page.screenshot({ path: join(evidence, `after-${engine}-light-380-general-settings.png`) });
+      }
+      await settings.getByRole("button", { name: "Rename app", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Rename app", exact: true });
+      const input = dialog.getByRole("textbox", { name: "App name", exact: true });
+      await dialog.waitFor();
+      assert.equal(await dialog.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        return Math.abs(box.x + box.width / 2 - innerWidth / 2) <= 1
+          && Math.abs(box.y + box.height / 2 - innerHeight / 2) <= 1;
+      }), true);
+      await input.fill("My renamed app");
+      fixture.state.renameError = true;
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await dialog.getByRole("alert").getByText("Could not rename app: App is busy.", { exact: true }).waitFor();
+      assert.equal(await page.locator("#app-title").textContent(), "Dealer · UI preview");
+      fixture.state.renameError = false;
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      await page.getByRole("heading", { name: "My renamed app", exact: true }).waitFor();
+      assert.equal(await page.locator("#app-title").textContent(), "My renamed app");
+      assert.equal(await page.locator("#app-title").getAttribute("title"), "My renamed app");
+      assert.equal(await settings.locator("[data-settings-navigation]").inputValue(), "general");
+      assert.equal(await settings.locator(".studio-settings-app-name").textContent(), "This app · My renamed app");
+      assert.equal(await settings.getByRole("button", { name: "Rename app", exact: true }).evaluate(node => node === document.activeElement), true);
+      assert.equal(fixture.state.app, "running", "Renaming a running app does not restart it");
+      await settings.getByRole("button", { name: "Close settings" }).click();
+      const reopened = await browser.newPage({ viewport: { width: 380, height: 850 } });
+      reopened.on("pageerror", error => errors.push(error.message));
+      await installToolkitRoutes(reopened);
+      await reopened.goto(fixture.origin + "/app-map");
+      await reopened.getByRole("heading", { name: "My renamed app", exact: true }).waitFor();
+      assert.deepEqual(fixture.mutations.map(item => item.path), ["/api/rename-app", "/api/rename-app"]);
+      assert.deepEqual(fixture.mutations.map(item => item.body), Array(2).fill({ root: "/fixture/dealer", name: "My renamed app" }));
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser.close();
+      await fixture.close();
+    }
+  });
+}
 
 test("First-time setup clearly offers connection, preserves preview, and never configures on inspection", {
   skip: !chromium && "Install src/web dependencies to run browser coverage.",

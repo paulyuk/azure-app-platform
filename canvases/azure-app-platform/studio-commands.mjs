@@ -7,6 +7,7 @@ export {
   buildConnectionRequestPrompt,
   buildWorkspaceRequestPrompt,
   deleteAppWorkspace,
+  renameAppWorkspace,
   normalizeCapabilityRequest,
   normalizeConnectionRequest,
   normalizeWorkspaceRequest,

@@ -29,6 +29,7 @@ import { createStudioNotices } from "./studio-notice.mjs";
 import { createStudioToolkitComponents, STUDIO_FILTERABLE_DROPDOWN_CSS } from "./studio-toolkit-components.mjs";
 import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
 import { defaultSandboxGroupName } from "./sandbox-group-config.mjs";
+import { showAppRenameDialog } from "./app-rename-dialog.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -4084,6 +4085,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderAppSettingsSection(section, container) {
+      if (section === "general") {
+        const title = document.querySelector("#app-title");
+        appendText(container, "h3", "App name");
+        appendText(container, "p", title.textContent);
+        appendText(container, "p", "Changing the display name does not rename the folder, Git names, or Azure resources.");
+        buttons.append(container, actionButton("Rename app", async event => {
+          const renamed = await (${showAppRenameDialog.toString()})({
+            root: MODEL.root, name: title.textContent, request: apiRequest, buttons,
+            returnFocus: event.currentTarget,
+          });
+          if (renamed === null) return;
+          title.textContent = renamed;
+          title.title = renamed;
+          window.appPlatformSettings.setAppName(renamed);
+          setStatus("App renamed.");
+        }));
+        return;
+      }
       if (section === "prereqs") { renderPrerequisitesSettings(container); return; }
       if (section === "ports") { renderPortControls(container); return; }
       if (section === "danger") { renderDeleteSettings(container); return; }

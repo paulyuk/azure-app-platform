@@ -34,7 +34,7 @@ for (const engine of ["chromium", "webkit"]) {
       browser = await playwright[engine].launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
       const page = await browser.newPage({ reducedMotion: "reduce" });
       page.setDefaultTimeout(5000);
-      const errors = [], deletions = [];
+      const errors = [], deletions = [], renames = [];
       page.on("pageerror", error => errors.push(error.message));
       const initialApps = [
         { name: "alexbritez-microsoft-animated-waffle", path: "C:\\projects\\customer-portal" },
@@ -46,7 +46,7 @@ for (const engine of ["chromium", "webkit"]) {
         { name: "Document helper <draft>", path: "C:\\projects\\document-helper" },
       ].map((app, index) => ({ ...app, capabilityIds: index === 6 ? ["agent"] : ["web", "agent", "skills", "sandbox", "gateway", "workflows"],
         lastOpenedAt: index === 0 ? "2026-11-06T16:46:28Z" : null }));
-      let apps = [...initialApps], failDelete = false, failSources = false, sourceRequests = 0;
+      let apps = [...initialApps], failDelete = false, failRename = false, failSources = false, sourceRequests = 0;
       await page.route("**/api/**", route => {
         const path = new URL(route.request().url()).pathname;
         if (path === "/api/sources") {
@@ -59,6 +59,13 @@ for (const engine of ["chromium", "webkit"]) {
           if (failDelete) return route.fulfill({ status: 409, json: { error: "Worktree is in use." } });
           apps = apps.filter(app => app.path !== body.root);
           return route.fulfill({ json: {} });
+        }
+        if (path === "/api/rename-app") {
+          const body = route.request().postDataJSON();
+          renames.push(body);
+          if (failRename) return route.fulfill({ status: 409, json: { error: "App is busy." } });
+          apps = apps.map(app => app.path === body.root ? { ...app, name: body.name } : app);
+          return route.fulfill({ json: { name: body.name } });
         }
         const json = path === "/api/sources" ? { roots: [], apps, templates: [EMPTY_TEMPLATE] }
           : path === "/api/editor-settings" ? DEFAULT_EDITOR_SETTINGS
@@ -354,6 +361,62 @@ for (const engine of ["chromium", "webkit"]) {
         await captureEmpty();
         return;
       }
+      for (const tone of ["light", "dark"]) {
+        theme = tone;
+        await page.setViewportSize({ width: 380, height: 900 });
+        await page.goto(origin);
+        await page.locator("#open-app").click();
+        await page.locator("[data-app-actions]").first().click();
+        assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Rename app", "Delete app"]);
+        if (output) await page.screenshot({ path: join(output, `after-${engine}-${tone}-380-menu.png`) });
+        await page.getByRole("menuitem", { name: "Rename app", exact: true }).click();
+        const dialog = page.getByRole("dialog", { name: "Rename app", exact: true });
+        await dialog.waitFor();
+        assert.equal(await dialog.evaluate(node => {
+          const box = node.getBoundingClientRect();
+          return Math.abs(box.x + box.width / 2 - innerWidth / 2) <= 1
+            && Math.abs(box.y + box.height / 2 - innerHeight / 2) <= 1;
+        }), true, "Rename dialogs stay centered despite page-wide CSS resets");
+        const input = dialog.getByRole("textbox", { name: "App name", exact: true });
+        assert.equal(await input.inputValue(), initialApps[0].name);
+        assert.equal(await input.evaluate(node => node === document.activeElement), true);
+        if (output) await page.screenshot({ path: join(output, `after-${engine}-${tone}-380-rename.png`) });
+        await input.fill("Not saved");
+        await page.keyboard.press("Tab");
+        assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true);
+        await page.keyboard.press("Escape");
+        await dialog.waitFor({ state: "hidden" });
+        assert.equal(renames.length, 0);
+        assert.equal(await page.locator("[data-app-actions]").first().evaluate(node => node === document.activeElement), true);
+      }
+      await page.setViewportSize({ width: 320, height: 900 });
+      await page.locator("[data-app-actions]").first().click();
+      await page.getByRole("menuitem", { name: "Rename app", exact: true }).click();
+      const renameDialog = page.getByRole("dialog", { name: "Rename app", exact: true });
+      const renameInput = renameDialog.getByRole("textbox", { name: "App name", exact: true });
+      await renameInput.fill("");
+      await renameDialog.getByRole("button", { name: "Save", exact: true }).click();
+      assert.equal(renames.length, 0);
+      await renameInput.fill("My renamed app");
+      failRename = true;
+      await renameDialog.getByRole("button", { name: "Save", exact: true }).click();
+      await renameDialog.getByRole("alert").getByText("Could not rename app: App is busy.", { exact: true }).waitFor();
+      assert.equal(await renameInput.inputValue(), "My renamed app");
+      assert.equal(await renameInput.isEnabled(), true);
+      assert.equal(await page.locator(".open-app-name").first().textContent(), initialApps[0].name);
+      assert.equal(await renameDialog.evaluate(node => node.scrollWidth <= node.clientWidth), true);
+      failRename = false;
+      await renameDialog.getByRole("button", { name: "Save", exact: true }).click();
+      await renameDialog.waitFor({ state: "hidden" });
+      await page.getByRole("link", { name: "My renamed app", exact: true }).waitFor();
+      assert.equal(await page.locator(".open-app-name").first().textContent(), "My renamed app");
+      assert.equal(await page.locator("[data-existing-app]").first().getAttribute("data-existing-app"), initialApps[0].path);
+      assert.deepEqual(renames, Array(2).fill({ root: initialApps[0].path, name: "My renamed app" }));
+      await page.getByRole("searchbox", { name: "Search apps" }).fill("My renamed app");
+      assert.equal(await page.locator("[data-existing-app]").count(), 1);
+      await page.goto(origin);
+      await page.locator("#open-app").click();
+      await page.getByRole("link", { name: "My renamed app", exact: true }).waitFor();
       const longPath = "C:\\Users\\developer\\.copilot\\repos\\copilot-worktrees\\workspace-with-a-long-folder-name\\document-helper";
       apps = [{ ...initialApps[6], path: longPath }];
       await page.setViewportSize({ width: 320, height: 900 });

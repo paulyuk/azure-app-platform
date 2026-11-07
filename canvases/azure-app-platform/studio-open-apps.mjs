@@ -21,7 +21,7 @@ export function getAppPathLabels(paths) {
 export function mountStudioOpenApps(element, { toolkit, getAppPathLabels, ...props }) {
   const { createElement: h, mountCanvasComponent, useState, useRef, Button, TextInput, MenuButton, MenuItem, Tooltip } = toolkit;
 
-  function AppRow({ app, pathLabel, appHref, onDelete, disabled }) {
+  function AppRow({ app, pathLabel, appHref, onRename, onDelete, disabled }) {
     const trigger = useRef(null);
     return h("li", { className: "open-app-row" },
       h(Tooltip, { content: h("span", { className: "open-app-full-path" }, app.path) },
@@ -50,11 +50,12 @@ export function mountStudioOpenApps(element, { toolkit, getAppPathLabels, ...pro
           icon: h("span", { "aria-hidden": true }, "\u22ef"),
           "aria-label": "More actions for " + app.name, "data-app-actions": app.path,
         },
-      }, h(MenuItem, { onClick: () => onDelete(app.path, app.name, trigger.current) },
+      }, h(MenuItem, { onClick: () => onRename(app.path, app.name, trigger.current) }, "Rename app"),
+      h(MenuItem, { onClick: () => onDelete(app.path, app.name, trigger.current) },
         h("span", { className: "open-app-delete" }, "Delete app"))));
   }
 
-  function OpenApps({ apps, initialSearch = "", onSearchChange, appHref, onDelete, onCreate, onRetry, emptyIllustrations, loadError = null, disabled = false }) {
+  function OpenApps({ apps, initialSearch = "", onSearchChange, appHref, onRename, onDelete, onCreate, onRetry, emptyIllustrations, loadError = null, disabled = false }) {
     const [query, setQuery] = useState(initialSearch);
     const search = useRef(null);
     const pathLabels = getAppPathLabels(apps.map(app => app.path));
@@ -128,7 +129,7 @@ export function mountStudioOpenApps(element, { toolkit, getAppPathLabels, ...pro
           h("div", { className: "open-app-count", role: "status", "aria-live": "polite", "aria-atomic": true },
             query.trim() ? filtered.length + " of " + apps.length + " apps" : apps.length + (apps.length === 1 ? " app" : " apps")),
           h("ul", { className: "open-app-list", id: "open-app-list" },
-            ...filtered.map(app => h(AppRow, { key: app.path, app, pathLabel: pathLabels.get(app.path), appHref, onDelete, disabled }))),
+            ...filtered.map(app => h(AppRow, { key: app.path, app, pathLabel: pathLabels.get(app.path), appHref, onRename, onDelete, disabled }))),
           filtered.length === 0 ? h("p", { className: "open-app-empty" }, "No apps match your search.") : null));
   }
   return mountCanvasComponent(element, OpenApps, props);

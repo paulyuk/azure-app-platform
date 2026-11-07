@@ -23,7 +23,13 @@ Existing apps use the same header with Back/Forward before the logo.
 short distinct folder path. Full worktree paths appear
 on hover or keyboard focus and remain the source for search, opening, and deletion.
 Search filters by name or full path.
-Each row's right-aligned three-dot menu contains **Delete app**; deletion
+Each row's right-aligned three-dot menu contains **Rename app** and **Delete app**.
+Renaming is also available in **Settings → This app → General**. Both entry
+points use the same name dialog and save the display name in
+`.azure-app-platform/app.json`, preserving other app metadata. Renaming does not
+move the folder or change Git names, generated app content, or Azure resources.
+Older apps without identity metadata receive a saved display name on rename.
+Deletion
 still requires confirmation and only removes the local worktree and its
 Canvas-created branch, not Azure resources.
 When no apps are found, **Create an app** opens the existing template-selection

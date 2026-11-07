@@ -25,7 +25,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
   const state = {
     app: "running", operation: null, error: "", theme: "light", configured: true, gatewayAvailable: true,
     outputError: false, preferenceError: false, deleteError: false, documentInput: false,
-    health: "Healthy", editorId: "vscode", commands: [],
+    health: "Healthy", editorId: "vscode", commands: [], appName: "Dealer · UI preview", renameError: false,
     lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
   };
   const mutations = [];
@@ -39,7 +39,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
         return;
       }
       if (path === "/app-map" || path === "/preview") {
-        let html = renderInteractiveAppMapHtml(graph, { apiToken: "fixture", appName: "Dealer · UI preview", theme: state.theme, presentationProfile });
+        let html = renderInteractiveAppMapHtml(graph, { apiToken: "fixture", appName: state.appName, theme: state.theme, presentationProfile });
         if (preview) html = html.replace("</body>", `<script>
           window.addEventListener("app-platform-ready", () => {
             document.querySelector("#manage-app").click();
@@ -58,7 +58,11 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
       const body = input ? JSON.parse(input) : null;
       if (request.method === "POST") mutations.push({ path, body });
       let result;
-      if (path === "/api/editor-settings") {
+      if (path === "/api/rename-app") {
+        if (state.renameError) throw new Error("App is busy.");
+        state.appName = body.name;
+        result = { name: state.appName };
+      } else if (path === "/api/editor-settings") {
         if (body) state.editorId = body.editorId;
         result = { editorId: state.editorId, editors };
       } else if (path === "/api/preferences") {

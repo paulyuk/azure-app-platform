@@ -34,6 +34,7 @@ import {
   buildImplementationInventory,
   discoverUnityPlatform,
   deleteAppWorkspace,
+  renameAppWorkspace,
   getPlatformOverview,
   openWorkspaceInVsCode,
   requestAppWorkspace,
@@ -2388,6 +2389,24 @@ if ($firstModelId) {
         return;
       }
       throw new Error("Unknown app command.");
+    }
+    if (request.method === "POST" && url.pathname === "/api/rename-app") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        const error = new Error("Only an authorized app workspace can be renamed.");
+        error.statusCode = 403;
+        throw error;
+      }
+      releaseAppMutation = reserveAppMutation(root);
+      const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
+      if (!catalog.apps.some(app => app.path === root)) {
+        const error = new Error("The selected path is not a discovered app.");
+        error.statusCode = 400;
+        throw error;
+      }
+      sendJson(response, 200, await renameAppWorkspace({ root, name: input.name }));
+      return;
     }
     if (request.method === "POST" && url.pathname === "/api/delete-app") {
       const input = await readJsonBody(request);

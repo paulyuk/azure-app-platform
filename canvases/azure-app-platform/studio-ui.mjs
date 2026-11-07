@@ -10,6 +10,7 @@ import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.m
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
 import { getAppPathLabels, mountStudioOpenApps } from "./studio-open-apps.mjs";
+import { showAppRenameDialog } from "./app-rename-dialog.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 const OPEN_APP_EMPTY_ILLUSTRATIONS = Object.fromEntries(["light", "dark"].map(theme => [
@@ -585,6 +586,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
       }
 
+      async function renameApp(root, name, returnFocus) {
+        const renamed = await (${showAppRenameDialog.toString()})({ root, name, returnFocus, request, buttons });
+        if (renamed === null) return;
+        const item = sources?.apps.find(app => app.path === root);
+        if (item) item.name = renamed;
+        renderExistingApps();
+        const trigger = [...document.querySelectorAll("[data-app-actions]")]
+          .find(button => button.dataset.appActions === root);
+        (trigger || document.querySelector('[aria-label="Search apps"]')).focus({ preventScroll: true });
+        clearStatus("App renamed.");
+      }
+
       async function deleteApp(root, appName, returnFocus) {
         if (!await askDeleteConfirmation(appName, returnFocus)) return;
         setBusy(true, "Deleting app worktree…");
@@ -672,7 +685,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
           onSearchChange: value => { existingAppSearch = value; },
           appHref: root => "/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken),
-          onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
+          onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
         });
         wireTopBack(renderLanding);
       }
