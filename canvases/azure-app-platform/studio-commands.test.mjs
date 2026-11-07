@@ -1358,11 +1358,11 @@ test("app selection and creation route directly to the app workspace", () => {
   for (const expected of [
     'function openAppMap(root, notice = "")',
     'location.assign("/app-map?root="',
-    'openAppMap(button.dataset.existingApp)',
+    'appHref: root => "/app-map?root=" + encodeURIComponent(root)',
     'openAppMap(result.worktreePath, result.editorWarning)',
     'if (result.worktreePath)',
     "Assembly started. The app will appear here when its isolated workspace is ready.",
-    "Select one to build, run, or inspect it, with an optional Guide",
+    "Select an app to build, run, or inspect.",
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { PLATFORM_TIERS } from "./tier-definitions.mjs";
 import { mountStudioHeader } from "./studio-header.mjs";
 import { renderStudioIntro, renderStudioIntroStyles, renderStudioIntroClientScript } from "./studio-intro.mjs";
@@ -8,7 +9,15 @@ import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
+import { mountStudioOpenApps } from "./studio-open-apps.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
+
+const OPEN_APP_EMPTY_ILLUSTRATIONS = Object.fromEntries(["light", "dark"].map(theme => [
+  theme,
+  readFileSync(new URL(`./assets/open-app-empty-${theme}.svg`, import.meta.url), "utf8")
+    .replace('role="img"', 'aria-hidden="true" focusable="false"')
+    .replace(/ aria-labelledby="[^"]*"/, ""),
+]));
 
 function escapeHtml(value) {
   return String(value)
@@ -175,8 +184,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .capability-head .badge { margin-left: auto; flex: 0 0 auto; }
       .capability strong, .review-row strong { display: block; font-size: var(--canvas-body, 13px); line-height: 18px; font-weight: var(--font-weight-semibold, 600); }
       .capability small, .review-row small { display: block; color: var(--canvas-muted, var(--studio-muted)); font-size: 12px; line-height: 18px; font-weight: 400; }
-      .app-row { display: flex; align-items: center; gap: 10px; }
-      .app-row > [data-existing-app] { flex: 1; min-width: 0; text-align: left; }
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
       .icon-button svg { display: block; width: 16px; height: 16px; fill: currentColor; }
       .icon-button.danger { color: var(--fgColor-danger, #cf222e); }
@@ -409,10 +416,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
-      let homeHandle = null;
+      let homeHandle = null, openAppsHandle = null, existingAppSearch = "";
       function disposeView() {
         homeHandle?.dispose();
         homeHandle = null;
+        openAppsHandle?.dispose();
+        openAppsHandle = null;
         notices.dispose();
       }
       const notices = (${createStudioNotices.toString()})({
@@ -475,6 +484,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function setBusy(busy, message = "") {
         appBusy = busy;
+        openAppsHandle?.update({ disabled: busy });
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
           buttons.setDisabled(control, busy);
         });
@@ -540,7 +550,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         return "";
       }
 
-      function askDeleteConfirmation(appName) {
+      function askDeleteConfirmation(appName, returnFocus = document.activeElement) {
         return new Promise((resolve) => {
           const dialog = document.createElement("div");
           dialog.className = "confirm-backdrop";
@@ -554,6 +564,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           const close = (confirmed) => {
             buttons.clear(dialog);
             dialog.remove();
+            if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
             resolve(confirmed);
           };
           dialog.querySelector("#cancel-delete").addEventListener("click", () => close(false));
@@ -562,8 +573,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
       }
 
-      async function deleteApp(root, appName) {
-        if (!await askDeleteConfirmation(appName)) return;
+      async function deleteApp(root, appName, returnFocus) {
+        if (!await askDeleteConfirmation(appName, returnFocus)) return;
         setBusy(true, "Deleting app worktree…");
         try {
           await request("/api/delete-app", {
@@ -573,6 +584,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           sources = null;
           await loadSources();
           renderExistingApps();
+          setBusy(false);
           clearStatus("App worktree deleted. Azure resources were not changed.");
         } catch (cause) {
           error(cause.message);
@@ -628,40 +640,27 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       async function beginOpenApp() {
         try {
           await loadSources(true);
+          existingAppSearch = "";
           renderExistingApps();
         } catch (cause) {
-          error(cause.message);
+          renderExistingApps();
+          clearStatus();
         }
       }
 
       function renderExistingApps() {
         disposeView();
-        const apps = sources?.apps || [];
-        buttons.replace(app, topBack("Back to Home") + '<div class="step">Existing apps</div><h1>Open an app</h1>' +
-          '<p>Apps persist as repository and worktree pairs. Select one to build, run, or inspect it, with an optional Guide.</p>' +
-          (apps.length ? '<div class="choice-list">' + apps.map((item) =>
-            '<div class="choice source-option app-row"><button type="button" class="link" data-existing-app="' + escape(item.path) + '">' +
-            '<strong>' + escape(item.name) + '</strong><small>' + item.capabilityIds.length +
-            ' discovered tier(s)</small><small class="app-last-opened">' +
-            (item.lastOpenedAt
-              ? 'Last opened <time datetime="' + escape(item.lastOpenedAt) + '">' +
-                escape(new Date(item.lastOpenedAt).toLocaleString()) + '</time>'
-              : 'Last opened: Not recorded') +
-            '</small></button><button type="button" class="icon-button danger" data-delete-existing-app="' +
-            escape(item.path) + '" aria-label="Delete ' + escape(item.name) + '" title="Delete app">' +
-            ${JSON.stringify(renderOcticon("trash"))} + '</button></div>').join("") +
-            '</div>' : '<div class="notice">No existing runnable apps were found in the current Git worktrees.</div>') +
-          '');
+        const empty = !sourcesError && (sources?.apps || []).length === 0;
+        buttons.replace(app, topBack("Back to Home") + (empty ? "" :
+          '<h1>Open an app</h1><p>Select an app to build, run, or inspect.</p>') + '<div id="studio-open-apps"></div>');
+        openAppsHandle = (${mountStudioOpenApps.toString()})(document.getElementById("studio-open-apps"), {
+          toolkit, apps: sources?.apps || [], initialSearch: existingAppSearch, disabled: appBusy,
+          emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
+          onSearchChange: value => { existingAppSearch = value; },
+          appHref: root => "/app-map?root=" + encodeURIComponent(root) + "&token=" + encodeURIComponent(apiToken),
+          onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
+        });
         wireTopBack(renderLanding);
-        document.querySelectorAll("[data-existing-app]").forEach((button) => button.addEventListener("click", () => {
-          openAppMap(button.dataset.existingApp);
-        }));
-        document.querySelectorAll("[data-delete-existing-app]").forEach((button) => button.addEventListener("click", async (event) => {
-          event.stopPropagation();
-          const appRow = button.closest(".choice");
-          const appName = appRow?.querySelector("strong")?.textContent || "this app";
-          await deleteApp(button.dataset.deleteExistingApp, appName);
-        }));
       }
 
       function captureDetails() {

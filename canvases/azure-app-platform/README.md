@@ -19,6 +19,24 @@ name is **App home** (retained for non-breaking compatibility). Docs and the wor
 top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
+**Open an app** provides compact cards with the app name, worktree path,
+capability count, and last-opened date. Search filters by name or path.
+Each card's right-aligned three-dot menu contains **Delete app**; deletion
+still requires confirmation and only removes the local worktree and its
+Canvas-created branch, not Azure resources.
+When no apps are found, **Create an app** opens the existing template-selection
+flow from a centered welcome with a decorative, editable Azure-style SVG pair.
+The same laptop, starter app, and connected add tile use soft neutral housing in
+light mode and deep-blue housing with adapted lighting in dark mode. Blue/teal
+app details and the warm add tile retain their meaning across themes.
+Scoped `--open-app-art-light-display` / `--open-app-art-dark-display` tokens select
+the complete material, using host `data-theme-tone`, then `data-color-mode`,
+with the product's `data-studio-theme` as fallback. Standalone uses its product
+theme. Runtime theme changes update the art without following the OS preference,
+inverting colors, or changing the host's palette. Both SVGs ship with the plugin.
+A failed app lookup displays its error with **Retry**, rather than showing
+an empty inventory. Searches with no matches retain **Clear search**.
+
 ## ACA CLI installation
 
 The **Install aca CLI** action installs to `~/.local/bin` on macOS/Linux without

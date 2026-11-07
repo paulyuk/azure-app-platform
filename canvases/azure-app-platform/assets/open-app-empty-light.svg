@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="open-app-azure-light-title open-app-azure-light-description">
+  <title id="open-app-azure-light-title">Your next app - light material</title>
+  <desc id="open-app-azure-light-description">A softly rounded laptop holds a blue starter app, an open space for the next piece, and a connected warm add tile.</desc>
+  <defs>
+    <linearGradient id="open-app-azure-light-shell" x1="393" y1="59" x2="277" y2="355" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F3F5"/><stop offset="1" stop-color="#E8E6DF"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-deck" x1="378" y1="275" x2="257" y2="466" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F3F5"/><stop offset="1" stop-color="#E8E6DF"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-screen" x1="140" y1="100" x2="380" y2="269" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E1E9EB"/><stop offset="1" stop-color="#F4F6F5"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-trackpad" x1="160" y1="340" x2="270" y2="391" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DADDDC"/><stop offset="1" stop-color="#ECEDEA"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-hinge" x1="108" y1="292" x2="108" y2="294" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A7AFB2" stop-opacity=".65"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".45"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-slot" x1="290" y1="145" x2="356" y2="211" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E2E9E9"/><stop offset="1" stop-color="#EFF2F0"/>
+    </linearGradient>
+    <linearGradient id="open-app-azure-light-route" x1="234" y1="178" x2="408" y2="278" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#49C5B1"/><stop offset="1" stop-color="#0078D4"/>
+    </linearGradient>
+    <radialGradient id="open-app-azure-light-blue" cx="0" cy="0" r="1" gradientTransform="translate(219 136) rotate(126) scale(105 110)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#49C5B1"/><stop offset=".509543" stop-color="#0078D4"/><stop offset="1" stop-color="#0078D4"/>
+    </radialGradient>
+    <radialGradient id="open-app-azure-light-violet" cx="0" cy="0" r="1" gradientTransform="translate(180 227) rotate(-90) scale(73 91)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C03BC4" stop-opacity=".75"/><stop offset="1" stop-color="#C03BC4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="open-app-azure-light-warm" x1="376" y1="281" x2="435" y2="363" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE399"/><stop offset="1" stop-color="#FFB900"/>
+    </linearGradient>
+    <filter id="open-app-azure-light-shell-lighting" x="-12%" y="-16%" width="124%" height="132%" filterUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix" />
+<feFlood flood-opacity="0" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="2.6" dy="-2.6" />
+<feGaussianBlur stdDeviation="1.3" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+<feBlend mode="multiply" in2="shape" result="effect1_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="5.2" dy="-5.2" />
+<feGaussianBlur stdDeviation="7.800000000000001" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+<feBlend mode="multiply" in2="effect1_innerShadow_0_1" result="effect2_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="-1.3" dy="5.2" />
+<feGaussianBlur stdDeviation="1.9500000000000002" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0" />
+<feBlend mode="normal" in2="effect2_innerShadow_0_1" result="effect3_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dy="-2.6" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0" />
+<feBlend mode="normal" in2="effect3_innerShadow_0_1" result="effect4_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dy="1.3" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0" />
+<feBlend mode="normal" in2="effect4_innerShadow_0_1" result="effect5_innerShadow_0_1" />
+</filter>
+    <filter id="open-app-azure-light-tile-lighting" x="-12%" y="-16%" width="124%" height="132%" filterUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix" />
+<feFlood flood-opacity="0" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="1.6" dy="-1.6" />
+<feGaussianBlur stdDeviation="0.8" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+<feBlend mode="multiply" in2="shape" result="effect1_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="3.2" dy="-3.2" />
+<feGaussianBlur stdDeviation="4.800000000000001" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0" />
+<feBlend mode="multiply" in2="effect1_innerShadow_0_1" result="effect2_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dx="-0.8" dy="3.2" />
+<feGaussianBlur stdDeviation="1.2000000000000002" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0" />
+<feBlend mode="normal" in2="effect2_innerShadow_0_1" result="effect3_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dy="-1.6" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0" />
+<feBlend mode="normal" in2="effect3_innerShadow_0_1" result="effect4_innerShadow_0_1" />
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+<feOffset dy="0.8" />
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0" />
+<feBlend mode="normal" in2="effect4_innerShadow_0_1" result="effect5_innerShadow_0_1" />
+</filter>
+    <filter id="open-app-azure-light-contact" x="-14%" y="-14%" width="128%" height="140%" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="3"/><feGaussianBlur stdDeviation="3"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .10 0"/>
+    </filter>
+    <filter id="open-app-azure-light-inset" x="-10%" y="-15%" width="120%" height="130%" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="shape"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="1" dy="2"/><feGaussianBlur stdDeviation="2"/>
+      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .14 0"/>
+      <feBlend in2="shape" mode="multiply"/>
+    </filter>
+  </defs>
+
+  <g id="open-app-azure-light-subject">
+    <rect data-material="housing" x="112" y="76" width="300" height="222" rx="28" fill="url(#open-app-azure-light-shell)"/>
+    <rect x="112" y="76" width="300" height="222" rx="28" fill="#FFFFFF" filter="url(#open-app-azure-light-shell-lighting)"/>
+    <rect x="128" y="94" width="268" height="182" rx="18" fill="url(#open-app-azure-light-screen)"/>
+    <rect x="128" y="94" width="268" height="182" rx="18" fill="#FFFFFF" filter="url(#open-app-azure-light-inset)"/>
+    <path d="M112 282H412L384 407C381 421 371 429 356 429H81C68 429 60 419 64 406L92 304C96 290 101 282 112 282Z" fill="#FFFFFF" filter="url(#open-app-azure-light-contact)"/>
+    <path data-material="housing" d="M112 282H412L384 407C381 421 371 429 356 429H81C68 429 60 419 64 406L92 304C96 290 101 282 112 282Z" fill="url(#open-app-azure-light-deck)"/>
+    <path d="M112 282H412L384 407C381 421 371 429 356 429H81C68 429 60 419 64 406L92 304C96 290 101 282 112 282Z" fill="#FFFFFF" filter="url(#open-app-azure-light-shell-lighting)"/>
+    <path d="M108 292H396" stroke="url(#open-app-azure-light-hinge)" stroke-width="2" stroke-linecap="round"/>
+    <path d="M181 340H261C270 340 275 347 273 355L266 380C264 387 259 391 252 391H171C163 391 158 384 160 377L167 352C169 345 174 340 181 340Z" fill="url(#open-app-azure-light-trackpad)"/>
+    <path d="M181 340H261C270 340 275 347 273 355L266 380C264 387 259 391 252 391H171C163 391 158 384 160 377L167 352C169 345 174 340 181 340Z" fill="#FFFFFF" filter="url(#open-app-azure-light-inset)"/>
+  </g>
+  <g id="open-app-azure-light-connection" fill="none" stroke="url(#open-app-azure-light-route)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M234 178H284"/>
+    <path d="M324 217V244Q324 260 340 260H392Q408 260 408 278" stroke-dasharray="6 9"/>
+  </g>
+  <g id="open-app-azure-light-starter-app">
+    <rect x="156" y="139" width="78" height="78" rx="20" fill="url(#open-app-azure-light-blue)"/>
+    <rect x="156" y="139" width="78" height="78" rx="20" fill="url(#open-app-azure-light-violet)"/>
+    <rect x="156" y="139" width="78" height="78" rx="20" fill="#FFFFFF" filter="url(#open-app-azure-light-tile-lighting)"/>
+    <g fill="#FFFFFF">
+      <rect x="174" y="157" width="15" height="15" rx="4"/>
+      <rect x="201" y="157" width="15" height="15" rx="4"/>
+      <rect x="174" y="184" width="15" height="15" rx="4"/>
+      <rect x="201" y="184" width="15" height="15" rx="4"/>
+    </g>
+  </g>
+  <g id="open-app-azure-light-open-slot">
+    <rect x="284" y="139" width="78" height="78" rx="20" fill="url(#open-app-azure-light-slot)"/>
+    <rect x="284" y="139" width="78" height="78" rx="20" fill="#FFFFFF" filter="url(#open-app-azure-light-inset)"/>
+    <rect x="285" y="140" width="76" height="76" rx="19" stroke="#AABEC5" stroke-width="2" stroke-dasharray="5 8"/>
+  </g>
+  <g id="open-app-azure-light-new-piece">
+    <rect x="366" y="278" width="84" height="84" rx="24" fill="#FFFFFF" filter="url(#open-app-azure-light-contact)"/>
+    <rect x="366" y="278" width="84" height="84" rx="24" fill="url(#open-app-azure-light-warm)"/>
+    <rect x="366" y="278" width="84" height="84" rx="24" fill="#FFFFFF" filter="url(#open-app-azure-light-tile-lighting)"/>
+    <g transform="translate(408 320) scale(0.35) translate(-2994 -5563)">
+      <path d="M2994 5511C3000.63 5511 3006 5516.37 3006 5523V5551H3034C3040.63 5551 3046 5556.37 3046 5563C3046 5569.63 3040.63 5575 3034 5575H3006V5603C3006 5609.63 3000.63 5615 2994 5615C2987.37 5615 2982 5609.63 2982 5603V5575H2954C2947.37 5575 2942 5569.63 2942 5563C2942 5556.37 2947.37 5551 2954 5551H2982V5523C2982 5516.37 2987.37 5511 2994 5511Z" fill="#0078D4"/>
+    </g>
+  </g>
+</svg>
