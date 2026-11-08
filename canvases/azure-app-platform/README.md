@@ -19,16 +19,22 @@ name is **App home** (retained for non-breaking compatibility). Docs and the wor
 top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
-**Open an app** provides a simple, divider-free list with the app name and a
+**Open an app** and Home's **Recent apps** use the same compact, divider-free
+app-list component, with the app name and a
 parent folder and app folder, separated by bullets, expanding only when needed
 to distinguish locations. When recorded, a compact relative opening time follows
 (for example, `projects • app-name • opened 5m ago`) and refreshes each minute.
 Apps without a recorded opening time show only their folders. Full worktree paths appear
 on hover or keyboard focus and remain the source for search, opening, and deletion.
-Search filters by name or full path.
+Search filters by name or full path. Folder labels are disambiguated against
+the complete app inventory, so filtering or Home's five-app cap does not change
+an app's displayed identity. Home retains its recent-only list and existing order.
 Each row's right-aligned three-dot menu contains **Copy full path**, **Rename app**,
 and **Delete app**. Copying uses the exact full worktree path and reports success
-or clipboard failure.
+or clipboard failure. Renaming and deleting refresh the current list in place,
+retain its search, and return focus to the row's actions or the search field if
+the row is no longer visible. A deleted app is removed from the cached inventory
+even if the subsequent refresh fails; the refresh error is reported explicitly.
 Renaming is also available in **Settings → This app → General**. Both entry
 points use the same name dialog and save the display name in
 `.azure-app-platform/app.json`, preserving other app metadata. Renaming does not

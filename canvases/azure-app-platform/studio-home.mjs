@@ -1,5 +1,6 @@
-export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, onAssemble, onOpenRecent, recentApps = null, recentError = null, busy = false }) {
-  const { createElement: h, mountCanvasComponent, SectionHeader, WorkItem, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
+export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, onOpen, onAssemble, onOpenRecent,
+  appHref, onCopyPath, onRename, onDelete, appInventory = null, recentApps = null, recentError = null, busy = false }) {
+  const { createElement: h, mountCanvasComponent, SectionHeader, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
   const tasks = [
     { id: "new-app", title: "Create a new app", description: "Start with a template. Make it yours.", illustration: "create", onClick: onCreate },
     { id: "open-app", title: "Open an app", description: "Pick up where you left off.", illustration: "open", onClick: onOpen },
@@ -11,7 +12,8 @@ export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, o
     ["How is shared access governed?", "AI Gateway can govern access to shared models and tools. The controls that apply depend on your app's configuration; mapping a resource does not itself grant permission."],
     ["How do I check that things work?", "Review your connections, run a tool-backed task, and inspect the results and logs. These controls need to be configured and verified for each app."],
   ];
-  function AppPlatformHome({ busy: currentBusy = busy, recentApps: currentApps = recentApps, recentError: currentError = recentError } = {}) {
+  function AppPlatformHome({ busy: currentBusy = busy, recentApps: currentApps = recentApps,
+    appInventory: currentInventory = appInventory, recentError: currentError = recentError } = {}) {
     const [query, setQuery] = useState("");
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const visibleApps = (currentApps || []).filter(app =>
@@ -67,14 +69,6 @@ export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, o
         .simple-home-search { width: 100%; box-sizing: border-box; }
         .simple-home-search-toolbar { column-gap: 0; }
         .simple-home-results { display: grid; gap: 4px; margin-top: 8px; }
-        .simple-home .simple-home-recent-item { position: relative; flex-wrap: nowrap; padding: 12px; border: 0; border-radius: var(--canvas-radius-control, 6px); }
-        .simple-home-recent-item:has(button:enabled):hover { background: var(--canvas-hover); }
-        .simple-home-recent-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--canvas-radius-control, 6px); background: var(--canvas-tint); }
-        .simple-home .simple-home-recent-open.simple-home-recent-open { position: static; justify-content: flex-start; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--canvas-accent); text-align: start; font: inherit; }
-        .simple-home-recent-open::after { content: ""; position: absolute; inset: 0; border-radius: var(--canvas-radius-control, 6px); }
-        .simple-home-recent-item:hover .simple-home-recent-open:not(:disabled) { text-decoration: underline; }
-        .simple-home .simple-home-recent-open:focus-visible { outline: none; }
-        .simple-home-recent-open:focus-visible::after { outline: 2px solid var(--canvas-focus); outline-offset: 2px; }
         .simple-home-help { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--canvas-border); }
         .simple-home-questions { padding-inline-start: 16px; }
         .simple-home-questions p { margin: 0 0 12px; max-width: 620px; color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 20px; }
@@ -128,16 +122,9 @@ export function mountStudioHome(element, { toolkit, artwork, onCreate, onOpen, o
               ? h("p", null, "No recently viewed apps were found.")
               : visibleApps.length === 0
                 ? h("p", { role: "status" }, "No recent apps match. Try a different name or path.")
-                : visibleApps.map(app => h(WorkItem, {
-                key: app.path, className: "simple-home-recent-item", description: app.path,
-                title: h(Button, {
-                  className: "simple-home-recent-open", appearance: "subtle", type: "button",
-                  "data-recent-app": app.path, disabled: currentBusy,
-                  onClick: () => onOpenRecent(app.path), "aria-label": "Open " + app.name,
-                }, app.name),
-                icon: h("span", { className: "simple-home-recent-icon" }, h(SymbolIcon, { name: "file-code" })),
-                metadata: h("time", { dateTime: app.lastOpenedAt }, "Last opened " + new Date(app.lastOpenedAt).toLocaleString()),
-              })))),
+                : h(AppList, { apps: visibleApps, inventory: currentInventory || currentApps,
+                  itemAttribute: "data-recent-app", appHref, onOpen: onOpenRecent,
+                  onCopyPath, onRename, onDelete, disabled: currentBusy }))),
       h("aside", { className: "simple-home-help", "aria-label": "App guidance" },
         h(Disclosure, { title: "How apps work", keepMounted: true },
           h("div", { className: "simple-home-questions" },

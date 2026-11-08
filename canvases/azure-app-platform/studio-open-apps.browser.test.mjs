@@ -120,7 +120,7 @@ for (const engine of ["chromium", "webkit"]) {
           await page.mouse.move(0, 0);
           await page.getByRole("searchbox", { name: "Search apps" }).focus();
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-          const geometry = await page.locator(".open-app-row").evaluateAll(rows => rows.map(row => {
+          const geometry = await page.locator(".app-list-row").evaluateAll(rows => rows.map(row => {
             const rect = row.getBoundingClientRect();
             const menu = row.querySelector("[data-app-actions]").getBoundingClientRect();
             const style = getComputedStyle(row);
@@ -135,13 +135,13 @@ for (const engine of ["chromium", "webkit"]) {
           assert.ok(geometry.every(row => row.rightGap >= 0 && row.rightGap <= 9 && row.centeredMenu <= 1), JSON.stringify(geometry));
           assert.ok(geometry.every(row => row.borders.every(border => border === "0px")
             && row.borderRadius === "0px" && row.background === "rgba(0, 0, 0, 0)"), JSON.stringify(geometry));
-          assert.deepEqual(await page.locator(".open-app-path").allTextContents(), [
+          assert.deepEqual(await page.locator(".app-list-path").allTextContents(), [
             "projects \u2022 customer-portal", "projects \u2022 inventory-dashboard", "projects \u2022 support-assistant", "projects \u2022 review",
             "customer-app \u2022 source", "internal-app \u2022 source", "projects \u2022 document-helper",
           ]);
-          assert.equal(await page.locator(".open-app-row time").count(), 1);
-          assert.equal(await page.locator(".open-app-row time").innerText(), "\u2022 opened 5m ago");
-          assert.equal(await page.locator(".open-app-row time").getAttribute("datetime"), initialApps[0].lastOpenedAt);
+          assert.equal(await page.locator(".app-list-row time").count(), 1);
+          assert.equal(await page.locator(".app-list-row time").innerText(), "\u2022 opened 5m ago");
+          assert.equal(await page.locator(".app-list-row time").getAttribute("datetime"), initialApps[0].lastOpenedAt);
           assert.equal(await page.getByText(/^Opened /).count(), 0);
           assert.equal(await page.getByText("Opened: not recorded", { exact: true }).count(), 0);
           assert.equal(await page.getByText(/\d+ capabilit/).count(), 0);
@@ -182,7 +182,7 @@ for (const engine of ["chromium", "webkit"]) {
           await search.fill(" internal-app ");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 1);
           assert.equal(await page.locator("[data-existing-app]").getAttribute("data-existing-app"), initialApps[5].path);
-          assert.equal(await page.locator(".open-app-path").innerText(), "internal-app \u2022 source",
+          assert.equal(await page.locator(".app-list-path").innerText(), "internal-app \u2022 source",
             "Filtering must not change the displayed identity of same-name apps");
           await search.fill("C:\\projects");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 7);
@@ -429,13 +429,13 @@ for (const engine of ["chromium", "webkit"]) {
       await renameDialog.getByRole("alert").getByText("Could not rename app: App is busy.", { exact: true }).waitFor();
       assert.equal(await renameInput.inputValue(), "My renamed app");
       assert.equal(await renameInput.isEnabled(), true);
-      assert.equal(await page.locator(".open-app-name").first().textContent(), initialApps[0].name);
+      assert.equal(await page.locator(".app-list-name").first().textContent(), initialApps[0].name);
       assert.equal(await renameDialog.evaluate(node => node.scrollWidth <= node.clientWidth), true);
       failRename = false;
       await renameDialog.getByRole("button", { name: "Save", exact: true }).click();
       await renameDialog.waitFor({ state: "hidden" });
       await page.getByRole("link", { name: "My renamed app", exact: true }).waitFor();
-      assert.equal(await page.locator(".open-app-name").first().textContent(), "My renamed app");
+      assert.equal(await page.locator(".app-list-name").first().textContent(), "My renamed app");
       assert.equal(await page.locator("[data-existing-app]").first().getAttribute("data-existing-app"), initialApps[0].path);
       assert.deepEqual(renames, Array(2).fill({ root: initialApps[0].path, name: "My renamed app" }));
       await page.getByRole("searchbox", { name: "Search apps" }).fill("My renamed app");
@@ -450,7 +450,7 @@ for (const engine of ["chromium", "webkit"]) {
       await page.locator("#open-app").click();
       const longPathLink = page.locator("[data-existing-app]");
       await longPathLink.waitFor();
-      assert.equal(await page.locator(".open-app-path").innerText(), "workspace-with-a-long-folder-name \u2022 document-helper");
+      assert.equal(await page.locator(".app-list-path").innerText(), "workspace-with-a-long-folder-name \u2022 document-helper");
       await longPathLink.focus();
       const longPathTooltip = page.getByRole("tooltip");
       await longPathTooltip.waitFor();
