@@ -1543,7 +1543,7 @@ function authorizeApiRequest(request, url, apiToken, trustedHost) {
   }
 }
 
-async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots, presentationProfile) {
+async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots, presentationProfile, pendingSourceCatalogReads) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   let releaseAppMutation;
   let workspaceProgressStream = false;
@@ -1580,10 +1580,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/sources") {
-      const catalog = await listSourceCatalog({
-        workspaceRoot,
-        additionalRoots: [...authorizedRoots],
-      });
+      const additionalRoots = [...authorizedRoots];
+      const scope = JSON.stringify([workspaceRoot, [...additionalRoots].sort()]);
+      let pendingCatalog = pendingSourceCatalogReads.get(scope);
+      if (!pendingCatalog) {
+        pendingCatalog = listSourceCatalog({ workspaceRoot, additionalRoots }).finally(() => {
+          if (pendingSourceCatalogReads.get(scope) === pendingCatalog) {
+            pendingSourceCatalogReads.delete(scope);
+          }
+        });
+        pendingSourceCatalogReads.set(scope, pendingCatalog);
+      }
+      const catalog = await pendingCatalog;
       for (const root of catalog.roots) authorizedRoots.add(root.path);
       sendJson(response, 200, catalog);
       return;
@@ -2520,6 +2528,7 @@ if ($firstModelId) {
 async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const apiToken = randomUUID();
   const authorizedRoots = new Set();
+  const pendingSourceCatalogReads = new Map();
   let trustedHost;
   const server = createServer((request, response) => {
     void handleRequest(
@@ -2531,6 +2540,7 @@ async function startServer(instanceId, workspaceRoot, presentationProfile) {
       trustedHost,
       authorizedRoots,
       presentationProfile,
+      pendingSourceCatalogReads,
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

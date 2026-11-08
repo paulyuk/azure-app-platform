@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, join, normalize, resolve } from "node:path";
 
 import { discoverRepository, runCommand } from "./discovery.mjs";
 import { readAppLastOpened, sortAppsByLastOpened } from "./app-recency.mjs";
@@ -205,6 +205,42 @@ const TEMPLATE_TIER_ORDER = Object.freeze([
   "data",
 ]);
 
+const MAX_ROOT_INSPECTIONS = 2;
+const pendingRootInspections = [];
+let activeRootInspections = 0;
+let rootInspectionDrainScheduled = false;
+
+function drainRootInspections() {
+  if (rootInspectionDrainScheduled || activeRootInspections >= MAX_ROOT_INSPECTIONS || pendingRootInspections.length === 0) {
+    return;
+  }
+  rootInspectionDrainScheduled = true;
+  // Yield between inspection batches so loopback assets and other requests can run.
+  setImmediate(() => {
+    rootInspectionDrainScheduled = false;
+    while (activeRootInspections < MAX_ROOT_INSPECTIONS && pendingRootInspections.length > 0) {
+      const { inspect, resolve, reject } = pendingRootInspections.shift();
+      activeRootInspections += 1;
+      Promise.resolve().then(inspect).then(resolve, reject).finally(() => {
+        activeRootInspections -= 1;
+        drainRootInspections();
+      });
+    }
+  });
+}
+
+function withRootInspectionBudget(inspect) {
+  return new Promise((resolve, reject) => {
+    pendingRootInspections.push({ inspect, resolve, reject });
+    drainRootInspections();
+  });
+}
+
+function catalogPathKey(path) {
+  const normalized = normalize(path);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
 function sourceId(...values) {
   return createHash("sha256").update(values.join("\0")).digest("hex").slice(0, 20);
 }
@@ -372,14 +408,6 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
   };
 }
 
-async function canonicalPath(path) {
-  try {
-    return await realpath(path);
-  } catch {
-    return resolve(path);
-  }
-}
-
 async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots }) {
   const result = await commandRunner("git", [
     "-C",
@@ -391,31 +419,43 @@ async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoo
   if (!result.ok) {
     throw new Error(`Could not list Git worktrees: ${result.stderr || result.error || "unknown error"}`);
   }
-  const discovered = await Promise.all(parseWorktrees(result.stdout).map(async (worktree) => ({
-    ...worktree,
-    path: await canonicalPath(worktree.path),
-  })));
-  const knownPaths = new Set(discovered.map((worktree) => worktree.path));
+  const discovered = [];
+  const knownPaths = new Set();
+  for (const worktree of parseWorktrees(result.stdout)) {
+    try {
+      const path = await realpath(worktree.path);
+      const key = catalogPathKey(path);
+      if (knownPaths.has(key)) continue;
+      knownPaths.add(key);
+      discovered.push({ worktree: { ...worktree, path } });
+    } catch (error) {
+      discovered.push({ error });
+    }
+  }
   for (const path of additionalRoots) {
-    const candidatePath = await canonicalPath(path);
-    if (knownPaths.has(candidatePath)) {
-      continue;
+    try {
+      const canonicalPath = await realpath(path);
+      if (knownPaths.has(catalogPathKey(canonicalPath))) continue;
+      const worktree = await withRootInspectionBudget(async () => {
+        const topLevel = await commandRunner("git", ["-C", canonicalPath, "rev-parse", "--show-toplevel"]);
+        const sourceRoot = topLevel.ok ? await realpath(topLevel.stdout.trim()) : canonicalPath;
+        const key = catalogPathKey(sourceRoot);
+        if (knownPaths.has(key)) return null;
+        knownPaths.add(key);
+        const [commit, branch] = await Promise.all([
+          commandRunner("git", ["-C", sourceRoot, "rev-parse", "HEAD"]),
+          commandRunner("git", ["-C", sourceRoot, "branch", "--show-current"]),
+        ]);
+        return {
+          path: sourceRoot,
+          commit: commit.ok ? commit.stdout.trim() : null,
+          branch: branch.ok ? branch.stdout.trim() || null : null,
+        };
+      });
+      if (worktree) discovered.push({ worktree });
+    } catch (error) {
+      discovered.push({ error });
     }
-    const topLevel = await commandRunner("git", ["-C", candidatePath, "rev-parse", "--show-toplevel"]);
-    const sourceRoot = topLevel.ok ? await canonicalPath(topLevel.stdout.trim()) : candidatePath;
-    if (knownPaths.has(sourceRoot)) {
-      continue;
-    }
-    knownPaths.add(sourceRoot);
-    const [commit, branch] = await Promise.all([
-      commandRunner("git", ["-C", sourceRoot, "rev-parse", "HEAD"]),
-      commandRunner("git", ["-C", sourceRoot, "branch", "--show-current"]),
-    ]);
-    discovered.push({
-      path: sourceRoot,
-      commit: commit.ok ? commit.stdout.trim() : null,
-      branch: branch.ok ? branch.stdout.trim() || null : null,
-    });
   }
   return discovered;
 }
@@ -427,9 +467,10 @@ function isSourceApp(root) {
 export async function findSourceApp({ root, workspaceRoot = process.cwd(), commandRunner = runCommand }) {
   const resolvedRoot = await realpath(root);
   const worktrees = await listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots: [resolvedRoot] });
-  const worktree = worktrees.find(item => relative(resolvedRoot, item.path) === "");
+  const worktree = worktrees.find(item => item.worktree
+    && catalogPathKey(item.worktree.path) === catalogPathKey(resolvedRoot))?.worktree;
   if (!worktree) return null;
-  const app = await inspectWorktree(worktree, commandRunner, discoverPinnedRepository);
+  const app = await withRootInspectionBudget(() => inspectWorktree(worktree, commandRunner, discoverPinnedRepository));
   return isSourceApp(app) ? app : null;
 }
 
@@ -444,19 +485,31 @@ export async function listSourceCatalog({
   const discovered = await listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots });
   const requestedRootIds = Array.isArray(targetRootIds) ? new Set(targetRootIds) : null;
   const requestedPaths = Array.isArray(targetPaths)
-    ? new Set(await Promise.all(targetPaths.map((path) => canonicalPath(path))))
+    ? new Set(await Promise.all(targetPaths.map(async (path) => {
+      try {
+        return catalogPathKey(await realpath(path));
+      } catch {
+        return catalogPathKey(resolve(path));
+      }
+    })))
     : null;
-  const worktreesToInspect = discovered.filter((worktree) => {
-    if (requestedRootIds && !requestedRootIds.has(sourceId(worktree.path, worktree.commit))) {
-      return false;
-    }
-    if (requestedPaths && !requestedPaths.has(worktree.path)) {
-      return false;
-    }
-    return true;
-  });
+  const worktreesToInspect = (requestedRootIds || requestedPaths)
+    ? discovered.filter(({ worktree }) => {
+      if (!worktree) return false;
+      if (requestedRootIds && !requestedRootIds.has(sourceId(worktree.path, worktree.commit))) {
+        return false;
+      }
+      if (requestedPaths && !requestedPaths.has(catalogPathKey(worktree.path))) {
+        return false;
+      }
+      return true;
+    })
+    : discovered;
   const inspected = await Promise.allSettled(
-    worktreesToInspect.map((worktree) => inspectWorktree(worktree, commandRunner, pinnedDiscovery)),
+    worktreesToInspect.map(async ({ worktree, error }) => {
+      if (!worktree) throw error;
+      return withRootInspectionBudget(() => inspectWorktree(worktree, commandRunner, pinnedDiscovery));
+    }),
   );
   const roots = inspected
     .filter((result) => result.status === "fulfilled")
@@ -480,7 +533,8 @@ export async function listSourceCatalog({
   for (const candidate of sampleCandidates) {
     if (candidate.dirty && pinnedDiscovery === discoverPinnedRepository) {
       try {
-        const pinnedRepository = await pinnedDiscovery(candidate.path, candidate.commit, commandRunner);
+        const pinnedRepository = await withRootInspectionBudget(() =>
+          pinnedDiscovery(candidate.path, candidate.commit, commandRunner));
         candidate.pinnedImplementations = pinnedRepository.candidates
           .filter((item) => isUsefulProject(item.projectPath))
           .map((item) => ({
