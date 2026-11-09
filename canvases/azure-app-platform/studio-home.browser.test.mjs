@@ -436,7 +436,7 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.locator("[data-recent-app]").nth(4).waitFor();
             await page.evaluate(() => { document.activeElement?.blur(); document.scrollingElement.scrollTop = 0; });
             for (const state of ["populated", "hover"]) {
-              if (state === "hover") await page.locator(".simple-home-recent .ct-work-item").first().hover();
+              if (state === "hover") await page.locator(".simple-home-recent .app-list-row").first().hover();
               const label = `before-${state}-${engine}-${tone}-${width}`;
               await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
               captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
@@ -496,7 +496,8 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.getByRole("heading", { name: "Assemble existing projects", exact: true }).waitFor();
             await page.locator("#top-back").click();
             await page.locator("#open-app").click();
-            await page.getByText("No existing runnable apps were found", { exact: false }).waitFor();
+            await page.getByRole("heading", { name: "Your next app starts here", exact: true }).waitFor();
+            assert.equal(await page.getByRole("button", { name: "Create an app", exact: true }).isVisible(), true);
             await page.locator("#top-back").click();
             await page.getByText("No recently viewed apps were found.", { exact: true }).waitFor();
             assert.equal(await page.locator("[data-recent-app]").count(), 0);
@@ -513,7 +514,7 @@ test("packaged simple home preserves the three explicit journeys", {
               await page.locator("[data-existing-app]").first().waitFor();
               assert.equal(await page.locator("[data-existing-app]").count(), count, "Open retains the full source inventory");
               await page.locator("#top-back").click();
-              await page.locator(".simple-home-recent .ct-work-item").nth(Math.min(count, 5) - 1).waitFor();
+              await page.locator(".simple-home-recent .app-list-row").nth(Math.min(count, 5) - 1).waitFor();
               assert.deepEqual(await page.locator("[data-recent-app]").evaluateAll(elements => elements.map(element => element.dataset.recentApp)),
                 recentInventory.slice(0, Math.min(count, 5)).map(app => app.path), "Home preserves newest-first order and caps only its own rows");
               recentBoundaries.push({ engine, tone, width, inventoryCount: count,
@@ -567,13 +568,13 @@ test("packaged simple home preserves the three explicit journeys", {
             assert.equal(await isolation.getAttribute("aria-expanded"), "true", "Outer disclosure preserves inner choices");
             await help.click();
             assert.equal(requests.length, beforeSearchRequests, "Search and help perform no operations or discovery");
-            const row = page.locator(".simple-home-recent-item").first();
+            const row = page.locator(".simple-home-recent .app-list-row").first();
             await row.scrollIntoViewIfNeeded();
             const beforeHover = await row.boundingBox();
             await row.hover();
-            assert.deepEqual(await row.boundingBox(), beforeHover, "Rounded hover never shifts row geometry");
-            assert.equal(await row.evaluate(element => getComputedStyle(element).borderRadius), "6px");
-            assert.equal(await row.evaluate(element => getComputedStyle(element).padding), "12px");
+            assert.deepEqual(await row.boundingBox(), beforeHover, "Compact hover never shifts row geometry");
+            assert.equal(await row.evaluate(element => getComputedStyle(element).borderRadius), "0px");
+            assert.equal(await row.evaluate(element => getComputedStyle(element).padding), "8px");
             assert.equal(await row.getByRole("button").count(), 1);
             if (output) {
               const label = `after-hover-${engine}-${tone}-${width}`;
@@ -582,14 +583,17 @@ test("packaged simple home preserves the three explicit journeys", {
             }
             await page.locator("[data-recent-app]").first().focus();
             await page.keyboard.press("Tab");
+            assert.equal(await row.locator("[data-app-actions]").evaluate(element =>
+              element === document.activeElement && getComputedStyle(element).outlineStyle === "solid"), true,
+              "The row's separate action menu is keyboard reachable");
+            await page.keyboard.press("Tab");
             assert.equal(await page.locator("[data-recent-app]").nth(1).evaluate(element =>
-              element === document.activeElement && getComputedStyle(element, "::after").outlineStyle === "solid"), true,
-              "Each row is one tab stop with a full-row focus ring");
+              element === document.activeElement && getComputedStyle(element).outlineStyle === "solid"), true,
+              "Opening links retain visible keyboard focus");
             await page.route("**/app-map?**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic existing app workspace</h1>" }));
-            const bounds = await row.boundingBox();
-            await row.click({ position: { x: bounds.width - 4, y: bounds.height - 4 } });
+            await row.locator(".app-list-path").click();
             await page.getByRole("heading", { name: "Synthetic existing app workspace" }).waitFor();
-            assert.equal(new URL(page.url()).searchParams.get("root"), "projects/customer-portal", "The whole padded row is clickable");
+            assert.equal(new URL(page.url()).searchParams.get("root"), "projects/customer-portal", "Name and folder metadata share the opening target");
             await page.goto(origin);
             await page.locator("[data-recent-app]").nth(4).waitFor();
             await page.evaluate(() => new Promise(requestAnimationFrame));
@@ -614,7 +618,8 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.locator("#top-back").click();
             await page.locator("#top-back").click();
             await page.locator("#open-app").click();
-            await page.getByText("No existing runnable apps were found", { exact: false }).waitFor();
+            await page.getByRole("heading", { name: "Your next app starts here", exact: true }).waitFor();
+            assert.equal(await page.getByRole("button", { name: "Create an app", exact: true }).isVisible(), true);
             await page.locator("#top-back").click();
           }
         }
@@ -768,11 +773,13 @@ test("packaged simple home preserves the three explicit journeys", {
         await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("Finding"));
         sourceMode = "error";
         releaseSources();
-        await page.locator("#status").filter({ hasText: "Source catalog unavailable." }).waitFor();
+        await page.getByRole("heading", { name: "Apps could not be loaded", exact: true }).waitFor();
+        await page.getByRole("alert").filter({ hasText: "Source catalog unavailable." }).waitFor();
+        assert.equal(await page.getByRole("button", { name: "Retry", exact: true }).isEnabled(), true);
+        assert.equal(await page.getByRole("button", { name: "Create an app", exact: true }).count(), 0);
+        await page.locator("#top-back").click();
         assert.equal(await page.locator("#new-app").isEnabled(), true);
-        assert.equal(await search.inputValue(), "Retained search");
-        assert.equal(await page.getByRole("button", { name: "How apps work", exact: true }).getAttribute("aria-expanded"), "true");
-        assert.equal(await page.evaluate(() => window.busyHome === document.querySelector("#studio-home .ct-provider")), true);
+        await page.getByText("Recent apps could not be refreshed. Use Open an app to retry.", { exact: true }).waitFor();
         await page.locator("#assemble-app").click();
         await page.locator("#top-back").click();
         await page.getByText("Recent apps could not be refreshed. Use Open an app to retry.", { exact: true }).waitFor();
@@ -813,7 +820,7 @@ test("packaged simple home preserves the three explicit journeys", {
             await page.goto(origin);
             await page.locator("[data-recent-app]").waitFor();
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, "Long names and unbroken paths do not overflow");
-            const row = await page.locator(".simple-home-recent-item").boundingBox();
+            const row = await page.locator(".simple-home-recent .app-list-row").boundingBox();
             const title = await page.locator("[data-recent-app]").boundingBox();
             assert.ok(title.x >= row.x && title.x + title.width <= row.x + row.width, "Long titles stay inside the row");
             if (output) await page.screenshot({ path: join(output, `after-long-${engine}-${tone}-${width}.png`), fullPage: true });

@@ -27,13 +27,14 @@ import {
   resolveSpawnCommand,
 } from "./discovery.mjs";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { listSourceCatalog } from "./source-catalog.mjs";
+import { findSourceApp, listSourceCatalog } from "./source-catalog.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
   buildImplementationInventory,
   discoverUnityPlatform,
   deleteAppWorkspace,
+  renameAppWorkspace,
   getPlatformOverview,
   openWorkspaceInVsCode,
   requestAppWorkspace,
@@ -2388,6 +2389,23 @@ if ($firstModelId) {
         return;
       }
       throw new Error("Unknown app command.");
+    }
+    if (request.method === "POST" && url.pathname === "/api/rename-app") {
+      const input = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        const error = new Error("Only an authorized app workspace can be renamed.");
+        error.statusCode = 403;
+        throw error;
+      }
+      releaseAppMutation = reserveAppMutation(root);
+      if (!await findSourceApp({ workspaceRoot, root })) {
+        const error = new Error("The selected path is not a discovered app.");
+        error.statusCode = 400;
+        throw error;
+      }
+      sendJson(response, 200, await renameAppWorkspace({ root, name: input.name }));
+      return;
     }
     if (request.method === "POST" && url.pathname === "/api/delete-app") {
       const input = await readJsonBody(request);

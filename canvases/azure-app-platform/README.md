@@ -19,6 +19,46 @@ name is **App home** (retained for non-breaking compatibility). Docs and the wor
 top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
+**Open an app** and Home's **Recent apps** use the same compact, divider-free
+app-list component, with the app name and only the final project folder.
+Duplicate folder names stay compact rather than expanding into parent folders.
+When recorded, a compact relative opening time follows
+(for example, `app-name • opened 5m ago`) and refreshes each minute.
+Apps without a recorded opening time show only their project folder.
+Root-only paths retain their root label without inventing a folder. Full worktree paths appear
+on hover or keyboard focus and remain the source for search, opening, and deletion.
+Search filters by name or full path. Filtering or Home's five-app cap does not change
+an app's displayed identity. Home retains its recent-only list and existing order.
+Each row's right-aligned three-dot menu contains **Copy full path**, **Rename app**,
+and **Delete app**. Copying uses the exact full worktree path and reports success
+or clipboard failure. Renaming and deleting refresh the current list in place,
+retain its search, and return focus to the row's actions or the search field if
+the row is no longer visible. A deleted app is removed from the cached inventory
+even if the subsequent refresh fails; the refresh error is reported explicitly.
+Renaming is also available in **Settings → This app → General**. Both entry
+points use the same name dialog and save the display name in
+`.azure-app-platform/app.json`, preserving other app metadata. Renaming does not
+move the folder or change Git names, generated app content, or Azure resources.
+Saving validates only the selected app, without waiting for discovery of other
+worktrees. A failed save keeps the draft available for retry or cancellation.
+Older apps without identity metadata receive a saved display name on rename.
+Deletion
+still requires confirmation and only removes the local worktree and its
+Canvas-created branch, not Azure resources.
+When no apps are found, **Create an app** opens the existing template-selection
+flow from a centered welcome with a decorative, editable Azure-style SVG pair.
+The same code window, original raised code brackets, and circular add control
+use opaque neutral housing and blue accents resolved from the Canvas's light/dark
+tokens. The add control overlaps the upper-right corner without covering the code.
+Source geometry, directional gradients, and adapted vector lighting are retained.
+Scoped `--open-app-art-light-display` / `--open-app-art-dark-display` tokens select
+the complete material, using host `data-theme-tone`, then `data-color-mode`,
+with the product's `data-studio-theme` as fallback. Standalone uses its product
+theme. Runtime theme changes update the art without following the OS preference,
+inverting colors, or changing the host's palette. Both SVGs ship with the plugin.
+A failed app lookup displays its error with **Retry**, rather than showing
+an empty inventory. Searches with no matches retain **Clear search**.
+
 ## ACA CLI installation
 
 The **Install aca CLI** action installs to `~/.local/bin` on macOS/Linux without

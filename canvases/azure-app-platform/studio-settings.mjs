@@ -201,6 +201,7 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
       options.label = "This app · " + app.name;
       picker.append(options);
       for (const [id, title] of [
+        ["general", "General"],
         ["connection", "AI Gateway & Sandbox"],
         ["prereqs", "Prerequisites & CLI tools"],
         ["ports", "Local ports"],
@@ -232,6 +233,20 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
         content.append(element);
       }
       select("preferences");
+    },
+    setAppName(name) {
+      if (!app) return;
+      app.name = name;
+      navigation.querySelector(".studio-settings-app-name").textContent = "This app · " + name;
+      picker.querySelector("optgroup").label = "This app · " + name;
+      for (const entry of sections.values()) {
+        const scope = entry.element.querySelector(".studio-settings-scope");
+        if (entry.body && scope) {
+          scope.textContent = entry.element.dataset.settingsSection === "prereqs"
+            ? "This device · Requirements for " + name : "This app · " + name;
+        }
+      }
+      api.refreshApp();
     },
     open(section = "preferences") {
       if (!dialog.open) {

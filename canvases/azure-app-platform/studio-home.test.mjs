@@ -15,7 +15,7 @@ function mountHome(options = {}) {
   const element = {};
   const render = () => { tree.length = 0; cursor = 0; component(props); };
   const handle = { update(next) { props = { ...props, ...next }; render(); }, dispose() {} };
-  const toolkit = Object.fromEntries(["WorkItem", "Button", "SectionHeader", "SymbolIcon", "FilterToolbar", "Disclosure"]
+  const toolkit = Object.fromEntries(["Button", "SectionHeader", "SymbolIcon", "FilterToolbar", "Disclosure"]
     .map(name => [name, name]));
   toolkit.createElement = (type, props, ...children) => {
     const node = { type, props: props || {}, children };
@@ -33,7 +33,7 @@ function mountHome(options = {}) {
     render();
     return handle;
   };
-  assert.equal(mountStudioHome(element, { toolkit, artwork, ...options }), handle);
+  assert.equal(mountStudioHome(element, { toolkit, AppList: "AppList", artwork, ...options }), handle);
   return { tree, handle };
 }
 
@@ -80,12 +80,12 @@ test("recent apps distinguish not-loaded, empty, failed and recorded rows withou
     const opened = [];
     const { tree } = mountHome({ recentApps, recentError, onOpenRecent: path => opened.push(path) });
     assert.ok(JSON.stringify(tree).includes(expected));
-    const recent = tree.find(node => node.type === "WorkItem");
+    const recent = tree.find(node => node.type === "AppList");
     if (recent) {
-      assert.equal(recent.props.actions, undefined, "No duplicate row action");
-      recent.props.title.props.onClick();
+      assert.equal(recent.props.itemAttribute, "data-recent-app");
+      recent.props.onOpen(recent.props.apps[0].path);
       assert.deepEqual(opened, ["projects/synthetic"]);
-      assert.equal(recent.props.metadata.props.dateTime, "2026-10-29T12:00:00Z");
+      assert.equal(recent.props.apps[0].lastOpenedAt, "2026-10-29T12:00:00Z");
     }
   }
 });
@@ -98,10 +98,12 @@ test("home caps its own rows at five without truncating or mutating the source i
     }));
     const original = structuredClone(recentApps), opened = [];
     const { tree } = mountHome({ recentApps, onOpenRecent: path => opened.push(path) });
-    const rows = tree.filter(node => node.type === "WorkItem");
-    assert.deepEqual(rows.map(row => row.props.title.children[0]), original.slice(0, 5).map(app => app.name));
-    for (const row of rows) row.props.title.props.onClick();
+    const list = tree.find(node => node.type === "AppList");
+    const rows = list?.props.apps || [];
+    assert.deepEqual(rows.map(row => row.name), original.slice(0, 5).map(app => app.name));
+    for (const row of rows) list.props.onOpen(row.path);
     assert.deepEqual(opened, original.slice(0, 5).map(app => app.path));
+    if (list) assert.equal(list.props.inventory, recentApps, "Disambiguation sees the unsliced inventory");
     assert.deepEqual(recentApps, original);
   }
 });
@@ -114,12 +116,13 @@ test("search filters the complete cached inventory before capping and survives o
   const { tree, handle } = mountHome({ recentApps });
   const search = () => tree.find(node => node.type === "FilterToolbar").props.search;
   search().onChange(null, { value: "  APP-6  " });
-  assert.deepEqual(tree.filter(node => node.type === "WorkItem").map(row => row.props.title.children[0]), ["Synthetic app 6"]);
+  assert.deepEqual(tree.find(node => node.type === "AppList").props.apps.map(row => row.name), ["Synthetic app 6"]);
   handle.update({ busy: true });
   assert.equal(search().value, "  APP-6  ");
   assert.equal(search().disabled, true);
   assert.equal(tree.find(node => node.type === "fieldset").props.disabled, true);
   assert.ok(tree.filter(node => node.type === "Button").every(node => node.props.disabled));
+  assert.equal(tree.find(node => node.type === "AppList").props.disabled, true);
   handle.update({ busy: false, recentError: "Refresh failed" });
   assert.equal(search().disabled, true);
   assert.ok(JSON.stringify(tree).includes("Recent apps could not be refreshed."));
@@ -127,13 +130,46 @@ test("search filters the complete cached inventory before capping and survives o
   assert.equal(search().value, "  APP-6  ");
   assert.equal(search().disabled, false);
   search().onChange(null, { value: "unmatched" });
-  assert.equal(tree.filter(node => node.type === "WorkItem").length, 0);
+  assert.equal(tree.filter(node => node.type === "AppList").length, 0);
   assert.ok(JSON.stringify(tree).includes("No recent apps match."));
   search().onChange(null, { value: "SYNTHETIC APP 2" });
-  assert.equal(tree.filter(node => node.type === "WorkItem").length, 1);
+  assert.equal(tree.find(node => node.type === "AppList").props.apps.length, 1);
   search().onChange(null, { value: " " });
-  assert.equal(tree.filter(node => node.type === "WorkItem").length, 5);
+  assert.equal(tree.find(node => node.type === "AppList").props.apps.length, 5);
   assert.deepEqual(recentApps, original);
+});
+
+test("Home forwards the authoritative inventory and the shared row actions without duplicating controls", () => {
+  const app = { name: "source", path: "C:\\east\\shared\\source", lastOpenedAt: "2026-10-29T12:00:00Z" };
+  const inventory = [app, { name: "source", path: "C:\\west\\shared\\source" }];
+  const calls = [];
+  const appHref = path => "/app-map?root=" + encodeURIComponent(path);
+  const onCopyPath = path => calls.push(["copy", path]);
+  const onRename = (...args) => calls.push(["rename", ...args]);
+  const onDelete = (...args) => calls.push(["delete", ...args]);
+  const { tree, handle } = mountHome({
+    recentApps: [app], appInventory: inventory, appHref, onCopyPath, onRename, onDelete,
+  });
+  const search = () => tree.find(node => node.type === "FilterToolbar").props.search;
+  search().onChange(null, { value: "east" });
+  const list = () => tree.find(node => node.type === "AppList").props;
+  assert.equal(list().inventory, inventory, "Filtering preserves the authoritative app inventory");
+  assert.deepEqual(list().apps, [app]);
+  assert.equal(list().appHref, appHref);
+  assert.equal(list().onCopyPath, onCopyPath);
+  assert.equal(list().onRename, onRename);
+  assert.equal(list().onDelete, onDelete);
+  assert.equal(tree.some(node => node.type === "WorkItem" || node.props["data-app-actions"]), false);
+  list().onCopyPath(app.path);
+  list().onRename(app.path, app.name, "trigger");
+  list().onDelete(app.path, app.name, "trigger");
+  assert.deepEqual(calls, [
+    ["copy", app.path], ["rename", app.path, app.name, "trigger"], ["delete", app.path, app.name, "trigger"],
+  ]);
+  handle.update({ recentApps: [], appInventory: inventory.slice(1) });
+  assert.equal(search().value, "east");
+  assert.equal(tree.some(node => node.type === "AppList"), false);
+  assert.ok(JSON.stringify(tree).includes("No recently viewed apps were found."));
 });
 
 test("app guidance is opt-in and does not imply mapping or local simulation grants protection", () => {

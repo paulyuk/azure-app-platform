@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { runCommand } from "./discovery.mjs";
 import { APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
@@ -706,6 +706,39 @@ async function createTemplateWorkspace({
     await commandRunner("git", ["-C", workspaceRoot, "branch", "-D", branch]);
     throw error;
   }
+}
+
+export async function renameAppWorkspace({ root, name }) {
+  let appName;
+  try {
+    appName = requireText(name, "App name", 80);
+    if (/[\u0000-\u001f\u007f]/.test(name) || !APP_NAME_PATTERN.test(appName)) {
+      throw new Error("App name must start with a letter or number and contain only letters, numbers, spaces, periods, underscores, or hyphens.");
+    }
+  } catch (error) {
+    error.statusCode = 400;
+    throw error;
+  }
+  const directory = join(root, ".azure-app-platform");
+  await mkdir(directory, { recursive: true });
+  if ((await lstat(directory)).isSymbolicLink()) {
+    throw new Error("App identity directory must not be a symbolic link.");
+  }
+  const identityPath = join(directory, "app.json");
+  let identity = {};
+  try {
+    if ((await lstat(identityPath)).isSymbolicLink()) {
+      throw new Error("App identity must not be a symbolic link.");
+    }
+    identity = JSON.parse(await readFile(identityPath, "utf8"));
+    if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
+      throw new Error("App identity must be a JSON object.");
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  await writeAppIdentity(identityPath, { ...identity, name: appName });
+  return { outcome: "app-renamed", worktreePath: root, name: appName };
 }
 
 export async function deleteAppWorkspace({

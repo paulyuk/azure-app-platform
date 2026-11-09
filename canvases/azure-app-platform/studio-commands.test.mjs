@@ -1356,13 +1356,13 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
 test("app selection and creation route directly to the app workspace", () => {
   const html = renderStudioHtml("azure-app-platform", "test-token");
   for (const expected of [
-    'function openAppMap(root, notice = "")',
+    'function openAppMap(root, notice = "", initialWorkspace = "")',
     'location.assign("/app-map?root="',
-    'openAppMap(button.dataset.existingApp)',
-    'openAppMap(result.worktreePath, result.editorWarning)',
+    'appHref: root => "/app-map?root=" + encodeURIComponent(root)',
+    'openAppMap(result.worktreePath, result.editorWarning, "build")',
     'if (result.worktreePath)',
     "Assembly started. The app will appear here when its isolated workspace is ready.",
-    "Select one to build, run, or inspect it, with an optional Guide",
+    "Select an app to build, run, or inspect.",
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }
