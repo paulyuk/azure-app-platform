@@ -27,7 +27,8 @@ import {
   resolveSpawnCommand,
 } from "./discovery.mjs";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { findSourceApp, listSourceCatalog } from "./source-catalog.mjs";
+import { findSourceApp, listSourceCatalog, LOCAL_TEMPLATES } from "./source-catalog.mjs";
+import { renderWorkspaceLoadingHtml } from "./journey-loading.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
@@ -1542,9 +1543,10 @@ function authorizeApiRequest(request, url, apiToken, trustedHost) {
   }
 }
 
-async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots, presentationProfile) {
+async function handleRequest(request, response, instanceId, workspaceRoot, apiToken, trustedHost, authorizedRoots, presentationProfile, pendingSourceCatalogReads) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   let releaseAppMutation;
+  let workspaceProgressStream = false;
   try {
     authorizeApiRequest(request, url, apiToken, trustedHost);
     if (await serveStudioAsset(request, response, url.pathname)) return;
@@ -1578,10 +1580,18 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/sources") {
-      const catalog = await listSourceCatalog({
-        workspaceRoot,
-        additionalRoots: [...authorizedRoots],
-      });
+      const additionalRoots = [...authorizedRoots];
+      const scope = JSON.stringify([workspaceRoot, [...additionalRoots].sort()]);
+      let pendingCatalog = pendingSourceCatalogReads.get(scope);
+      if (!pendingCatalog) {
+        pendingCatalog = listSourceCatalog({ workspaceRoot, additionalRoots }).finally(() => {
+          if (pendingSourceCatalogReads.get(scope) === pendingCatalog) {
+            pendingSourceCatalogReads.delete(scope);
+          }
+        });
+        pendingSourceCatalogReads.set(scope, pendingCatalog);
+      }
+      const catalog = await pendingCatalog;
       for (const root of catalog.roots) authorizedRoots.add(root.path);
       sendJson(response, 200, catalog);
       return;
@@ -1892,17 +1902,27 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/workspace-request") {
       const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
+      workspaceProgressStream = String(request.headers.accept || "").includes("application/x-ndjson");
+      const onProgress = workspaceProgressStream ? message => {
+        if (!response.destroyed) response.write(JSON.stringify({ type: "progress", message }) + "\n");
+      } : undefined;
+      if (workspaceProgressStream) {
+        response.writeHead(202, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" });
+        onProgress("Checking selected sources...");
+      }
       const result = await requestAppWorkspace({
         session,
         workspaceRoot,
         input,
         additionalRoots: [...authorizedRoots],
         azureCatalog: await freshAzureCatalog(workspaceRoot, input),
+        onProgress,
       });
       if (result.worktreePath) {
         authorizedRoots.add(await realpath(result.worktreePath));
       }
-      sendJson(response, 202, result);
+      if (workspaceProgressStream) response.end(JSON.stringify({ type: "result", result }) + "\n");
+      else sendJson(response, 202, result);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/capability-request") {
@@ -2445,10 +2465,10 @@ if ($firstModelId) {
       sendJson(response, result.outcome === "failed" ? 500 : 200, result);
       return;
     }
-    if (request.method === "GET" && url.pathname === "/app-map") {
+    if (request.method === "GET" && ["/app-map", "/api/app-map-document"].includes(url.pathname)) {
       if (
-        request.headers.host !== trustedHost
-        || url.searchParams.get("token") !== apiToken
+        url.pathname === "/app-map" && (request.headers.host !== trustedHost
+        || url.searchParams.get("token") !== apiToken)
       ) {
         const error = new Error("Unauthorized App Map view.");
         error.statusCode = 403;
@@ -2457,6 +2477,13 @@ if ($firstModelId) {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) {
         throw new Error("App Map root is not an authorized app workspace.");
+      }
+      if (url.pathname === "/app-map") {
+        response.setHeader("Content-Type", "text/html; charset=utf-8");
+        response.end(renderWorkspaceLoadingHtml(root, apiToken, {
+          ...await readStudioPreferences(), presentationProfile,
+        }));
+        return;
       }
       const catalog = await listSourceCatalog({
         workspaceRoot,
@@ -2487,9 +2514,11 @@ if ($firstModelId) {
       presentationProfile,
     }));
   } catch (error) {
-    sendJson(response, error?.statusCode ?? 500, {
+    const message = error instanceof Error ? error.message : String(error);
+    if (workspaceProgressStream) response.end(JSON.stringify({ type: "error", error: message }) + "\n");
+    else sendJson(response, error?.statusCode ?? 500, {
       ...(url.pathname === "/api/delete-app" ? { outcome: "failed", worktreeRemoved: false } : {}),
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     });
   } finally {
     releaseAppMutation?.();
@@ -2499,6 +2528,7 @@ if ($firstModelId) {
 async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const apiToken = randomUUID();
   const authorizedRoots = new Set();
+  const pendingSourceCatalogReads = new Map();
   let trustedHost;
   const server = createServer((request, response) => {
     void handleRequest(
@@ -2510,6 +2540,7 @@ async function startServer(instanceId, workspaceRoot, presentationProfile) {
       trustedHost,
       authorizedRoots,
       presentationProfile,
+      pendingSourceCatalogReads,
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

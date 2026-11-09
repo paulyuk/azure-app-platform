@@ -3,7 +3,7 @@ export { getAppPathLabels, getAppOpenedLabel } from "./studio-app-list.mjs";
 export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
   const { createElement: h, mountCanvasComponent, useState, useRef, Button, TextInput } = toolkit;
 
-  function OpenApps({ apps, initialSearch = "", onSearchChange, appHref, onCopyPath, onRename, onDelete, onCreate, onRetry, emptyIllustrations, loadError = null, disabled = false }) {
+  function OpenApps({ apps, initialSearch = "", onSearchChange, appHref, onCopyPath, onRename, onDelete, onCreate, onRetry, emptyIllustrations, loadError = null, loading = false, loadingSkeleton = "", disabled = false }) {
     const [query, setQuery] = useState(initialSearch);
     const search = useRef(null);
     const filtered = apps.filter(app => (app.name + " " + app.path).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
@@ -42,7 +42,7 @@ export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
           .open-app-empty-art { width: min(160px, 100%); }
         }
       `),
-      apps.length > 0 || query || loadError ? h("div", { className: "open-app-search" },
+      apps.length > 0 || query ? h("div", { className: "open-app-search" },
         h(TextInput, {
           ref: search, type: "search", placeholder: "Search apps by name or path",
           "aria-label": "Search apps", "aria-controls": "open-app-list", value: query, disabled: disabled || Boolean(loadError),
@@ -50,12 +50,16 @@ export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
         }),
         query ? h(Button, { appearance: "subtle", disabled: disabled || Boolean(loadError),
           onClick: () => { changeSearch(""); search.current?.focus(); } }, "Clear search") : null) : null,
-      loadError
+      loading ? h("p", { className: "journey-progress", role: "status" },
+        h("span", { className: "journey-spinner", "aria-hidden": true }), "Finding your apps...") : null,
+      loadError && !loading
         ? h("div", { className: "open-app-recovery" },
           h("h2", null, "Apps could not be loaded"),
           h("p", { role: "alert" }, loadError),
-          h(Button, { appearance: "primary", disabled, onClick: onRetry }, "Retry"))
-        : apps.length === 0
+          h(Button, { id: "retry-apps", appearance: "primary", disabled, onClick: onRetry }, "Retry")) : null,
+      loading && apps.length === 0
+        ? h("div", { "aria-busy": true, "aria-label": "App list", dangerouslySetInnerHTML: { __html: loadingSkeleton } })
+        : !loadError && apps.length === 0
         ? h("div", { className: "open-app-welcome" },
           h("div", { className: "open-app-empty-art", "aria-hidden": true },
             ...["light", "dark"].map(theme => h("span", { key: theme, "data-open-app-art-theme": theme,
@@ -63,12 +67,12 @@ export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
           h("h1", null, "Your next app starts here"),
           h("p", null, "Start with a template and make it your own."),
           h(Button, { appearance: "primary", disabled, onClick: onCreate }, "Create an app"))
-        : h(toolkit.Fragment, null,
+        : apps.length > 0 ? h(toolkit.Fragment, null,
           h("div", { className: "open-app-count", role: "status", "aria-live": "polite", "aria-atomic": true },
             query.trim() ? filtered.length + " of " + apps.length + " apps" : apps.length + (apps.length === 1 ? " app" : " apps")),
           h(AppList, { id: "open-app-list", apps: filtered, inventory: apps,
-            appHref, onCopyPath, onRename, onDelete, disabled }),
-          filtered.length === 0 ? h("p", { className: "open-app-empty" }, "No apps match your search.") : null));
+            appHref, onCopyPath, onRename, onDelete, disabled, actionsDisabled: disabled || loading }),
+          filtered.length === 0 ? h("p", { className: "open-app-empty" }, "No apps match your search.") : null) : null);
   }
   return mountCanvasComponent(element, OpenApps, props);
 }

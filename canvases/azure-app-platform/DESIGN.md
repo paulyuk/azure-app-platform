@@ -23,7 +23,10 @@ container grid. Recently viewed uses only already-loaded source inventory with
 recorded opening times, showing at most the newest five in existing recency order,
 with explicit not-loaded, empty and failed states. The full source inventory
 and persisted recency are not truncated.
-It performs no automatic discovery. A public toolkit CanvasHeader holds the
+Home refreshes the local source catalog in the background. Recent apps show
+a section-scoped skeleton and status while loading; Create, Open and Assemble
+remain available. Built-in templates are immediately selectable without waiting
+for worktree/sample discovery. A public toolkit CanvasHeader holds the
 compact Unity mark/Home button and existing Docs/Settings actions. Home content
 does not repeat a large masthead or tagline. The introduction supplies the h1;
 app workspace navigation and selectors remain unchanged.
@@ -70,11 +73,28 @@ step after source selection, not the primary source of truth.
 
 The user explicitly requests existing apps persisted as repository/worktree
 pairs, then selects one to build, run, or inspect. Empty results and discovery
-failures stay explicit. Home does not fabricate recent apps or scan on launch.
+failures stay explicit. The picker opens immediately, retains cached app choices
+during refresh, and provides retry feedback. Home never fabricates recent apps.
 
-Creation and assembly end with a review. Template creation follows a deterministic
+Template customization includes its creation confirmation; assembly has a separate
+review. Template creation follows a deterministic
 worktree/materialization/session path; assembly creation remains a structured
 model handoff because source integration requires semantic decisions.
+
+### Loading and handoff
+
+Opening an app serves a lightweight workspace shell before tracing its source.
+The shell uses shipped theme assets, identifies the selected root, and provides
+bounded read-only loading with retry and Home recovery. Once the workspace
+document arrives, existing navigation, Build-source and runtime-readiness loading
+remain independent. No intermediate spinner-only page is used.
+
+Template creation keeps submitted configuration visible, disables conflicting
+actions, and streams real validation, worktree, materialization, settings and
+session-opening stages. Existing JSON API callers are unchanged. An interrupted
+progress response is an unknown outcome, not a failed creation; the form directs
+the user to check existing apps instead of blindly submitting again. A long wait
+never claims cancellation or runtime readiness.
 
 ### Deterministic versus model-driven work
 

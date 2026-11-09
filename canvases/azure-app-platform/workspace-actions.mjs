@@ -503,6 +503,7 @@ export async function requestAppWorkspace({
   sourceCatalog,
   additionalRoots = [],
   azureCatalog,
+  onProgress,
 }) {
   const request = normalizeWorkspaceRequest(input);
   if (request.openInEditor) request.editorId ??= (await readEditorSettings()).editorId;
@@ -525,7 +526,7 @@ export async function requestAppWorkspace({
   }
   if (request.starterKind === "template" || request.journey === "assemble") {
     const catalog = sourceCatalog ?? (
-      LOCAL_TEMPLATES.some((template) => template.id === request.templateRootId)
+      request.starterKind === "template" && LOCAL_TEMPLATES.some((template) => template.id === request.templateRootId)
         ? { roots: [], templates: LOCAL_TEMPLATES }
         : await listSourceCatalog({
             workspaceRoot,
@@ -570,12 +571,14 @@ export async function requestAppWorkspace({
       baseBranch,
       request,
       commandRunner,
+      onProgress,
     });
   }
   if (!session?.send) {
     throw new Error("The current Copilot session cannot receive assembly requests.");
   }
   const prompt = buildWorkspaceRequestPrompt(request, { baseBranch, workspaceRoot });
+  onProgress?.("Starting source integration...");
   const messageId = await session.send({ prompt });
   return {
     outcome: "workspace-requested",
@@ -617,7 +620,9 @@ async function createTemplateWorkspace({
   baseBranch,
   request,
   commandRunner,
+  onProgress,
 }) {
+  onProgress?.("Creating app workspace...");
   const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
   const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
   const worktree = await commandRunner("git", [
@@ -635,6 +640,7 @@ async function createTemplateWorkspace({
     throw new Error(`Could not create the app worktree: ${worktree.stderr || worktree.error || "unknown error"}`);
   }
   try {
+    onProgress?.(request.sourcePlan[0]?.kind === "sample" ? "Preparing sample files..." : "Preparing template files...");
     const materialized = await materializeTemplate({
       appName: request.appName,
       purpose: request.purpose,
@@ -642,6 +648,7 @@ async function createTemplateWorkspace({
       templateInputs: request.templateInputs,
       sourcePlan: request.sourcePlan[0],
     }, { destination, commandRunner });
+    onProgress?.("Preparing local settings...");
     await mkdir(join(destination, ".azure-app-platform"), { recursive: true });
     const identity = {
       name: request.appName,
@@ -661,6 +668,7 @@ async function createTemplateWorkspace({
     });
     let opened = null;
     if (session?.rpc?.sessions?.open) {
+      onProgress?.("Opening app session...");
       opened = await session.rpc.sessions.open({
         kind: "create",
         options: {
@@ -680,6 +688,7 @@ async function createTemplateWorkspace({
     let editor = null;
     let editorWarning = null;
     if (request.openInEditor || request.openInVsCode) {
+      onProgress?.("Opening the selected editor...");
       try {
         editor = request.openInEditor
           ? await openWorkspaceInEditor({ root: destination, editorId: request.editorId, commandRunner })

@@ -466,12 +466,19 @@ test("installed payload opens and materializes templates without checkout depend
         const mapHtml = await map.text();
         assert.equal(map.status, 200, mapHtml);
         assert.match(mapHtml, /data-studio-presentation="github-app"/);
-        assert.match(mapHtml, /Building block actions/);
-        assert.match(mapHtml, /id="app-title" title="Renamed app">Renamed app/);
-        assert.match(mapHtml, /aria-label="Preferred external editor"/);
-        assert.doesNotMatch(mapHtml, /build-help-tooltip|Build your app/);
-        assert.doesNotMatch(mapHtml, /About these customization points/);
-        assert.doesNotMatch(mapHtml, /Resize key files/);
+        assert.match(mapHtml, /Loading app components and workspace/);
+        assert.match(mapHtml, /Retry opening workspace/);
+        const documentUrl = new URL("/api/app-map-document", opened.url);
+        documentUrl.searchParams.set("root", ".");
+        const workspaceDocument = await fetch(documentUrl, { headers: { "x-app-platform-token": token } });
+        const workspaceHtml = await workspaceDocument.text();
+        assert.equal(workspaceDocument.status, 200, workspaceHtml);
+        assert.match(workspaceHtml, /Building block actions/);
+        assert.match(workspaceHtml, /id="app-title" title="Renamed app">Renamed app/);
+        assert.match(workspaceHtml, /aria-label="Preferred external editor"/);
+        assert.doesNotMatch(workspaceHtml, /build-help-tooltip|Build your app/);
+        assert.doesNotMatch(workspaceHtml, /About these customization points/);
+        assert.doesNotMatch(workspaceHtml, /Resize key files/);
         checkpoint("workspace actions verified");
       } finally {
         await canvas.onClose(context);

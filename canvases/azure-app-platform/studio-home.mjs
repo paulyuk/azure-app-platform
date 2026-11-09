@@ -1,5 +1,5 @@
 export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, onOpen, onAssemble, onOpenRecent,
-  appHref, onCopyPath, onRename, onDelete, appInventory = null, recentApps = null, recentError = null, busy = false }) {
+  appHref, onCopyPath, onRename, onDelete, appInventory = null, recentApps = null, recentError = null, recentLoading = false, busy = false }) {
   const { createElement: h, mountCanvasComponent, SectionHeader, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
   const tasks = [
     { id: "new-app", title: "Create a new app", description: "Start with a template. Make it yours.", illustration: "create", onClick: onCreate },
@@ -13,7 +13,7 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
     ["How do I check that things work?", "Review your connections, run a tool-backed task, and inspect the results and logs. These controls need to be configured and verified for each app."],
   ];
   function AppPlatformHome({ busy: currentBusy = busy, recentApps: currentApps = recentApps,
-    appInventory: currentInventory = appInventory, recentError: currentError = recentError } = {}) {
+    appInventory: currentInventory = appInventory, recentError: currentError = recentError, recentLoading: currentLoading = recentLoading } = {}) {
     const [query, setQuery] = useState("");
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const visibleApps = (currentApps || []).filter(app =>
@@ -101,7 +101,7 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
           h("span", { className: "simple-home-task-copy" },
             h("span", { className: "simple-home-task-title" }, task.title),
             h("span", { className: "simple-home-task-description" }, task.description)))))),
-      h("section", { className: "simple-home-recent", "aria-labelledby": "recent-apps-title" },
+      h("section", { className: "simple-home-recent", "aria-labelledby": "recent-apps-title", "aria-busy": currentLoading },
         h(SectionHeader, {
           className: "simple-home-recent-heading",
           title: h("span", { id: "recent-apps-title" }, "Get back to your app"),
@@ -111,10 +111,18 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
           id: "recent-app-search", className: "simple-home-search", type: "search",
           "aria-label": "Find a recent app", placeholder: "Find a recent app", "aria-controls": "recent-app-results",
           value: query, onChange: (_, data) => setQuery(data.value),
-          disabled: currentBusy || currentApps === null || Boolean(currentError),
+          disabled: currentBusy || currentApps === null,
         } }),
+        currentLoading && currentApps !== null ? h("p", { role: "status" }, "Refreshing recent apps...") : null,
+        currentError && currentApps !== null ? h("p", { role: "status" }, "Recent apps could not be refreshed. Showing previously loaded apps. Use Open an app to retry.") : null,
         h("div", { className: "simple-home-results", id: "recent-app-results", "aria-live": "polite" },
-        currentError
+        currentLoading && currentApps === null
+          ? h("div", { className: "journey-loading" },
+              h("p", { role: "status", className: "journey-progress" },
+                h("span", { className: "journey-spinner", "aria-hidden": true }), "Finding your recent apps..."),
+              h("div", { className: "journey-skeleton-stack", "aria-hidden": true }, ...[0, 1, 2].map(key =>
+                h("div", { key, className: "journey-skeleton" }, h("span"), h("span")))))
+          : currentError && currentApps === null
           ? h("p", { role: "status" }, "Recent apps could not be refreshed. Use Open an app to retry.")
           : currentApps === null
             ? h("p", null, "Recent apps have not been loaded. Use Open an app to find your existing apps.")
@@ -124,7 +132,7 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
                 ? h("p", { role: "status" }, "No recent apps match. Try a different name or path.")
                 : h(AppList, { apps: visibleApps, inventory: currentInventory || currentApps,
                   itemAttribute: "data-recent-app", appHref, onOpen: onOpenRecent,
-                  onCopyPath, onRename, onDelete, disabled: currentBusy }))),
+                  onCopyPath, onRename, onDelete, disabled: currentBusy, actionsDisabled: currentBusy || currentLoading }))),
       h("aside", { className: "simple-home-help", "aria-label": "App guidance" },
         h(Disclosure, { title: "How apps work", keepMounted: true },
           h("div", { className: "simple-home-questions" },

@@ -9,6 +9,8 @@ import { octiconMask, renderOcticon } from "./studio-icons.mjs";
 import { createStudioButtons, STUDIO_BUTTON_MOUNT_CSS } from "./studio-buttons.mjs";
 import { getStudioPresentation, renderPresentationStyles } from "./studio-presentation.mjs";
 import { mountStudioHome } from "./studio-home.mjs";
+import { LOCAL_TEMPLATES } from "./source-catalog.mjs";
+import { JOURNEY_LOADING_STYLES, renderJourneySkeleton, readWorkspaceCreation } from "./journey-loading.mjs";
 import { mountStudioOpenApps } from "./studio-open-apps.mjs";
 import { createStudioAppList, getAppOpenedLabel, getAppPathLabels } from "./studio-app-list.mjs";
 import { showAppRenameDialog } from "./app-rename-dialog.mjs";
@@ -122,6 +124,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     <style>
       ${STUDIO_BUTTON_MOUNT_CSS}
       ${renderPresentationStyles(presentation.id)}
+      ${JOURNEY_LOADING_STYLES}
       @layer studio-legacy {
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -373,7 +376,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
     </nav>
     <main>
       <div class="studio-intro-notice" role="status"></div>
-      <div id="app"></div>
+      <div id="app"><div id="canvas-controls-loading" class="journey-loading" aria-busy="true"><h1>What would you like to do?</h1><p role="status">Loading Canvas controls...</p>${renderJourneySkeleton()}</div></div>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
     ${intro ? renderStudioIntro() : ""}
@@ -434,7 +437,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       const templateKind = (${createTemplateKind.toString()});
       const createProgress = (${renderCreateProgress.toString()});
       const mountCreate = (${mountCreateFlow.toString()});
-      function selectedTemplate() { return sources?.templates.find(item => item.id === draft.templateRootId); }
+      function selectedTemplate() { return templates().find(item => item.id === draft.templateRootId); }
       function guidanceFor(template) { return createGuidance[templateKind(template)]; }
       function mountCreateView(step) {
         createView = mountCreate({
@@ -462,6 +465,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       const DEALER_SAMPLE_PURPOSE = "Help car dealers search inventory, evaluate deals, and send offers to buyers.";
       let sources = null;
       let sourcesError = null;
+      let sourcesLoading = false, sourceRequest = null, pageVersion = 0;
+      let unknownCreationName = null;
+      const builtinTemplates = ${JSON.stringify(LOCAL_TEMPLATES).replaceAll("<", "\\u003c")};
+      function templates() {
+        return [
+          ...builtinTemplates.map(builtin => sources?.templates?.find(item => item.id === builtin.id) || builtin),
+          ...(sources?.templates || []).filter(item => !builtinTemplates.some(builtin => builtin.id === item.id)),
+        ];
+      }
       let azureInventory = null;
       let outputTimer = null;
       const draft = {
@@ -499,10 +511,17 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         if (requestOptions.method === "POST") {
           requestOptions.headers["Content-Type"] = "application/json";
         }
-        const response = await fetch(path, requestOptions);
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Request failed.");
-        return payload;
+        const controller = new AbortController();
+        const timer = requestOptions.method === "POST" ? null : setTimeout(() => controller.abort(), 30000);
+        try {
+          const response = await fetch(path, { ...requestOptions, signal: controller.signal });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Request failed.");
+          return payload;
+        } catch (cause) {
+          if (controller.signal.aborted) throw new Error("Loading took too long. Retry to refresh the results.");
+          throw cause;
+        } finally { clearTimeout(timer); }
       }
 
       function openAppMap(root, notice = "", initialWorkspace = "") {
@@ -528,11 +547,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           recentApps: sources ? sources.apps.filter(item => Number.isFinite(Date.parse(item.lastOpenedAt))) : null,
           appInventory: sources?.apps || [],
           recentError: sourcesError,
+          recentLoading: sourcesLoading,
         };
       }
 
       function refreshAppLists() {
-        openAppsHandle?.update({ apps: sources?.apps || [], loadError: sourcesError, disabled: appBusy });
+        openAppsHandle?.update({ apps: sources?.apps || [], loadError: sourcesError, loading: sourcesLoading, disabled: appBusy });
         homeHandle?.update(homeAppProps());
       }
 
@@ -680,6 +700,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function renderLanding() {
+        pageVersion++;
         draft.journey = null;
         clearStatus();
         disposeView();
@@ -695,25 +716,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function beginNewApp() {
+        pageVersion++;
+        unknownCreationName = null;
         draft.journey = "new";
         draft.starterKind = "template";
         draft.step = 1;
-        if (!sources) sourcesError = null;
+        if (!templates().some(item => item.id === draft.templateRootId)) draft.templateRootId = templates()[0]?.id || "";
+        applyTemplateDefaults(templates().find(item => item.id === draft.templateRootId));
         renderDetails();
-        try {
-          await loadSources();
-          if (!draft.templateRootId) {
-            draft.templateRootId = sources.templates[0]?.id || "";
-          }
-          applyTemplateDefaults(sources.templates.find((item) => item.id === draft.templateRootId));
-          renderDetails();
-        } catch (cause) {
-          renderDetails();
-          error(cause.message);
-        }
       }
 
       function beginAssembly() {
+        pageVersion++;
         draft.journey = "assemble";
         draft.starterKind = "assembly";
         draft.step = 1;
@@ -721,28 +735,35 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function beginOpenApp({ preserveSearch = false } = {}) {
+        const version = ++pageVersion;
+        unknownCreationName = null;
+        draft.journey = "open";
+        if (!preserveSearch) existingAppSearch = "";
+        clearStatus();
+        renderExistingApps(true);
         try {
           await loadSources(true);
-          if (!preserveSearch) existingAppSearch = "";
-          renderExistingApps();
+          if (version === pageVersion) renderExistingApps();
         } catch (cause) {
-          renderExistingApps();
-          clearStatus();
+          if (version === pageVersion) renderExistingApps(false, cause.message);
         }
       }
 
-      function renderExistingApps() {
+      function renderExistingApps(loading = sourcesLoading, warning = sourcesError) {
         disposeView();
-        const empty = !sourcesError && (sources?.apps || []).length === 0;
+        const empty = !loading && !warning && (sources?.apps || []).length === 0;
         buttons.replace(app, topBack("Back to Home") + (empty ? "" :
-          '<h1>Open an app</h1><p>Select an app to build, run, or inspect.</p>') + '<div id="studio-open-apps"></div>');
+          '<h1>Open an app</h1><p>Select an app to build, run, or inspect.</p>') +
+          (!loading && sources?.diagnostics?.length ? '<p role="status">Some source projects could not be inspected. Available apps are shown below.</p>' : "") +
+          '<div id="studio-open-apps"></div>');
         openAppsHandle = (${mountStudioOpenApps.toString()})(document.getElementById("studio-open-apps"), {
-          toolkit, AppList, apps: sources?.apps || [], initialSearch: existingAppSearch, disabled: appBusy,
+          toolkit, AppList, apps: sources?.apps || [], initialSearch: existingAppSearch, disabled: appBusy, loading,
+          loadingSkeleton: ${JSON.stringify(renderJourneySkeleton())},
           emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
           onSearchChange: value => { existingAppSearch = value; },
           appHref,
           onCopyPath: copyAppPath, onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp,
-          onRetry: async () => { await beginOpenApp({ preserveSearch: true }); restoreAppListFocus(); }, loadError: sourcesError,
+          onRetry: async () => { await beginOpenApp({ preserveSearch: true }); restoreAppListFocus(); }, loadError: warning,
         });
         wireTopBack(renderLanding);
       }
@@ -906,15 +927,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function templateHtml() {
-        if (!sources) {
-          return sourcesError
-            ? '<div id="create-source-error"></div><button data-studio-button="secondary" type="button" id="retry-sources">Retry</button>'
-            : '<div class="notice" role="status">Loading available templates…</div>';
-        }
-        if (sources.templates.length === 0) {
+        if (templates().length === 0) {
           return '<div class="notice">No hydrateable samples were found in the available worktrees.</div>';
         }
-        return '<div class="create-selection"><fieldset class="create-choices"><legend>Choose a template</legend>' + sources.templates.map((template) =>
+        return (sourcesLoading ? '<p class="journey-progress" role="status"><span class="journey-spinner" aria-hidden="true"></span>Finding reference samples. Starter templates are ready to use.</p>' :
+          sourcesError ? '<p role="status">Reference samples could not be refreshed. Starter templates are still available.</p><button data-studio-button="secondary" id="retry-templates" type="button">Retry finding samples</button>' : "") +
+          '<div class="create-selection"><fieldset class="create-choices"><legend>Choose a template</legend>' + templates().map((template) =>
           '<article class="create-template"><label class="choice template" data-template-option="' + escape(template.id) + '"><input type="radio" name="template" value="' + escape(template.id) + '"' +
           (draft.templateRootId === template.id ? " checked" : "") + '><span><strong>' + escape(template.name) +
           '</strong><span class="template-meta">' + escape(template.description) +
@@ -924,16 +942,20 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       async function loadSources(refresh = false) {
         if (sources && !refresh) return;
-        setBusy(true, "Finding source projects in Git worktrees…");
+        if (sourceRequest) return sourceRequest;
+        sourcesLoading = true;
+        refreshAppLists();
+        sourceRequest = request("/api/sources");
         try {
-          sources = await request("/api/sources");
+          sources = await sourceRequest;
           sourcesError = null;
-          clearStatus();
         } catch (cause) {
           sourcesError = cause.message;
           throw cause;
         } finally {
-          setBusy(false, status.textContent);
+          sourceRequest = null;
+          sourcesLoading = false;
+          refreshAppLists();
         }
       }
 
@@ -941,9 +963,9 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         disposeView();
         const isNew = draft.journey === "new";
-        if (isNew && sources?.templates?.length && !selectedTemplate()) {
-          draft.templateRootId = sources.templates[0].id;
-          applyTemplateDefaults(sources.templates[0]);
+        if (isNew && templates().length && !selectedTemplate()) {
+          draft.templateRootId = templates()[0].id;
+          applyTemplateDefaults(templates()[0]);
         }
         buttons.replace(app, topBack("Back to Home") + (isNew ? createProgress(1) : '<div class="step">Step 1 of 4</div>') +
           '<h1>' + (isNew ? "Create a new app" : "Assemble existing projects") + '</h1>' +
@@ -955,14 +977,19 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               escape(draft.purpose) + '</textarea></label>' +
               '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>') +
           (isNew ? '<footer class="create-footer"><p>Creates a new isolated Git worktree. No Azure resources will be created or changed.</p>' : "") +
-          actions({ back: !isNew, nextLabel: isNew ? "Continue" : "Choose pieces", nextDisabled: isNew && !sources?.templates?.length }) +
+          actions({ back: !isNew, nextLabel: isNew ? "Continue" : "Choose pieces", nextDisabled: isNew && !templates().length }) +
           (isNew ? '</footer>' : ""));
         document.getElementById("back")?.addEventListener("click", renderLanding);
         wireTopBack(renderLanding);
-        document.getElementById("retry-sources")?.addEventListener("click", beginNewApp);
-        if (document.getElementById("create-source-error")) {
-          notices.renderNotice(document.getElementById("create-source-error"), { children: sourcesError, intent: "error" });
-        }
+        document.getElementById("retry-templates")?.addEventListener("click", async () => {
+          const version = pageVersion;
+          const refresh = loadSources(true);
+          renderDetails();
+          try { await refresh; } catch (cause) {
+            if (version === pageVersion && draft.step === 1) error(cause.message);
+          }
+          if (version === pageVersion && draft.journey === "new" && draft.step === 1) renderDetails();
+        });
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
             templateDrafts.set(draft.templateRootId, {
@@ -970,7 +997,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               purpose: draft.purpose, templateInputs: structuredClone(draft.templateInputs),
             });
             draft.templateRootId = input.value;
-            const template = sources.templates.find((item) => item.id === input.value);
+            const template = templates().find((item) => item.id === input.value);
             const previous = templateDrafts.get(input.value);
             if (previous) Object.assign(draft, structuredClone(previous));
             else {
@@ -993,17 +1020,11 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         document.getElementById("next").addEventListener("click", async () => {
           captureDetails();
           if (isNew) {
-            try {
-              await loadSources();
-            } catch (cause) {
-              error(cause.message);
-              return;
-            }
             if (!draft.templateRootId) {
               error("Choose a template or sample.");
               return;
             }
-            const template = sources.templates.find((item) => item.id === draft.templateRootId);
+            const template = templates().find((item) => item.id === draft.templateRootId);
             applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
             draft.step = 2;
@@ -1017,16 +1038,17 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           if (!draft.purpose) {
             draft.purpose = "Assist users with governed tools and models.";
           }
+          setBusy(true, "Finding source projects in Git worktrees...");
           try {
             await loadSources();
           } catch (cause) {
             error(cause.message);
             return;
-          }
+          } finally { setBusy(false, status.textContent); }
           draft.step = 2;
           renderPieces();
         });
-        if (isNew && sources?.templates?.length) {
+        if (isNew && templates().length) {
           mountCreateView(1);
           focusPrimaryAction("#next");
         }
@@ -1035,7 +1057,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderCapabilities() {
         clearStatus();
         disposeView();
-        const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
+        const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
         const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
@@ -1271,7 +1293,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               azureInventory = null;
               draft.step = 3;
               renderAzure(cause.message);
-            }
+            } finally { setBusy(false, status.textContent); }
           }
         });
         wireTopBack(renderDetails);
@@ -1321,7 +1343,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           : null;
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
-        const isSample = sources.templates.find((item) => item.id === draft.templateRootId)?.kind === "sample";
+        const isSample = templates().find((item) => item.id === draft.templateRootId)?.kind === "sample";
         const badgeByTier = {
           web: { label: "App Service Builder", className: "embr" },
           agent: isSandboxGateway
@@ -1356,7 +1378,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function renderReview() {
         clearStatus();
         notices.dispose();
-        const selectedTemplate = sources?.templates.find((item) => item.id === draft.templateRootId);
+        const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const total = draft.journey === "new" ? 2 : 4;
@@ -1771,6 +1793,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       async function submit() {
+        if (unknownCreationName === draft.appName) { await beginOpenApp(); return; }
         window.__appPlatformSubmitting = true;
         const openEditor = document.getElementById("open-editor");
         if (openEditor) {
@@ -1783,10 +1806,28 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               azureResourceIds: draft.azureBindings[tierId] ? [draft.azureBindings[tierId]] : []
             }))
           : [];
-        setBusy(true, "Creating workspace…");
+        const readCreation = (${readWorkspaceCreation.toString()});
+        let creationStage = draft.journey === "assemble" ? "Starting assembly..." : "Preparing app creation...";
+        let openingWorkspace = false;
+        const progress = message => {
+          creationStage = message;
+          status.textContent = "";
+          const label = document.getElementById("creation-stage");
+          if (label) label.textContent = message;
+        };
+        setBusy(true, creationStage);
+        app.setAttribute("aria-busy", "true");
+        const creationProgress = document.createElement("div");
+        creationProgress.className = "journey-progress creation-progress";
+        creationProgress.setAttribute("role", "status");
+        creationProgress.innerHTML = '<span class="journey-spinner" aria-hidden="true"></span><span id="creation-stage"></span>';
+        app.before(creationProgress);
+        progress(creationStage);
+        const waitingTimer = setTimeout(() => progress(creationStage + " This is taking longer than expected. Do not submit another creation request."), 15000);
         try {
-          const result = await request("/api/workspace-request", {
+          const response = await fetch("/api/workspace-request", {
             method: "POST",
+            headers: { "Content-Type": "application/json", "X-App-Platform-Token": apiToken, "Accept": "application/x-ndjson" },
             body: JSON.stringify({
               journey: draft.journey,
               starterKind: draft.journey === "assemble" ? "assembly" : draft.starterKind,
@@ -1800,7 +1841,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               editorId: editorSettings.editorId
             })
           });
+          const result = await readCreation(response, progress);
           if (result.worktreePath) {
+            openingWorkspace = true;
+            progress("App created. Opening workspace...");
             openAppMap(result.worktreePath, result.editorWarning, "build");
           } else {
             window.__appPlatformSubmitting = false;
@@ -1810,8 +1854,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           }
         } catch (cause) {
           window.__appPlatformSubmitting = false;
-          error(cause.message);
+          if (cause.creationOutcomeUnknown || cause instanceof TypeError) {
+            unknownCreationName = draft.appName;
+            error("Creation outcome is unknown. Check existing apps before submitting another request. " + cause.message);
+            buttons.update(document.getElementById("next"), { children: "Check existing apps" });
+          } else error(cause.message);
           setBusy(false, status.textContent);
+        } finally {
+          clearTimeout(waitingTimer);
+          if (!openingWorkspace) { creationProgress.remove(); app.removeAttribute("aria-busy"); }
         }
       }
 
@@ -1825,12 +1876,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         }
       }).catch(cause => {
         if (draft.journey === null) error(launchNotice ? launchNotice + " Apps could not be refreshed: " + cause.message : cause.message);
+      }).finally(() => {
+        if (draft.journey === "new" && draft.step === 1) renderDetails();
       });
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}
       window.appPlatformReady = true;
       window.dispatchEvent(new Event("app-platform-ready"));
       })().catch(cause => {
+        document.getElementById("canvas-controls-loading")?.remove();
         const status = document.getElementById("status");
         status.className = "error";
         status.textContent = "Could not load Canvas controls: " + cause.message + ". Reload to retry.";
