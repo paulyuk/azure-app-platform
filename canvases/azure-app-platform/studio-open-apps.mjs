@@ -42,6 +42,14 @@ export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
           .open-app-empty-art { width: min(160px, 100%); }
         }
       `),
+      apps.length > 0 || query || loadError ? h("div", { className: "open-app-search" },
+        h(TextInput, {
+          ref: search, type: "search", placeholder: "Search apps by name or path",
+          "aria-label": "Search apps", "aria-controls": "open-app-list", value: query, disabled: disabled || Boolean(loadError),
+          onChange: (_event, data) => changeSearch(data.value),
+        }),
+        query ? h(Button, { appearance: "subtle", disabled: disabled || Boolean(loadError),
+          onClick: () => { changeSearch(""); search.current?.focus(); } }, "Clear search") : null) : null,
       loadError
         ? h("div", { className: "open-app-recovery" },
           h("h2", null, "Apps could not be loaded"),
@@ -56,13 +64,6 @@ export function mountStudioOpenApps(element, { toolkit, AppList, ...props }) {
           h("p", null, "Start with a template and make it your own."),
           h(Button, { appearance: "primary", disabled, onClick: onCreate }, "Create an app"))
         : h(toolkit.Fragment, null,
-          h("div", { className: "open-app-search" },
-            h(TextInput, {
-              ref: search, type: "search", placeholder: "Search apps by name or path",
-              "aria-label": "Search apps", "aria-controls": "open-app-list", value: query, disabled,
-              onChange: (_event, data) => changeSearch(data.value),
-            }),
-            query ? h(Button, { appearance: "subtle", disabled, onClick: () => { changeSearch(""); search.current?.focus(); } }, "Clear search") : null),
           h("div", { className: "open-app-count", role: "status", "aria-live": "polite", "aria-atomic": true },
             query.trim() ? filtered.length + " of " + apps.length + " apps" : apps.length + (apps.length === 1 ? " app" : " apps")),
           h(AppList, { id: "open-app-list", apps: filtered, inventory: apps,

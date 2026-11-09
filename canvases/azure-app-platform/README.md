@@ -43,3 +43,32 @@ From the repository root:
 npm test --prefix canvases/azure-app-platform
 node --test canvases/azure-app-platform/plugin-portability.test.mjs
 ```
+
+## Delete a local app
+
+Choose **Delete app** from a row's actions in Home or Open, or review deletion
+in **App settings**. Deletion requires a stopped app and validates only the
+selected app, without inspecting unrelated worktrees.
+
+All three entry points share a modal confirmation showing the app name and
+full worktree path, so apps with duplicate names remain unambiguous. Cancel
+receives initial focus, Tab and Shift+Tab stay in the confirmation, and Escape
+cancels before submission. Once submitted, deletion cannot be cancelled or
+submitted again while pending.
+
+Forced worktree removal permanently loses local uncommitted changes and
+untracked files. It removes the local worktree and its Canvas-created branch,
+not Azure resources, source repositories, or cloud deployments.
+
+If worktree removal fails, the app stays in the list. If the worktree is
+removed but its managed branch cannot be deleted, the app leaves the list and
+the result identifies the remaining branch and the `git branch -D '<branch>'`
+recovery command to run from the Canvas repository. Branch cleanup is never
+retried automatically.
+
+Home and Open refresh in place, retain the search query, and return focus to
+a surviving row's actions or search field. A removed app leaves the cached
+inventory even if refreshing fails; the refresh error does not hide the
+deletion result or branch recovery instructions. During a refresh failure,
+search stays visible but disabled and focus moves to an available recovery
+control. Retrying Open preserves its search query.

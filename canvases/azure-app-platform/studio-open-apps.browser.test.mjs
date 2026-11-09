@@ -69,7 +69,8 @@ for (const engine of ["chromium", "webkit"]) {
           deletions.push(body);
           if (failDelete) return route.fulfill({ status: 409, json: { error: "Worktree is in use." } });
           apps = apps.filter(app => app.path !== body.root);
-          return route.fulfill({ json: {} });
+          return route.fulfill({ json: { outcome: "complete", worktreeRemoved: true,
+            message: "App worktree deleted. Azure resources were not changed." } });
         }
         if (path === "/api/rename-app") {
           const body = route.request().postDataJSON();

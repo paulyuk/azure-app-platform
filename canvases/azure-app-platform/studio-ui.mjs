@@ -14,6 +14,7 @@ import { createStudioAppList, getAppOpenedLabel, getAppPathLabels } from "./stud
 import { showAppRenameDialog } from "./app-rename-dialog.mjs";
 import { CREATE_GUIDANCE, CREATE_FLOW_CSS, createTemplateKind, renderCreateProgress, mountCreateFlow } from "./create-flow.mjs";
 import { APP_NAME_PATTERN } from "./workspace-actions.mjs";
+import { showAppDeleteDialog } from "./app-delete-dialog.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 const OPEN_APP_EMPTY_ILLUSTRATIONS = Object.fromEntries(["light", "dark"].map(theme => [
@@ -197,11 +198,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .icon-button { flex: 0 0 auto; min-height: 32px; padding: 6px; }
       .icon-button svg { display: block; width: 16px; height: 16px; fill: currentColor; }
       .icon-button.danger { color: var(--fgColor-danger, #cf222e); }
-      .confirm-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(0 0 0 / 45%); z-index: 10; }
-      .confirm-dialog { width: min(100%, 440px); padding: 20px; border: 1px solid var(--studio-line); border-radius: 12px; background: var(--studio-raised); box-shadow: 0 8px 30px rgb(0 0 0 / 25%); }
-      .confirm-dialog h2 { margin-top: 0; }
-      .confirm-dialog .actions { margin-top: 18px; }
-      .confirm-dialog .danger { color: var(--fgColor-danger, #cf222e); border-color: currentColor; }
       .surface { margin-bottom: 16px; border: 1px solid var(--studio-line); border-radius: 14px; background: var(--studio-panel); overflow: hidden; }
       .surface-head {
         min-height: 46px;
@@ -520,7 +516,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         appBusy = busy;
         refreshAppLists();
         app.querySelectorAll("button, input, textarea, select").forEach((control) => {
-          if (!control.closest("#studio-home")) buttons.setDisabled(control, busy);
+          if (!control.closest("#studio-home, #studio-open-apps")) buttons.setDisabled(control, busy);
         });
         syncEditorControls();
         status.textContent = message;
@@ -543,8 +539,9 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       function restoreAppListFocus(root) {
         requestAnimationFrame(() => {
           const trigger = [...app.querySelectorAll("[data-app-actions]")]
-            .find(button => button.dataset.appActions === root);
-          (trigger || app.querySelector('#recent-app-search, [aria-label="Search apps"]'))?.focus({ preventScroll: true });
+            .find(button => button.dataset.appActions === root && !button.disabled);
+          (trigger || app.querySelector('#recent-app-search:not(:disabled), [aria-label="Search apps"]:not(:disabled)')
+            || app.querySelector('.simple-home-browse:not(:disabled), #top-back, button:not(:disabled)'))?.focus({ preventScroll: true });
         });
       }
 
@@ -628,29 +625,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         return "";
       }
 
-      function askDeleteConfirmation(appName, returnFocus = document.activeElement) {
-        return new Promise((resolve) => {
-          const dialog = document.createElement("div");
-          dialog.className = "confirm-backdrop";
-          buttons.replace(dialog, '<section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">' +
-            '<h2 id="confirm-delete-title">Delete ' + escape(appName) + '?</h2>' +
-            '<p><strong>Are you sure?</strong> This permanently removes the app Git worktree, its local files, and its Canvas-created branch. This cannot be undone.</p>' +
-            '<p>No Azure resources, repositories, or cloud deployments will be deleted.</p>' +
-            '<div class="actions"><button data-studio-button="secondary" type="button" id="cancel-delete">No, keep app</button>' +
-            '<div class="actions-right"><button type="button" class="danger" id="confirm-delete">Yes, delete worktree</button></div></div></section>');
-          document.body.append(dialog);
-          const close = (confirmed) => {
-            buttons.clear(dialog);
-            dialog.remove();
-            if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
-            resolve(confirmed);
-          };
-          dialog.querySelector("#cancel-delete").addEventListener("click", () => close(false));
-          dialog.querySelector("#confirm-delete").addEventListener("click", () => close(true));
-          dialog.querySelector("#cancel-delete").focus();
-        });
-      }
-
       async function renameApp(root, name, returnFocus) {
         const renamed = await (${showAppRenameDialog.toString()})({ root, name, returnFocus, request, buttons });
         if (renamed === null) return;
@@ -670,24 +644,30 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         }
       }
 
+      let deletionInProgress = false;
       async function deleteApp(root, appName, returnFocus) {
+        if (deletionInProgress) return;
+        deletionInProgress = true;
         const fromList = Boolean(homeHandle || openAppsHandle);
-        if (!await askDeleteConfirmation(appName, returnFocus)) return;
-        setBusy(true, "Deleting app worktree…");
         let deleted = false;
+        let result;
         try {
-          await request("/api/delete-app", {
-            method: "POST",
-            body: JSON.stringify({ root, confirmed: true })
+          result = await (${showAppDeleteDialog.toString()})({
+            root, name: appName, returnFocus, request, buttons,
+            onPending: () => setBusy(true, "Deleting app worktree..."),
           });
-          deleted = true;
+          if (!result) return;
+          if (!result.worktreeRemoved) { error(result.error); return; }
+          deleted = result.worktreeRemoved;
           if (sources) sources = { ...sources, apps: sources.apps.filter(item => item.path !== root) };
           refreshAppLists();
           await loadSources(true);
-          clearStatus("App worktree deleted. Azure resources were not changed.");
+          if (result.outcome === "partial") error(result.message);
+          else clearStatus(result.message);
         } catch (cause) {
-          error(deleted ? "App worktree deleted, but apps could not be refreshed: " + cause.message : cause.message);
+          error(deleted ? result.message + " Apps could not be refreshed: " + cause.message : cause.message);
         } finally {
+          deletionInProgress = false;
           setBusy(false, status.textContent);
           if (fromList) restoreAppListFocus(root);
           else if (deleted) renderExistingApps();
@@ -740,10 +720,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         renderDetails();
       }
 
-      async function beginOpenApp() {
+      async function beginOpenApp({ preserveSearch = false } = {}) {
         try {
           await loadSources(true);
-          existingAppSearch = "";
+          if (!preserveSearch) existingAppSearch = "";
           renderExistingApps();
         } catch (cause) {
           renderExistingApps();
@@ -761,7 +741,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           emptyIllustrations: ${JSON.stringify(OPEN_APP_EMPTY_ILLUSTRATIONS).replaceAll("<", "\\u003c")},
           onSearchChange: value => { existingAppSearch = value; },
           appHref,
-          onCopyPath: copyAppPath, onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp, onRetry: beginOpenApp, loadError: sourcesError,
+          onCopyPath: copyAppPath, onRename: renameApp, onDelete: deleteApp, onCreate: beginNewApp,
+          onRetry: async () => { await beginOpenApp({ preserveSearch: true }); restoreAppListFocus(); }, loadError: sourcesError,
         });
         wireTopBack(renderLanding);
       }
@@ -1835,8 +1816,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       renderLanding();
-      void loadSources().catch(cause => {
-        if (draft.journey === null) error(cause.message);
+      const launchParams = new URLSearchParams(location.search);
+      const launchNotice = launchParams.get("notice");
+      void loadSources().then(() => {
+        if (draft.journey === null && launchNotice) {
+          if (launchParams.get("noticeKind") === "error") error(launchNotice);
+          else clearStatus(launchNotice);
+        }
+      }).catch(cause => {
+        if (draft.journey === null) error(launchNotice ? launchNotice + " Apps could not be refreshed: " + cause.message : cause.message);
       });
       ${intro ? renderStudioIntroClientScript() : ""}
       ${renderThemeClientScript(apiToken, editorSettings)}

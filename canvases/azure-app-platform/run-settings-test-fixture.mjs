@@ -24,7 +24,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
   ];
   const state = {
     app: "running", operation: null, error: "", theme: "light", configured: true, gatewayAvailable: true,
-    outputError: false, preferenceError: false, deleteError: false, documentInput: false,
+    outputError: false, preferenceError: false, deleteError: false, deleteOutcome: "complete", deleteDelay: null, documentInput: false,
     health: "Healthy", editorId: "vscode", commands: [], appName: "Dealer · UI preview", renameError: false,
     lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
   };
@@ -126,8 +126,12 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
       else if (path === "/api/ports/review-stop") result = { reviewId: "fixture-ports", targets: [{ pid: 1234, command: "preview process", ports: [3000] }] };
       else if (path === "/api/ports/stop") result = { stopped: [1234] };
       else if (path === "/api/delete-app") {
+        if (state.deleteDelay) await state.deleteDelay;
         if (state.deleteError) throw new Error("Local worktree could not be deleted.");
-        result = { outcome: "deleted" };
+        result = { outcome: state.deleteOutcome, worktreeRemoved: true,
+          message: state.deleteOutcome === "partial"
+            ? "App worktree deleted, but branch 'managed-app' remains. Run git branch -D 'managed-app' from the Canvas workspace. Azure resources were not changed."
+            : "App worktree deleted. Azure resources were not changed." };
       } else if (path === "/api/open-source-canvas") {
         const files = {
           "src/web": "src/web/src/app/page.tsx",

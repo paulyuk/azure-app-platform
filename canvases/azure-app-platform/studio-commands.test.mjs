@@ -1520,7 +1520,8 @@ test("app deletion requires confirmation and removes only a registered worktree"
     confirmed: true,
     commandRunner,
   });
-  assert.equal(result.outcome, "workspace-deleted");
+  assert.equal(result.outcome, "complete");
+  assert.equal(result.worktreeRemoved, true);
   assert.deepEqual(calls.at(-1), ["git", ["-C", "/repo", "worktree", "remove", "--force", "/repo/app"]]);
 });
 
@@ -2066,7 +2067,7 @@ test("interactive App Map renderer emits accessible local interaction and safe a
   assert.match(html, /\.management-section select,\s*\.management-section \.action-list > button \{ width: 100%/);
   assert.match(html, /Set up Azure resources/);
   assert.match(html, /Deploy latest app/);
-  assert.match(html, /Delete local worktree/);
+  assert.match(html, /Yes, delete worktree/);
   assert.match(html, /Invoke agent/);
   assert.match(html, /Autonomous event \/ task payload/);
   assert.match(html, /Event triggers:/);

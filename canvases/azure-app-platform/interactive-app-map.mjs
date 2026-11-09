@@ -30,6 +30,7 @@ import { createStudioToolkitComponents, STUDIO_FILTERABLE_DROPDOWN_CSS } from ".
 import { createWorkspaceNavigationComponent } from "./workspace-navigation.mjs";
 import { defaultSandboxGroupName } from "./sandbox-group-config.mjs";
 import { showAppRenameDialog } from "./app-rename-dialog.mjs";
+import { showAppDeleteDialog } from "./app-delete-dialog.mjs";
 
 const RENDERER_SCHEMA_VERSION = 4;
 const REQUEST_FLOW_GROUPS = [
@@ -1284,7 +1285,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       runWorkspace.dispose();
     });
     ${BUILD_SYNTAX_SCRIPT}
-    let deleteConfirming = false;
     let deletingApp = false;
     let deleteError = "";
     const buildPage = document.querySelector("#app-customize");
@@ -2563,14 +2563,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderDeleteSettings(container) {
-      appendText(container, "h3", deleteConfirming ? "Delete " + document.querySelector("header h1").textContent + "?" : "Delete local app");
+      appendText(container, "h3", "Delete local app");
+      appendText(container, "p", document.querySelector("#app-title").textContent);
+      appendText(container, "p", MODEL.root);
       appendText(
         container,
         "p",
-        "This permanently removes the app Git worktree, local files, and its Canvas-created branch. Azure resources and source repositories are not deleted.",
+        "Permanently removes this local Git worktree, including uncommitted changes and untracked files, and its Canvas-created branch. Azure resources, source repositories, and cloud deployments are not deleted.",
       );
-      const actions = document.createElement("div");
-      actions.className = "actions";
       if (operationalState.app?.state === "running" || ACTIVE_LIFECYCLE_STATES.includes(operationalState.app?.state)) {
         appendText(container, "p", operationalState.app?.state === "running"
           ? "Stop the local app before deleting its worktree."
@@ -2582,44 +2582,38 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         return;
       }
       if (deleteError) appendText(container, "p", deleteError, "error").setAttribute("role", "alert");
-      if (!deleteConfirming) {
-        const review = destructiveButton("Delete local app...", () => {
-          deleteConfirming = true;
-          window.appPlatformSettings.refreshApp();
-        });
-        review.className = "danger";
-        buttons.append(container, review);
-        return;
-      }
-      const confirm = destructiveButton("Delete local worktree", async () => {
+      const review = destructiveButton("Delete local app...", async event => {
         if (deletingApp) return;
         deletingApp = true;
         deleteError = "";
-        for (const button of actions.querySelectorAll("button")) buttons.setDisabled(button, true);
         try {
-          await apiRequest("/api/delete-app", {
-            method: "POST",
-            body: JSON.stringify({ root: MODEL.root, confirmed: true }),
+          const result = await (${showAppDeleteDialog.toString()})({
+            root: MODEL.root, name: document.querySelector("#app-title").textContent,
+            request: apiRequest, buttons, returnFocus: event.currentTarget,
           });
-          location.assign("/");
+          if (!result) return;
+          if (!result.worktreeRemoved) {
+            deleteError = result.error;
+            setStatus(result.error, true);
+            return;
+          }
+          location.assign("/?notice=" + encodeURIComponent(result.message) +
+            "&noticeKind=" + (result.outcome === "partial" ? "error" : "status"));
         } catch (error) {
           deleteError = error.message;
           setStatus(error.message, true);
         } finally {
           deletingApp = false;
           window.appPlatformSettings.refreshApp();
+          if (window.appPlatformSettings.isOpen("danger")) {
+            document.querySelector("[data-delete-app]")?.focus({ preventScroll: true });
+          }
         }
       });
-      confirm.className = "danger";
-      const cancel = actionButton("Cancel deletion", () => {
-        deleteConfirming = false;
-        deleteError = "";
-        window.appPlatformSettings.refreshApp();
-      });
-      buttons.setDisabled(confirm, deletingApp);
-      buttons.setDisabled(cancel, deletingApp);
-      buttons.append(actions, cancel, confirm);
-      container.append(actions);
+      review.className = "danger";
+      review.dataset.deleteApp = "";
+      buttons.setDisabled(review, deletingApp);
+      buttons.append(container, review);
     }
 
     function canInvokeOrStartAgent() {
@@ -4117,7 +4111,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
       document.querySelector(".studio-settings").addEventListener("close", () => {
         if (window.appPlatformSettings.isOpen()) return;
-        deleteConfirming = false;
         deleteError = "";
         portReview = null;
         connections.invalidate();

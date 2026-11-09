@@ -308,10 +308,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await selectSection(page, "danger");
       await dialog.getByRole("button", { name: "Delete local app...", exact: true }).click();
       assert.equal(fixture.mutations.some(item => item.path === "/api/delete-app"), false);
-      await dialog.getByRole("button", { name: "Cancel deletion", exact: true }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "No, keep app", exact: true }).click();
       await dialog.getByRole("button", { name: "Delete local app...", exact: true }).click();
       fixture.state.deleteError = true;
-      await dialog.getByRole("button", { name: "Delete local worktree", exact: true }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Yes, delete worktree", exact: true }).click();
       await dialog.getByRole("alert").filter({ hasText: "Local worktree could not be deleted." }).waitFor();
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "hidden" });

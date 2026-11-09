@@ -783,21 +783,41 @@ export async function deleteAppWorkspace({
     throw new Error("The app's managed branch does not match its registered worktree branch.");
   }
   const removed = await commandRunner("git", ["-C", resolvedWorkspace, "worktree", "remove", "--force", resolvedRoot]);
-  if (!removed.ok) throw new Error(`Could not delete the app worktree: ${removed.stderr || removed.error || "unknown error"}`);
+  const result = {
+    outcome: removed.ok ? "complete" : "failed",
+    worktreeRemoved: removed.ok,
+    worktreePath: resolvedRoot,
+    branch: manifest?.managedBranch ?? null,
+  };
+  if (!removed.ok) {
+    return { ...result, error: `Could not delete the app worktree: ${removed.stderr || removed.error || "unknown error"}` };
+  }
   if (manifest?.managedBranch) {
-    const branchRemoved = await commandRunner("git", ["-C", resolvedWorkspace, "branch", "-D", worktreeBranch]);
+    let branchRemoved;
+    try {
+      branchRemoved = await commandRunner("git", ["-C", resolvedWorkspace, "branch", "-D", worktreeBranch]);
+    } catch (error) {
+      branchRemoved = { ok: false, error: error.message };
+    }
     if (!branchRemoved.ok) {
-      throw new Error(
-        `The app worktree was deleted, but its managed branch could not be removed: ${
+      const quotedBranch = process.platform === "win32"
+        ? `'${worktreeBranch.replaceAll("'", "''")}'`
+        : `'${worktreeBranch.replaceAll("'", "'\\''")}'`;
+      const recoveryCommand = `git branch -D ${quotedBranch}`;
+      return {
+        ...result,
+        outcome: "partial",
+        remainingBranch: worktreeBranch,
+        recoveryCommand,
+        message: `App worktree deleted, but managed branch ${worktreeBranch} remains: ${
           branchRemoved.stderr || branchRemoved.error || "unknown error"
-        }`,
-      );
+        }. From the Canvas repository, run ${recoveryCommand}. Azure resources were not changed.`,
+      };
     }
   }
   return {
-    outcome: "workspace-deleted",
-    worktreePath: resolvedRoot,
-    branch: manifest?.managedBranch ?? null,
+    ...result,
+    message: "App worktree deleted. Azure resources were not changed.",
   };
 }
 

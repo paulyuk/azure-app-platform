@@ -2410,12 +2410,15 @@ if ($firstModelId) {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) || root === workspaceRoot) {
-        throw new Error("Only an authorized app worktree can be deleted.");
+        const error = new Error("Only an authorized app worktree can be deleted.");
+        error.statusCode = 403;
+        throw error;
       }
       releaseAppMutation = reserveAppMutation(root);
-      const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
-      if (!catalog.apps.some((app) => app.path === root)) {
-        throw new Error("The selected path is not a discovered app.");
+      if (!await findSourceApp({ workspaceRoot, root })) {
+        const error = new Error("The selected path is not a discovered app.");
+        error.statusCode = 400;
+        throw error;
       }
       const state = await currentAppState(root);
       if (state.state === "running" || transientAppStates.has(state.state)) {
@@ -2432,12 +2435,14 @@ if ($firstModelId) {
         root,
         confirmed: input.confirmed === true,
       });
-      authorizedRoots.delete(root);
-      appStates.delete(root);
-      appOutput.delete(root);
-      activeGateways.delete(root);
-      gatewayWriteQueues.delete(root);
-      sendJson(response, 200, result);
+      if (result.worktreeRemoved) {
+        authorizedRoots.delete(root);
+        appStates.delete(root);
+        appOutput.delete(root);
+        activeGateways.delete(root);
+        gatewayWriteQueues.delete(root);
+      }
+      sendJson(response, result.outcome === "failed" ? 500 : 200, result);
       return;
     }
     if (request.method === "GET" && url.pathname === "/app-map") {
@@ -2483,6 +2488,7 @@ if ($firstModelId) {
     }));
   } catch (error) {
     sendJson(response, error?.statusCode ?? 500, {
+      ...(url.pathname === "/api/delete-app" ? { outcome: "failed", worktreeRemoved: false } : {}),
       error: error instanceof Error ? error.message : String(error),
     });
   } finally {

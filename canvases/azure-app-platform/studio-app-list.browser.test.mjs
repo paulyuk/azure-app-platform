@@ -32,7 +32,7 @@ async function fixture(engine) {
   const { renderStudioHtml } = await import(pathToFileURL(join(rendererDirectory, "studio-ui.mjs")));
   const { serveStudioAsset } = await import(pathToFileURL(join(rendererDirectory, "studio-assets.mjs")));
   const state = { theme: "light", apps: structuredClone(initialApps), failSources: false, failRename: false, failDelete: false,
-    deleteDelay: null, failRefreshAfterDelete: false };
+    deleteDelay: null, failRefreshAfterDelete: false, deleteOutcome: "complete" };
   const errors = [], mutations = [], requests = [];
   const html = () => renderStudioHtml("shared-app-list-test", "fixture", {
     theme: state.theme, presentationProfile: "github-app",
@@ -85,7 +85,13 @@ async function fixture(engine) {
         if (state.failDelete) return route.fulfill({ status: 409, json: { error: "Worktree is in use." } });
         state.apps = state.apps.filter(app => app.path !== route.request().postDataJSON().root);
         if (state.failRefreshAfterDelete) state.failSources = true;
-        return route.fulfill({ json: {} });
+        return route.fulfill({ json: {
+          outcome: state.deleteOutcome, worktreeRemoved: true,
+          message: state.deleteOutcome === "partial"
+            ? "App worktree deleted, but branch 'managed-app' remains: Branch cleanup denied. Run git branch -D 'managed-app' from the Canvas workspace. Azure resources were not changed."
+            : "App worktree deleted. Azure resources were not changed.",
+          ...(state.deleteOutcome === "partial" ? { remainingBranch: "managed-app", recoveryCommand: "git branch -D 'managed-app'" } : {}),
+        } });
       }
       if (path === "/api/rename-app") {
         if (state.failRename) return route.fulfill({ status: 409, json: { error: "App is busy." } });
@@ -348,6 +354,16 @@ for (const engine of ["chromium", "webkit"]) {
         state.deleteDelay = new Promise(resolve => { release = resolve; });
         await page.getByRole("button", { name: "Yes, delete worktree", exact: true }).click();
         await page.waitForFunction(() => document.querySelector(".app-list-target")?.getAttribute("aria-disabled") === "true");
+        const deleting = page.getByRole("alertdialog");
+        assert.equal(await deleting.getAttribute("aria-busy"), "true");
+        assert.equal(await deleting.getByRole("button", { name: "No, keep app", exact: true }).isDisabled(), true);
+        assert.equal(await deleting.getByRole("button", { name: "Yes, delete worktree", exact: true }).isDisabled(), true);
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Tab");
+        await deleting.locator("form").evaluate(form => {
+          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        });
+        assert.equal(await deleting.isVisible(), true, "Pending deletion cannot imply cancellation or submit twice");
         assert.equal(await search.isDisabled(), true);
         assert.equal(await menu.isDisabled(), true);
         assert.equal(await page.locator(".app-list-target").evaluate(link =>
@@ -411,7 +427,7 @@ for (const engine of ["chromium", "webkit"]) {
         await page.getByRole("menuitem", { name: "Delete app", exact: true }).click();
         state.failRefreshAfterDelete = true;
         await page.getByRole("button", { name: "Yes, delete worktree", exact: true }).click();
-        await page.getByText("App worktree deleted, but apps could not be refreshed: Source catalog unavailable.", { exact: true }).waitFor();
+        await page.getByText("App worktree deleted. Azure resources were not changed. Apps could not be refreshed: Source catalog unavailable.", { exact: true }).waitFor();
         assert.equal(await page.locator("#status").getAttribute("class"), "error");
         assert.equal(await page.locator(view).count(), 1);
         assert.equal(await page.getByText("App worktree deleted. Azure resources were not changed.", { exact: true }).count(), 0);
@@ -424,6 +440,10 @@ for (const engine of ["chromium", "webkit"]) {
         } else {
           state.failSources = false;
           await page.getByRole("button", { name: "Retry", exact: true }).click();
+          await page.getByRole("searchbox", { name: "Search apps", exact: true }).waitFor({ state: "visible" });
+          await page.waitForFunction(() => document.querySelector('[aria-label="Search apps"]')?.disabled === false);
+          assert.equal(await search.inputValue(), "customer-portal");
+          await search.fill("");
         }
         await page.locator("[data-existing-app]").nth(6).waitFor();
         assert.equal(await page.locator("[data-app-actions]").evaluateAll(items =>
@@ -433,6 +453,104 @@ for (const engine of ["chromium", "webkit"]) {
         assert.equal(await page.locator("[data-recent-app]").evaluateAll(items =>
           items.some(item => item.dataset.recentApp === "C:\\projects\\customer-portal")), false);
       }
+      assert.deepEqual(f.errors, []);
+    } finally { await f.close(); }
+  });
+
+  test(`Deletion identifies duplicate apps and traps confirmation focus in ${engine}`, {
+    skip: baseline ? "Baseline captures only." : !playwright && "Install src/web dependencies to run browser coverage.",
+    timeout: 60000,
+  }, async () => {
+    const f = await fixture(engine);
+    try {
+      const { page, state } = f;
+      await page.setViewportSize({ width: 380, height: 640 });
+      for (const surface of ["home", "open"]) {
+        state.apps = structuredClone(initialApps);
+        state.apps[6].lastOpenedAt = "2026-11-07T16:59:00Z";
+        await f.open(surface);
+        const search = page.getByRole("searchbox", { name: surface === "home" ? "Find a recent app" : "Search apps" });
+        await search.fill("source");
+        assert.equal(await page.locator(".app-list-row").count(), 2);
+        const before = f.mutations.length;
+        for (const path of [initialApps[1].path, initialApps[6].path]) {
+          const button = page.locator("[data-app-actions]").nth(path === initialApps[1].path ? 0 : 1);
+          await button.click();
+          await page.getByRole("menuitem", { name: "Delete app", exact: true }).click();
+          const dialog = page.getByRole("alertdialog", { name: "Delete source?", exact: true });
+          await dialog.waitFor();
+          assert.equal(await dialog.locator("#app-delete-path").innerText(), path);
+          assert.match(await dialog.innerText(), /Uncommitted changes and untracked files will be permanently lost/);
+          const cancel = dialog.getByRole("button", { name: "No, keep app", exact: true });
+          const confirm = dialog.getByRole("button", { name: "Yes, delete worktree", exact: true });
+          assert.equal(await cancel.evaluate(node => node === document.activeElement), true);
+          for (const key of ["Shift+Tab", "Tab", "Tab", "Tab"]) {
+            await page.keyboard.press(key);
+            assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true);
+          }
+          assert.equal(await cancel.evaluate(node => node === document.activeElement), true);
+          await page.keyboard.press("Shift+Tab");
+          assert.equal(await confirm.evaluate(node => node === document.activeElement), true);
+          const box = await dialog.boundingBox();
+          assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 380 && box.y + box.height <= 640);
+          assert.equal(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+          await page.keyboard.press("Escape");
+          await dialog.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => document.activeElement?.hasAttribute("data-app-actions"));
+          assert.equal(await page.locator("[data-app-actions]:focus").getAttribute("data-app-actions"), path);
+          assert.equal(await search.inputValue(), "source");
+        }
+        assert.equal(f.mutations.length, before, "Cancellation never requests deletion");
+      }
+      assert.deepEqual(f.errors, []);
+    } finally { await f.close(); }
+  });
+
+  test(`Partial deletion removes only the selected app and preserves recovery after refresh failures in ${engine}`, {
+    skip: baseline ? "Baseline captures only." : !playwright && "Install src/web dependencies to run browser coverage.",
+    timeout: 90000,
+  }, async () => {
+    const f = await fixture(engine);
+    try {
+      const { page, state } = f;
+      state.deleteOutcome = "partial";
+      for (const surface of ["home", "open"]) for (const failRefresh of [false, true]) {
+        state.apps = structuredClone(initialApps);
+        state.apps[6].lastOpenedAt = "2026-11-07T16:59:00Z";
+        state.failSources = state.failRefreshAfterDelete = false;
+        await f.open(surface);
+        const search = page.getByRole("searchbox", { name: surface === "home" ? "Find a recent app" : "Search apps" });
+        await search.fill("source");
+        await page.locator("[data-app-actions]").first().click();
+        await page.getByRole("menuitem", { name: "Delete app", exact: true }).click();
+        state.failRefreshAfterDelete = failRefresh;
+        await page.getByRole("button", { name: "Yes, delete worktree", exact: true }).click();
+        await page.waitForFunction(failRefresh => {
+          const status = document.querySelector("#status");
+          return status.className === "error" && status.textContent.includes("git branch -D 'managed-app'")
+            && (!failRefresh || status.textContent.includes("Apps could not be refreshed: Source catalog unavailable."));
+        }, failRefresh);
+        assert.equal(await search.inputValue(), "source");
+        assert.equal(state.apps.some(app => app.path === initialApps[1].path), false);
+        assert.equal(state.apps.some(app => app.path === initialApps[6].path), true);
+        assert.equal(await page.locator("[data-app-actions]").evaluateAll(items =>
+          items.some(item => item.dataset.appActions === "C:\\east\\shared\\source")), false);
+        if (!failRefresh) {
+          assert.equal(await page.locator(".app-list-row").count(), 1);
+          await page.waitForFunction(() => document.activeElement?.type === "search");
+        } else {
+          assert.equal(await search.isDisabled(), true);
+          await page.waitForFunction(() => document.activeElement?.tagName === "BUTTON" && !document.activeElement.disabled);
+          if (surface === "open") {
+            state.failSources = false;
+            await page.getByRole("button", { name: "Retry", exact: true }).click();
+            await page.waitForFunction(() => document.activeElement?.type === "search");
+            assert.equal(await search.inputValue(), "source");
+            assert.equal(await page.locator(".app-list-row").count(), 1);
+          }
+        }
+      }
+      assert.equal(f.mutations.filter(item => item.path === "/api/delete-app").length, 4);
       assert.deepEqual(f.errors, []);
     } finally { await f.close(); }
   });

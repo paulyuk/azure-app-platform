@@ -235,17 +235,17 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     await dialog.locator('[data-settings-target="danger"]').click();
     await dialog.getByRole("button", { name: "Delete local app..." }).click();
     assert.equal(fixture.mutations.filter((item) => item.path === "/api/delete-app").length, 0);
-    await dialog.getByRole("button", { name: "Cancel deletion" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "No, keep app", exact: true }).click();
     await dialog.getByRole("button", { name: "Delete local app..." }).click();
     fixture.state.deleteError = true;
-    await dialog.getByRole("button", { name: "Delete local worktree", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Yes, delete worktree", exact: true }).click();
     await dialog.getByRole("alert").filter({ hasText: "Local worktree could not be deleted." }).waitFor();
-    assert.equal(await dialog.getByRole("button", { name: "Delete local worktree" }).isEnabled(), true);
+    assert.equal(await dialog.getByRole("button", { name: "Delete local app...", exact: true }).isEnabled(), true);
     const deletion = fixture.mutations.filter((item) => item.path === "/api/delete-app");
     assert.deepEqual(deletion.map((item) => item.body), [{ root: "/fixture/dealer", confirmed: true }]);
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
-    assert.equal(await dialog.getByRole("button", { name: "Delete local worktree" }).count(), 0, "Closing resets deletion review");
+    assert.equal(await page.getByRole("alertdialog").count(), 0, "Closing resets deletion review");
     for (const [width, height] of [[380, 640], [620, 780], [1440, 900]]) {
       await page.setViewportSize({ width, height });
       assert.equal(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true);
