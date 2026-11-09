@@ -1,18 +1,8 @@
 import { readFileSync } from "node:fs";
 
-const illustrationColors = {
-  "#294482": "--run-art-outline",
-  "#F5F5F5": "--run-art-paper",
-  "#CEDEFF": "--run-art-soft-blue",
-  "#FFE4B4": "--run-art-task",
-  "#5C8DF8": "--run-art-brand",
-  "#FFFFFF": "--run-art-highlight",
-};
-
 export const RUN_ILLUSTRATION_MARKUP = Object.fromEntries(["ready", "working"].map(state => [
   state,
-  Object.entries(illustrationColors).reduce((markup, [color, token]) => markup.replaceAll(color, `var(${token})`),
-    readFileSync(new URL(`./assets/run-${state}-spot.svg`, import.meta.url), "utf8")),
+  readFileSync(new URL(`./assets/run-${state}-spot.svg`, import.meta.url), "utf8"),
 ]));
 
 export function getAgentResponsePresentation({ state = "idle", phase = "preparing", slow = false } = {}) {
@@ -31,7 +21,7 @@ export function getAgentResponsePresentation({ state = "idle", phase = "preparin
     return {
       title: "Your result will appear here",
       description: "Choose an event or enter a task above, then select Invoke agent.",
-      illustration: "ready", showLogs: false,
+      illustration: null, showLogs: false,
     };
   }
   const [title, description] = phase === "waiting"
@@ -69,6 +59,8 @@ export function renderAgentResponse(root, { state, phase, slow, text, buttons, o
     root.textContent = text;
   } else {
     const summary = append(root, "div", "", "agent-result-summary");
+    pendingIndicator.classList.toggle("agent-result-idle-spinner", state === "idle");
+    if (state === "idle") summary.append(pendingIndicator);
     if (presentation.illustration) {
       const template = document.createElement("template");
       template.innerHTML = illustrations[presentation.illustration];
