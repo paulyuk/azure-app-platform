@@ -11,7 +11,7 @@ import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
 import { getEditorChoice, readEditorSettings } from "./editor-settings.mjs";
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 
-const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
+export const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
 const SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
 const DOMAIN_PATTERN = /^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
@@ -57,6 +57,14 @@ function optionalMultilineText(value, label, maxLength) {
   return normalized;
 }
 
+export function normalizeAppName(value) {
+  const appName = requireText(value, "App name", 80);
+  if (!APP_NAME_PATTERN.test(appName)) {
+    throw new Error("App name must start with a letter or number and use only letters, numbers, spaces, dots, underscores, or hyphens.");
+  }
+  return appName;
+}
+
 export function normalizeWorkspaceRequest(input) {
   const mode = input?.mode === "extend" ? "extend" : "create";
   const journey = input?.journey === "assemble" ? "assemble" : "new";
@@ -70,10 +78,7 @@ export function normalizeWorkspaceRequest(input) {
   const starterKind = journey === "assemble"
     ? "assembly"
     : "template";
-  const appName = requireText(input?.appName, "App name", 80);
-  if (!APP_NAME_PATTERN.test(appName)) {
-    throw new Error("App name must start with a letter or number and use only letters, numbers, spaces, dots, underscores, or hyphens.");
-  }
+  const appName = normalizeAppName(input?.appName);
   const purpose = requireText(input?.purpose, "App purpose", 500);
   const tierIds = [...new Set(Array.isArray(input?.tierIds) ? input.tierIds : [])];
   if (tierIds.length === 0) {

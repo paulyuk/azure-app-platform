@@ -47,6 +47,7 @@ import {
 } from "./studio-commands.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
+import { APP_NAMING_AGENT, suggestAppName } from "./app-naming.mjs";
 import { readStudioPreferences, writeStudioPreferences } from "./studio-theme.mjs";
 import { COPILOT_PRESENTATION, getStudioPresentation, STUDIO_PRESENTATION_IDS } from "./studio-presentation.mjs";
 import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./editor-settings.mjs";
@@ -1885,6 +1886,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }));
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/app-name") {
+      sendJson(response, 200, await suggestAppName(session, await readJsonBody(request)));
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/workspace-request") {
       const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
       const sourceCatalog = (
@@ -2820,4 +2825,4 @@ const canvas = createCanvas({
   },
 });
 
-session = await joinSession({ canvases: [canvas] });
+session = await joinSession({ canvases: [canvas], customAgents: [APP_NAMING_AGENT] });

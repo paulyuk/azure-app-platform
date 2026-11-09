@@ -12,6 +12,8 @@ import { mountStudioHome } from "./studio-home.mjs";
 import { mountStudioOpenApps } from "./studio-open-apps.mjs";
 import { createStudioAppList, getAppOpenedLabel, getAppPathLabels } from "./studio-app-list.mjs";
 import { showAppRenameDialog } from "./app-rename-dialog.mjs";
+import { CREATE_GUIDANCE, CREATE_FLOW_CSS, createTemplateKind, renderCreateProgress, mountCreateFlow } from "./create-flow.mjs";
+import { APP_NAME_PATTERN } from "./workspace-actions.mjs";
 export { renderInteractiveAppMapHtml as renderExpandedAppMapHtml } from "./interactive-app-map.mjs";
 
 const OPEN_APP_EMPTY_ILLUSTRATIONS = Object.fromEntries(["light", "dark"].map(theme => [
@@ -27,7 +29,6 @@ const homepageArtwork = Object.fromEntries(["create", "open", "assemble"].map(na
     theme, readFileSync(new URL("./assets/homepage-" + name + (theme === "dark" ? "-dark" : "") + ".svg", import.meta.url), "utf8"),
   ])),
 ]));
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -263,6 +264,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .template-preview-diagram svg { display: block; width: 100%; height: auto; max-height: 155px; }
       .template-preview-bullets { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; line-height: 1.45; color: var(--studio-muted); }
       .template-preview-bullets li strong { font-weight: 600; color: var(--studio-ink); }
+      ${CREATE_FLOW_CSS}
       .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .badge { border: 1px solid var(--studio-line); border-radius: 999px; padding: 2px 8px; font-size: 11px; background: var(--studio-panel); }
       .badge.foundry, .badge.hosted-agent, .badge.hosted-skill { background: #f0f6fc; border-color: #b6d4fe; color: #1d4ed8; }
@@ -430,8 +432,24 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
       const app = document.getElementById("app");
       const status = document.getElementById("status");
-      let homeHandle = null, openAppsHandle = null, existingAppSearch = "";
+      let homeHandle = null, openAppsHandle = null, existingAppSearch = "", createView = null;
+      const templateDrafts = new Map();
+      const createGuidance = ${JSON.stringify(CREATE_GUIDANCE).replaceAll("<", "\\u003c")};
+      const templateKind = (${createTemplateKind.toString()});
+      const createProgress = (${renderCreateProgress.toString()});
+      const mountCreate = (${mountCreateFlow.toString()});
+      function selectedTemplate() { return sources?.templates.find(item => item.id === draft.templateRootId); }
+      function guidanceFor(template) { return createGuidance[templateKind(template)]; }
+      function mountCreateView(step) {
+        createView = mountCreate({
+          root: app, toolkit, buttons, current: selectedTemplate, guidanceFor, kindFor: templateKind,
+          preview: renderTemplatePreviewCard, step,
+          onError: error,
+        });
+      }
       function disposeView() {
+        createView?.dispose();
+        createView = null;
         homeHandle?.dispose();
         homeHandle = null;
         openAppsHandle?.dispose();
@@ -454,6 +472,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         journey: null,
         step: 0,
         appName: "",
+        nameInstructions: "",
+        nameEdited: false,
         purpose: "",
         starterKind: "template",
         templateRootId: "",
@@ -528,9 +548,31 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         });
       }
 
-      function error(message) {
-        status.textContent = message;
-        status.className = "error";
+      function error(message, fieldId) {
+        const feedbackStatus = document.getElementById("create-review-status") || status;
+        feedbackStatus.textContent = message;
+        feedbackStatus.className = "error";
+        if (feedbackStatus !== status) feedbackStatus.setAttribute("role", "alert");
+        const field = fieldId && document.getElementById(fieldId);
+        if (field) {
+          let feedback = document.getElementById(fieldId + "-error");
+          if (!feedback) {
+            feedback = document.createElement("p");
+            feedback.id = fieldId + "-error";
+            feedback.className = "create-field-error";
+            field.closest(".field").after(feedback);
+            const description = field.getAttribute("aria-describedby") || "";
+            field.setAttribute("aria-describedby", (description + " " + feedback.id).trim());
+            field.addEventListener("input", () => {
+              field.removeAttribute("aria-invalid");
+              field.setAttribute("aria-describedby", description);
+              feedback.remove();
+            }, { once: true });
+          }
+          feedback.textContent = message;
+          field.setAttribute("aria-invalid", "true");
+          field.focus();
+        }
       }
 
       function clearStatus(message = "") {
@@ -676,6 +718,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         draft.journey = "new";
         draft.starterKind = "template";
         draft.step = 1;
+        if (!sources) sourcesError = null;
         renderDetails();
         try {
           await loadSources();
@@ -685,6 +728,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           applyTemplateDefaults(sources.templates.find((item) => item.id === draft.templateRootId));
           renderDetails();
         } catch (cause) {
+          renderDetails();
           error(cause.message);
         }
       }
@@ -882,18 +926,19 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function templateHtml() {
         if (!sources) {
-          return '<div class="notice">Loading available templates…</div>';
+          return sourcesError
+            ? '<div id="create-source-error"></div><button data-studio-button="secondary" type="button" id="retry-sources">Retry</button>'
+            : '<div class="notice" role="status">Loading available templates…</div>';
         }
         if (sources.templates.length === 0) {
           return '<div class="notice">No hydrateable samples were found in the available worktrees.</div>';
         }
-        const activeTemplate = sources.templates.find((item) => item.id === draft.templateRootId) || sources.templates[0];
-        return '<div class="choice-list">' + sources.templates.map((template) =>
-          '<label class="choice template" data-template-option="' + escape(template.id) + '"><input type="radio" name="template" value="' + escape(template.id) + '"' +
+        return '<div class="create-selection"><fieldset class="create-choices"><legend>Choose a template</legend>' + sources.templates.map((template) =>
+          '<article class="create-template"><label class="choice template" data-template-option="' + escape(template.id) + '"><input type="radio" name="template" value="' + escape(template.id) + '"' +
           (draft.templateRootId === template.id ? " checked" : "") + '><span><strong>' + escape(template.name) +
           '</strong><span class="template-meta">' + escape(template.description) +
-          '</span></span></label>').join("") + '</div>' +
-          '<div id="template-preview-mount">' + renderTemplatePreviewCard(activeTemplate) + '</div>';
+          '</span></span></label><div class="create-inline-body" data-create-inline="' + escape(template.id) + '" hidden></div></article>').join("") +
+          '</fieldset><aside id="template-preview-mount" data-create-context></aside></div>';
       }
 
       async function loadSources(refresh = false) {
@@ -915,41 +960,47 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         disposeView();
         const isNew = draft.journey === "new";
-        buttons.replace(app, topBack("Back to Home") + '<div class="step">Step 1 of ' + (isNew ? "2" : "4") + '</div>' +
+        if (isNew && sources?.templates?.length && !selectedTemplate()) {
+          draft.templateRootId = sources.templates[0].id;
+          applyTemplateDefaults(sources.templates[0]);
+        }
+        buttons.replace(app, topBack("Back to Home") + (isNew ? createProgress(1) : '<div class="step">Step 1 of 4</div>') +
           '<h1>' + (isNew ? "Create a new app" : "Assemble existing projects") + '</h1>' +
           (isNew
-            ? '<h2>Choose a template</h2><p>Select a starter template or reference sample for your new app.</p><div id="templates">' + templateHtml() + '</div>'
+            ? '<p>Select a starter template or reference sample for your new app.</p><div id="templates">' + templateHtml() + '</div>'
             : '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
               escape(draft.appName) + '" placeholder="claims-assistant"></label>' +
               '<label class="field">What should this app do?<textarea id="purpose" maxlength="500" placeholder="Describe the outcome for its users.">' +
               escape(draft.purpose) + '</textarea></label>' +
               '<div class="notice">Next, you will add capabilities and explicitly choose a source project for each one.</div>') +
-          actions({ back: true, nextLabel: isNew ? "Continue" : "Choose pieces" }));
-        document.getElementById("back").addEventListener("click", renderLanding);
+          (isNew ? '<footer class="create-footer"><p>Creates a new isolated Git worktree. No Azure resources will be created or changed.</p>' : "") +
+          actions({ back: !isNew, nextLabel: isNew ? "Continue" : "Choose pieces", nextDisabled: isNew && !sources?.templates?.length }) +
+          (isNew ? '</footer>' : ""));
+        document.getElementById("back")?.addEventListener("click", renderLanding);
         wireTopBack(renderLanding);
+        document.getElementById("retry-sources")?.addEventListener("click", beginNewApp);
+        if (document.getElementById("create-source-error")) {
+          notices.renderNotice(document.getElementById("create-source-error"), { children: sourcesError, intent: "error" });
+        }
         document.querySelectorAll('input[name="template"]').forEach((input) => {
           input.addEventListener("change", () => {
+            templateDrafts.set(draft.templateRootId, {
+              appName: draft.appName, nameInstructions: draft.nameInstructions, nameEdited: draft.nameEdited,
+              purpose: draft.purpose, templateInputs: structuredClone(draft.templateInputs),
+            });
             draft.templateRootId = input.value;
             const template = sources.templates.find((item) => item.id === input.value);
+            const previous = templateDrafts.get(input.value);
+            if (previous) Object.assign(draft, structuredClone(previous));
+            else {
+              draft.appName = ""; draft.nameInstructions = ""; draft.nameEdited = false;
+              draft.purpose = "";
+              draft.templateInputs = { ...draft.templateInputs, agentInstructions: "", hostedSkillName: "starter-skill" };
+            }
             applyTemplateDefaults(template);
             draft.tierIds = [...template.capabilityIds];
-            const previewMount = document.getElementById("template-preview-mount");
-            if (previewMount && template) previewMount.innerHTML = renderTemplatePreviewCard(template);
-          });
-        });
-        document.querySelectorAll('[data-template-option]').forEach((label) => {
-          const updatePreview = () => {
-            const templateId = label.getAttribute("data-template-option");
-            const template = sources?.templates?.find((item) => item.id === templateId);
-            const previewMount = document.getElementById("template-preview-mount");
-            if (previewMount && template) previewMount.innerHTML = renderTemplatePreviewCard(template);
-          };
-          label.addEventListener("mouseenter", updatePreview);
-          label.addEventListener("focusin", updatePreview);
-          label.addEventListener("mouseleave", () => {
-            const selected = sources?.templates?.find((item) => item.id === draft.templateRootId);
-            const previewMount = document.getElementById("template-preview-mount");
-            if (previewMount && selected) previewMount.innerHTML = renderTemplatePreviewCard(selected);
+            createView.update();
+            clearStatus();
           });
         });
         document.getElementById("app-name")?.addEventListener("input", (event) => {
@@ -995,6 +1046,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           renderPieces();
         });
         if (isNew && sources?.templates?.length) {
+          mountCreateView(1);
           focusPrimaryAction("#next");
         }
       }
@@ -1006,18 +1058,6 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
-        const heading = isSample
-          ? "Configure the Dealership E2E Reference Sample"
-          : (isSandboxGateway
-              ? "Customize the Sandboxes &amp; AI Gateway Starter"
-              : (isAppServiceBuilder ? "Customize the App Service Builder Starter" : "Customize the Empty app"));
-        const intro = isSample
-          ? "Review the app name and included capabilities for the complete reference sample."
-          : (isSandboxGateway
-              ? "Name your app and describe what it should do or how the agent should behave. Outbound tool egress is blocked by default."
-              : (isAppServiceBuilder
-                  ? "Name your app and describe what this App Service Builder web surface does. Includes builder.yaml and /health out of the box."
-                  : "Start with an empty workspace shell and define its initial instructions. Add building blocks in Build."));
         const instructionsValue = draft.templateInputs.agentInstructions || draft.purpose ||
           (isSample
             ? DEALER_SAMPLE_PURPOSE
@@ -1030,82 +1070,41 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           : (isAppServiceBuilder
               ? '<label class="field">What should this web app do?<textarea id="agent-instructions" maxlength="2000" placeholder="Describe the web experience and any backend or agent capabilities you plan to connect.">' +
                 escape(instructionsValue) + '</textarea></label>'
-              : '<label class="field">What should this app do &amp; agent instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
+              : '<label class="field">App instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
                 escape(instructionsValue) + '</textarea></label>');
         const secondField = (!isSandboxGateway && !isAppServiceBuilder && !isSample)
           ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
           : "";
-        const badgeByTier = {
-          web: { label: "App Service Builder", className: "embr" },
-          agent: isSandboxGateway
-            ? { label: "Any Compute", className: "hosted-agent" }
-            : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : { label: "Any Compute", className: "hosted-agent" }),
-          gateway: { label: "AI Gateway", className: "gateway" },
-          skills: { label: "Azure Functions", className: "hosted-skill" },
-          sandbox: { label: "ACA Sandboxes", className: "sandbox" },
-          workflows: { label: "Durable Functions", className: "durable" },
-        };
-        const visibleTiers = isSandboxGateway
-          ? [
-              { name: "Agent", badge: "Any Compute", badgeClass: "hosted-agent", role: "Orchestrates the workflow on any compute (local, ACA, Functions, or Foundry) without running untrusted tools in-process" },
-              { name: "Tools", badge: "ACA Sandboxes", badgeClass: "sandbox", role: "Runs untrusted document validation and code in isolated sandboxes with default-deny egress and zero secrets" },
-              { name: "Gateway", badge: "AI Gateway", badgeClass: "gateway", role: "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials" },
-            ]
-          : (isAppServiceBuilder
-              ? [
-                  { name: "Surface / web", badge: "App Service Builder", badgeClass: "embr", role: "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint" },
-                ]
-              : draft.tierIds.map((tierId) => {
-                  const tier = capabilities.find((item) => item.id === tierId);
-                  if (!tier) return null;
-                  const badge = badgeByTier[tierId];
-                  return {
-                    name: tier.name,
-                    badge: badge?.label,
-                    badgeClass: badge?.className,
-                    role: tier.role,
-                  };
-                }).filter(Boolean));
-        const createButtonLabel = isSample
-          ? "Create runnable sample"
-          : ((isSandboxGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app");
-        buttons.replace(app, topBack("Back") + '<div class="step">Step 2 of 2</div><h1>' + heading + '</h1>' +
-          '<p>' + intro + '</p>' +
-          '<label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
-          escape(draft.appName) + '" placeholder="sandbox-starter-app"></label>' +
+        buttons.replace(app, topBack("Back") + createProgress(2) + '<div class="create-configure"><h1>Describe your app</h1>' +
+          '<p class="create-configure-context">' + escape(selectedTemplate.name) + '</p>' +
+          '<section class="create-form">' +
           instructionsField +
+          '<p class="create-field-help" id="create-instruction-help">' + escape(guidanceFor(selectedTemplate).editing) + '</p>' +
+          '<p class="create-field-help">AI will suggest a name from these instructions. You can rename it in review.</p>' +
           secondField +
-          '<h2>Included now</h2><p>Keep the first template predictable. Add other capabilities from Azure App Platform after creation.</p>' +
-          '<div class="capability-list">' + visibleTiers.map((tier) =>
-            '<div class="capability"><div class="capability-head"><strong>' + escape(tier.name) + '</strong>' +
-              (tier.badge ? '<span class="badge ' + escape(tier.badgeClass || "") + '">' + escape(tier.badge) + '</span>' : '') +
-              '</div><small>' + escape(tier.role) + '</small></div>'
-          ).join("") + '</div>' +
-          '<div class="studio-toolkit" id="review-notice">Creates a new isolated Git worktree. No Azure resources will be created or changed.</div>' +
-          actions({ back: true, nextLabel: createButtonLabel }));
+          '</section>' +
+          '<footer class="create-footer">' +
+          '<div class="studio-toolkit" id="review-notice">Creates a new Git worktree. No Azure resources are provisioned.</div>' +
+          actions({ back: true, nextLabel: "Review app" }) + '</footer></div>');
         notices.renderNotice(document.getElementById("review-notice"), {
-          children: "Creates a new isolated Git worktree. No Azure resources will be created or changed.",
+          children: "Creates a new Git worktree. No Azure resources are provisioned.",
           intent: "info",
-        });
-        document.getElementById("app-name").addEventListener("input", (event) => {
-          draft.appName = event.target.value;
         });
         document.getElementById("agent-instructions").addEventListener("input", (event) => {
           draft.templateInputs.agentInstructions = event.target.value;
           draft.purpose = event.target.value.trim().slice(0, 500);
         });
+        document.getElementById("agent-instructions").setAttribute("aria-describedby", "create-instruction-help");
+        document.getElementById("skill-name")?.addEventListener("input", event => {
+          draft.templateInputs.hostedSkillName = event.target.value;
+        });
         wireActions({
           back: renderDetails,
-          next: async () => {
-            draft.appName = document.getElementById("app-name").value.trim();
-            if (!draft.appName) {
-              error("Enter an app name.");
-              return;
-            }
+          next: () => {
             const instructions = document.getElementById("agent-instructions").value.trim();
             if (!instructions) {
-              error("Enter instructions for the app.");
+              error("Enter instructions for the app.", "agent-instructions");
               return;
             }
             draft.templateInputs.agentInstructions = instructions;
@@ -1113,15 +1112,95 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             if (!isSandboxGateway && !isAppServiceBuilder && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
-                error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.");
+                error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.", "skill-name");
                 return;
               }
             }
-            await submit();
+            renderCreateReview();
           }
         });
         wireTopBack(renderDetails);
         focusPrimaryAction("#next");
+      }
+
+      function renderCreateReview() {
+        clearStatus();
+        disposeView();
+        const template = selectedTemplate(), guidance = guidanceFor(template);
+        const instructions = draft.templateInputs.agentInstructions;
+        let naming = false, nameReady = draft.nameEdited || draft.nameInstructions === instructions;
+        buttons.replace(app, topBack("Back") + createProgress(3) +
+          '<section class="create-review create-review-copy" aria-labelledby="create-review-title">' +
+          '<h1 id="create-review-title" tabindex="-1">Review app</h1>' +
+          '<div id="create-review-status" role="status" aria-live="polite"></div>' +
+          '<button data-studio-button="secondary" type="button" id="retry-name" hidden>Retry naming</button>' +
+          '<div class="summary"><section><label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
+          escape(nameReady ? draft.appName : "") + '"></label><h3>App instructions</h3><p>' + escape(instructions) +
+          '</p></section><section><h3>Starter</h3><p>' + escape(template.name) +
+          '</p><p class="create-caution">' + escape(guidance.caution) + '</p>' +
+          (template.id === "builtin-empty-starter-v1" ? '<p>Empty Hosted Skill name: <code>' + escape(draft.templateInputs.hostedSkillName) + '</code></p>' : "") +
+          '</section><section><h3>Included now</h3><dl class="create-review-capabilities">' +
+          guidance.included.map(([name, role]) => '<div><dt>' + escape(name) + '</dt><dd>' + escape(role) + '</dd></div>').join("") +
+          '</dl></section><section><h3>Workspace</h3>' +
+          '<p>New isolated Git worktree. Selected sources are copied or hydrated; source locations are never modified.</p>' +
+          '<p>No Azure resources will be created or changed.</p></section></div>' +
+          '<footer class="create-footer">' + actions({ back: true, nextLabel: "Create app", nextDisabled: !nameReady }) +
+          '</footer></section>');
+        const review = document.querySelector(".create-review");
+        const nameField = document.getElementById("app-name");
+        const feedback = document.getElementById("create-review-status");
+        const retry = document.getElementById("retry-name");
+        const back = () => { if (!appBusy && !naming) renderCapabilities(); };
+        nameField.addEventListener("input", () => { draft.appName = nameField.value; draft.nameEdited = true; });
+        async function suggestName() {
+          if (naming || !review.isConnected) return;
+          naming = true;
+          feedback.className = "";
+          feedback.setAttribute("role", "status");
+          feedback.textContent = "Suggesting an app name...";
+          nameField.placeholder = "Generating app name...";
+          retry.hidden = true;
+          review.setAttribute("aria-busy", "true");
+          setBusy(true);
+          try {
+            const result = await request("/api/app-name", { method: "POST", body: JSON.stringify({ instructions }) });
+            if (typeof result.name !== "string" || !${APP_NAME_PATTERN}.test(result.name)) {
+              throw new Error("AI returned an invalid app name. Retry naming.");
+            }
+            draft.appName = result.name;
+            draft.nameInstructions = instructions;
+            nameField.value = result.name;
+            nameReady = true;
+            feedback.textContent = "";
+          } catch (cause) {
+            error(cause.message);
+            retry.hidden = false;
+          } finally {
+            naming = false;
+            nameField.removeAttribute("placeholder");
+            review.removeAttribute("aria-busy");
+            setBusy(false);
+            buttons.setDisabled(document.getElementById("next"), !nameReady);
+            buttons.setDisabled(nameField, !nameReady);
+            (nameReady ? nameField : retry).focus({ preventScroll: true });
+          }
+        }
+        retry.addEventListener("click", suggestName);
+        wireActions({ back, next: async () => {
+          if (appBusy || naming || !nameReady || window.__appPlatformSubmitting) return;
+          const name = nameField.value.trim();
+          if (!${APP_NAME_PATTERN}.test(name)) {
+            error("Use 1 to 80 characters, starting with a letter or number; letters, numbers, spaces, dots, underscores or hyphens only.", "app-name");
+            return;
+          }
+          feedback.textContent = "";
+          draft.appName = name;
+          await submit();
+          if (review.isConnected && !appBusy) focusPrimaryAction("#next");
+        } });
+        wireTopBack(back);
+        document.getElementById("create-review-title").focus({ preventScroll: true });
+        if (!nameReady) void suggestName();
       }
 
       function availableForTier(tierId) {

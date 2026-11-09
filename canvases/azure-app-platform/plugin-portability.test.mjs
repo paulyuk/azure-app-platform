@@ -67,8 +67,9 @@ test("installed payload opens and materializes templates without checkout depend
         export class CanvasError extends Error {
           constructor(code, message) { super(message); this.code = code; }
         }
-        export async function joinSession({ canvases }) {
+        export async function joinSession({ canvases, customAgents }) {
           globalThis.portabilityCanvases = canvases;
+          globalThis.portabilityNamingAgents = customAgents;
           globalThis.portabilityEditorCanvases = [{
             canvasId: "editor", extensionId: "host:editor", displayName: "Files", description: "Repository files",
           }];
@@ -77,6 +78,15 @@ test("installed payload opens and materializes templates without checkout depend
           return {
             sessionId: "portability-test",
             rpc: {
+              tasks: {
+                startAgent: async (input) => {
+                  globalThis.portabilityNamingInput = input;
+                  return { agentId: "portable-naming" };
+                },
+                list: async () => ({ tasks: [{ type: "agent", id: "portable-naming", status: "completed", result: '{"name":"Document Review"}' }] }),
+                cancel: async () => ({ cancelled: false }),
+                remove: async () => ({ removed: true }),
+              },
               canvas: {
                 list: async () => ({ canvases: globalThis.portabilityEditorCanvases }),
                 open: async (request) => {
@@ -127,6 +137,17 @@ test("installed payload opens and materializes templates without checkout depend
         const response = await fetch(opened.url);
         assert.equal(response.status, 200);
         const html = await response.text();
+        assert.deepEqual(globalThis.portabilityNamingAgents[0].tools, []);
+        assert.equal(globalThis.portabilityNamingAgents[0].modelPolicy, "required");
+        const namingToken = html.match(/const apiToken = ("[^"]+")/);
+        assert.ok(namingToken);
+        const named = await fetch(new URL("/api/app-name", opened.url), {
+          method: "POST", headers: { "Content-Type": "application/json", "X-App-Platform-Token": JSON.parse(namingToken[1]) },
+          body: JSON.stringify({ instructions: "Review documents" }),
+        });
+        assert.equal(named.status, 200);
+        assert.deepEqual(await named.json(), { name: "Document Review" });
+        assert.equal(globalThis.portabilityNamingInput.agentType, "azure-app-platform-name");
         assert.match(html, /Create a new app/);
         assert.match(html, /data-studio-presentation="github-app"/);
         assert.deepEqual(canvas.inputSchema.properties.presentationProfile.enum, ["standalone", "github-app"]);
