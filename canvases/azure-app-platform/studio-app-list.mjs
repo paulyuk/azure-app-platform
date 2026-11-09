@@ -19,7 +19,7 @@ export function getAppOpenedLabel(value, now = Date.now()) {
 export function createStudioAppList(toolkit, { getAppPathLabels, getAppOpenedLabel }) {
   const { createElement: h, Fragment, useState, useEffect, useRef, MenuButton, MenuItem, Tooltip } = toolkit;
 
-  function AppRow({ app, pathLabel, openedLabel, appHref, itemAttribute, onOpen, onCopyPath, onRename, onDelete, disabled }) {
+  function AppRow({ app, pathLabel, openedLabel, appHref, itemAttribute, onOpen, onCopyPath, onRename, onDelete, disabled, actionsDisabled = disabled }) {
     const trigger = useRef(null);
     return h("li", { className: "app-list-row" },
       h(Tooltip, { content: h("span", { className: "app-list-full-path" }, app.path) },
@@ -50,7 +50,7 @@ export function createStudioAppList(toolkit, { getAppPathLabels, getAppOpenedLab
       h(MenuButton, {
         label: null, positioning: "below-end",
         button: {
-          ref: trigger, appearance: "subtle", size: "small", disabled,
+          ref: trigger, appearance: "subtle", size: "small", disabled: actionsDisabled,
           icon: h("span", { "aria-hidden": true }, "\u22ef"),
           "aria-label": "More actions for " + app.name, "data-app-actions": app.path,
         },

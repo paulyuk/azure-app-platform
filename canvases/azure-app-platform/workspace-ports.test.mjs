@@ -85,8 +85,11 @@ test("new apps avoid live and saved sibling ports before exposing the child sess
   const first = await create(root, "first");
   const firstSettings = await readPortSettings(first.worktreePath);
   let sessionOpened = false;
+  const stages = [];
   const second = await create(root, "second", {
+    onProgress: message => stages.push(message),
     session: { rpc: { sessions: { open: async ({ options }) => {
+      assert.deepEqual(stages, ["Creating app workspace...", "Preparing template files...", "Preparing local settings...", "Opening app session..."]);
       const settings = await readPortSettings(options.workingDirectory);
       assert.ok(settings.AGENT_PORT);
       assert.notEqual(settings.AGENT_PORT, firstSettings.AGENT_PORT);

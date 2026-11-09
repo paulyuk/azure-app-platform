@@ -1429,7 +1429,7 @@ test("app selection and creation route directly to the app workspace", () => {
   for (const expected of [
     'function openAppMap(root, notice = "", initialWorkspace = "")',
     'location.assign("/app-map?root="',
-    'appHref: root => "/app-map?root=" + encodeURIComponent(root)',
+    'const appHref = root => "/app-map?root=" + encodeURIComponent(root)',
     'openAppMap(result.worktreePath, result.editorWarning, "build")',
     'if (result.worktreePath)',
     "Assembly started. The app will appear here when its isolated workspace is ready.",

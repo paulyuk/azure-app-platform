@@ -35,6 +35,8 @@ open Azure App Platform
 
 From **Home**, choose **Create a new app**, **Open an app**, or **Assemble existing projects**, then use the workspace tabs (**Build**, **Connect**, **Run**, **Observe**, **Deploy**) to customize, test, and operate your app.
 
+Home refreshes recent apps in the background without blocking starting journeys, and built-in starter templates are available immediately while reference samples finish loading. Stacked skeleton cards share a 12px gap across Home, the picker, initial controls, and the workspace shell. Selecting an app opens a themed workspace shell while its source graph loads, and workspace creation streams real progress stages while keeping the submitted review form visible. Loading spinners keep rotating even when reduced motion is enabled so pending operations remain visibly active.
+
 ### 3. Run canvas tests (maintainers)
 
 From the repository root:
