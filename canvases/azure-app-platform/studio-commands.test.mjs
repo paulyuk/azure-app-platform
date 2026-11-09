@@ -793,6 +793,77 @@ test("source catalog recognizes the Dealer template from SSH remotes", async () 
   });
 });
 
+test("source catalog deduplicates canonical additional roots and scopes targeted template or path lookups", async () => {
+  await withFixture({
+    "src/agent/agent.yaml": "kind: hosted\nname: generic\n",
+  }, async (root) => {
+    const canonicalRoot = await realpath(root);
+    const posixListedRoot = canonicalRoot.replaceAll("\\", "/");
+    const unrelatedRoot = join(canonicalRoot, "unrelated-worktree");
+    let statusCalls = 0;
+    let topLevelCalls = 0;
+    const commandRunner = async (_command, args) => {
+      if (args.includes("worktree")) {
+        return {
+          ok: true,
+          stdout: [
+            `worktree ${posixListedRoot}`,
+            "HEAD 2830d882941163f833b9a893dcc62d507dc98bb6",
+            "branch refs/heads/main",
+            "",
+            `worktree ${unrelatedRoot.replaceAll("\\", "/")}`,
+            "HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "branch refs/heads/other",
+            "",
+          ].join("\n"),
+          stderr: "",
+        };
+      }
+      if (args.includes("--show-toplevel")) {
+        topLevelCalls++;
+        return { ok: true, stdout: `${posixListedRoot}\n`, stderr: "" };
+      }
+      if (args[1] !== canonicalRoot) {
+        throw new Error(`Unexpected inspection of unrelated worktree: ${args.join(" ")}`);
+      }
+      if (args.includes("status")) {
+        statusCalls++;
+        return { ok: true, stdout: "", stderr: "" };
+      }
+      if (args.includes("config")) {
+        return { ok: true, stdout: "https://github.com/coreai-microsoft/azure-app-platform.git\n", stderr: "" };
+      }
+      if (args.includes("cat-file") || args.includes("merge-base")) {
+        return { ok: true, stdout: "", stderr: "" };
+      }
+      if (args.includes("show")) return { ok: true, stdout: "1700000000\n", stderr: "" };
+      throw new Error(`Unexpected Git args: ${args.join(" ")}`);
+    };
+
+    const byPath = await listSourceCatalog({
+      workspaceRoot: canonicalRoot,
+      additionalRoots: [canonicalRoot],
+      targetPaths: [posixListedRoot],
+      commandRunner,
+    });
+    assert.equal(byPath.roots.length, 1);
+    assert.equal(byPath.roots[0].path, canonicalRoot);
+    assert.equal(statusCalls, 1);
+    assert.equal(topLevelCalls, 0);
+
+    const byRootId = await listSourceCatalog({
+      workspaceRoot: canonicalRoot,
+      additionalRoots: [canonicalRoot],
+      targetRootIds: [byPath.roots[0].id],
+      commandRunner,
+    });
+    assert.equal(byRootId.roots.length, 1);
+    assert.equal(byRootId.roots[0].id, byPath.roots[0].id);
+    assert.equal(statusCalls, 2);
+    assert.equal(topLevelCalls, 0);
+  });
+});
+
 test("source plans use pinned templates and explicit assembly snapshots", () => {
   const catalog = {
     roots: [{

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 
 import { discoverRepository, runCommand } from "./discovery.mjs";
 import { readAppLastOpened, sortAppsByLastOpened } from "./app-recency.mjs";
@@ -372,6 +372,14 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
   };
 }
 
+async function canonicalPath(path) {
+  try {
+    return await realpath(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots }) {
   const result = await commandRunner("git", [
     "-C",
@@ -383,11 +391,18 @@ async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoo
   if (!result.ok) {
     throw new Error(`Could not list Git worktrees: ${result.stderr || result.error || "unknown error"}`);
   }
-  const discovered = parseWorktrees(result.stdout);
+  const discovered = await Promise.all(parseWorktrees(result.stdout).map(async (worktree) => ({
+    ...worktree,
+    path: await canonicalPath(worktree.path),
+  })));
   const knownPaths = new Set(discovered.map((worktree) => worktree.path));
   for (const path of additionalRoots) {
-    const topLevel = await commandRunner("git", ["-C", path, "rev-parse", "--show-toplevel"]);
-    const sourceRoot = topLevel.ok ? await realpath(topLevel.stdout.trim()) : path;
+    const candidatePath = await canonicalPath(path);
+    if (knownPaths.has(candidatePath)) {
+      continue;
+    }
+    const topLevel = await commandRunner("git", ["-C", candidatePath, "rev-parse", "--show-toplevel"]);
+    const sourceRoot = topLevel.ok ? await canonicalPath(topLevel.stdout.trim()) : candidatePath;
     if (knownPaths.has(sourceRoot)) {
       continue;
     }
@@ -422,11 +437,26 @@ export async function listSourceCatalog({
   workspaceRoot = process.cwd(),
   commandRunner = runCommand,
   additionalRoots = [],
+  targetRootIds = null,
+  targetPaths = null,
   pinnedDiscovery = discoverPinnedRepository,
 } = {}) {
   const discovered = await listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots });
+  const requestedRootIds = Array.isArray(targetRootIds) ? new Set(targetRootIds) : null;
+  const requestedPaths = Array.isArray(targetPaths)
+    ? new Set(await Promise.all(targetPaths.map((path) => canonicalPath(path))))
+    : null;
+  const worktreesToInspect = discovered.filter((worktree) => {
+    if (requestedRootIds && !requestedRootIds.has(sourceId(worktree.path, worktree.commit))) {
+      return false;
+    }
+    if (requestedPaths && !requestedPaths.has(worktree.path)) {
+      return false;
+    }
+    return true;
+  });
   const inspected = await Promise.allSettled(
-    discovered.map((worktree) => inspectWorktree(worktree, commandRunner, pinnedDiscovery)),
+    worktreesToInspect.map((worktree) => inspectWorktree(worktree, commandRunner, pinnedDiscovery)),
   );
   const roots = inspected
     .filter((result) => result.status === "fulfilled")

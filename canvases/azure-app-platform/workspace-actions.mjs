@@ -501,6 +501,7 @@ export async function requestAppWorkspace({
   input,
   commandRunner = runCommand,
   sourceCatalog,
+  additionalRoots = [],
   azureCatalog,
 }) {
   const request = normalizeWorkspaceRequest(input);
@@ -526,7 +527,12 @@ export async function requestAppWorkspace({
     const catalog = sourceCatalog ?? (
       LOCAL_TEMPLATES.some((template) => template.id === request.templateRootId)
         ? { roots: [], templates: LOCAL_TEMPLATES }
-        : await listSourceCatalog({ workspaceRoot, commandRunner })
+        : await listSourceCatalog({
+            workspaceRoot,
+            commandRunner,
+            additionalRoots,
+            ...(request.starterKind === "template" ? { targetRootIds: [request.templateRootId] } : {}),
+          })
     );
     const resourcesByTier = new Map(request.sourceBindings.map((binding) => [
       binding.tierId,

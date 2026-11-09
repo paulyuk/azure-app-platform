@@ -1892,17 +1892,11 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
     }
     if (request.method === "POST" && url.pathname === "/api/workspace-request") {
       const input = await validateSourceProjectPath(await readJsonBody(request), workspaceRoot);
-      const sourceCatalog = (
-        input.starterKind === "template" || input.journey === "assemble"
-      ) ? await listSourceCatalog({
-          workspaceRoot,
-          additionalRoots: [...authorizedRoots],
-        }) : undefined;
       const result = await requestAppWorkspace({
         session,
         workspaceRoot,
         input,
-        sourceCatalog,
+        additionalRoots: [...authorizedRoots],
         azureCatalog: await freshAzureCatalog(workspaceRoot, input),
       });
       if (result.worktreePath) {
@@ -2462,6 +2456,7 @@ if ($firstModelId) {
       const catalog = await listSourceCatalog({
         workspaceRoot,
         additionalRoots: [...authorizedRoots],
+        targetPaths: [root],
       });
       const appIdentity = catalog.apps.find((app) => app.path === root);
       const html = renderInteractiveAppMapHtml(await traceUnityApp({ root }), {
