@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { listSourceCatalog } from "./source-catalog.mjs";
+import { findSourceApp, listSourceCatalog } from "./source-catalog.mjs";
 import { renameAppWorkspace } from "./workspace-actions.mjs";
 
 async function withApp(action) {
@@ -75,5 +75,62 @@ test("Renaming refuses linked identity directories without writing outside the a
       await rm(join(root, ".azure-app-platform"), { force: true, recursive: true });
       await rm(outside, { force: true, recursive: true });
     }
+  });
+});
+
+test("Rename lookup inspects only the selected app and preserves catalog eligibility", async () => {
+  await withApp(async root => {
+    const calls = [];
+    const commandRunner = async (_command, args) => {
+      calls.push(args);
+      if (args.includes("worktree")) {
+        return { ok: true, stdout: `worktree ${root}\n\nworktree ${join(root, "unrelated")}\n` };
+      }
+      assert.equal(args[1], root, "Unrelated worktrees must not be inspected");
+      return { ok: false, stdout: "" };
+    };
+    const app = await findSourceApp({ root, workspaceRoot: root, commandRunner });
+    assert.equal(app.path, root);
+    assert.equal(app.declaredApp, true);
+    assert.equal(calls.some(args => args.includes("status")), true);
+    await unlink(join(root, "azure-app.yaml"));
+    assert.equal(await findSourceApp({ root, workspaceRoot: root, commandRunner }), null);
+    await assert.rejects(findSourceApp({
+      root, workspaceRoot: root, commandRunner: async () => ({ ok: false, stderr: "Worktree lookup failed." }),
+    }), /Could not list Git worktrees: Worktree lookup failed/);
+  });
+});
+
+test("Rename lookup retains legacy runnable apps and resolves additional Git roots without admitting nested folders", async () => {
+  await withApp(async root => {
+    const nested = join(root, "src", "agent");
+    const calls = [];
+    let runnable = true, registered = true;
+    const commandRunner = async (_command, args) => {
+      calls.push(args);
+      if (args.includes("worktree")) {
+        return { ok: true, stdout: registered ? `worktree ${root}\nHEAD fixture-commit\n` : "" };
+      }
+      if (args.includes("--show-toplevel")) return { ok: true, stdout: root };
+      if (args.includes("rev-parse")) return { ok: true, stdout: "fixture-commit" };
+      if (args.includes("cat-file")) return { ok: runnable, stdout: "" };
+      return { ok: false, stdout: "" };
+    };
+    await unlink(join(root, "azure-app.yaml"));
+    await mkdir(join(root, "src", "web"));
+    await writeFile(join(root, "src", "web", "package.json"), '{"dependencies":{"next":"1"}}');
+    await writeFile(join(nested, "agent.yaml"), "kind: hosted\n");
+    const legacy = await findSourceApp({ root, workspaceRoot: root, commandRunner });
+    assert.equal(legacy.path, root);
+    assert.equal(legacy.declaredApp, false);
+    assert.equal(legacy.runnableSample, true);
+    runnable = false;
+    assert.equal(await findSourceApp({ root, workspaceRoot: root, commandRunner }), null);
+    await writeFile(join(root, "azure-app.yaml"), "capabilities:\n  agent:\n    path: src/agent\n");
+    registered = false;
+    assert.equal((await findSourceApp({ root, workspaceRoot: root, commandRunner })).path, root);
+    await writeFile(join(nested, "azure-app.yaml"), "capabilities:\n  agent:\n    path: .\n");
+    assert.equal(await findSourceApp({ root: nested, workspaceRoot: root, commandRunner }), null);
+    assert.equal(calls.some(args => args[1] === nested && args.includes("status")), false);
   });
 });

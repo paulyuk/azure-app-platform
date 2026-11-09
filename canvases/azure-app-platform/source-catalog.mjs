@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 
 import { discoverRepository, runCommand } from "./discovery.mjs";
 import { readAppLastOpened, sortAppsByLastOpened } from "./app-recency.mjs";
@@ -372,12 +372,7 @@ async function inspectWorktree(worktree, commandRunner, pinnedDiscovery) {
   };
 }
 
-export async function listSourceCatalog({
-  workspaceRoot = process.cwd(),
-  commandRunner = runCommand,
-  additionalRoots = [],
-  pinnedDiscovery = discoverPinnedRepository,
-} = {}) {
+async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots }) {
   const result = await commandRunner("git", [
     "-C",
     workspaceRoot,
@@ -407,6 +402,29 @@ export async function listSourceCatalog({
       branch: branch.ok ? branch.stdout.trim() || null : null,
     });
   }
+  return discovered;
+}
+
+function isSourceApp(root) {
+  return root.declaredApp || (root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent"));
+}
+
+export async function findSourceApp({ root, workspaceRoot = process.cwd(), commandRunner = runCommand }) {
+  const resolvedRoot = await realpath(root);
+  const worktrees = await listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots: [resolvedRoot] });
+  const worktree = worktrees.find(item => relative(resolvedRoot, item.path) === "");
+  if (!worktree) return null;
+  const app = await inspectWorktree(worktree, commandRunner, discoverPinnedRepository);
+  return isSourceApp(app) ? app : null;
+}
+
+export async function listSourceCatalog({
+  workspaceRoot = process.cwd(),
+  commandRunner = runCommand,
+  additionalRoots = [],
+  pinnedDiscovery = discoverPinnedRepository,
+} = {}) {
+  const discovered = await listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoots });
   const inspected = await Promise.allSettled(
     discovered.map((worktree) => inspectWorktree(worktree, commandRunner, pinnedDiscovery)),
   );
@@ -493,8 +511,7 @@ export async function listSourceCatalog({
   return {
     generatedAt: new Date().toISOString(),
     roots,
-    apps: sortAppsByLastOpened(roots.filter((root) =>
-      root.declaredApp || (root.runnableSample && root.capabilityIds.includes("web") && root.capabilityIds.includes("agent")))),
+    apps: sortAppsByLastOpened(roots.filter(isSourceApp)),
     templates,
     diagnostics,
   };

@@ -39,6 +39,8 @@ Renaming is also available in **Settings → This app → General**. Both entry
 points use the same name dialog and save the display name in
 `.azure-app-platform/app.json`, preserving other app metadata. Renaming does not
 move the folder or change Git names, generated app content, or Azure resources.
+Saving validates only the selected app, without waiting for discovery of other
+worktrees. A failed save keeps the draft available for retry or cancellation.
 Older apps without identity metadata receive a saved display name on rename.
 Deletion
 still requires confirmation and only removes the local worktree and its

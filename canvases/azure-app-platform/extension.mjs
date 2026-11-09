@@ -27,7 +27,7 @@ import {
   resolveSpawnCommand,
 } from "./discovery.mjs";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { listSourceCatalog } from "./source-catalog.mjs";
+import { findSourceApp, listSourceCatalog } from "./source-catalog.mjs";
 import {
   PLATFORM_TIERS,
   activateTier,
@@ -2399,8 +2399,7 @@ if ($firstModelId) {
         throw error;
       }
       releaseAppMutation = reserveAppMutation(root);
-      const catalog = await listSourceCatalog({ workspaceRoot, additionalRoots: [...authorizedRoots] });
-      if (!catalog.apps.some(app => app.path === root)) {
+      if (!await findSourceApp({ workspaceRoot, root })) {
         const error = new Error("The selected path is not a discovered app.");
         error.statusCode = 400;
         throw error;
