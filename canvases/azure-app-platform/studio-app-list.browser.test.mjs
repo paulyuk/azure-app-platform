@@ -183,6 +183,10 @@ for (const engine of ["chromium", "webkit"]) {
           await capture(surface, width);
           if (baseline) continue;
           snapshots[surface] = await rows(page);
+          assert.deepEqual(snapshots[surface].map(row => row.path),
+            ["customer-portal", "source", "deals", "review", "documents", "sixth-app", "source", "unopened"]
+              .slice(0, surface === "home" ? 5 : initialApps.length),
+          "Only the project folder is visible, even when another app has the same folder name");
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
           assert.ok(snapshots[surface].every(row => row.geometry.height <= 72 && row.geometry.leftInset === 8
             && row.geometry.rightInset === 8 && row.geometry.menuCenterOffset <= 1));
@@ -218,7 +222,12 @@ for (const engine of ["chromium", "webkit"]) {
           const search = page.getByRole("searchbox", { name: surface === "home" ? "Find a recent app" : "Search apps" });
           await search.fill("  EAST  ");
           assert.equal(await page.locator(`[${itemAttribute}]`).count(), 1);
-          assert.equal(await page.locator(".app-list-path").innerText(), "east \u2022 shared \u2022 source");
+          assert.equal(await page.locator(".app-list-path").innerText(), "source");
+          await search.fill("source");
+          const matchingApps = surface === "home" ? 1 : 2;
+          assert.equal(await page.locator(`[${itemAttribute}]`).count(), matchingApps);
+          assert.deepEqual(await page.locator(".app-list-path").allTextContents(), Array(matchingApps).fill("source"),
+            "Duplicate project folders stay compact before and after filtering");
           await search.fill("C:\\east\\shared\\source");
           assert.equal(await page.locator(`[${itemAttribute}]`).count(), 1, "Search still uses the complete path");
           await search.fill("sixth-app");

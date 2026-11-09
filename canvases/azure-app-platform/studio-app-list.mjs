@@ -1,20 +1,9 @@
 export function getAppPathLabels(paths) {
-  const entries = paths.map(path => ({
-    path, parts: path.split(/[\\/]/).filter(Boolean),
-    separator: path.includes("\\") ? "\\" : "/",
-    windows: /^[A-Za-z]:[\\/]|\\/.test(path),
-  }));
-  return new Map(entries.map(entry => {
-    let depth = Math.min(2, entry.parts.length);
-    while (depth < entry.parts.length && entries.some(other => {
-      if (other === entry) return false;
-      const suffix = entry.parts.slice(-depth).join("/");
-      const otherSuffix = other.parts.slice(-depth).join("/");
-      return entry.windows || other.windows
-        ? suffix.toLowerCase() === otherSuffix.toLowerCase()
-        : suffix === otherSuffix;
-    })) depth++;
-    return [entry.path, depth >= entry.parts.length ? entry.path : entry.parts.slice(-depth).join(entry.separator)];
+  return new Map(paths.map(path => {
+    const parts = path.replace(/^[A-Za-z]:/, "").split(/[\\/]/).filter(Boolean);
+    const rootDepth = /^[\\/]{2}\?[\\/]UNC[\\/]/i.test(path) ? 4
+      : /^[\\/]{2}[^\\/]/.test(path) ? 2 : 0;
+    return [path, parts.length > rootDepth ? parts.at(-1) : path];
   }));
 }
 
@@ -55,8 +44,7 @@ export function createStudioAppList(toolkit, { getAppPathLabels, getAppOpenedLab
         },
         h("strong", { className: "app-list-name", title: app.name }, app.name),
         h("span", { className: "app-list-metadata" },
-          h("span", { className: "app-list-path" }, /^(?:[A-Za-z]:[\\/]?|\/)$/.test(pathLabel)
-            ? pathLabel : pathLabel.split(/[\\/]/).filter(Boolean).join(" \u2022 ")),
+          h("span", { className: "app-list-path" }, pathLabel),
           openedLabel ? h("time", { className: "app-list-opened", dateTime: app.lastOpenedAt,
             title: new Date(app.lastOpenedAt).toLocaleString() }, "\u2022 " + openedLabel) : null))),
       h(MenuButton, {

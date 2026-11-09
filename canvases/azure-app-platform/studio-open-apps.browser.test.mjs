@@ -136,8 +136,8 @@ for (const engine of ["chromium", "webkit"]) {
           assert.ok(geometry.every(row => row.borders.every(border => border === "0px")
             && row.borderRadius === "0px" && row.background === "rgba(0, 0, 0, 0)"), JSON.stringify(geometry));
           assert.deepEqual(await page.locator(".app-list-path").allTextContents(), [
-            "projects \u2022 customer-portal", "projects \u2022 inventory-dashboard", "projects \u2022 support-assistant", "projects \u2022 review",
-            "customer-app \u2022 source", "internal-app \u2022 source", "projects \u2022 document-helper",
+            "customer-portal", "inventory-dashboard", "support-assistant", "review",
+            "source", "source", "document-helper",
           ]);
           assert.equal(await page.locator(".app-list-row time").count(), 1);
           assert.equal(await page.locator(".app-list-row time").innerText(), "\u2022 opened 5m ago");
@@ -182,7 +182,7 @@ for (const engine of ["chromium", "webkit"]) {
           await search.fill(" internal-app ");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 1);
           assert.equal(await page.locator("[data-existing-app]").getAttribute("data-existing-app"), initialApps[5].path);
-          assert.equal(await page.locator(".app-list-path").innerText(), "internal-app \u2022 source",
+          assert.equal(await page.locator(".app-list-path").innerText(), "source",
             "Filtering must not change the displayed identity of same-name apps");
           await search.fill("C:\\projects");
           await page.waitForFunction(() => document.querySelectorAll("[data-existing-app]").length === 7);
@@ -450,7 +450,7 @@ for (const engine of ["chromium", "webkit"]) {
       await page.locator("#open-app").click();
       const longPathLink = page.locator("[data-existing-app]");
       await longPathLink.waitFor();
-      assert.equal(await page.locator(".app-list-path").innerText(), "workspace-with-a-long-folder-name \u2022 document-helper");
+      assert.equal(await page.locator(".app-list-path").innerText(), "document-helper");
       await longPathLink.focus();
       const longPathTooltip = page.getByRole("tooltip");
       await longPathTooltip.waitFor();

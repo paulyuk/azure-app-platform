@@ -2,49 +2,60 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getAppOpenedLabel, getAppPathLabels } from "./studio-open-apps.mjs";
 
-test("app paths show only distinct folder suffixes", () => {
+test("app paths show only the final project folder", () => {
   const paths = [
     "C:\\Users\\developer\\.copilot\\worktrees\\customer-portal",
     "C:\\projects\\customer-app\\source",
     "C:\\projects\\internal-app\\source",
   ];
   assert.deepEqual([...getAppPathLabels(paths).values()], [
-    "worktrees\\customer-portal", "customer-app\\source", "internal-app\\source",
+    "customer-portal", "source", "source",
   ]);
 });
 
-test("app paths expand shared suffixes across Windows drives and UNC shares", () => {
+test("duplicate project folders never expand across Windows drives and UNC shares", () => {
   const paths = ["C:\\apps\\source", "D:\\apps\\source", "\\\\host\\share\\apps\\source"];
-  assert.deepEqual([...getAppPathLabels(paths).values()], [
-    "C:\\apps\\source", "D:\\apps\\source", "share\\apps\\source",
-  ]);
+  assert.deepEqual([...getAppPathLabels(paths).values()], ["source", "source", "source"]);
 });
 
-test("Windows app path comparisons ignore case and handle mixed separators", () => {
+test("project folders preserve case and handle mixed and trailing separators", () => {
   const paths = ["C:\\customer\\Source\\", "D:/internal/source/"];
-  assert.deepEqual([...getAppPathLabels(paths).values()], ["customer\\Source", "internal/source"]);
+  assert.deepEqual([...getAppPathLabels(paths).values()], ["Source", "source"]);
   assert.deepEqual([...getAppPathLabels(["C:/customer/Source", "D:/internal/source"]).values()], [
-    "customer/Source", "internal/source",
+    "Source", "source",
+  ]);
+  assert.deepEqual([...getAppPathLabels([
+    "C:app", "\\\\?\\C:\\projects\\app", "\\\\?\\UNC\\host\\share\\app", "///projects/app///",
+  ]).values()], [
+    "app", "app", "app", "app",
   ]);
 });
 
-test("POSIX app path suffixes preserve case and root distinctions", () => {
+test("POSIX app paths show one folder without expanding duplicate names", () => {
   const paths = ["/projects/Source", "/projects/source", "/workspace/shared", "/shared"];
-  assert.deepEqual([...getAppPathLabels(paths).values()], ["/projects/Source", "/projects/source", "/workspace/shared", "/shared"]);
+  assert.deepEqual([...getAppPathLabels(paths).values()], ["Source", "source", "shared", "shared"]);
 });
 
-test("root paths and repeated paths retain their exact identity", () => {
-  const paths = ["/", "C:\\", "C:\\projects\\app", "C:\\projects\\app"];
+test("root-only Windows, POSIX and UNC paths retain their root without fabricating a folder", () => {
+  const paths = [
+    "/", "//", "\\", "C:", "C:\\", "C:/", "\\\\host\\share", "\\\\host\\share\\", "//host/share/",
+    "\\\\?\\C:\\", "\\\\?\\UNC\\host\\share\\",
+  ];
+  assert.deepEqual([...getAppPathLabels(paths).entries()], paths.map(path => [path, path]));
+});
+
+test("repeated paths keep full-path map keys and empty inventories have no labels", () => {
+  const paths = ["C:\\projects\\app", "C:\\projects\\app"];
   assert.deepEqual([...getAppPathLabels(paths).entries()], [
-    ["/", "/"], ["C:\\", "C:\\"], ["C:\\projects\\app", "C:\\projects\\app"],
+    ["C:\\projects\\app", "app"],
   ]);
   assert.equal(getAppPathLabels([]).size, 0);
 });
 
-test("app path labels always include the parent and app folder when available", () => {
+test("project folder labels do not depend on the visible inventory", () => {
   assert.deepEqual([...getAppPathLabels(["C:\\projects\\app-name", "/projects/app-name"]).values()],
-    ["C:\\projects\\app-name", "/projects/app-name"]);
-  assert.equal(getAppPathLabels(["C:\\projects\\app-name"]).get("C:\\projects\\app-name"), "projects\\app-name");
+    ["app-name", "app-name"]);
+  assert.equal(getAppPathLabels(["C:\\projects\\app-name"]).get("C:\\projects\\app-name"), "app-name");
 });
 
 test("opening times use bounded compact relative labels and omit missing timestamps", () => {

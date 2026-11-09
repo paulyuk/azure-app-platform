@@ -20,14 +20,14 @@ top right. The large Home masthead and tagline are not repeated in the content.
 Existing apps use the same header with Back/Forward before the logo.
 
 **Open an app** and Home's **Recent apps** use the same compact, divider-free
-app-list component, with the app name and a
-parent folder and app folder, separated by bullets, expanding only when needed
-to distinguish locations. When recorded, a compact relative opening time follows
-(for example, `projects • app-name • opened 5m ago`) and refreshes each minute.
-Apps without a recorded opening time show only their folders. Full worktree paths appear
+app-list component, with the app name and only the final project folder.
+Duplicate folder names stay compact rather than expanding into parent folders.
+When recorded, a compact relative opening time follows
+(for example, `app-name • opened 5m ago`) and refreshes each minute.
+Apps without a recorded opening time show only their project folder.
+Root-only paths retain their root label without inventing a folder. Full worktree paths appear
 on hover or keyboard focus and remain the source for search, opening, and deletion.
-Search filters by name or full path. Folder labels are disambiguated against
-the complete app inventory, so filtering or Home's five-app cap does not change
+Search filters by name or full path. Filtering or Home's five-app cap does not change
 an app's displayed identity. Home retains its recent-only list and existing order.
 Each row's right-aligned three-dot menu contains **Copy full path**, **Rename app**,
 and **Delete app**. Copying uses the exact full worktree path and reports success

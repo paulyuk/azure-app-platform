@@ -32,7 +32,7 @@ function listFixture() {
   };
 }
 
-test("shared app rows use the same inventory labels, links, tooltip and toolkit actions after filtering", () => {
+test("shared app rows keep one project folder, full-path links, tooltip and toolkit actions after filtering", () => {
   const app = { name: "source", path: "C:\\east\\shared\\source", lastOpenedAt: null };
   const inventory = [app, { name: "source", path: "D:\\west\\shared\\source" }];
   const calls = [];
@@ -51,7 +51,7 @@ test("shared app rows use the same inventory labels, links, tooltip and toolkit 
     assert.equal(link.props["aria-label"], app.name);
     assert.equal(link.props.tabIndex, 0, "Enabled links remain in WebKit's keyboard sequence");
     assert.equal(link.props.href, "/app-map?root=" + encodeURIComponent(app.path));
-    assert.equal(tree.find(node => node.props.className === "app-list-path").children[0], "east \u2022 shared \u2022 source");
+    assert.equal(tree.find(node => node.props.className === "app-list-path").children[0], "source");
     assert.equal(tree.find(node => node.type === "Tooltip").props.content.children[0], app.path);
     assert.equal(tree.some(node => node.type === "time"), false);
     const trigger = tree.find(node => node.type === "MenuButton").props.button;
@@ -74,6 +74,17 @@ test("shared app rows use the same inventory labels, links, tooltip and toolkit 
   let prevented = false;
   link.onClick({ preventDefault() { prevented = true; } });
   assert.equal(prevented, true, "Busy links cannot navigate");
+});
+
+test("shared rows show root-only paths intact instead of splitting them into folder bullets", () => {
+  const fixture = listFixture();
+  for (const path of ["/", "C:\\", "C:/", "\\\\host\\share\\", "//host/share/"]) {
+    fixture.render({ apps: [{ name: "Root app", path }], appHref: root => "/app-map?root=" + encodeURIComponent(root) });
+    const { tree } = fixture;
+    assert.equal(tree.find(node => node.props.className === "app-list-path").children[0], path);
+    assert.equal(tree.find(node => node.type === "Tooltip").props.content.children[0], path);
+    assert.equal(tree.find(node => node.type === "a").props.href, "/app-map?root=" + encodeURIComponent(path));
+  }
 });
 
 test("the shared relative clock refreshes rows and is cleared when its list is disposed", context => {

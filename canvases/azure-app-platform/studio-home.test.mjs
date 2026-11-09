@@ -153,7 +153,7 @@ test("Home forwards the authoritative inventory and the shared row actions witho
   const search = () => tree.find(node => node.type === "FilterToolbar").props.search;
   search().onChange(null, { value: "east" });
   const list = () => tree.find(node => node.type === "AppList").props;
-  assert.equal(list().inventory, inventory, "Unopened apps still disambiguate recent app locations");
+  assert.equal(list().inventory, inventory, "Filtering preserves the authoritative app inventory");
   assert.deepEqual(list().apps, [app]);
   assert.equal(list().appHref, appHref);
   assert.equal(list().onCopyPath, onCopyPath);
