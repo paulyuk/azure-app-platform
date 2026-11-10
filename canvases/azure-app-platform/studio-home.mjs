@@ -42,24 +42,6 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
         .simple-home-art svg { display: block; width: 84px; height: 74px; }
         .simple-home-art [data-home-art-theme="light"] { display: var(--home-art-light); }
         .simple-home-art [data-home-art-theme="dark"] { display: var(--home-art-dark); }
-        .simple-home-art {
-          --art-shell-start: color-mix(in srgb, var(--canvas-fg) 18%, var(--canvas-bg));
-          --art-shell-end: var(--canvas-tint);
-          --art-inset-start: color-mix(in srgb, var(--canvas-fg) 8%, var(--canvas-bg));
-          --art-inset-end: var(--canvas-bg);
-          --art-accent-start: color-mix(in srgb, var(--canvas-accent) 70%, var(--canvas-bg));
-          --art-accent-end: var(--canvas-accent);
-          --art-accent-shade: color-mix(in srgb, var(--canvas-accent) 80%, var(--canvas-fg));
-        }
-        .simple-home-art [data-art-material="shell"] stop:first-child { stop-color: var(--art-shell-start); }
-        .simple-home-art [data-art-material="shell"] stop:last-child { stop-color: var(--art-shell-end); }
-        .simple-home-art [data-art-material="recess"] stop:first-child { stop-color: var(--art-inset-start); }
-        .simple-home-art [data-art-material="recess"] stop:last-child { stop-color: var(--art-inset-end); }
-        .simple-home-art [data-art-material="accent"] stop:first-child { stop-color: var(--art-accent-start); }
-        .simple-home-art [data-art-material="accent"] stop:last-child { stop-color: var(--art-accent-end); }
-        .simple-home-art [data-art-material="accent-shade"] stop { stop-color: var(--art-accent-shade); }
-        .simple-home-art [data-art-material="detail"] { fill: var(--canvas-muted); }
-        .simple-home-art [data-art-material="ink"] { stroke: var(--canvas-accent); }
         .simple-home-task-copy { display: grid; gap: 4px; min-width: 0; }
         .simple-home-task-title { font-size: var(--canvas-body); line-height: 20px; font-weight: var(--font-weight-semibold, 600); }
         .simple-home-task-description { color: var(--canvas-muted); font-size: var(--canvas-small); line-height: 18px; font-weight: 400; }

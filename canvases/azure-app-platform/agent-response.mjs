@@ -1,19 +1,8 @@
 import { readFileSync } from "node:fs";
 
-const illustrationColors = {
-  "#294482": "--run-art-outline",
-  "#F5F5F5": "--run-art-paper",
-  "#CEDEFF": "--run-art-soft-blue",
-  "#FFE4B4": "--run-art-task",
-  "#5C8DF8": "--run-art-brand",
-  "#FFFFFF": "--run-art-highlight",
+export const RUN_ILLUSTRATION_MARKUP = {
+  ready: readFileSync(new URL("./assets/run-ready-spot.svg", import.meta.url), "utf8"),
 };
-
-export const RUN_ILLUSTRATION_MARKUP = Object.fromEntries(["ready", "working"].map(state => [
-  state,
-  Object.entries(illustrationColors).reduce((markup, [color, token]) => markup.replaceAll(color, `var(${token})`),
-    readFileSync(new URL(`./assets/run-${state}-spot.svg`, import.meta.url), "utf8")),
-]));
 
 export function getAgentResponsePresentation({ state = "idle", phase = "preparing", slow = false } = {}) {
   if (state === "succeeded") return null;
@@ -45,7 +34,7 @@ export function getAgentResponsePresentation({ state = "idle", phase = "preparin
       : phase === "starting"
         ? ["Waiting for the agent endpoint", "Starting local services (up to 90 seconds). Your task has not been sent yet."]
         : ["Preparing the agent", "Checking availability. Your task has not been sent yet."];
-  return { title, description, illustration: "working", showLogs: true };
+  return { title, description, illustration: null, showLogs: true };
 }
 
 export function renderAgentResponse(root, { state, phase, slow, text, buttons, onLogs, pendingIndicator, illustrations }) {
@@ -69,6 +58,7 @@ export function renderAgentResponse(root, { state, phase, slow, text, buttons, o
     root.textContent = text;
   } else {
     const summary = append(root, "div", "", "agent-result-summary");
+    if (state === "invoking") summary.append(pendingIndicator);
     if (presentation.illustration) {
       const template = document.createElement("template");
       template.innerHTML = illustrations[presentation.illustration];
@@ -78,13 +68,12 @@ export function renderAgentResponse(root, { state, phase, slow, text, buttons, o
       illustration.removeAttribute("aria-labelledby");
       illustration.setAttribute("aria-hidden", "true");
       illustration.setAttribute("focusable", "false");
-      illustration.setAttribute("width", "40");
-      illustration.setAttribute("height", "40");
+      illustration.setAttribute("width", "64");
+      illustration.setAttribute("height", "64");
       summary.append(illustration);
     }
     const copy = append(summary, "div", "", "agent-result-copy");
     const title = append(copy, "strong", "", "agent-result-title");
-    if (state === "invoking") title.append(pendingIndicator);
     append(title, "span", presentation.title);
     if (state === "failed") append(copy, "p", text, "agent-result-error");
     append(copy, "p", presentation.description);

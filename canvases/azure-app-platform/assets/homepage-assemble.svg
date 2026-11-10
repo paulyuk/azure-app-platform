@@ -1,70 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="assemble-title assemble-description">
   <title id="assemble-title">Assemble existing projects</title>
-  <desc id="assemble-description">A source project and an Azure resource connect into one rounded app window with clearly visible components.</desc>
-  <defs>
-    <linearGradient id="assemble-neutral" data-art-material="shell" x1="432" y1="96" x2="150" y2="430" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F4F3F5"/>
-      <stop offset="1" stop-color="#E8E6DF"/>
-    </linearGradient>
-    <linearGradient id="assemble-highlight" data-art-material="recess" x1="366" y1="156" x2="250" y2="384" gradientUnits="userSpaceOnUse">
-      <stop stop-color="white"/>
-      <stop offset="1" stop-color="#F4F3F5"/>
-    </linearGradient>
-    <linearGradient id="assemble-azure" data-art-material="accent" x1="422" y1="32" x2="160" y2="432" gradientUnits="userSpaceOnUse">
-      <stop offset="0.421312" stop-color="#49C5B1"/>
-      <stop offset="0.933804" stop-color="#0078D4"/>
-    </linearGradient>
-    <filter id="assemble-bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="4" dy="-4"/>
-      <feGaussianBlur stdDeviation="2"/>
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
-      <feBlend mode="multiply" in2="shape" result="edge"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="8" dy="-8"/>
-      <feGaussianBlur stdDeviation="12"/>
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
-      <feBlend mode="multiply" in2="edge" result="depth"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-2" dy="8"/>
-      <feGaussianBlur stdDeviation="3"/>
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
-      <feBlend mode="normal" in2="depth" result="highlight"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="-4"/>
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0"/>
-      <feBlend mode="normal" in2="highlight" result="lower-edge"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="2"/>
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.12 0"/>
-      <feBlend mode="normal" in2="lower-edge"/>
-    </filter>
-  </defs>
-  <g id="connection" stroke="url(#assemble-azure)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M158 168H180Q204 168 204 192V320Q204 344 180 344H158M204 256H264"/>
+  <desc id="assemble-description">A source project and resource component connect through separate ports into one app window.</desc>
+  <g id="assemble-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="280" y="104" width="168" height="296" rx="20"/>
+    <path d="M280 168h168M88 128l-24 24 24 24M128 128l24 24-24 24"/>
+    <rect x="64" y="296" width="96" height="88" rx="12"/>
+    <path d="M88 324h48M88 352h32"/>
   </g>
-  <g id="subject">
-    <rect x="240" y="104" width="220" height="304" rx="36" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
-    <rect x="262" y="166" width="176" height="220" rx="22" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
-    <rect x="280" y="130" width="64" height="12" rx="6" fill="#8DC8E8" data-art-material="detail"/>
-    <rect x="284" y="192" width="132" height="68" rx="18" fill="url(#assemble-azure)" filter="url(#assemble-bevel)"/>
-    <rect x="284" y="288" width="132" height="52" rx="16" fill="url(#assemble-neutral)" filter="url(#assemble-bevel)"/>
+  <g id="assemble-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 136h40M320 224h88M320 264h64M320 304h88M160 152h40q24 0 24 24v36q0 12 12 12h32M160 340h108"/>
   </g>
-  <g id="source-project" filter="url(#assemble-bevel)">
-    <rect x="48" y="112" width="110" height="110" rx="28" fill="url(#assemble-neutral)"/>
-    <path d="M88 150L72 166L88 182M118 150L134 166L118 182" stroke="#0078D4" data-art-material="ink" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-  <g id="resource" filter="url(#assemble-bevel)">
-    <rect x="48" y="290" width="110" height="110" rx="28" fill="url(#assemble-neutral)"/>
-    <path d="M76 330H130M76 358H130" stroke="#0078D4" data-art-material="ink" stroke-width="10" stroke-linecap="round"/>
-    <circle cx="92" cy="330" r="10" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
-    <circle cx="114" cy="358" r="10" fill="url(#assemble-highlight)" filter="url(#assemble-bevel)"/>
+  <g id="assemble-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect data-spot-part="port" x="268" y="212" width="24" height="24" rx="4"/>
+    <rect data-spot-part="port" x="268" y="328" width="24" height="24" rx="4"/>
   </g>
 </svg>

@@ -1191,7 +1191,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     agentResponseSpinnerRoot.className = "agent-result-step-spinner";
     agentResponseSpinnerRoot.setAttribute("aria-hidden", "true");
     const agentResponseSpinnerView = toolkit.mountCanvasComponent(
-      agentResponseSpinnerRoot, toolkit.Spinner, { size: "tiny", "aria-hidden": true });
+      agentResponseSpinnerRoot, toolkit.Spinner, { size: "large", "aria-hidden": true });
     const documentTestNoticeRoot = document.createElement("div");
     const documentMenuRoot = document.createElement("div");
     documentMenuRoot.className = "studio-toolkit";

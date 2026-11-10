@@ -8,6 +8,106 @@ let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
+  test(`Idle stays static and invocation uses one animated Spinner even with reduced motion in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const browser = await engine.launch({ headless: true });
+    try {
+      for (const presentationProfile of ["standalone", "github-app"]) {
+        const fixture = await createRunSettingsFixture({ preview: true, presentationProfile });
+        const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+        let release;
+        try {
+          await page.route("**/api/agent-invoke", async route => {
+            await new Promise(resolve => { release = resolve; });
+            await route.fulfill({ json: { response: "Complete" } });
+          });
+          await page.goto(fixture.origin + "/app-map");
+          const result = page.getByRole("region", { name: "Agent response", exact: true });
+          const illustration = result.locator("svg.agent-result-illustration");
+          await illustration.waitFor();
+          await page.waitForFunction(() => {
+            const box = document.querySelector(".agent-response svg.agent-result-illustration")?.getBoundingClientRect();
+            return box?.width === 64 && box.height === 64;
+          });
+          for (const reducedMotion of ["no-preference", "reduce"]) {
+            await page.emulateMedia({ reducedMotion });
+            for (const theme of ["light", "dark"]) {
+              await page.evaluate(theme => {
+                document.documentElement.dataset.studioTheme = theme;
+                document.documentElement.dataset.themeTone = theme;
+                document.documentElement.dataset.colorMode = theme;
+              }, theme);
+              assert.equal(await result.getAttribute("aria-busy"), "false");
+              assert.equal(await illustration.count(), 1);
+              assert.equal(await illustration.getAttribute("aria-hidden"), "true");
+              assert.equal(await illustration.getAttribute("focusable"), "false");
+              assert.equal(await result.locator(".ct-spinner").count(), 0, "Idle must not look busy");
+              assert.equal(await result.evaluate(node => node.getAnimations({ subtree: true }).length), 0);
+              assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).isEnabled(), true);
+            }
+          }
+          assert.deepEqual(fixture.mutations, [], "Static idle artwork starts no work");
+          await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Check the spinner-only waiting state.");
+          await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+          await page.locator('.agent-response[data-phase="waiting"]').waitFor();
+          const spinner = result.locator(".agent-result-summary > .agent-result-step-spinner .ct-spinner-ring");
+          await spinner.waitFor();
+          await spinner.evaluate(node => { window.responseSpinner = node; });
+          for (const reducedMotion of ["no-preference", "reduce"]) {
+            await page.emulateMedia({ reducedMotion });
+            assert.equal(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches),
+              reducedMotion === "reduce");
+            for (const theme of ["light", "dark"]) {
+              await page.evaluate(theme => {
+                document.documentElement.dataset.studioTheme = theme;
+                document.documentElement.dataset.themeTone = theme;
+                document.documentElement.dataset.colorMode = theme;
+              }, theme);
+              assert.equal(await result.getAttribute("aria-busy"), "true");
+              assert.equal(await result.locator("svg").count(), 0);
+              assert.equal(await result.locator(".ct-spinner").count(), 1);
+              assert.equal(await result.locator(".agent-result-title .ct-spinner").count(), 0);
+              assert.equal(await result.locator(".agent-result-step-spinner").getAttribute("aria-hidden"), "true");
+              const geometry = await result.evaluate(node => {
+                const slot = node.querySelector(".agent-result-step-spinner").getBoundingClientRect();
+                const ring = node.querySelector(".ct-spinner-ring").getBoundingClientRect();
+                const copy = node.querySelector(".agent-result-copy").getBoundingClientRect();
+                const style = getComputedStyle(node.querySelector(".ct-spinner-ring"));
+                return {
+                  slotWidth: slot.width, slotHeight: slot.height,
+                  ringWidth: style.width, ringHeight: style.height,
+                  sharesIllustrationColumn: Math.abs(slot.x - node.querySelector(".agent-result-summary").getBoundingClientRect().x) < 1,
+                  beforeCopy: slot.right <= copy.left,
+                  centered: Math.abs((slot.x + slot.width / 2) - (ring.x + ring.width / 2)) < 1
+                    && Math.abs((slot.y + slot.height / 2) - (ring.y + ring.height / 2)) < 1,
+                };
+              });
+              assert.deepEqual(geometry, {
+                slotWidth: 64, slotHeight: 64, ringWidth: "32px", ringHeight: "32px",
+                sharesIllustrationColumn: true, beforeCopy: true, centered: true,
+              }, "The larger spinner is centered in the former illustration slot, outside the heading");
+              assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).isDisabled(), true);
+              assert.deepEqual(await spinner.evaluate(node => {
+                const style = getComputedStyle(node);
+                return [style.animationName, style.animationDuration, style.animationIterationCount, style.animationPlayState];
+              }), ["ct-spin", "1s", "infinite", "running"]);
+              const start = await spinner.evaluate(node => {
+                if (node !== window.responseSpinner) throw new Error("Motion and theme changes must preserve the Spinner");
+                return node.getAnimations()[0]?.currentTime;
+              });
+              assert.equal(typeof start, "number", "The indicator has a real running CSS animation");
+              await page.waitForFunction(start => {
+                const ring = document.querySelector(".agent-result-step-spinner .ct-spinner-ring");
+                return ring.getAnimations().some(animation => animation.currentTime > start + 50);
+              }, start);
+            }
+          }
+        } finally { release?.(); await page.close(); await fixture.close(); }
+      }
+    } finally { await browser.close(); }
+  });
+
   test(`Response progress uses real readiness and request boundaries without losing state in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
@@ -45,8 +145,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const result = page.getByRole("region", { name: "Agent response", exact: true });
       await result.locator(".agent-result-title").filter({ hasText: "Your result will appear here" }).waitFor();
       assert.equal(await result.getAttribute("aria-busy"), "false");
-      assert.equal(await result.locator("svg.agent-result-illustration").getAttribute("focusable"), "false");
-      assert.equal(await result.locator("svg.agent-result-illustration").getAttribute("aria-hidden"), "true");
+      assert.equal(await result.locator("svg.agent-result-illustration").count(), 1);
       assert.equal(await result.getByRole("button").count(), 0);
       assert.equal(await result.locator(".ct-spinner").count(), 0);
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
@@ -56,8 +155,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(commands.length, 1);
       assert.equal(requests.length, 0);
       assert.equal(await result.locator("ol").count(), 0);
-      const spinner = result.locator(".agent-result-title .ct-spinner-ring");
+      const spinner = result.locator(".agent-result-summary > .agent-result-step-spinner .ct-spinner-ring");
       assert.equal(await spinner.count(), 1);
+      assert.equal(await result.locator("svg.agent-result-illustration").count(), 0,
+        "Startup uses only the progress Spinner, not spot artwork.");
       assert.deepEqual(await spinner.evaluate(node => {
         window.responseStepSpinner = node;
         const style = getComputedStyle(node);
@@ -80,6 +181,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await spinner.evaluate(node => node === window.responseStepSpinner), true,
         "Phase changes retain the same owned Spinner instead of restarting its animation.");
       assert.equal(await result.locator(".ct-spinner").count(), 1);
+      assert.equal(await result.locator("svg.agent-result-illustration").count(), 0);
       assert.equal(await result.getAttribute("aria-busy"), "true");
       assert.equal(await prompt.isDisabled(), true);
       const now = await page.evaluate(() => Date.now());
