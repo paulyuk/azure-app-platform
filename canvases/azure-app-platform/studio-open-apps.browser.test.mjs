@@ -508,7 +508,7 @@ for (const engine of ["chromium", "webkit"]) {
       await page.getByRole("button", { name: "Create an app", exact: true }).focus();
       await page.keyboard.press("Enter");
       await page.getByRole("heading", { name: "Create a new app", exact: true }).waitFor();
-      await page.locator('input[name="template"]').waitFor();
+      await page.locator('input[name="template"]').first().waitFor();
       await page.locator("#top-back").click();
       failSources = true;
       await page.locator("#open-app").click();

@@ -87,6 +87,21 @@ test("shared rows show root-only paths intact instead of splitting them into fol
   }
 });
 
+test("cached app links stay usable while discovery disables row actions", () => {
+  const fixture = listFixture();
+  const opened = [];
+  fixture.render({
+    apps: [{ name: "Cached app", path: "projects/cached" }],
+    appHref: () => "/app-map", onOpen: path => opened.push(path), actionsDisabled: true,
+  });
+  const link = fixture.tree.find(node => node.type === "a").props;
+  assert.equal(link["aria-disabled"], undefined);
+  assert.equal(link.tabIndex, 0);
+  assert.equal(fixture.tree.find(node => node.type === "MenuButton").props.button.disabled, true);
+  link.onClick({ preventDefault() {} });
+  assert.deepEqual(opened, ["projects/cached"]);
+});
+
 test("the shared relative clock refreshes rows and is cleared when its list is disposed", context => {
   context.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-07T18:00:00Z") });
   let tick;

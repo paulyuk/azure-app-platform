@@ -90,6 +90,17 @@ test("recent apps distinguish not-loaded, empty, failed and recorded rows withou
   }
 });
 
+test("recent discovery does not disable independent Home journeys", () => {
+  const { tree, handle } = mountHome({ recentLoading: true });
+  assert.ok(JSON.stringify(tree).includes("Finding your recent apps..."));
+  assert.equal(tree.find(node => node.type === "fieldset").props.disabled, false);
+  assert.equal(tree.find(node => node.props.className === "simple-home-recent").props["aria-busy"], true);
+  assert.ok(tree.filter(node => node.props.className === "simple-home-task").every(node => !node.props.disabled));
+  handle.update({ recentLoading: false, recentApps: [] });
+  assert.equal(tree.find(node => node.props.className === "simple-home-recent").props["aria-busy"], false);
+  assert.ok(JSON.stringify(tree).includes("No recently viewed apps were found."));
+});
+
 test("home caps its own rows at five without truncating or mutating the source inventory", () => {
   for (const count of [0, 1, 5, 7]) {
     const recentApps = Array.from({ length: count }, (_, index) => ({
@@ -124,7 +135,7 @@ test("search filters the complete cached inventory before capping and survives o
   assert.ok(tree.filter(node => node.type === "Button").every(node => node.props.disabled));
   assert.equal(tree.find(node => node.type === "AppList").props.disabled, true);
   handle.update({ busy: false, recentError: "Refresh failed" });
-  assert.equal(search().disabled, true);
+  assert.equal(search().disabled, false, "Cached recent apps remain searchable after a failed refresh");
   assert.ok(JSON.stringify(tree).includes("Recent apps could not be refreshed."));
   handle.update({ recentError: null });
   assert.equal(search().value, "  APP-6  ");

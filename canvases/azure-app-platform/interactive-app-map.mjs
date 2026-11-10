@@ -5184,6 +5184,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       entryFilter.append(option);
     }
     applyLayout(false);
+    void refreshOperationalState();
+    const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
+    const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);
     if (window.location.hash === "#app-map") {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       renderStructureMap();
@@ -5194,9 +5197,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       await openCustomizeApp();
     } else renderManagePanel();
     if (launchNotice) setStatus(launchNotice);
-    void refreshOperationalState();
-    const operationalTimer = setInterval(() => { void refreshOperationalState(); }, 2000);
-    const outputTimer = setInterval(() => { void refreshRunOutput(); }, 1000);
     ${renderThemeClientScript(apiToken, editorSettings)}
     await navigationReady;
     if (navigationDisposed || controlsDisposed) return;

@@ -266,7 +266,7 @@ for (const engine of ["chromium", "webkit"]) {
         await page.locator("[data-recent-app]").nth(4).waitFor();
         assert.equal(await page.evaluate(() => window.minuteTimers.size), 1);
         await page.locator("#new-app").click();
-        await page.locator('input[name="template"]').waitFor();
+        await page.locator('input[name="template"]').first().waitFor();
         assert.equal(await page.evaluate(() => window.minuteTimers.size), 0);
         await page.locator("#top-back").click();
         await page.locator("[data-recent-app]").nth(4).waitFor();
@@ -433,8 +433,8 @@ for (const engine of ["chromium", "webkit"]) {
         assert.equal(await page.getByText("App worktree deleted. Azure resources were not changed.", { exact: true }).count(), 0);
         if (surface === "home") {
           assert.equal(await search.inputValue(), "customer-portal");
-          assert.equal(await search.isDisabled(), true);
-          await page.getByText("Recent apps could not be refreshed. Use Open an app to retry.", { exact: true }).waitFor();
+          assert.equal(await search.isEnabled(), true, "Failed refresh preserves the searchable cached inventory");
+          await page.getByText("Recent apps could not be refreshed. Showing previously loaded apps. Use Open an app to retry.", { exact: true }).waitFor();
           state.failSources = false;
           await page.getByRole("button", { name: "Browse apps", exact: true }).click();
         } else {
@@ -538,16 +538,17 @@ for (const engine of ["chromium", "webkit"]) {
         if (!failRefresh) {
           assert.equal(await page.locator(".app-list-row").count(), 1);
           await page.waitForFunction(() => document.activeElement?.type === "search");
+        } else if (surface === "home") {
+          assert.equal(await search.isEnabled(), true);
+          await page.waitForFunction(() => document.activeElement?.type === "search");
         } else {
           assert.equal(await search.isDisabled(), true);
           await page.waitForFunction(() => document.activeElement?.tagName === "BUTTON" && !document.activeElement.disabled);
-          if (surface === "open") {
-            state.failSources = false;
-            await page.getByRole("button", { name: "Retry", exact: true }).click();
-            await page.waitForFunction(() => document.activeElement?.type === "search");
-            assert.equal(await search.inputValue(), "source");
-            assert.equal(await page.locator(".app-list-row").count(), 1);
-          }
+          state.failSources = false;
+          await page.getByRole("button", { name: "Retry", exact: true }).click();
+          await page.waitForFunction(() => document.activeElement?.type === "search");
+          assert.equal(await search.inputValue(), "source");
+          assert.equal(await page.locator(".app-list-row").count(), 1);
         }
       }
       assert.equal(f.mutations.filter(item => item.path === "/api/delete-app").length, 4);
