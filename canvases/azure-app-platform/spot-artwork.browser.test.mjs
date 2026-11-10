@@ -24,7 +24,7 @@ for (const engine of ["chromium", "webkit"]) {
         ["homepage-open.svg", 0], ["homepage-open-dark.svg", 0],
         ["homepage-assemble.svg", 2], ["homepage-assemble-dark.svg", 2],
         ["open-app-empty-light.svg", 0], ["open-app-empty-dark.svg", 0],
-        ["run-ready-spot.svg", 1], ["run-working-spot.svg", 1],
+        ["run-ready-spot.svg", 0], ["run-working-spot.svg", 1],
       ]) {
         const source = await readFile(new URL(`./assets/${file}`, import.meta.url), "utf8");
         await inspectSpotArtwork(page, source);
@@ -40,6 +40,8 @@ for (const engine of ["chromium", "webkit"]) {
             })),
             accentCircles: svg.querySelectorAll('[data-spot-role="accent"] circle').length,
             componentSlots: svg.querySelectorAll('[data-spot-role="supporting-detail"] rect').length,
+            inbox: svg.querySelector('[data-spot-part="inbox"]')?.localName,
+            receivingSlot: svg.querySelector('[data-spot-role="accent"] [data-spot-part="receiving-slot"]')?.getAttribute("d"),
             description: svg.querySelector("desc").textContent,
           };
         }, source);
@@ -52,11 +54,15 @@ for (const engine of ["chromium", "webkit"]) {
           assert.equal(port.height, 24);
           if (file.startsWith("homepage-assemble")) assert.equal(port.x + port.width / 2, 280, "Port attaches to the app boundary");
           if (file === "run-working-spot.svg") assert.equal(port.y + port.height / 2, 232, "Port attaches to the empty result window");
-          if (file === "run-ready-spot.svg") assert.equal(port.x + port.width / 2, 304, "Port attaches to the task card");
         }
         if (file.startsWith("homepage-create")) assert.equal(observed.componentSlots, 1, "Create keeps one empty component slot");
         if (file.startsWith("open-app-empty")) assert.equal(observed.accentCircles, 1, "The circular add action is not a timeline dot");
         if (file === "run-working-spot.svg") assert.match(observed.description, /empty.*not success/);
+        if (file === "run-ready-spot.svg") {
+          assert.equal(observed.inbox, "path", "Idle presents an empty inbox rather than an active task");
+          assert.equal(observed.receivingSlot, "M184 280l24 32h96l24-32");
+          assert.match(observed.description, /empty inbox tray.*waits for a task\. No task is running/);
+        }
       }
     } finally { await browser.close(); }
   });
