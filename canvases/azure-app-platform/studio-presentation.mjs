@@ -6,7 +6,7 @@ const sharedPresentationStyles = `
   :root.studio-shared-presentation {
     --studio-bg: var(--canvas-bg);
     --studio-panel: var(--canvas-tint);
-    --studio-raised: var(--canvas-overlay);
+    --studio-raised: var(--canvas-bg);
     --studio-line: var(--canvas-border);
     --studio-ink: var(--canvas-fg);
     --studio-muted: var(--canvas-muted);
@@ -35,6 +35,21 @@ const sharedPresentationStyles = `
   :root.studio-shared-presentation:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="light"] { color-scheme: light; }
   :root.studio-shared-presentation[data-theme-tone="dark"],
   :root.studio-shared-presentation:not([data-theme-tone="light"]):not([data-theme-tone="dark"])[data-color-mode="dark"] { color-scheme: dark; }
+  :root.studio-shared-presentation :is(dialog, [role="dialog"]) {
+    --studio-raised: var(--canvas-overlay);
+  }
+  :root.studio-shared-presentation :is(button.primary, button.run-button-primary) {
+    color: var(--text-color-button-primary-rest, var(--canvas-button-primary-fg));
+    background: var(--background-color-button-primary-rest, var(--canvas-button-primary-bg));
+    border-color: var(--border-color-button-primary-rest, var(--canvas-border));
+  }
+  :root.studio-shared-presentation :is(button.primary, button.run-button-primary):hover:not(:disabled) {
+    background: var(--background-color-button-primary-hover, var(--background-color-button-primary-rest, var(--canvas-button-primary-bg)));
+    border-color: var(--border-color-button-primary-hover, var(--border-color-button-primary-rest, var(--canvas-border)));
+  }
+  :root.studio-shared-presentation :is(button.primary, button.run-button-primary):active:not(:disabled) {
+    background: var(--background-color-button-primary-active, var(--background-color-button-primary-rest, var(--canvas-button-primary-bg)));
+  }
 `;
 
 const standaloneAliases = `
@@ -74,6 +89,7 @@ const sharedPresentationLayout = `
     font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
   }
   :root.studio-shared-presentation body,
+  :root.studio-shared-presentation .studio-workspace-content,
   :root.studio-shared-presentation :is(#details, #customize-content)[data-mode="build"],
   :root.studio-shared-presentation #details[data-mode="manage"],
   :root.studio-shared-presentation .studio-settings {

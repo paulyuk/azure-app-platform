@@ -39,6 +39,10 @@ test("presentation selection is explicit, validated and independent of appearanc
 test("Copilot profile maps public toolkit hooks without private component selectors or a new palette", () => {
   const styles = renderPresentationStyles("github-app");
   assert.match(styles, /--studio-ink: var\(--canvas-fg\)/);
+  assert.match(styles, /--studio-raised: var\(--canvas-bg\)/);
+  assert.match(styles, /:is\(dialog, \[role="dialog"\]\)\s*\{\s*--studio-raised: var\(--canvas-overlay\)/);
+  assert.match(styles, /:is\(button\.primary, button\.run-button-primary\)[\s\S]*?background: var\(--background-color-button-primary-rest/);
+  assert.match(styles, /\.studio-workspace-content,/);
   assert.match(styles, /--studio-control-radius: var\(--canvas-radius-control\)/);
   assert.match(styles, /--studio-dialog-radius: var\(--canvas-radius-dialog\)/);
   assert.equal(getStudioPresentation("github-app").stylesheet, "/canvas-ui/profiles/github-app.css");
