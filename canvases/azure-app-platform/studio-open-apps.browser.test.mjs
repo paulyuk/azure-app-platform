@@ -9,6 +9,7 @@ import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
+import { inspectSpotArtwork } from "./spot-artwork-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let playwright;
@@ -216,6 +217,7 @@ for (const engine of ["chromium", "webkit"]) {
         const artwork = baseline ? null : Object.fromEntries(await Promise.all(["light", "dark"].map(async tone => [
           tone, await readFile(new URL(`./assets/open-app-empty-${tone}.svg`, import.meta.url), "utf8"),
         ])));
+        if (artwork) for (const source of Object.values(artwork)) await inspectSpotArtwork(page, source);
         for (const profile of ["github-app", "standalone"]) {
           presentationProfile = profile;
           const silhouettes = [];
@@ -247,14 +249,9 @@ for (const engine of ["chromium", "webkit"]) {
                   }
                   const liveIds = [...document.querySelectorAll("[id]")].map(node => node.id);
                   const parent = welcome.getBoundingClientRect(), bounds = svg.getBBox();
-                  const code = [...svg.querySelectorAll("use")].find(node =>
-                    (node.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "").endsWith("-stroke1_0_1"));
-                  const add = svg.querySelector('g[id$="-code-window-add-control"]');
-                  const codeBounds = code.getBoundingClientRect(), addBounds = add.getBoundingClientRect();
-                  const stops = node => {
-                    const id = node.getAttribute("fill").match(/^url\(#([^)]+)\)$/)[1];
-                    return [...svg.querySelectorAll(`[id="${id}"] > stop`)].map(stop => stop.getAttribute("stop-color"));
-                  };
+                  const outline = svg.querySelector('[data-spot-role="outline"]');
+                  const add = svg.querySelector('[data-spot-role="accent"]');
+                  const addBounds = add.getBBox();
                   return {
                     geometry: [...welcome.children].map(node => {
                       const rect = node.getBoundingClientRect();
@@ -263,12 +260,12 @@ for (const engine of ["chromium", "webkit"]) {
                     silhouette: [...svg.querySelectorAll("path, rect, g[transform]")].map(node => [
                       node.tagName, ...["d", "x", "y", "width", "height", "rx", "transform"].map(name => node.getAttribute(name)),
                     ]),
-                    shell: stops(svg.querySelector('rect[x="32"][y="64"]')),
-                    blue: stops(code),
-                    plusFill: add.querySelector("path").getAttribute("fill"),
-                    codePath: svg.querySelector('path[id$="-stroke1_0_1"]').getAttribute("d"),
+                    outline: getComputedStyle(outline).stroke,
+                    accent: getComputedStyle(add).stroke,
+                    detail: getComputedStyle(svg.querySelector('[data-spot-role="supporting-detail"]')).stroke,
+                    codePath: outline.querySelector("path").getAttribute("d"),
                     plusPath: add.querySelector("path").getAttribute("d"),
-                    addDoesNotCoverCode: addBounds.bottom <= codeBounds.top,
+                    addDoesNotCoverCode: addBounds.y + addBounds.height < 224,
                     overflow: document.documentElement.scrollWidth > innerWidth,
                     xmlErrors: xml.querySelectorAll("parsererror").length,
                     duplicateIds: ids.length !== new Set(ids).size || liveIds.length !== new Set(liveIds).size,
@@ -295,16 +292,14 @@ for (const engine of ["chromium", "webkit"]) {
                 assert.equal(observed.unsafe, 0);
                 assert.equal(observed.activeAttributes, 0);
                 assert.equal(observed.invalidMatrices, 0);
-                assert.ok(observed.lighting > 0 && observed.gradients > 0, "Azure materials retain vector lighting");
-                assert.equal(observed.filteredMaterials, 0, "Separate bevel overlays avoid WebKit banding on material gradients");
+                assert.equal(observed.lighting, 0, "Flat spot artwork has no lighting filters");
+                assert.equal(observed.gradients, 0, "Flat spot artwork has no gradients");
+                assert.equal(observed.filteredMaterials, 0);
                 assert.equal(observed.artInBounds, true);
-                assert.notEqual(observed.shell[0], observed.shell.at(-1), "Neutral housing retains directional material shading");
-                assert.ok(observed.blue.includes(tone === "light" ? "#0969da" : "#79b8ff"), "Code material retains the resolved Canvas accent");
-                assert.equal(observed.plusFill, tone === "light" ? "#ffffff" : "#0d1117");
-                assert.equal(createHash("sha256").update(observed.codePath).digest("hex"),
-                  "96d7d246bc92c0d2ff49c7d7e3562d024cf97f18b7abbada7f505980bba1b9f7", "Original code geometry is unchanged");
-                assert.equal(createHash("sha256").update(observed.plusPath).digest("hex"),
-                  "1dcedd041ca8f00898bba518909eeb884433ee1b40636b5c0955a5f9609331eb", "The supplied rounded plus is unchanged");
+                assert.notEqual(observed.outline, observed.accent, "The subject remains neutral, not accent-colored");
+                assert.notEqual(observed.detail, observed.outline, "Supporting detail remains subordinate");
+                assert.match(observed.codePath, /M208 232l-40 48 40 48M304 232l40 48-40 48/, "Both code brackets preserve the original metaphor");
+                assert.equal(observed.plusPath, "M396 108v56M368 136h56", "The circular plus remains recognizable");
                 assert.equal(observed.addDoesNotCoverCode, true);
                 if (width === 620) silhouettes.push(observed.silhouette);
               }

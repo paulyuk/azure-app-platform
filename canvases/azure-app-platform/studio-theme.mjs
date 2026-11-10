@@ -61,6 +61,12 @@ export function renderThemeStyles(presentationProfile = "standalone") {
       --edge-low: var(--studio-edge-low); --danger: var(--studio-danger);
     }
     ${presentation.legacyStyles}
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="outline"] { stroke: var(--studio-ink); }
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="supporting-detail"] { stroke: var(--studio-muted); }
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="accent"] { stroke: var(--studio-accent); }
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="supporting-detail"] circle[fill] { fill: var(--studio-muted); }
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="accent"] circle[fill] { fill: var(--studio-accent); }
+    :is(.simple-home-art, .open-app-empty-art, .agent-result-illustration) [data-spot-role="surface"] { fill: var(--studio-raised); }
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
     .studio-logo { flex: 0 0 auto; width: 32px; height: 28px; object-fit: contain; }

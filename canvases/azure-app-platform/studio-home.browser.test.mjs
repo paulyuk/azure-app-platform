@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
+import { inspectSpotArtwork } from "./spot-artwork-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let playwright;
@@ -16,7 +17,7 @@ try { playwright = requireWeb("playwright"); } catch (error) { if (error.code !=
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
 for (const engine of ["chromium", "webkit"]) {
-  test(`homepage SVG materials remain passive, opaque and visible in ${engine}`, {
+  test(`homepage SVG line artwork remains passive, portable and visible in ${engine}`, {
     skip: !playwright && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const { serveStudioAsset } = await import("./studio-assets.mjs");
@@ -33,118 +34,19 @@ for (const engine of ["chromium", "webkit"]) {
       const page = await browser.newPage();
       await page.goto(`http://127.0.0.1:${server.address().port}`);
       const lightMaterials = new Map();
-      for (const [name, neutralPoint] of [["create", [112, 220]], ["open", [160, 290]], ["assemble", [400, 150]]]) for (const theme of ["light", "dark"]) {
+      for (const name of ["create", "open", "assemble"]) for (const theme of ["light", "dark"]) {
         const suffix = theme === "dark" ? "-dark" : "";
         const svg = await readFile(new URL(`./assets/homepage-${name}${suffix}.svg`, import.meta.url), "utf8");
         assert.doesNotMatch(svg, /<!DOCTYPE|<!ENTITY|<\?xml-stylesheet|currentColor|var\(/i);
-        const result = await page.evaluate(async ({ name, neutralPoint, suffix }) => {
-          const response = await fetch(`/assets/homepage-${name}${suffix}.svg`);
-          if (!response.ok || response.headers.get("Content-Type") !== "image/svg+xml") throw new Error("Missing packaged SVG");
-          const source = await response.text();
-          const doc = new DOMParser().parseFromString(source, "image/svg+xml");
-          const allowed = new Set(["svg", "title", "desc", "defs", "g", "path", "rect", "circle", "linearGradient", "stop",
-            "filter", "feFlood", "feBlend", "feColorMatrix", "feOffset", "feGaussianBlur", "feComposite"]);
-          const ids = [], references = [], problems = [];
-          for (const node of doc.querySelectorAll("*")) {
-            if (!allowed.has(node.localName)) problems.push(`Unexpected element ${node.localName}`);
-            if (node.localName === "linearGradient"
-              && !["shell", "recess", "accent", "accent-shade"].includes(node.getAttribute("data-art-material"))) {
-              problems.push("Every gradient must declare its host-mapped material role");
-            }
-            if (node.id) ids.push(node.id);
-            for (const attribute of node.attributes) {
-              if (/^on/i.test(attribute.name) || ["style", "href", "xlink:href"].includes(attribute.name)) problems.push(attribute.name);
-              if (["fill", "stroke"].includes(attribute.name) && /^(#|white$)/i.test(attribute.value)
-                && !["detail", "ink"].includes(node.getAttribute("data-art-material"))) {
-                problems.push("Direct colors must declare their host-mapped material role");
-              }
-              for (const match of attribute.value.matchAll(/url\(([^)]+)\)/g)) references.push(match[1]);
-            }
-            if (node.localName === "feColorMatrix") {
-              const coefficients = node.getAttribute("values").trim().split(/\s+/).map(Number);
-              if (node.getAttribute("type") !== "matrix" || coefficients.length !== 20 || coefficients.some(value => !Number.isFinite(value))) {
-                problems.push("Invalid color matrix");
-              }
-            }
-          }
-          if (new Set(ids).size !== ids.length) problems.push("Duplicate IDs");
-          for (const ref of references) if (!ref.startsWith("#") || !ids.includes(ref.slice(1))) problems.push(`Invalid reference ${ref}`);
-          const root = doc.documentElement;
-          if (root.getAttribute("role") !== "img" || root.getAttribute("viewBox") !== "0 0 512 512") problems.push("Missing standalone image geometry or role");
-          for (const id of (root.getAttribute("aria-labelledby") || "").split(/\s+/)) {
-            if (!doc.getElementById(id)?.textContent.trim()) problems.push("Missing standalone accessible label");
-          }
-          const image = new Image();
-          image.src = `/assets/homepage-${name}${suffix}.svg`;
-          await image.decode();
-          const samples = [];
-          for (const size of [512, 128, 74]) {
-            const canvas = document.createElement("canvas");
-            canvas.width = canvas.height = size;
-            const context = canvas.getContext("2d");
-            context.drawImage(image, 0, 0, size, size);
-            const pixels = context.getImageData(0, 0, size, size).data;
-            let opaque = 0, black = 0;
-            for (let index = 0; index < pixels.length; index += 4) {
-              if (pixels[index + 3] < 240) continue;
-              opaque++;
-              const threshold = suffix ? 8 : 40;
-              if (pixels[index] < threshold && pixels[index + 1] < threshold && pixels[index + 2] < threshold) black++;
-            }
-            const [x, y] = neutralPoint.map(value => Math.floor(value * size / 512));
-            const material = [...context.getImageData(x, y, 1, 1).data];
-            const corner = [...context.getImageData(0, 0, 1, 1).data];
-            samples.push({ size, coverage: opaque / (size * size), black, material, corner });
-          }
-          const geometry = [...root.querySelectorAll("g, path, rect, circle")].map(node => ({
-            tag: node.localName,
-            attributes: [...node.attributes].filter(attribute => !["fill", "stroke", "filter"].includes(attribute.name))
-              .map(attribute => [attribute.name, attribute.value]),
-          }));
-          if (name === "assemble" && doc.getElementById("fitting-module")) problems.push("Assemble must not cover the app window with an overlapping card");
-          const accents = (name === "assemble" ? ["azure"] : ["azure", "violet"])
-            .map(role => doc.getElementById(`${name}-${role}`).outerHTML);
-          const focal = root.querySelector("#add-control, #continue-control, #fitting-module")?.outerHTML;
-          let focalTip = null;
-          if (name !== "assemble") {
-            const isolated = root.cloneNode(true);
-            for (const child of [...isolated.children]) {
-              if (!["title", "desc", "defs"].includes(child.localName)
-                && !["add-control", "continue-control"].includes(child.id)) child.remove();
-            }
-            const detail = new Image();
-            detail.src = "data:image/svg+xml," + encodeURIComponent(new XMLSerializer().serializeToString(isolated));
-            await detail.decode();
-            const canvas = document.createElement("canvas");
-            canvas.width = canvas.height = 512;
-            const context = canvas.getContext("2d");
-            context.drawImage(detail, 0, 0);
-            const [x, y] = name === "create" ? [370, 277] : [344, 275];
-            focalTip = context.getImageData(x, y, 1, 1).data[3];
-          }
-          return { problems, samples, geometry, accents, focal, focalTip };
-        }, { name, neutralPoint, suffix });
-        assert.deepEqual(result.problems, [], name);
-        if (result.focalTip !== null) assert.ok(result.focalTip > 240,
-          `${name} filter extents must include the rounded stroke caps, not clip them flat`);
-        for (const sample of result.samples) {
-          assert.ok(sample.coverage > 0.25 && sample.coverage < 0.75, `${name} at ${sample.size}px must paint its objects, not just load: ${sample.coverage}`);
-          assert.equal(sample.black, 0, `${name} must not acquire hard black filter edges`);
-          assert.equal(sample.material[3], 255, `${name} neutral interiors must stay opaque over either theme`);
-          assert.equal(sample.corner[3], 0, `${name} canvas must remain transparent`);
-          if (theme === "light") {
-            assert.ok(sample.material.slice(0, 3).every(channel => channel > 180), `${name} must retain neutral reference materials`);
-          } else {
-            const [r, g, b] = sample.material;
-            assert.ok(r < 90 && g < 120 && b < 155 && b > r + 10, `${name} must use deep-blue shells, not white artwork on dark`);
-          }
-        }
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/assets/homepage-${name}${suffix}.svg`);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("Content-Type"), "image/svg+xml");
+        assert.equal(await response.text(), svg);
+        const result = await inspectSpotArtwork(page, svg);
         if (theme === "light") lightMaterials.set(name, result);
         else {
           const light = lightMaterials.get(name);
           assert.deepEqual(result.geometry, light.geometry, `${name} theme pair must preserve geometry`);
-          assert.deepEqual(result.accents, light.accents, `${name} theme pair must preserve colored materials`);
-          assert.equal(result.focal, light.focal, `${name} theme pair must preserve focal controls and lighting`);
         }
       }
     } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
@@ -659,11 +561,9 @@ test("packaged simple home preserves the three explicit journeys", {
         await expectArtwork("light");
         const readMaterials = () => page.locator(".simple-home-art [data-home-art-theme]:visible svg").evaluateAll(images =>
           images.map(image => ({
-            shell: getComputedStyle(image.querySelector('[data-art-material="shell"] stop')).stopColor,
-            recess: getComputedStyle(image.querySelector('[data-art-material="recess"] stop:last-child')).stopColor,
-            accent: getComputedStyle(image.querySelector('[data-art-material="accent"] stop:last-child')).stopColor,
-            detail: getComputedStyle(image.querySelector('[data-art-material="detail"]')).fill,
-            ink: [...image.querySelectorAll('[data-art-material="ink"]')].map(node => getComputedStyle(node).stroke),
+            outline: getComputedStyle(image.querySelector('[data-spot-role="outline"]')).stroke,
+            accent: getComputedStyle(image.querySelector('[data-spot-role="accent"]')).stroke,
+            detail: getComputedStyle(image.querySelector('[data-spot-role="supporting-detail"]')).stroke,
           })));
         const originalMaterials = await readMaterials();
         assert.ok(originalMaterials.every(material => material.accent === "rgb(124, 47, 150)"),
@@ -678,12 +578,10 @@ test("packaged simple home preserves the three explicit journeys", {
         });
         const oliveMaterials = await readMaterials();
         assert.ok(oliveMaterials.every((material, index) => material.accent === "rgb(217, 171, 106)"
-          && material.shell !== originalMaterials[index].shell
-          && material.recess === "rgb(53, 58, 44)"
-          && material.detail === "rgb(197, 173, 137)"
-          && material.ink.every(color => color === "rgb(217, 171, 106)")),
-          "An olive host palette updates every material role without a tone change");
-        assert.equal(oliveMaterials[2].ink.length, 2, "Both source and resource symbols consume the host accent");
+          && material.outline !== originalMaterials[index].outline
+          && material.outline === "rgb(241, 213, 171)"
+          && material.detail === "rgb(197, 173, 137)"),
+          "An olive host palette updates distinct outline, supporting and accent roles without a tone change");
         assert.equal(await page.evaluate(() => window.originalArtwork.every((svg, index) =>
           svg === document.querySelectorAll(".simple-home-art svg")[index]) && window.originalCreate === document.activeElement),
         true, "Live palette changes preserve artwork, controls and focus");
