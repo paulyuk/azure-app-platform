@@ -301,3 +301,26 @@ test("physical directory aliases and duplicate porcelain entries retain one cano
     assert.equal(basename(catalog.roots[0].path), "app-00");
   });
 });
+
+test("standalone chat folder without a Git repository opens catalog without failing", async () => {
+  await withRoots(1, async (roots, fixture) => {
+    const standaloneChatDir = join(fixture, "standalone-chat");
+    await mkdir(standaloneChatDir, { recursive: true });
+    const { runner } = fixtureRunner(roots);
+    const nonGitRunner = async (command, args) => {
+      if (command === "git" && args[0] === "-C" && args[1] === standaloneChatDir) {
+        return { ok: false, stderr: "fatal: not a git repository (or any of the parent directories): .git" };
+      }
+      return runner(command, args);
+    };
+    const catalog = await listSourceCatalog({
+      workspaceRoot: standaloneChatDir,
+      additionalRoots: [roots[0].path],
+      commandRunner: nonGitRunner,
+    });
+    assert.equal(catalog.diagnostics.length, 0);
+    assert.ok(catalog.roots.some((root) => root.path === roots[0].path));
+    assert.ok(catalog.templates.length >= 2);
+  });
+});
+

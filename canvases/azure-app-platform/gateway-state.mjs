@@ -1,5 +1,35 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function runResourceGraphQuery(commandRunner, payload, options = {}) {
+  const directory = await mkdtemp(join(tmpdir(), "azure-app-platform-arg-"));
+  const bodyPath = join(directory, "request.json");
+  try {
+    await writeFile(bodyPath, JSON.stringify(payload), "utf8");
+    const args = [
+      "rest",
+      "--method",
+      "post",
+      "--uri",
+      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
+      "--headers",
+      "Content-Type=application/json",
+      "--body",
+      `@${bodyPath}`,
+      "-o",
+      "json",
+    ];
+    return options.signal !== undefined
+      ? await commandRunner("az", args, { signal: options.signal })
+      : await commandRunner("az", args);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 function envValue(contents, name) {
@@ -111,20 +141,10 @@ export async function discoverSandboxGroups(
     return found;
   };
 
-  const queryResourceGraphSandboxGroups = () => commandRunner("az", [
-    "rest",
-    "--method",
-    "post",
-    "--uri",
-    "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
-    "--body",
-    JSON.stringify({
-      query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId | order by name asc | limit 200",
-      options: { "$top": 200 },
-    }),
-    "-o",
-    "json",
-  ]);
+  const queryResourceGraphSandboxGroups = () => runResourceGraphQuery(commandRunner, {
+    query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId | order by name asc | limit 200",
+    options: { "$top": 200 },
+  });
 
   let resolvedSubscriptionId = subscriptionId;
   let groups = [];
@@ -507,23 +527,10 @@ export async function discoverGatewayOptions(commandRunner, active, requestedSub
   if (!subscription) throw new Error("The selected Azure subscription is unavailable. Sign in or choose an enabled subscription.");
   let gateways = [];
   if (allSubscriptionsRequested) {
-    const graphQuery = JSON.stringify({
+    const graphResult = await runResourceGraphQuery(commandRunner, {
       query: "Resources | where type =~ 'microsoft.apimanagement/aigateways' or (type =~ 'microsoft.apimanagement/service' and isnotnull(properties.gatewayUrl)) | project id, name, resourceGroup, location, subscriptionId, properties | limit 200",
       options: { $top: 200 },
-    });
-    const graphResult = await commandRunner("az", [
-      "rest",
-      "--method",
-      "post",
-      "--uri",
-      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01",
-      "--headers",
-      "Content-Type=application/json",
-      "--body",
-      graphQuery,
-      "-o",
-      "json",
-    ], { signal });
+    }, { signal });
     if (graphResult.ok && graphResult.stdout) {
       try {
         const parsed = JSON.parse(graphResult.stdout);

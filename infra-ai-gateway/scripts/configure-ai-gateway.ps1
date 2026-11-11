@@ -254,7 +254,7 @@ try {
             exit 1
         }
         Write-Host "Validating ACA Sandbox Group '$acaSandboxGroup' (create and delete permissions)..."
-        $createOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox create --group $acaSandboxGroup --egress-default Deny -l purpose=canvas-validation 2>&1 | Out-String)
+        $createOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox create --group $acaSandboxGroup --egress-default Deny --label purpose=canvas-validation 2>&1 | Out-String)
         if ($LASTEXITCODE -ne 0) {
             if ($createOut -match '403|Forbidden|Access denied') {
                 Write-Error "Access denied (HTTP 403) creating a sandbox in '$acaSandboxGroup' (resource group '$resolvedAcaRg', subscription '$resolvedAcaSub'). Assign 'Container Apps SandboxGroup Data Owner' on this sandbox group: aca -s $resolvedAcaSub -g $resolvedAcaRg sandboxgroup role create --group $acaSandboxGroup --role `"Container Apps SandboxGroup Data Owner`" --principal-id <your-entra-object-id>"
