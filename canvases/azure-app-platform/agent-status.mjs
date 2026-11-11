@@ -79,7 +79,7 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
   } else if (requestState === "succeeded") {
     state = "succeeded";
     title = "Task result received";
-    description = "A response is not proof of safety or tool success. Review the result and reported evidence below."
+    description = "A response is not proof of safety or tool success. Select View execution to review the result and reported evidence."
       + (availabilityState !== "ready" ? " " + description : "");
   }
   return {
@@ -93,7 +93,7 @@ export function createAgentStatusComponent(toolkit) {
   const h = toolkit.createElement;
   return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError,
     command, errorDetail, prerequisites = [], actions = [], onConnection, connectionIcon }) {
-    const tone = state === "ready" ? "success"
+    const tone = ["ready", "succeeded"].includes(state) ? "success"
       : ["runtime-failed", "unavailable"].includes(state) ? "danger"
       : ["ports", "prerequisites", "preview", "connection", "agent-unavailable"].includes(state) ? "warning"
       : ["checking", "starting", "stopping", "configuring", "provisioning", "deploying", "invoking"].includes(state) ? "busy"

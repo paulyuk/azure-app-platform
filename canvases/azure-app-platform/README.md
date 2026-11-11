@@ -44,6 +44,21 @@ share one read within a canvas and its authorized-folder scope. Completed
 results are not cached by the server; retries, changed folder scopes, and
 creation or mutation checks still perform fresh discovery.
 
+In **Run**, enter a prompt and attach documents on the invocation screen, with
+**Try a boundary test** placed directly below **Event triggers**. **Invoke
+agent** opens a separate execution view containing the execution layers,
+document policy assessment, tool activity, and response output. These outputs
+are not shown on the prompt-entry screen. The active layer has a clockwise
+glowing border trail (or a steady highlight when reduced motion is enabled);
+execution layers remain stacked directly above the response without a parent
+summary accordion, and each layer opens inline as an accordion to inspect
+runtime, harness, policy, or MCP tool details. Startup and request states follow
+actual readiness and HTTP boundaries. Model and tool steps are not streamed:
+tool reports and policy stages appear when returned, and an unconfirmed tool
+call stays **Unverified**. **Back to Run** returns to the prompt without
+cancelling execution. Use **View execution** or workspace history to revisit the
+latest run, and **View logs** to inspect output alongside it.
+
 ### 3. Run canvas tests (maintainers)
 
 From the repository root:

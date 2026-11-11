@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -67,6 +67,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await prompt.fill("Preserve this unattended event.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await returnToRun(page);
       await page.getByLabel("Document attachment", { exact: true }).click();
       await page.getByRole("button", { name: "Edit document", exact: true }).click();
       const text = page.getByLabel("Document text", { exact: true });
@@ -172,6 +173,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#manage-app").click();
       await page.getByRole("button", { name: "Cancel document edit", exact: true }).click();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
       assert.deepEqual(fixture.mutations, []);
       assert.equal(invocations.length, 2);

@@ -1,4 +1,5 @@
 .azure/
+.azure-app-platform/
 .venv/
 **/.env
 **/.venv/

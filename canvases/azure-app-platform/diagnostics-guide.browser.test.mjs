@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -481,6 +481,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
       assert.equal(await logs.getAttribute("aria-expanded"), "false");
       assert.equal(await logs.locator(".logs-warning-badge").count(), 0);
+      await returnToRun(page);
       await page.locator("#map-app").click();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".workspace-lifecycle-actions #header-runtime-action").isVisible(), true,

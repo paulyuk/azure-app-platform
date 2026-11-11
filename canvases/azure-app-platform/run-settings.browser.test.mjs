@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -353,8 +353,9 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     assert.equal(await message.inputValue(), "Find an SUV.");
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
     await page.locator(".agent-response").filter({ hasText: "three vehicles" }).waitFor();
-    await page.locator('[data-run-disclosure="tool-activity"] > summary').click();
-    await page.getByText("inventory_search · Call reported", { exact: true }).waitFor();
+    assert.equal(await page.locator('[data-run-disclosure="tool-activity"]').count(), 0);
+    assert.match(await page.locator('[data-layer="tool-0"]').textContent(), /inventory_search/);
+    await returnToRun(page);
     await deploy.click();
     await page.getByRole("button", { name: "Set up Azure resources" }).click();
     await page.waitForFunction(() => document.querySelector("#app-status-badge").textContent.includes("Provisioning"));

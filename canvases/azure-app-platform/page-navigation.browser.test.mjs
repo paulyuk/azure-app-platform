@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
@@ -87,7 +87,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       await page.getByText("Event triggers:", { exact: true }).waitFor();
-      await page.getByText("Autonomous run result", { exact: true }).waitFor();
+      assert.equal(await page.getByText("Autonomous run result", { exact: true }).count(), 0);
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
       await page.locator("[data-event-preset-select]").selectOption("loan.document.submitted");
       await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
@@ -244,6 +244,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(fixture.mutations[0].body.port, 3000);
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();
+      await returnToRun(page);
       assert.equal(fixture.mutations.at(-1).path, "/api/agent-invoke");
       assert.equal(fixture.mutations.at(-1).body.message, "Preserve this event payload.");
       assert.equal(fixture.mutations.at(-1).body.document.name, "sample-loan-note.md");

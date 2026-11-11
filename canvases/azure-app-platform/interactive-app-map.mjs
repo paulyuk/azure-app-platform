@@ -6,6 +6,7 @@ import { CONNECTION_PANEL_CSS, createConnectionPanel } from "./connection-panel.
 import { selectPreferredModelId } from "./gateway-state.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
+import { createRunExecutionView, getRunExecutionLayers, RUN_EXECUTION_CSS } from "./run-execution.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
 import { getAgentResponsePresentation, renderAgentResponse, RUN_ILLUSTRATION_MARKUP } from "./agent-response.mjs";
 import { BUILD_EXPLORER_CSS, BUILD_PANEL_CONTENT_CSS, createBuildPanel } from "./build-panel.mjs";
@@ -613,6 +614,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     body[data-workspace="map"][data-inspecting="true"] #workspace { grid-template-rows: minmax(0, 1fr) 6px var(--details-height, 300px); }
     #workspace > #details { min-height: 0; }
+    #workspace > #details[hidden] { display: none; }
     body:not([data-workspace="map"]) #graph-shell,
     body:not([data-workspace="map"]) #details-resizer,
     body[data-workspace="map"][data-inspecting="false"] #details,
@@ -807,6 +809,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       * { scroll-behavior: auto !important; transition: none !important; }
     }
     ${RUN_PANEL_CONTENT_CSS}
+    ${RUN_EXECUTION_CSS}
     ${BUILD_PANEL_CONTENT_CSS}
     ${COMPONENT_LOGS_CSS}
     ${renderThemeStyles(presentation.id)}
@@ -914,6 +917,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     </div>
     <div id="details-resizer" role="separator" aria-label="Resize details panel" aria-orientation="horizontal" aria-controls="details" tabindex="0"></div>
     <section id="details" aria-label="Workspace content" aria-live="polite" data-empty="false"></section>
+    <section id="run-execution-workspace" aria-label="Run execution" hidden></section>
     </section>
     </section>
   </main>
@@ -983,6 +987,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const nodesLayer = document.querySelector("#nodes");
     const detailsResizer = document.querySelector("#details-resizer");
     const details = document.querySelector("#details");
+    const executionWorkspace = document.querySelector("#run-execution-workspace");
     const workspace = document.querySelector("#workspace");
     document.querySelector("#workspace-loading-header .studio-theme-control")
       .prepend(document.querySelector("#workspace-runtime-actions"));
@@ -1185,6 +1190,29 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const getAgentStatus = (${getAgentStatus.toString()});
     const getAgentResponsePresentation = (${getAgentResponsePresentation.toString()});
     const renderAgentResponse = (${renderAgentResponse.toString()});
+    const executionView = (${createRunExecutionView.toString()})({
+      container: executionWorkspace, buttons, backIcon: ICONS["arrow-left"],
+      checkIcon: ICONS.check, alertIcon: ICONS.alert, icons: ICONS,
+      getLayers: (${getRunExecutionLayers.toString()}),
+      renderResults: renderExecutionResults,
+      onLogs: () => runWorkspace.openDiagnostics("output"),
+      onReturn: returnToRun,
+    });
+    const executionSnapshot = () => {
+      const agentEntry = runtimeEntrypoints.find(entry => normalized(entry.name) === "agent");
+      const readyCount = runtimeEntrypoints.filter(entry => entry.ready).length;
+      return {
+        state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
+        tools: agentToolActivity, blockedResponse: agentBlockedResponse, text: agentResponseText,
+        raw: agentRawResponse, assessment: documentAssessment, submission: agentBlockedSubmission,
+        documentTesting, invokingAgent, hasDocuments: agentDocuments.length > 0, documentResultText,
+        runtimeLabel: operationalState.readiness?.agentRuntime === "aca" ? "ACA session" : "Local runtime",
+        agentPort: agentEntry?.port || 8088,
+        gatewayName: operationalState.readiness?.activeGateway?.name || "",
+        modelName: operationalState.readiness?.model || "",
+        readyServices: runtimeEntrypoints.length ? ("✓ " + readyCount + "/" + runtimeEntrypoints.length) : "",
+      };
+    };
     const runIllustrations = ${JSON.stringify(RUN_ILLUSTRATION_MARKUP)};
     const agentStatusRoot = document.createElement("div");
     const agentResponseSpinnerRoot = document.createElement("span");
@@ -1239,18 +1267,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (!navigationFailed && !navigationDisposed) components.renderComponent(navigationMount, "WorkspaceNavigation",
         { ...navigationProps, current, history: {
           ...navigationProps.history,
-          backDisabled: workspaceHistoryIndex <= 0,
-          forwardDisabled: workspaceHistoryIndex >= workspaceHistory.length - 1,
+          backDisabled: workspaceHistoryDestination(-1) < 0,
+          forwardDisabled: workspaceHistoryDestination(1) < 0,
         } }, "workspace navigation");
     }
+    function workspaceHistoryDestination(delta) {
+      let next = workspaceHistoryIndex + delta;
+      while (next >= 0 && next < workspaceHistory.length &&
+          workspaceHistory[next] === "execution" && agentRequestState === "idle") next += delta;
+      return next >= 0 && next < workspaceHistory.length ? next : -1;
+    }
     function navigateWorkspaceHistory(delta) {
-      const next = workspaceHistoryIndex + delta;
-      if (next < 0 || next >= workspaceHistory.length) return;
+      const next = workspaceHistoryDestination(delta);
+      if (next < 0) return;
       workspaceHistoryIndex = next;
       const mode = workspaceHistory[next];
       if (mode === "build") void openCustomizeApp();
       else if (mode === "connections") renderConnectionsPanel();
       else if (mode === "manage") renderManagePanel();
+      else if (mode === "execution") renderExecutionPanel();
       else if (mode === "deploy") renderDeployPanel();
       else if (mode === "logs") renderLogsPanel();
       else renderMapPanel();
@@ -1281,6 +1316,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       components.dispose();
       agentStatusView.dispose();
       agentResponseSpinnerView.dispose();
+      executionView.dispose();
       runtimeStatusView.dispose();
       runWorkspace.dispose();
     });
@@ -2240,12 +2276,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function workspaceDestination() {
+      if (panelMode === "execution") return "execution";
       if (["build", "manage", "logs", "deploy", "connections"].includes(panelMode)) return panelMode;
       return "map";
     }
 
     function updateModeHighlight() {
-      const mode = ["build", "manage", "logs", "deploy", "connections"].includes(panelMode) ? panelMode : "map";
+      const mode = panelMode === "execution" ? "manage"
+        : ["build", "manage", "logs", "deploy", "connections"].includes(panelMode) ? panelMode : "map";
       if (document.body.dataset.workspace === "connections" && mode !== "connections") {
         connectionScroll = details.querySelector(".connections-body")?.scrollTop || 0;
         connections.invalidate();
@@ -2263,13 +2301,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (mode !== "build" && !buildPage.hidden) buildPanel.hide();
       buildPage.hidden = mode !== "build";
       workspace.hidden = mode === "build";
+      details.hidden = panelMode === "execution";
+      executionWorkspace.hidden = panelMode !== "execution";
       const observing = destination === "map" || destination === "logs";
       if (observing) observeView = mode;
       document.body.dataset.workspace = mode;
-      document.body.dataset.inspecting = String(!["build", "manage", "logs", "deploy", "map"].includes(panelMode));
+      document.body.dataset.inspecting = String(!["build", "manage", "execution", "logs", "deploy", "map"].includes(panelMode));
       if (mode !== "map") document.querySelector(".map-tools").open = false;
       if (mode !== "manage" && safetyBoundaryDialog?.open) safetyBoundaryDialog.close();
-      const current = observing ? "observe" : destination;
+      const current = observing ? "observe" : mode;
       document.querySelector("#workspace-location").textContent = navigationItems.find(item => item.value === current).label;
       renderWorkspaceNavigation(current);
       document.querySelector("#observe-views").hidden = !observing;
@@ -2708,8 +2748,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       documentAssessmentEpoch += 1;
       documentAssessment = null;
       documentResultText = "";
-      details.querySelector("[data-document-assessment]")?.remove();
-      details.querySelector("[data-document-result]")?.remove();
+      executionView.update(executionSnapshot());
     }
 
     function renderDocumentAssessment(container) {
@@ -3619,6 +3658,21 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return limits;
     }
 
+    function formatSubmittedInputEvidence(submission) {
+      const submittedDocs = Array.isArray(submission?.documents) && submission.documents.length
+        ? submission.documents
+        : (submission?.document ? [submission.document] : []);
+      return [
+        "Prompt",
+        submission?.message || "(not retained)",
+        "",
+        submittedDocs.length > 1 ? "Attachments" : "Attachment",
+        submittedDocs.length
+          ? submittedDocs.map((doc) => doc.name + "\\n\\n" + doc.content).join("\\n\\n---\\n\\n")
+          : "No document attached.",
+      ].join("\\n");
+    }
+
     function renderBlockedAgentResponse(container, response) {
       const card = appendText(container, "article", "", "blocked-agent-card");
       card.dataset.blockedResponse = "true";
@@ -3637,48 +3691,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "blocked-agent-status",
       );
       appendText(card, "p", response.operatorMessage, "blocked-agent-callout");
-      const pathHeading = appendText(card, "div", "", "blocked-agent-path-heading");
-      appendText(pathHeading, "strong", "Where the request stopped");
-      appendText(pathHeading, "span", "· evidence-backed path");
-      const stageLabels = {
-        "agent-harness": "Agent harness",
-        "document-tool": "Document tool / sandbox",
-        model: "Model",
-        "approval-disclosure": "Approval / disclosure",
-      };
-      const stages = appendText(card, "div", "", "blocked-agent-stages");
-      for (const stage of response.stages) {
-        const stageCard = appendText(stages, "section", "", "blocked-agent-stage");
-        stageCard.dataset.state = stage.state;
-        const stageHeader = appendText(stageCard, "div", "", "blocked-agent-stage-header");
-        const stateIcon = appendText(stageHeader, "span", "", "blocked-agent-stage-icon");
-        stateIcon.setAttribute("aria-hidden", "true");
-        appendText(stageHeader, "strong", stageLabels[stage.id]);
-        appendText(
-          stageCard,
-          "span",
-          stage.detail + (stage.reasonCode ? " · " + stage.reasonCode : ""),
-          "blocked-agent-stage-detail",
-        );
-      }
       appendText(card, "strong", response.summary, "blocked-agent-summary");
       appendText(card, "p", blockedLimitations(response).join(" "), "blocked-agent-limit");
       const disclosures = appendText(card, "div", "", "blocked-agent-disclosures");
       const submitted = appendText(disclosures, "details", "", "blocked-agent-disclosure");
       appendText(submitted, "summary", "Submitted input");
-      const submittedDocs = Array.isArray(agentBlockedSubmission?.documents) && agentBlockedSubmission.documents.length
-        ? agentBlockedSubmission.documents
-        : (agentBlockedSubmission?.document ? [agentBlockedSubmission.document] : []);
-      const submittedText = [
-        "Prompt",
-        agentBlockedSubmission?.message || "(not retained)",
-        "",
-        submittedDocs.length > 1 ? "Attachments" : "Attachment",
-        submittedDocs.length
-          ? submittedDocs.map((doc) => doc.name + "\\n\\n" + doc.content).join("\\n\\n---\\n\\n")
-          : "No document attached.",
-      ].join("\\n");
-      appendText(submitted, "pre", submittedText, "blocked-agent-evidence");
+      appendText(submitted, "pre", formatSubmittedInputEvidence(agentBlockedSubmission), "blocked-agent-evidence");
       const evidence = appendText(disclosures, "details", "", "blocked-agent-disclosure");
       appendText(evidence, "summary", "Response evidence");
       appendText(evidence, "pre", JSON.stringify(response, null, 2), "blocked-agent-evidence");
@@ -3720,8 +3738,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       agentResponseText = "Waiting for the local agent…";
       const updateResponseNode = (text) => {
         agentResponseText = text;
-        const currentResponse = details.querySelector(".agent-response");
-        if (currentResponse) renderResponse(currentResponse);
+        executionView.update(executionSnapshot());
         const presentation = getAgentResponsePresentation({
           state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
         });
@@ -3733,6 +3750,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       updateAgentStatusBrief();
       if (panelMode === "manage") renderManagePanel();
       else syncAgentInputControls();
+      renderExecutionPanel();
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
           agentResponsePhase = "starting";
@@ -3794,6 +3812,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       } finally {
         clearTimeout(agentResponseWaitTimer);
         invokingAgent = false;
+        executionView.update(executionSnapshot());
         updateAgentStatusBrief();
         syncAgentInputControls();
         if (panelMode === "manage") renderManagePanel();
@@ -3814,8 +3833,39 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         text: agentResponseText, buttons,
         pendingIndicator: agentResponseSpinnerRoot,
         illustrations: runIllustrations,
-        onLogs: () => runWorkspace.openDiagnostics("output"),
       });
+    }
+
+    function renderExecutionResults(container) {
+      let response = container.querySelector(".agent-response");
+      if (!response) {
+        appendText(container, "h3", "Autonomous run result");
+        response = appendText(container, "div", "", "agent-response");
+        response.setAttribute("role", "region");
+        response.setAttribute("aria-label", "Agent response");
+        response.tabIndex = 0;
+        const evidence = appendText(container, "div", "");
+        evidence.dataset.runEvidence = "true";
+      }
+      renderResponse(response);
+      const evidence = container.querySelector("[data-run-evidence]");
+      const fingerprint = JSON.stringify({
+        state: agentRequestState, assessment: documentAssessment, documentTesting, invokingAgent,
+        tools: agentToolActivity, raw: agentRawResponse, documentResultText,
+      });
+      if (evidence.dataset.fingerprint === fingerprint) return;
+      clearElement(evidence);
+      evidence.dataset.fingerprint = fingerprint;
+      if (agentRequestState !== "blocked") renderDocumentAssessment(evidence);
+      if (agentRawResponse) {
+        const raw = document.createElement("details");
+        raw.dataset.runDisclosure = "raw-response";
+        raw.open = true;
+        appendText(raw, "summary", "Raw agent response");
+        const output = appendText(raw, "pre", agentRawResponse, "command-output");
+        output.tabIndex = 0;
+        evidence.append(raw);
+      }
     }
 
     function renderAgentTester(container) {
@@ -3827,6 +3877,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const prompt = document.createElement("textarea");
       appendText(tester, "strong", "Autonomous event / task payload");
       renderEventPresetChips(tester, prompt);
+      renderDocumentTest(tester);
       prompt.maxLength = 2000;
       prompt.value = agentPromptTyping ? agentPromptTyping.currentValue : agentPromptDraft;
       if (agentPromptTyping) prompt.dataset.typing = "true";
@@ -3850,13 +3901,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           setDocumentTestNotice(SAMPLE_DOCUMENT_NOTICE, "document");
         }
       });
-      const response = document.createElement("div");
-      response.className = "agent-response";
-      response.setAttribute("role", "region");
-      response.setAttribute("aria-label", "Agent response");
-      response.tabIndex = 0;
-      response.dataset.runScrollKey = "agent-result";
-      renderResponse(response);
+      executionView.update(executionSnapshot());
       const actions = document.createElement("div");
       actions.className = "actions agent-task-actions";
       const send = actionButton(invokingAgent ? "Invoking agent…" : "Invoke agent", () => executeAgentInvocation(prompt), operationalState.app?.state === "running");
@@ -3869,19 +3914,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       syncDocumentTestNotice(tester);
       renderDocumentInput(tester, dispatchActions);
       tester.append(actions);
-      renderDocumentTest(tester, actions);
-      appendText(tester, "h3", "Autonomous run result");
-      tester.append(response);
-      if (agentRequestState !== "blocked") renderDocumentAssessment(tester);
-      if (agentRequestState !== "idle" && agentRequestState !== "blocked") renderTools(tester);
-      if (agentRawResponse) {
-        const raw = document.createElement("details");
-        raw.dataset.runDisclosure = "raw-response";
-        appendText(raw, "summary", "Raw agent response");
-        const output = appendText(raw, "pre", agentRawResponse, "command-output");
-        output.dataset.runScrollKey = "agent-raw";
-        output.tabIndex = 0;
-        tester.append(raw);
+      if (agentRequestState !== "idle") {
+        const view = actionButton("View execution", renderExecutionPanel);
+        view.dataset.viewExecution = "true";
+        buttons.append(actions, view);
       }
       container.append(tester);
       syncAgentInputControls();
@@ -4118,6 +4154,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       });
     });
 
+    function renderExecutionPanel() {
+      if (agentRequestState === "idle") return renderManagePanel();
+      if (panelMode === "manage") runWorkspace.capture();
+      panelMode = "execution";
+      updateModeHighlight();
+      executionView.open(executionSnapshot());
+    }
+
+    function returnToRun() {
+      if (workspaceHistory[workspaceHistoryDestination(-1)] === "manage") navigateWorkspaceHistory(-1);
+      else renderManagePanel();
+      details.querySelector("[data-view-execution]")?.focus({ preventScroll: true });
+    }
+
     function renderManagePanel({ openGateway = false } = {}) {
       const entering = panelMode !== "manage";
       panelMode = "manage";
@@ -4231,16 +4281,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       if (focusedRecord) (focusedSummary || diagnosticsContainer.querySelector("#run-tab-operations"))?.focus({ preventScroll: true });
       container.scrollTop = following ? container.scrollHeight : scrollTop;
-    }
-
-    function renderTools(container) {
-      const section = document.createElement("details");
-      section.className = "run-tool-activity";
-      section.dataset.runDisclosure = "tool-activity";
-      appendText(section, "summary", "Tool activity · " + agentToolActivity.length + " reported");
-      for (const tool of agentToolActivity) appendText(section, "p", tool.name + " · " + tool.status);
-      if (!agentToolActivity.length) appendText(section, "p", "No tool activity was reported in the last response. This does not prove that no tools ran.");
-      container.append(section);
     }
 
     async function refreshOperationalState() {

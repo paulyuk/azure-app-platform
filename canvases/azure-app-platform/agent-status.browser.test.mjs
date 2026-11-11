@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -221,8 +221,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await eventTriggerSelect.isVisible(), true);
       assert.equal(await page.locator("button.event-preset-chip").count(), 0);
       await eventTriggerSelect.selectOption("loan.document.submitted");
-      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
-      const document = page.getByLabel("Document text", { exact: true });
+      const prompt = page.locator('textarea[aria-label="Agent message"]');
+      const document = page.locator('textarea[aria-label="Document text"]');
       const notice = page.locator("[data-document-test-notice] .ct-message");
       await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
       assert.equal(await notice.getAttribute("data-intent"), "info");
@@ -246,6 +246,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="invoking"]').waitFor();
       assert.deepEqual(await page.evaluate(() => {
         const button = document.querySelector("[data-invoke-agent]");
@@ -292,12 +293,14 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       assert.match(await status.innerText(), /Not ready/);
       assert.match(await status.innerText(), /not proof of safety/);
+      await page.locator("[data-view-execution]").click();
       const raw = page.locator('[data-run-disclosure="raw-response"]');
-      await raw.locator("summary").click();
+      assert.equal(await raw.evaluate(node => node.open), true);
       assert.match(await raw.innerText(), /response-only/);
-      await page.locator('[data-run-disclosure="tool-activity"]').locator("summary").click();
-      assert.match(await page.locator('[data-run-disclosure="tool-activity"]').innerText(), /inventory_search.*Call reported/);
+      assert.equal(await page.locator('[data-run-disclosure="tool-activity"]').count(), 0);
+      assert.match(await page.locator('[data-layer="tool-0"]').innerText(), /inventory_search[\s\S]*Call reported/);
       await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await returnToRun(page);
       await prompt.focus();
       await prompt.evaluate(node => node.setSelectionRange(6, 12));
       fixture.state.health = "Polled health update";
@@ -306,20 +309,26 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await raw.evaluate(node => node.open), true);
       assert.equal(await document.inputValue(), documentText);
       const result = page.getByRole("region", { name: "Agent response", exact: true });
+      await page.locator("[data-view-execution]").click();
       await result.focus();
-      await result.evaluate(node => { node.scrollTop = 90; });
+      const executionBody = page.locator(".run-execution-body");
+      await executionBody.evaluate(node => { node.scrollTop = 90; });
       fixture.state.health = "Result focus polling update";
       await page.waitForFunction(() => document.querySelector("#run-panel-services")?.textContent.includes("Result focus polling update"));
-      assert.deepEqual(await result.evaluate(node => [node === globalThis.document.activeElement, node.scrollTop]), [true, 90]);
+      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true);
+      assert.equal(await executionBody.evaluate(node => node.scrollTop), 90);
+      await returnToRun(page);
       await page.locator("#map-app").click();
       await page.locator("#manage-app").click();
+      await page.locator("[data-view-execution]").click();
       await raw.waitFor();
       assert.equal(await raw.evaluate(node => node.open), true);
       assert.equal(await prompt.inputValue(), payload);
       assert.deepEqual(await prompt.evaluate(node => [node.selectionStart, node.selectionEnd]), [6, 12]);
       assert.match(await raw.innerText(), /response-only/);
       assert.match(await page.locator(".agent-response").innerText(), /Task output/);
-      assert.equal(await result.evaluate(node => node.scrollTop), 90);
+      assert.equal(await executionBody.evaluate(node => node.scrollTop), 90);
+      await returnToRun(page);
       available = true;
       fixture.state.app = "running";
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
@@ -335,14 +344,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#status").evaluate(node => node.classList.contains("visually-hidden")), true,
         "Failed task execution must not render duplicate error text above the Status Brief.");
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
-      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true,
-        "A temporarily disabled invocation action keeps focus in its result, not the page body.");
+      await returnToRun(page);
+      const executionLink = page.locator("[data-view-execution]");
+      assert.equal(await executionLink.evaluate(node => node === globalThis.document.activeElement), true,
+        "Returning to Run focuses the action that reopens the execution.");
       assert.equal(await raw.count(), 0, "A failed retry must not present a previous run's raw output.");
-      assert.doesNotMatch(await page.locator('[data-run-disclosure="tool-activity"]').innerText(), /inventory_search/);
+      assert.equal(await page.locator('[data-layer^="tool-"]').count(), 0);
       fixture.state.app = "stopping";
       available = false;
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Stopping"));
-      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true);
+      assert.equal(await executionLink.evaluate(node => node === globalThis.document.activeElement), true);
       await page.locator("#map-app").click();
       await page.locator("#manage-app").click();
       await page.locator('.agent-status-brief[data-state="stopping"]').waitFor();
@@ -409,6 +420,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         return node && node.dataset.typing === "true" && node.value.length > 0;
       });
       await invoke.click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
       assert.match(requests.at(-1).message, /^Event \[applicant\.intake\.received\].*missing borrower attestations\.$/);
       assert.equal(await prompt.inputValue(), requests.at(-1).message);

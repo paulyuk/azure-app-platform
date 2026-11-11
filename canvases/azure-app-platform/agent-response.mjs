@@ -11,8 +11,8 @@ export function getAgentResponsePresentation({ state = "idle", phase = "preparin
     return {
       title: sent ? "This invocation had a problem" : "The task was not sent",
       description: sent
-        ? "Your task is retained above. A failed request does not confirm that backend execution stopped."
-        : "Your task is retained above. Review startup output before trying again.",
+        ? "Your task is retained in Run. A failed request does not confirm that backend execution stopped."
+        : "Your task is retained in Run. Review startup output before trying again.",
       illustration: null, showLogs: true,
     };
   }
@@ -71,13 +71,15 @@ export function renderAgentResponse(root, { state, phase, slow, text, buttons, o
       illustration.setAttribute("width", "64");
       illustration.setAttribute("height", "64");
       summary.append(illustration);
+    } else if (state === "failed") {
+      append(summary, "span", "", "agent-result-error-icon").setAttribute("aria-hidden", "true");
     }
     const copy = append(summary, "div", "", "agent-result-copy");
     const title = append(copy, "strong", "", "agent-result-title");
     append(title, "span", presentation.title);
     if (state === "failed") append(copy, "p", text, "agent-result-error");
     append(copy, "p", presentation.description);
-    if (presentation.showLogs) {
+    if (presentation.showLogs && onLogs) {
       const footer = append(root, "div", "", "agent-result-footer");
       buttons.append(footer, buttons.create({
         children: "View logs", appearance: "secondary", size: "small",
