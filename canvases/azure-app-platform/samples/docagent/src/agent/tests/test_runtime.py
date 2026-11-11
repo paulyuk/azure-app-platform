@@ -710,6 +710,8 @@ class RuntimeTests(unittest.TestCase):
             self.assertNotIn("--env", cli.create_command)
             self.assertNotIn("--credential", cli.create_command)
             self.assertNotIn("env=", cli.exec_command[-1])
+            self.assertIn("zlib.decompress", cli.exec_command[-1])
+            self.assertLess(len(" ".join(cli.exec_command)), 16000)
             probe = result["sandboxProbe"]
             self.assertEqual(probe["enforcement"], "aca-egress-proxy")
             self.assertEqual(probe["outboundOutcome"], "denied")

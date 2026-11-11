@@ -4524,7 +4524,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       details.dataset.empty = "false";
       details.dataset.mode = "manage";
       runWorkspace.render({ state: operationalState.app?.state, readiness: operationalState.readiness, services: runtimeEntrypoints });
-      if (entering) details.scrollTop = 0;
+      updateAgentStatusBrief();
+      if (entering) {
+        details.scrollTop = 0;
+        void refreshOperationalState();
+      }
       void refreshRunOutput();
       if (openGateway) openAppSettings("connection");
     }
@@ -4729,6 +4733,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           model: readiness.model,
           gateway: readiness.activeGateway?.name,
           gatewayStatus: readiness.activeGateway?.configurationStatus,
+          configuredAt: readiness.activeGateway?.configuredAt,
+          configurationId: readiness.activeGateway?.configurationId,
+          sandboxGroup: readiness.sandboxGroup?.name || readiness.activeGateway?.sandboxGroup?.name,
           prerequisites: readiness.prerequisites,
           documentInput: readiness.documentInput,
           sandboxBoundaryTest: readiness.sandboxBoundaryTest,
@@ -4757,6 +4764,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         if (changed && !gatewayApplying && !window.appPlatformSettings?.isOpen("connection")) window.appPlatformSettings?.refreshApp();
         connections.updateRuntime();
         if (changed) {
+          updateAgentStatusBrief();
           const onEnvironmentTab = runWorkspace.selectedTab() === "environment";
           const interactionActive = gatewayApplying || diagnosticsContainer.querySelector("#run-panel-environment .connections-root");
           if (onEnvironmentTab && interactionActive) {

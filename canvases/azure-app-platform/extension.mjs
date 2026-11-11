@@ -662,6 +662,7 @@ async function persistActiveGateway(root, active, expectedConfigurationId) {
         });
         await rename(temporary, target);
         activeGateways.set(root, active);
+        inFlightLocalReadiness.delete(root);
         return true;
       } catch (error) {
         try {
@@ -1355,7 +1356,106 @@ async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoo
   return resolveDiscoveryRoot(requestedRoot, workspaceRoot);
 }
 
+let cachedWindowsPowerShellPromise = null;
+async function resolveWindowsPowerShellCommand() {
+  if (process.platform !== "win32") return "powershell";
+  if (!cachedWindowsPowerShellPromise) {
+    cachedWindowsPowerShellPromise = (async () => {
+      const pwshCheck = await runCommand("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.Major"], { timeout: 4_000 }).catch(() => ({ ok: false }));
+      return pwshCheck?.ok ? "pwsh" : "powershell";
+    })();
+  }
+  return cachedWindowsPowerShellPromise;
+}
+
+function authorizedRootsRegistryPath(workspaceRoot) {
+  const workspaceHash = createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 20);
+  return `${tmpdir()}/azure-app-platform-command-logs/authorized-roots-${workspaceHash}.json`;
+}
+
+async function loadPersistedAuthorizedRoots(workspaceRoot) {
+  try {
+    const parsed = JSON.parse(await readFile(authorizedRootsRegistryPath(workspaceRoot), "utf8"));
+    return Array.isArray(parsed?.roots) ? parsed.roots.filter((item) => typeof item === "string" && item) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots) {
+  const targetPath = authorizedRootsRegistryPath(workspaceRoot);
+  try {
+    await mkdir(dirname(targetPath), { recursive: true, mode: 0o700 });
+    await writeFile(targetPath, JSON.stringify({ roots: [...authorizedRoots] }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  } catch {
+    // Best-effort persistence across extension reloads
+  }
+}
+
+async function syncExistingAppFixes(root) {
+  const ps1Path = `${root}/scripts/dev-start.ps1`;
+  try {
+    const ps1Text = await readFile(ps1Path, "utf8");
+    if (ps1Text.includes("Start-Process uv") && !ps1Text.includes("-WindowStyle Hidden")) {
+      const patchedPs1 = ps1Text.replace(
+        /(-WorkingDirectory\s+\(Join-Path\s+\$Root\s+"src\/agent"\)\s+`\r?\n)/,
+        "$1    -WindowStyle Hidden `\n",
+      );
+      if (patchedPs1 !== ps1Text) {
+        await writeFile(ps1Path, patchedPs1, "utf8");
+      }
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  const agentMainPath = `${root}/src/agent/main.py`;
+  try {
+    const mainText = await readFile(agentMainPath, "utf8");
+    if (
+      mainText.includes('base64.b64encode(_read_bytes(path)).decode("ascii")')
+      && !mainText.includes("zlib.compress(_read_bytes(path)")
+    ) {
+      let patchedMain = mainText;
+      if (!patchedMain.includes("import zlib")) {
+        patchedMain = patchedMain.replace("import urllib.request\n", "import urllib.request\nimport zlib\n");
+      }
+      patchedMain = patchedMain
+        .replace(
+          'base64.b64encode(_read_bytes(path)).decode("ascii")',
+          'base64.b64encode(zlib.compress(_read_bytes(path), level=9)).decode("ascii")',
+        )
+        .replace(
+          'request_b64 = base64.b64encode(json.dumps(request_payload).encode("utf-8")).decode("ascii")',
+          'request_b64 = base64.b64encode(zlib.compress(json.dumps(request_payload).encode("utf-8"), level=9)).decode("ascii")',
+        )
+        .replace(
+          '"import base64, json, os, subprocess, sys, tempfile\\n"',
+          '"import base64, json, os, subprocess, sys, tempfile, zlib\\n"',
+        )
+        .replace(
+          'bundle = json.loads(base64.b64decode(\\"{bundle_b64}\\").decode(\\"utf-8\\"))',
+          'bundle = json.loads(zlib.decompress(base64.b64decode(\\"{bundle_b64}\\")).decode(\\"utf-8\\"))',
+        )
+        .replace(
+          'dest.write_bytes(base64.b64decode(encoded))',
+          'dest.write_bytes(zlib.decompress(base64.b64decode(encoded)))',
+        )
+        .replace(
+          'payload = base64.b64decode(\\"{request_b64}\\")',
+          'payload = zlib.decompress(base64.b64decode(\\"{request_b64}\\"))',
+        );
+      if (patchedMain !== mainText) {
+        await writeFile(agentMainPath, patchedMain, "utf8");
+      }
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
 async function resolveLifecycleCommand(root, operation) {
+  await syncExistingAppFixes(root).catch(() => {});
   const scriptNames = operation === "run-local"
     ? ["dev-start.sh", "dev-start.ps1"]
     : ["dev-stop.sh", "dev-stop.ps1"];
@@ -1370,8 +1470,9 @@ async function resolveLifecycleCommand(root, operation) {
         const profileArgs = runtime && (
           runtime.requiresGatewayForFullStart !== true || readiness?.mode === "preview"
         ) ? runtime.startPowerShellArgs ?? [] : [];
+        const psCommand = await resolveWindowsPowerShellCommand();
         return {
-          command: "powershell",
+          command: psCommand,
           args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...profileArgs],
         };
       }
@@ -1397,8 +1498,9 @@ async function resolveGatewayConfigCommand(root) {
     const scriptPath = `${root}/infra-ai-gateway/scripts/${name}`;
     try {
       await access(scriptPath);
+      const psCommand = name.endsWith(".ps1") ? await resolveWindowsPowerShellCommand() : "powershell";
       return name.endsWith(".ps1")
-        ? { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], cwd: `${root}/infra-ai-gateway` }
+        ? { command: psCommand, args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], cwd: `${root}/infra-ai-gateway` }
         : { command: "bash", args: [scriptPath], cwd: `${root}/infra-ai-gateway` };
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
@@ -1408,6 +1510,7 @@ async function resolveGatewayConfigCommand(root) {
 }
 
 async function syncGatewayConfigScript(root, workspaceRoot) {
+  await syncExistingAppFixes(root).catch(() => {});
   const sourceName = process.platform === "win32" ? "configure-ai-gateway.ps1" : "configure-ai-gateway.sh";
   const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
   const candidateSources = [
@@ -1585,6 +1688,18 @@ async function startGatewayConfiguration(root, gateway, workspaceRoot, configura
         lastSignal: signal,
       };
       await persistActiveGateway(root, completed, configurationId);
+      if (exitCode === 0 && completedState === "running") {
+        try {
+          const stopLifecycle = await resolveLifecycleCommand(root, "stop-local");
+          const stopResult = await runCommand(stopLifecycle.command, stopLifecycle.args, { cwd: root, timeout: 25_000 });
+          if (stopResult.ok) {
+            const startLifecycle = await resolveLifecycleCommand(root, "run-local");
+            await runCommand(startLifecycle.command, startLifecycle.args, { cwd: root, timeout: 60_000 });
+          }
+        } catch {
+          // Best-effort restart so running services reload updated .env settings
+        }
+      }
     },
   });
 }
@@ -1678,6 +1793,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       const catalog = await pendingCatalog;
       for (const root of catalog.roots) authorizedRoots.add(root.path);
+      await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       sendJson(response, 200, catalog);
       return;
     }
@@ -1958,6 +2074,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         additionalRoots: [...authorizedRoots],
       });
       for (const candidate of catalog.roots) authorizedRoots.add(candidate.path);
+      await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       sendJson(response, 200, catalog);
       return;
     }
@@ -2028,6 +2145,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       });
       if (result.worktreePath) {
         authorizedRoots.add(await realpath(result.worktreePath));
+        await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       }
       if (workspaceProgressStream) response.end(JSON.stringify({ type: "result", result }) + "\n");
       else sendJson(response, 202, result);
@@ -2586,6 +2704,7 @@ if ($firstModelId) {
       });
       if (result.worktreeRemoved) {
         authorizedRoots.delete(root);
+        await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
         appStates.delete(root);
         appOutput.delete(root);
         activeGateways.delete(root);
@@ -2657,7 +2776,7 @@ if ($firstModelId) {
 
 async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const apiToken = randomUUID();
-  const authorizedRoots = new Set();
+  const authorizedRoots = new Set(await loadPersistedAuthorizedRoots(workspaceRoot));
   const pendingSourceCatalogReads = new Map();
   let trustedHost;
   const server = createServer((request, response) => {

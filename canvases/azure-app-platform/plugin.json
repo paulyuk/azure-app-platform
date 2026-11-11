@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "azure-app-platform",
   "description": "Azure App Platform inventories, traces, and operates multi-tier agentic applications centered on ACA Sandboxes.",
-  "version": "0.5.2",
+  "version": "0.5.4",
   "author": {
     "name": "Cloud Foundation",
     "url": "https://github.com/coreai-microsoft/azure-app-platform"

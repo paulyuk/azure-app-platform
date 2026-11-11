@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zlib
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -1075,9 +1076,14 @@ class AcaSandboxGroupDocumentTool:
             "src/tools/document-validation/contract.json": contract_path.read_text(encoding="utf-8"),
             "src/tools/document-validation/main.py": tool_path.read_text(encoding="utf-8"),
         }
-        bundle_b64 = base64.b64encode(json.dumps(bundle, ensure_ascii=False).encode("utf-8")).decode("ascii")
+        bundle_b64 = base64.b64encode(
+            zlib.compress(json.dumps(bundle, ensure_ascii=False).encode("utf-8"), level=9)
+        ).decode("ascii")
         request_b64 = base64.b64encode(
-            json.dumps({"operation": "sanitize-v1", "document": document}, ensure_ascii=False).encode("utf-8")
+            zlib.compress(
+                json.dumps({"operation": "sanitize-v1", "document": document}, ensure_ascii=False).encode("utf-8"),
+                level=9,
+            )
         ).decode("ascii")
         return bundle_b64, request_b64
 
@@ -1126,12 +1132,12 @@ class AcaSandboxGroupDocumentTool:
         self.last_sandbox_id = sandbox_id
         print(f"[sandbox] Created microVM {sandbox_id}; executing document-validation tool...", flush=True)
         runner_code = (
-            "import base64,json,pathlib,subprocess,sys,tempfile;"
+            "import base64,json,pathlib,subprocess,sys,tempfile,zlib;"
             "d=pathlib.Path(tempfile.mkdtemp());"
             "[ (d/k).parent.mkdir(parents=True,exist_ok=True) or (d/k).write_text(v,encoding='utf-8') "
-            "for k,v in json.loads(base64.b64decode(sys.argv[1])).items() ];"
+            "for k,v in json.loads(zlib.decompress(base64.b64decode(sys.argv[1]))).items() ];"
             "r=subprocess.run([sys.executable,str(d/'src/tools/document-validation/main.py')],"
-            "input=base64.b64decode(sys.argv[2]),capture_output=True);"
+            "input=zlib.decompress(base64.b64decode(sys.argv[2])),capture_output=True);"
             "sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);raise SystemExit(r.returncode)"
         )
         exec_cmd = [

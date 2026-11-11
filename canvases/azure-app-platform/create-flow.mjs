@@ -123,9 +123,10 @@ export const CREATE_FLOW_CSS = `
   .create-review-copy { overflow-wrap: anywhere; }
   .create-review-copy .summary { gap: 12px; }
   .create-review-copy .summary p { margin-bottom: 0; white-space: pre-wrap; }
-  .create-review-capabilities > div { margin-top: 12px; }
-  .create-review-capabilities dt { font-weight: 500; }
-  .create-review-capabilities dd { color: var(--studio-muted); font-size: 12px; line-height: 18px; margin-top: 4px; }
+  .create-review-capabilities { margin: 8px 0 0; display: grid; gap: 10px; }
+  .create-review-capabilities > div { margin: 0; padding-left: 10px; border-left: 2px solid var(--studio-line); }
+  .create-review-capabilities dt { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--studio-ink); }
+  .create-review-capabilities dd { color: var(--studio-muted); font-size: 12px; line-height: 18px; margin: 2px 0 0; }
   .create-field-error { color: var(--studio-danger); font-size: 12px; line-height: 18px; margin: 0; }
   .create-form [aria-invalid="true"] { border-color: var(--studio-danger); }
 `;
