@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { renderStudioHtml } from "./studio-ui.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -215,10 +216,10 @@ test("Unity branding and opening animation work in the browser", {
           assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
           assert.equal(await page.getByRole("button", { name: "App home" }).isVisible(), true);
           assert.equal(await page.locator(".studio-site-nav img:visible").count(), 1);
-          assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
-          assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
+          assert.equal(await page.getByRole("button", { name: "More options", exact: true }).isVisible(), true);
+          assert.equal(await page.getByRole("menuitem", { name: "Docs", exact: true }).count(), 0);
           if (width === 400) {
-            await page.getByRole("button", { name: "Settings", exact: true }).click();
+            await openStudioSettings(page);
             const settings = page.getByRole("dialog", { name: "Settings", exact: true });
             assert.equal(await settings.getByRole("combobox", { name: "Appearance" }).inputValue(), theme);
             assert.equal(await settings.getByRole("combobox", {

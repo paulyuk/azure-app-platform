@@ -10,6 +10,7 @@ import test from "node:test";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createStudioNotices } from "./studio-notice.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -127,7 +128,7 @@ test("shipped toolkit notice preserves the review journey in light, dark and com
           }
           if (!before) {
             await page.locator("#review-notice").evaluate(element => { window.savedNotice = element.firstElementChild; });
-            await page.getByRole("button", { name: "Settings", exact: true }).click();
+            await openStudioSettings(page);
             await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption(initialTheme === "light" ? "dark" : "light");
             await page.waitForFunction(expected => document.documentElement.dataset.studioTheme === expected,
               initialTheme === "light" ? "dark" : "light");

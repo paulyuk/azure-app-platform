@@ -1,7 +1,5 @@
 export const SETTINGS_CSS = `
-  .studio-settings-toggle { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; min-height:32px; padding:6px; border:0; border-radius:6px; background:transparent; color:var(--studio-muted); }
-  .studio-settings-toggle:hover { background:var(--studio-panel); color:var(--studio-ink); }
-  .studio-settings-toggle svg { width:18px; height:18px; fill:currentColor; stroke:none; }
+  .studio-utilities-toggle { width:32px; height:32px; }
   .studio-settings { box-sizing:border-box; position:fixed; inset:0; margin:0; width:100%; height:100dvh; max-width:none; max-height:none; padding:0; border:0; border-radius:0; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.5 var(--font-sans, system-ui, sans-serif); overflow:hidden; }
   .studio-settings[open] { display:flex; flex-direction:column; }
   .studio-settings::backdrop { background:rgb(0 0 0 / .4); }
@@ -271,7 +269,6 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
   };
   generalButton.addEventListener("click", () => select("preferences"));
   picker.addEventListener("change", () => select(picker.value));
-  trigger.addEventListener("click", () => api.open());
   dialog.querySelector("[data-settings-close]").addEventListener("click", () => api.close());
   dialog.addEventListener("close", () => {
     if (dialog.open) return;
@@ -284,7 +281,10 @@ export function createStudioSettings({ dialog, trigger, onOpen, onClear = () => 
     }
     const target = returnFocus?.isConnected && !returnFocus.disabled && returnFocus.getClientRects().length
       ? returnFocus : document.querySelector("dialog[open] [autofocus]") || trigger;
-    target.focus({ preventScroll: true });
+    const active = document.activeElement;
+    if (active === document.body || dialog.contains(active) || !active.checkVisibility()) {
+      target.focus({ preventScroll: true });
+    }
   });
   dialog.addEventListener("keydown", (event) => {
     if (event.key === "Escape") event.stopPropagation();

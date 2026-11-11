@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { OCTICONS } from "./studio-icons.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let engines = {};
@@ -71,7 +71,7 @@ for (const name of ["chromium", "webkit"]) {
         }
       }
       assert.equal(await page.locator("#action-center,#guide-rail").count(), 0);
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       const close = page.getByRole("button", { name: "Close settings", exact: true });
       assert.equal(await close.locator("svg").getAttribute("data-octicon"), "x");
       await close.press("Enter");

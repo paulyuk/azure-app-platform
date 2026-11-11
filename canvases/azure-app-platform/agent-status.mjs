@@ -100,7 +100,10 @@ export function createAgentStatusComponent(toolkit) {
       : "neutral";
     return h("section", { className: "agent-status-brief", "data-state": state, "aria-label": "Status Brief" },
       h("div", { className: "agent-status-summary" },
-        h("span", { className: "agent-status-icon", "data-tone": tone, "aria-hidden": true }),
+        h("span", { className: "agent-status-icon", "data-tone": tone, "aria-hidden": true },
+          tone === "busy" ? h(toolkit.Spinner, {
+            className: "agent-status-spinner", size: "small", "aria-hidden": true,
+          }) : null),
         h("div", { className: "agent-status-copy" },
           h("h2", { className: "visually-hidden" }, "Status Brief"),
           h("h3", null, title),

@@ -7,6 +7,7 @@ import { DEFAULT_EDITOR_SETTINGS, EDITOR_CHOICES } from "./editor-settings.mjs";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -87,11 +88,10 @@ test("Settings persist the external editor preference into two-step app creation
 
 
     await page.goto(base);
-    const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
     const settings = page.getByRole("dialog", { name: "Settings", exact: true });
     const settingsPicker = settings.getByRole("combobox", { name: "Preferred external editor" });
     assert.equal(requests.filter(({ path }) => path === "/api/editor-settings").length, 0);
-    await settingsButton.click();
+    await openStudioSettings(page);
     await settingsPicker.waitFor();
     assert.deepEqual(await settingsPicker.locator("option").allTextContents(),
       EDITOR_CHOICES.map((editor) => editor.label));
@@ -106,7 +106,7 @@ test("Settings persist the external editor preference into two-step app creation
       path === "/api/editor-settings" && method === "POST").length, 1);
     await page.getByRole("button", { name: "Close settings" }).click();
 
-    await settingsButton.click();
+    await openStudioSettings(page);
     await settingsPicker.selectOption("zed");
     await page.waitForFunction(() => !document.querySelector('[aria-label="Preferred external editor"]').disabled);
     assert.equal(await settingsPicker.inputValue(), "zed");
@@ -120,7 +120,7 @@ test("Settings persist the external editor preference into two-step app creation
       started: deferred(), reply: deferred(), completed: deferred(),
       settings: { ...editorSettings, editorId: "cursor" },
     };
-    await settingsButton.click();
+    await openStudioSettings(page);
     await readGate.started.promise;
     failPreference = false;
     const postsBeforeBusyRead = requests.filter(({ path, method }) =>

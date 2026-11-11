@@ -72,6 +72,18 @@ unconfigured app shows empty connection controls without waiting for Azure.
 Discovery failures leave the saved connection visible; applying changes still
 requires current app status and completed discovery.
 
+The header's **More options** (three-dot) menu contains **Docs** and **Settings**
+on both Home and the workspace. Docs opens in a new tab; closing Settings
+returns focus to the menu button.
+
+The runtime action bar groups **Stop app**, **Open app**, and **Logs** as
+icon-only controls with accessible names and tooltips. Stop comes first with a
+red outline icon and a divider before the other controls. **Open app** appears
+only when the web endpoint is ready. During startup, a spinner marks
+**Waiting for the agent** and **Invoke agent** is disabled; the stop control
+remains **Cancel startup**. From a stopped app, **Invoke agent** still starts
+the app and waits for its agent endpoint before sending the task.
+
 ### 3. Run canvas tests (maintainers)
 
 From the repository root:

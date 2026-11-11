@@ -40,7 +40,7 @@ for (const engine of ["chromium", "webkit"]) test(`workspace readiness does not 
     await page.getByText("Loading app source...", { exact: true }).waitFor();
     await readiness;
     assert.equal(await page.locator("#workspace-navigation-mount").isVisible(), true);
-    assert.equal(await page.locator("#header-runtime-action").innerText(), "Stop app");
+    assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"), "Stop app");
     release();
     await page.waitForFunction(() => window.appPlatformReady);
   } finally { release?.(); await browser?.close(); await fixture.close(); }

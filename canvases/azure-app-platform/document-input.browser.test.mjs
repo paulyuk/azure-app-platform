@@ -587,7 +587,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.locator('.agent-status-brief[data-state="' + (appState === "running" ? "ready" : "stopped") + '"]').waitFor();
         await assertDocumentActionPlacement(page);
         assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent", "Document"]);
-        assert.equal(await page.locator("#header-runtime-action").innerText(),
+        assert.equal(await page.locator("#header-runtime-action").getAttribute("aria-label"),
           appState === "running" ? "Stop app" : "Run app");
       }
       await invoke.focus();

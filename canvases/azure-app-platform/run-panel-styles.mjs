@@ -21,7 +21,9 @@ export const AGENT_STATUS_CSS = `
 #details[data-mode="manage"] .agent-status-icon[data-tone="warning"] { color:var(--studio-on-accent); background:var(--studio-warn); }
 #details[data-mode="manage"] .agent-status-icon[data-tone="danger"] { color:var(--studio-on-accent); background:var(--studio-danger); }
 #details[data-mode="manage"] .agent-status-icon::before { content:""; width:18px; height:18px; background:currentColor; mask:${octiconMask("info")} center/contain no-repeat; }
-#details[data-mode="manage"] .agent-status-icon[data-tone="busy"]::before { mask-image:${octiconMask("stopwatch")}; }
+#details[data-mode="manage"] .agent-status-icon[data-tone="busy"]::before { content:none; }
+#details[data-mode="manage"] .agent-status-spinner.ct-spinner { display:inline-flex; width:auto; min-height:0; color:inherit; }
+#details[data-mode="manage"] .agent-status-spinner .ct-spinner-ring { width:18px; height:18px; border-color:color-mix(in srgb, currentColor 28%, transparent); border-top-color:currentColor; }
 #details[data-mode="manage"] .agent-status-icon[data-tone="success"]::before { mask-image:${octiconMask("check")}; }
 #details[data-mode="manage"] .agent-status-icon:is([data-tone="danger"],[data-tone="warning"])::before { mask-image:${octiconMask("alert")}; }
 #details[data-mode="manage"] .agent-invoke-spinner.ct-spinner { display:inline-flex; width:auto; min-height:0; color:inherit; }

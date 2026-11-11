@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { createRunSettingsFixture as createFixture } from "./run-settings-test-fixture.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const savedGateway = { name: "sub-a-first", subscriptionId: "sub-a", resourceGroup: "rg-sub-a",
   model: "gpt-latest", sandboxGroup: null };
@@ -314,7 +315,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
                 "\nErrors: " + errors.join("\n"), { cause });
             });
           } else {
-            await page.getByRole("button", { name: "Settings", exact: true }).click();
+            await openStudioSettings(page);
             const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
             const picker = dialog.locator("[data-settings-navigation]");
             if (await picker.isVisible()) await picker.selectOption("connection");
@@ -729,7 +730,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await field("AI model").inputValue(), "gpt-alternate");
       assert.equal(await field("ACA Sandbox Group").inputValue(), "0");
       assert.equal(applied.length, 0);
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       await page.evaluate(() => window.appPlatformSettings.open("connection"));
       const settings = page.getByRole("dialog", { name: "Settings", exact: true });
       await settings.getByRole("combobox", { name: "AI model", exact: true }).waitFor();

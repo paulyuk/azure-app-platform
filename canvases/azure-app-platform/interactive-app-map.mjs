@@ -518,15 +518,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       --canvas-button-small-padding-block: .1875rem;
       --canvas-button-small-padding-inline: .5rem;
       display: flex; flex: none; align-items: flex-start; gap: 8px; padding: 4px 12px;
-      border-block: 1px solid var(--border); background: var(--surface);
+      border-bottom: 1px solid var(--border); background: var(--surface);
     }
-    .workspace-lifecycle-actions { flex:0 1 auto; min-width:0; max-width:calc(100% - 86px); margin-inline-start:auto; padding-block:3px; }
+    .workspace-lifecycle-actions { flex:0 1 auto; min-width:0; max-width:calc(100% - 86px); margin-inline-start:auto; padding-block:2px; }
     #workspace-header-actions { display:flex; align-items:center; gap:8px; min-width:0; }
-    .workspace-action-divider { flex:none; width:1px; height:20px; background:var(--border); }
     .build-page { display:flex; flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); }
     .customize-content { flex:1; min-height:0; min-width:0; color:var(--studio-ink); background:var(--studio-raised); overscroll-behavior:contain; }
     #app-workspace-navigation { flex:1; min-width: 0; max-width: 100%; }
-    .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+    .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 3px; }
     #app-workspace-navigation ul { display: flex; flex-wrap: wrap; gap: 2px; padding: 0; margin: 0; list-style: none; }
     #app-workspace-navigation li { flex: none; }
     #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
@@ -542,7 +541,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     #workspace-navigation-loading { grid-area: loading; }
     #workspace-loading-header .heading { grid-area: identity; min-width: 0; padding-left: 14px; border-left: 1px solid var(--border); }
     #workspace-runtime-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
-    #workspace-runtime-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    #workspace-runtime-actions { display:inline-flex; flex:none; align-items:center; }
     #app-title { flex:0 1 auto; min-width: 0; max-width: 100%; font-weight: 600; }
     h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
     .map-palette {
@@ -823,6 +822,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${APP_LOGS_CSS}
     ${STUDIO_FILTERABLE_DROPDOWN_CSS}
     #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #workspace-runtime-actions { border:1px solid var(--border); border-radius:6px; }
+    #workspace-runtime-actions .ct-button {
+      flex:none; box-sizing:border-box; width:32px; min-width:32px; height:28px; min-height:28px;
+      padding:0; border:0; border-radius:0;
+    }
+    #workspace-runtime-actions .ct-button:focus-visible { position:relative; z-index:1; }
+    #workspace-runtime-actions > .studio-button-mount:has(button:not([hidden])) ~ .studio-button-mount .ct-button { border-inline-start:1px solid var(--border); }
+    #workspace-runtime-actions #header-runtime-action,
+    #workspace-runtime-actions:not(:has(#header-runtime-action)) #header-open-app,
+    #workspace-runtime-actions:not(:has(#header-runtime-action, #header-open-app:not([hidden]))) #run-diagnostics-toggle { border-start-start-radius:5px; border-end-start-radius:5px; }
+    #workspace-runtime-actions #run-diagnostics-toggle { border-start-end-radius:5px; border-end-end-radius:5px; }
+    #workspace-runtime-actions #header-runtime-action [data-octicon="square"] { color:var(--studio-danger); }
     #run-diagnostics-toggle { position:relative; flex:none; }
     #run-diagnostics-toggle .logs-warning-badge {
       position:absolute; top:-4px; inset-inline-end:-4px;
@@ -861,8 +872,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     <div id="workspace-runtime-bar" hidden>
       <span class="workspace-location visually-hidden">Page: <strong id="workspace-location">Run</strong></span>
       <button data-studio-button="primary" id="header-runtime-action" type="button" disabled>Checking…</button>
-      <div id="workspace-runtime-actions" role="group" aria-label="App controls" hidden>
-        <button data-studio-button="secondary" id="header-open-app" type="button" title="Open app" hidden>Open app</button>
+      <div id="workspace-runtime-actions" role="group" aria-label="App controls">
+        <button data-studio-button="subtle" id="header-open-app" type="button" aria-label="Open app" title="Open app" hidden>${renderOcticon("link-external")}</button>
       </div>
     </div>
   <div id="status" class="visually-hidden" role="status" aria-atomic="true"></div>
@@ -990,8 +1001,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const details = document.querySelector("#details");
     const executionWorkspace = document.querySelector("#run-execution-workspace");
     const workspace = document.querySelector("#workspace");
-    document.querySelector("#workspace-loading-header .studio-theme-control")
-      .prepend(document.querySelector("#workspace-runtime-actions"));
     const status = document.querySelector("#status");
     const runtimeStatusView = toolkit.mountCanvasComponent(document.querySelector("#app-status-mount"), toolkit.Badge, {
       id: "app-status-badge", className: "runtime-badge",
@@ -1002,21 +1011,22 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let runtimeStatusKey = "";
     const headerRuntimeAction = document.querySelector("#header-runtime-action");
     const runtimePlayIcon = buttons.icon(ICONS.play);
+    const runtimeStopIcon = buttons.icon(ICONS.square);
     buttons.update(headerRuntimeAction, { size: "small" });
     const headerActions = document.createElement("div");
     headerActions.id = "workspace-header-actions";
     document.querySelector("#workspace-runtime-bar").append(headerActions);
     buttons.append(headerActions, headerRuntimeAction);
-    const logsDivider = document.createElement("span");
-    logsDivider.className = "workspace-action-divider";
-    logsDivider.setAttribute("aria-hidden", "true");
-    headerActions.append(logsDivider);
+    const runtimeIconGroup = document.querySelector("#workspace-runtime-actions");
+    const openAppAction = document.querySelector("#header-open-app");
+    headerActions.append(runtimeIconGroup);
     const logsTrigger = buttons.create({
-      id: "run-diagnostics-toggle", appearance: "secondary", size: "small", icon: buttons.icon(ICONS.terminal),
-      "aria-label": "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
+      id: "run-diagnostics-toggle", appearance: "subtle", size: "small", icon: buttons.icon(ICONS.terminal),
+      "aria-label": "Logs", title: "Logs", "aria-expanded": false, "aria-controls": "run-diagnostics",
       onClick: () => runWorkspace.toggleDiagnostics(),
     });
-    buttons.append(headerActions, logsTrigger);
+    buttons.update(openAppAction, { size: "small" });
+    buttons.append(runtimeIconGroup, logsTrigger);
     const diagnosticsContainer = document.querySelector("#workspace-diagnostics");
     let logsTriggerKey = "";
     const structureGuidance = document.querySelector("#structure-guidance");
@@ -1541,18 +1551,26 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       const isStopAction = operation === "stop-local" || appState === "stopping";
       buttons.update(headerRuntimeAction, {
-        children: actionLabel,
-        appearance: isStopAction ? "secondary" : "primary",
-        icon: operation === "run-local" ? runtimePlayIcon : null,
+        children: isStopAction ? undefined : actionLabel,
+        appearance: isStopAction ? "subtle" : "primary",
+        icon: isStopAction ? runtimeStopIcon : operation === "run-local" ? runtimePlayIcon : null,
+        "aria-label": actionLabel, title: actionLabel,
         disabled,
       });
+      const actionHost = buttons.host(headerRuntimeAction);
+      const actionParent = isStopAction ? runtimeIconGroup : headerActions;
+      if (actionHost.parentElement !== actionParent) {
+        const restoreFocus = headerRuntimeAction === document.activeElement;
+        if (isStopAction) runtimeIconGroup.prepend(actionHost);
+        else headerActions.insertBefore(actionHost, runtimeIconGroup);
+        if (restoreFocus && !disabled) headerRuntimeAction.focus({ preventScroll: true });
+      }
       headerRuntimeAction.dataset.operation = operation;
       headerRuntimeAction.setAttribute("aria-label", actionLabel);
       headerRuntimeAction.title = actionLabel;
       syncRuntimePlacement();
-      document.querySelector("#header-open-app").hidden = !runtimeEntrypoints.some(entry =>
-        entry.ready && normalized(entry.name) === "web");
-      document.querySelector("#workspace-runtime-actions").hidden = document.querySelector("#header-open-app").hidden;
+      buttons.update(openAppAction, { hidden: !runtimeEntrypoints.some(entry =>
+        entry.ready && normalized(entry.name) === "web") });
       updateAgentStatusBrief();
     }
 
@@ -2673,7 +2691,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function canInvokeOrStartAgent() {
       const appState = operationalState.app?.state;
-      if (appState === "stopping") return false;
+      if (lifecycleOperation || appState === "starting" || appState === "stopping") return false;
       const ready = runtimeEntrypoints.some((entry) => entry.ready && normalized(entry.name) === "agent");
       if (ready) return true;
       const gatewayConfigured = Boolean(operationalState.readiness?.gatewayConfigured);
@@ -3948,7 +3966,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     async function executeAgentInvocation(promptInput, explicitDocument = undefined) {
-      if (invokingAgent) return;
+      if (invokingAgent || lifecycleOperation || operationalState.app?.state === "starting") return;
       finishAgentPromptTyping();
       const message = promptInput.value.trim();
       if (!message) {
