@@ -65,6 +65,10 @@ test("sandbox group discovery supports independent subscription and cross-subscr
       return { ok: true, stdout: "[]" };
     }
     if (args[0] === "rest" && args.includes("https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01")) {
+      const bodyIndex = args.indexOf("--body");
+      assert.ok(bodyIndex >= 0, "Expected --body argument for Resource Graph query");
+      const bodyArg = args[bodyIndex + 1];
+      assert.match(bodyArg, /^@/, "Resource Graph query body must use @file to avoid Windows cmd.exe pipe parsing");
       return {
         ok: true,
         stdout: JSON.stringify({

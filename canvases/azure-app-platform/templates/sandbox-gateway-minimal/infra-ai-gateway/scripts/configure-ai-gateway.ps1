@@ -125,35 +125,56 @@ $timeoutSec = if ($env:APP_PLATFORM_GATEWAY_SELECTION -eq '1') { 15 } else { 30 
 Write-Host "Validating model $gatewayModel on gateway $gatewayName..."
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     $hasReadableMessage = $false
+    $content = ''
     try {
         $response = Invoke-WebRequest -Uri "$gatewayUrlTrimmed/default/models/openai/v1/responses" `
             -Method Post `
             -Headers @{ 'Api-Key' = $gatewayApiKey; 'Content-Type' = 'application/json' } `
             -Body $requestBody `
             -UseBasicParsing `
-            -TimeoutSec $timeoutSec `
-            -SkipHttpErrorCheck
-        $status = $response.StatusCode
-        $payload = $response.Content | ConvertFrom-Json
-        $hasReadableMessage = (-not [string]::IsNullOrWhiteSpace([string]$payload.output_text)) -or ($null -ne (
-            $payload.output |
-                Where-Object { $_.type -eq 'message' } |
-                ForEach-Object { $_.content } |
-                Where-Object { ($_.type -eq 'output_text' -or $_.type -eq 'text') -and -not [string]::IsNullOrWhiteSpace($_.text) } |
-                Select-Object -First 1
-        )) -or ($null -ne (
-            $payload.output |
-                Where-Object { $_.type -eq 'reasoning' } |
-                Select-Object -First 1
-        ))
-        if (-not $hasReadableMessage -and $payload.error) {
-            $errMsg = if ($payload.error.message) { [string]$payload.error.message } elseif ($payload.error.details) { [string]$payload.error.details } elseif ($payload.error.code) { [string]$payload.error.code } else { '' }
-            if (-not [string]::IsNullOrWhiteSpace($errMsg)) {
-                $lastErrorDetail = $errMsg.Trim()
-            }
-        }
+            -TimeoutSec $timeoutSec
+        $status = [string][int]$response.StatusCode
+        $content = [string]$response.Content
     } catch {
-        $status = 'unavailable'
+        if ($_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+            $status = [string][int]$_.Exception.Response.StatusCode
+            try {
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $content = [string]$_.ErrorDetails.Message
+                } else {
+                    $respStream = $_.Exception.Response.GetResponseStream()
+                    if ($respStream) {
+                        $reader = [System.IO.StreamReader]::new($respStream)
+                        $content = $reader.ReadToEnd()
+                        $reader.Close()
+                    }
+                }
+            } catch { }
+        } else {
+            $status = 'unavailable'
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($content)) {
+        try {
+            $payload = $content | ConvertFrom-Json
+            $hasReadableMessage = (-not [string]::IsNullOrWhiteSpace([string]$payload.output_text)) -or ($null -ne (
+                $payload.output |
+                    Where-Object { $_.type -eq 'message' } |
+                    ForEach-Object { $_.content } |
+                    Where-Object { ($_.type -eq 'output_text' -or $_.type -eq 'text') -and -not [string]::IsNullOrWhiteSpace($_.text) } |
+                    Select-Object -First 1
+            )) -or ($null -ne (
+                $payload.output |
+                    Where-Object { $_.type -eq 'reasoning' } |
+                    Select-Object -First 1
+            ))
+            if (-not $hasReadableMessage -and $payload.error) {
+                $errMsg = if ($payload.error.message) { [string]$payload.error.message } elseif ($payload.error.details) { [string]$payload.error.details } elseif ($payload.error.code) { [string]$payload.error.code } else { '' }
+                if (-not [string]::IsNullOrWhiteSpace($errMsg)) {
+                    $lastErrorDetail = $errMsg.Trim()
+                }
+            }
+        } catch { }
     }
     if ($status -match '^2\d\d$' -and $hasReadableMessage) {
         $ready = $true
@@ -254,7 +275,7 @@ try {
             exit 1
         }
         Write-Host "Validating ACA Sandbox Group '$acaSandboxGroup' (create and delete permissions)..."
-        $createOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox create --group $acaSandboxGroup --egress-default Deny -l purpose=canvas-validation 2>&1 | Out-String)
+        $createOut = (& aca -s $resolvedAcaSub -g $resolvedAcaRg --region $resolvedAcaRegion sandbox create --group $acaSandboxGroup --egress-default Deny --label purpose=canvas-validation 2>&1 | Out-String)
         if ($LASTEXITCODE -ne 0) {
             if ($createOut -match '403|Forbidden|Access denied') {
                 Write-Error "Access denied (HTTP 403) creating a sandbox in '$acaSandboxGroup' (resource group '$resolvedAcaRg', subscription '$resolvedAcaSub'). Assign 'Container Apps SandboxGroup Data Owner' on this sandbox group: aca -s $resolvedAcaSub -g $resolvedAcaRg sandboxgroup role create --group $acaSandboxGroup --role `"Container Apps SandboxGroup Data Owner`" --principal-id <your-entra-object-id>"

@@ -299,7 +299,7 @@ if [ -n "$aca_sandbox_group" ]; then
   fi
   echo "Validating ACA Sandbox Group '${aca_sandbox_group}' (create and delete permissions)..."
   create_out="$(aca -s "$resolved_aca_sub" -g "$resolved_aca_rg" --region "$resolved_aca_region" \
-    sandbox create --group "$aca_sandbox_group" --egress-default Deny -l purpose=canvas-validation 2>&1)" || {
+    sandbox create --group "$aca_sandbox_group" --egress-default Deny --label purpose=canvas-validation 2>&1)" || {
       if printf '%s' "$create_out" | grep -qiE '403|Forbidden|Access denied'; then
         echo "Access denied (HTTP 403) creating a sandbox in '${aca_sandbox_group}' (resource group '${resolved_aca_rg}', subscription '${resolved_aca_sub}'). Assign 'Container Apps SandboxGroup Data Owner' on this sandbox group: aca -s ${resolved_aca_sub} -g ${resolved_aca_rg} sandboxgroup role create --group ${aca_sandbox_group} --role \"Container Apps SandboxGroup Data Owner\" --principal-id <your-entra-object-id>" >&2
       else

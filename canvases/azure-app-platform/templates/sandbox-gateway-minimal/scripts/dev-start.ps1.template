@@ -87,6 +87,7 @@ try {
   $agent = Start-Process uv `
     -ArgumentList (@("run", "main.py") + $SelectedRuntimeArguments) `
     -WorkingDirectory (Join-Path $Root "src/agent") `
+    -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $RunDir "agent.stdout.log") `
     -RedirectStandardError (Join-Path $RunDir "agent.stderr.log") `
     -PassThru

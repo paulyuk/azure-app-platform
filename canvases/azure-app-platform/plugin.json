@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "azure-app-platform",
+  "description": "Azure App Platform inventories, traces, and operates multi-tier agentic applications centered on ACA Sandboxes.",
+  "version": "0.5.4",
+  "author": {
+    "name": "Cloud Foundation",
+    "url": "https://github.com/coreai-microsoft/azure-app-platform"
+  },
+  "keywords": [
+    "azure-app-platform",
+    "aca-sandboxes",
+    "platform-discovery",
+    "app-map",
+    "platform",
+    "ai-gateway",
+    "hosted-skills",
+    "sre-agent",
+    "copilot-canvas",
+    "cloud-foundation"
+  ],
+  "extensions": {
+    "com.github.copilot": {
+      "logo": "assets/run-ready-spot.svg"
+    }
+  },
+  "skills": [
+    "./skills/azure-app-platform-canvas/",
+    "./skills/azure-app-platform-hosted-skill/",
+    "./skills/azure-app-platform-agent-instructions/",
+    "./skills/azure-app-platform-block-authoring/"
+  ]
+}
