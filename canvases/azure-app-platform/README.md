@@ -83,6 +83,8 @@ only when the web endpoint is ready. During startup, a spinner marks
 **Waiting for the agent** and **Invoke agent** is disabled; the stop control
 remains **Cancel startup**. From a stopped app, **Invoke agent** still starts
 the app and waits for its agent endpoint before sending the task.
+Runtime loading spinners keep rotating when **Reduce motion** is enabled;
+other animations and transitions still respect that preference.
 
 ### 3. Run canvas tests (maintainers)
 

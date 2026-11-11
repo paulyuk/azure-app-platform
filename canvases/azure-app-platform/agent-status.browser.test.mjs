@@ -669,6 +669,93 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     }
   });
 
+  test(`Runtime spinners keep rotating with reduced motion without re-enabling decorative motion in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.app = "stopped";
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    const operations = [], requests = [], errors = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 900 } });
+      page.setDefaultTimeout(10000);
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/app-command", route => {
+        const { operation } = route.request().postDataJSON();
+        operations.push(operation);
+        fixture.state.app = operation === "run-local" ? "starting" : "stopped";
+        return route.fulfill({ json: { outcome: "command-started" } });
+      });
+      await page.route("**/api/agent-invoke", route => {
+        requests.push(route.request().postDataJSON());
+        return route.fulfill({ json: { response: { output_text: "Unexpected invocation." } } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      await page.addStyleTag({ content: "::-webkit-scrollbar{width:16px;height:16px}" });
+      await page.getByRole("textbox", { name: "Agent message", exact: true })
+        .fill("Verify fictional vehicle availability after startup.");
+      const invoke = page.locator("[data-invoke-agent]");
+      await invoke.click();
+      await returnToRun(page);
+      await page.locator('#header-runtime-action[aria-label="Cancel startup"]').waitFor();
+      await page.evaluate(() => {
+        const provider = document.createElement("span");
+        provider.className = "ct-provider";
+        provider.setAttribute("aria-hidden", "true");
+        provider.style.position = "fixed";
+        const probe = document.createElement("span");
+        probe.dataset.motionProbe = "";
+        probe.style.cssText = "animation:ct-spin 1s linear infinite;transition:opacity 1s linear";
+        provider.append(probe);
+        document.body.append(provider);
+      });
+      for (const width of [380, 920]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          for (const reducedMotion of ["no-preference", "reduce"]) {
+            await page.emulateMedia({ reducedMotion });
+            assert.equal(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches),
+              reducedMotion === "reduce");
+            for (const selector of [".agent-status-spinner .ct-spinner-ring", ".agent-invoke-spinner .ct-spinner-ring"]) {
+              const { transform, ...animation } = await page.locator(selector).evaluate(node => {
+                const style = getComputedStyle(node);
+                return { name: style.animationName, duration: style.animationDuration,
+                  iterations: style.animationIterationCount, playState: style.animationPlayState,
+                  timing: style.animationTimingFunction, transform: style.transform };
+              });
+              assert.deepEqual(animation, { name: "ct-spin", duration: "1s", iterations: "infinite",
+                playState: "running", timing: "linear" });
+              await page.waitForFunction(({ selector, before }) => {
+                const node = document.querySelector(selector);
+                const current = node && getComputedStyle(node).transform;
+                return current && current !== "none" && current !== before;
+              }, { selector, before: transform }, { timeout: 5000 });
+            }
+            const decorative = await page.locator("[data-motion-probe]").evaluate(node => ({
+              animation: getComputedStyle(node).animationName,
+              transition: getComputedStyle(node).transitionDuration,
+            }));
+            assert.deepEqual(decorative, reducedMotion === "reduce"
+              ? { animation: "none", transition: "0s" } : { animation: "ct-spin", transition: "1s" });
+            assert.equal(await invoke.isDisabled(), true);
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+          }
+        }
+      }
+      await invoke.dispatchEvent("click");
+      assert.deepEqual(operations, ["run-local"]);
+      assert.deepEqual(requests, [], "Animated startup feedback must not enable premature or duplicate invocation.");
+      await page.locator("#header-runtime-action").click();
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      assert.equal(await page.locator(".agent-status-spinner,.agent-invoke-spinner").count(), 0);
+      assert.equal(await invoke.isDisabled(), false);
+      assert.deepEqual(operations, ["run-local", "stop-local"]);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
+  });
+
   test(`Startup disables duplicate invocation and retains cancellation, failure and retry in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
