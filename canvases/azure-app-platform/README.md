@@ -60,6 +60,12 @@ cancelling execution. Use **Clear input** to reset the task payload without
 discarding the latest run. **View execution** in the input header or workspace
 history revisits that run, while the **Output** tab exposes its logs.
 
+**Connect** shows this app's saved gateway, model, and sandbox selection from
+local configuration before refreshing Azure resources in the background. An
+unconfigured app shows empty connection controls without waiting for Azure.
+Discovery failures leave the saved connection visible; applying changes still
+requires current app status and completed discovery.
+
 ### 3. Run canvas tests (maintainers)
 
 From the repository root:

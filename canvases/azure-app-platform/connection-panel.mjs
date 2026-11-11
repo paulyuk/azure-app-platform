@@ -43,7 +43,7 @@ export const CONNECTION_PANEL_CSS = `
   }
 `;
 
-export function createConnectionPanel({ buttons, notices, toolkitComponents, request, tracker, getRuntime, applySelection,
+export function createConnectionPanel({ buttons, notices, toolkitComponents, request, readLocal, tracker, getRuntime, applySelection,
   createGateway, createSandbox, configureModel, openSetup, selectModel }) {
   const views = new Map();
   let options = null;
@@ -56,6 +56,8 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
   let modelContext = "";
   let applying = false;
   let activeRequest = null;
+  let localRequest = null;
+  let localState = null;
   let draft = { subscriptionId: "", sandboxSubscriptionId: "", gateway: null, model: "", sandbox: null, suggestGateway: true };
   const identity = item => item?.name
     ? [item.subscriptionId || "", item.resourceGroup || "", item.name].map(value => value.toLowerCase()).join("|") : "";
@@ -168,22 +170,63 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       if (expectedSaved && active.configurationStatus !== "configuring") expectedSaved = "";
     }
   }
+  function seed(state) {
+    localState = state;
+    syncSaved(state.activeGateway);
+    const active = persisted;
+    const sandbox = active && Object.hasOwn(active, "sandboxGroup") ? active.sandboxGroup : state.sandboxGroup;
+    const subscriptionIds = [...new Set([active?.subscriptionId, sandbox?.subscriptionId].filter(Boolean))];
+    options = {
+      subscriptions: subscriptionIds.map(id => ({ id, name: id })),
+      gateways: active ? [active] : [],
+      models: active?.model ? [{ id: active.model, label: active.model }] : [],
+      sandboxGroups: sandbox ? [sandbox] : [],
+    };
+    draft = { subscriptionId: active?.subscriptionId || "",
+      sandboxSubscriptionId: sandbox?.subscriptionId || "",
+      gateway: active, model: active?.model || "", sandbox: sandbox || null, suggestGateway: !active };
+    modelContext = identity(active);
+  }
+  function initialize() {
+    if (applying || localRequest) return;
+    if (options) { if (phase === "idle") void load(); return; }
+    if (getRuntime().readiness?.activeGateway) {
+      seed(getRuntime().readiness);
+      update();
+      void load();
+      return;
+    }
+    const controller = new AbortController();
+    localRequest = controller;
+    void readLocal(controller.signal).then(state => {
+      if (controller.signal.aborted) return;
+      if (!options) seed(state);
+      update();
+      void load();
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      phase = "error";
+      feedback = error.message;
+      feedbackIntent = "error";
+      update();
+    }).finally(() => { if (localRequest === controller) localRequest = null; });
+  }
   function update(retain) {
     prune(retain);
     const runtime = getRuntime();
     const locked = busy() || runtimeBusy();
     const loading = ["loading", "models-loading"].includes(phase);
-    const checking = !runtime.app && !runtime.error;
+    const checking = !options && phase === "idle";
     let message = feedback;
     let intent = feedbackIntent;
     if (applying) message = "Saving connection selection...";
-    else if (!runtime.app) { message = runtime.error || "Loading connections..."; intent = runtime.error ? "error" : "info"; }
-    else if (runtime.app.state === "failed" && runtime.app.operation === "configuring") { message = runtime.app.error; intent = "error"; }
-    else if (transient(runtime.app.state) || runtime.readiness?.activeGateway?.configurationStatus === "configuring") message =
-      runtime.app.state === "configuring" || runtime.readiness?.activeGateway?.configurationStatus === "configuring"
+    else if (checking) message = "Loading saved connections...";
+    else if (runtime.app?.state === "failed" && runtime.app.operation === "configuring") { message = runtime.app.error; intent = "error"; }
+    else if (transient(runtime.app?.state) || runtime.readiness?.activeGateway?.configurationStatus === "configuring") message =
+      runtime.app?.state === "configuring" || runtime.readiness?.activeGateway?.configurationStatus === "configuring"
       ? "Validating the saved gateway endpoint, API key, and model in the background."
       : "An app operation is in progress. Connections can be changed when it finishes.";
-    else if (loading) message = phase === "models-loading" ? "Loading models for the selected gateway..." : "Finding available connections...";
+    else if (loading) message = phase === "models-loading" ? "Loading models for the selected gateway..." : "Refreshing available connections in the background...";
     else if (phase === "ready" && !gateways().length) message = "No AI Gateways found. Choose another subscription or create a gateway.";
     else if (phase === "ready" && !draft.gateway) message = "Choose an AI Gateway to load its models.";
     else if (phase === "ready" && !gateways().some(item => identity(item) === identity(draft.gateway))) message = "The selected gateway is no longer available. Choose a gateway or refresh discovery.";
@@ -204,8 +247,9 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       view.currentState.textContent = runtime.readiness?.activeGateway?.configurationStatus === "configuring" || runtime.app?.state === "configuring"
         ? "Validation in progress"
         : runtime.app?.state === "failed" && runtime.app.operation === "configuring" ? "Validation failed"
-          : runtime.readiness?.gatewayConfigured && selectionKey(runtime.readiness.activeGateway) === selectionKey(persisted)
-            ? "Connection validated" : "Connection not validated";
+          : (runtime.readiness ? runtime.readiness.gatewayConfigured && selectionKey(runtime.readiness.activeGateway) === selectionKey(persisted)
+            : localState?.gatewayConfigured && selectionKey(localState.activeGateway) === selectionKey(persisted))
+            ? "Connection validated" : persisted?.configurationStatus === "local" ? "Configured locally" : "Connection not validated";
       view.notice.hidden = !message;
       const quiet = phase === "ready" && message === "Available connections loaded.";
       view.feedbackArea.dataset.quiet = String(quiet);
@@ -215,7 +259,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
         role: intent === "error" ? "alert" : "status", "aria-live": intent === "error" ? "assertive" : "polite", "aria-atomic": true });
       else notices.clearNotice(view.notice);
       buttons.update(view.cancel, { hidden: !loading, disabled: applying });
-      buttons.update(view.retry, { hidden: !["error", "cancelled"].includes(phase), disabled: locked });
+      buttons.update(view.retry, { hidden: !["error", "cancelled"].includes(phase), disabled: applying });
       buttons.update(view.setup, { hidden: phase !== "error", disabled: applying });
       view.skeleton.hidden = Boolean(options) || !(checking || loading);
       view.form.hidden = !options;
@@ -246,7 +290,8 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       buttons.update(view.apply, { disabled: !canApply(), children: applying ? "Applying..." : "Apply connections" });
       buttons.update(view.discard, { hidden: !dirty(), disabled: locked });
       view.footerText.textContent = applying ? "Saving selection; validation may continue in the background."
-        : checking ? "Wait for connections to load." : loading ? "Wait for discovery before applying."
+        : checking ? "Reading this app's saved connections." : runtime.error ? runtime.error
+          : !runtime.app ? "Checking app status before changes can be applied." : loading ? "Wait for discovery before applying."
           : dirty() ? "Unsaved changes. Apply saves this app's selection." : "No pending changes.";
       if (view.scrollToRestore !== null && !loading) requestAnimationFrame(() => {
         // Shared controls mount asynchronously and can change the scroll range.
@@ -257,7 +302,7 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     }
   }
   async function load(refresh = false, focusKey = "refresh", previous = document.activeElement) {
-    if (applying || runtimeBusy()) return;
+    if (applying) return;
     const requested = { ...draft };
     const params = new URLSearchParams();
     if (draft.subscriptionId) params.set("subscriptionId", draft.subscriptionId);
@@ -425,23 +470,27 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     update(container);
     queueMicrotask(() => {
       prune();
-      if (root.checkVisibility() && phase === "idle" && !runtimeBusy()) void load();
+      if (root.checkVisibility() && phase === "idle") initialize();
     });
   }
   return {
     render,
     updateRuntime() {
       syncSaved();
+      if (!options && getRuntime().readiness?.activeGateway) seed(getRuntime().readiness);
       update();
-      if ([...views.values()].some(view => view.root.checkVisibility()) && phase === "idle" && !runtimeBusy()) void load();
+      if ([...views.values()].some(view => view.root.checkVisibility()) && phase === "idle") initialize();
     },
     invalidate() {
       tracker.invalidate();
+      localRequest?.abort();
+      localRequest = null;
       activeRequest = null;
       if (!applying) phase = "idle";
     },
     dispose() {
       tracker.invalidate();
+      localRequest?.abort();
       for (const view of views.values()) {
         notices.clearNotice(view.notice); buttons.clear(view.root);
         view.subscription.dispose();

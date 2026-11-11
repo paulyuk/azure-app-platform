@@ -1143,6 +1143,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         params.set("root", MODEL.root);
         return apiRequest("/api/gateway-options?" + params, { signal });
       },
+      readLocal: signal => apiRequest("/api/connection-state?root=" + encodeURIComponent(MODEL.root), { signal }),
       applySelection: async selection => {
         gatewayApplying = true;
         try {
