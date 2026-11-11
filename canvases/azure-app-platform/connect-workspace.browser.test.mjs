@@ -26,6 +26,50 @@ function gatewayOptions(url, { models = true } = {}) {
   };
 }
 
+const LONG_SUBSCRIPTIONS = [
+  {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Synthetic Demo Subscription Alpha With Deliberately Long Name",
+  },
+  {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Synthetic Demo Subscription Beta For Compact Layout Validation",
+  },
+];
+
+function longGatewayOptions(url, { models = true } = {}) {
+  const requestedSubscriptionId = url.searchParams.get("subscriptionId");
+  const requestedSandboxSubscriptionId = url.searchParams.get("sandboxSubscriptionId");
+  const subscriptionId = LONG_SUBSCRIPTIONS.some(item => item.id === requestedSubscriptionId)
+    ? requestedSubscriptionId
+    : LONG_SUBSCRIPTIONS[0].id;
+  const sandboxSubscriptionId = LONG_SUBSCRIPTIONS.some(item => item.id === requestedSandboxSubscriptionId)
+    ? requestedSandboxSubscriptionId
+    : LONG_SUBSCRIPTIONS[0].id;
+  const gateways = ["primary", "secondary"].map(name => ({
+    name: `synthetic-${name}-layout-validation-ai-gateway-with-extra-long-name`,
+    subscriptionId,
+    resourceGroup: "rg-synthetic-layout-validation-gateway-westus2",
+    location: "westus2",
+  }));
+  return {
+    subscriptions: LONG_SUBSCRIPTIONS,
+    subscription: { id: subscriptionId },
+    sandboxSubscriptionId,
+    gateways,
+    suggested: gateways[0],
+    models: models ? [{
+      id: "gpt-latest",
+      label: "gpt-latest · alias → synthetic-model-deployment-with-long-name",
+    }] : [],
+    sandboxGroups: [{
+      name: "synthetic-layout-validation-sandbox-group-with-extra-long-name",
+      resourceGroup: "rg-synthetic-layout-validation-sandbox-westus2",
+      subscriptionId: sandboxSubscriptionId,
+    }],
+  };
+}
+
 async function chooseSubscription(page, scope, { label, searchLabel, query, option }) {
   const trigger = scope.getByRole("button", { name: label, exact: true });
   await trigger.focus();
@@ -41,6 +85,17 @@ async function chooseSubscription(page, scope, { label, searchLabel, query, opti
     const unselectedLabel = panelEl.querySelector(".ct-select-option:not([data-selected]) .ct-option-label");
     const selectedLabel = panelEl.querySelector(".ct-select-option[data-selected] .ct-option-label");
     const description = panelEl.querySelector(".ct-option-description");
+    const searchRow = panelEl.querySelector(".ct-select-search-row");
+    const searchIcon = searchRow?.querySelector("svg");
+    const searchInput = searchRow?.querySelector("input");
+    const iconBox = searchIcon?.getBoundingClientRect();
+    const inputBox = searchInput?.getBoundingClientRect();
+    const panelBox = panelEl.getBoundingClientRect();
+    const optionsFit = Array.from(panelEl.querySelectorAll(".ct-select-option")).every(optionEl => {
+      const optionBox = optionEl.getBoundingClientRect();
+      return optionBox.left >= panelBox.left - 1 && optionBox.right <= panelBox.right + 1
+        && optionEl.scrollWidth <= optionEl.clientWidth + 1;
+    });
     return {
       triggerMinHeight: triggerStyle?.minHeight,
       triggerPadding: triggerStyle?.padding,
@@ -53,6 +108,11 @@ async function chooseSubscription(page, scope, { label, searchLabel, query, opti
       unselectedWeight: unselectedLabel ? getComputedStyle(unselectedLabel).fontWeight : null,
       selectedWeight: selectedLabel ? getComputedStyle(selectedLabel).fontWeight : null,
       descriptionWeight: description ? getComputedStyle(description).fontWeight : null,
+      descriptionFontSize: description ? getComputedStyle(description).fontSize : null,
+      searchGap: iconBox && inputBox ? inputBox.left - iconBox.right : -1,
+      panelFits: panelBox.left >= 0 && panelBox.right <= innerWidth
+        && panelEl.scrollWidth <= panelEl.clientWidth + 1,
+      optionsFit,
     };
   }, label);
   assert.equal(design.triggerMinHeight, "34px");
@@ -65,6 +125,10 @@ async function chooseSubscription(page, scope, { label, searchLabel, query, opti
   assert.equal(design.unselectedWeight, "400");
   assert.equal(design.selectedWeight, "600");
   assert.equal(design.descriptionWeight, "400");
+  assert.equal(design.descriptionFontSize, "11px");
+  assert.ok(design.searchGap >= 7, `Search icon and input need a visible gap, received ${design.searchGap}px`);
+  assert.equal(design.panelFits, true);
+  assert.equal(design.optionsFit, true);
   await search.fill(query);
   const match = panel.getByRole("option", { name: option });
   await match.waitFor();
@@ -557,7 +621,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.deepEqual(commands, [], "Discarding a first-time draft never creates or configures resources");
       await chooseSubscription(page, content, {
         label: "Azure subscription", searchLabel: "Filter Azure subscriptions by name or ID",
-        query: "sub-b", option: /Subscription B .* sub-b/,
+        query: "sub-b", option: /Subscription B sub-b/,
       });
       await page.waitForFunction(() => document.querySelector('.gateway-connection-page [aria-label="AI Gateway"] option[value="0"]')?.textContent.includes("sub-b"));
       for (const action of ["Create Gateway", "Create Sandbox Group", "Configure Model"]) {
@@ -633,7 +697,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         label: "Azure subscription",
         searchLabel: "Filter Azure subscriptions by name or ID",
         query: "sub-b",
-        option: /Subscription B .* sub-b/,
+        option: /Subscription B sub-b/,
       });
       await page.waitForFunction(() => document.querySelector('.gateway-connection-page [aria-label="AI Gateway"] option[value="0"]')?.textContent.includes("sub-b"));
       assert.match(await subscription("Sandbox subscription").textContent(), /Subscription A .* sub-a/);
@@ -674,13 +738,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         label: "Azure subscription",
         searchLabel: "Filter Azure subscriptions by name or ID",
         query: "Subscription B",
-        option: /Subscription B .* sub-b/,
+        option: /Subscription B sub-b/,
       });
       await chooseSubscription(page, settings, {
         label: "Sandbox subscription",
         searchLabel: "Filter sandbox subscriptions by name or ID",
         query: "sub-a",
-        option: /Subscription A .* sub-a/,
+        option: /Subscription A sub-a/,
       });
       await settings.getByRole("combobox", { name: "AI model", exact: true }).focus();
       await settings.getByRole("combobox", { name: "AI model", exact: true }).evaluate(node => { window.settingsModel = node; });
@@ -717,6 +781,18 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const environmentModel = page.locator("#run-panel-environment").getByRole("combobox", { name: "AI model", exact: true });
       await environmentModel.waitFor();
       await page.waitForFunction(() => !document.querySelector('#run-panel-environment [aria-label="AI model"]').disabled);
+      await page.setViewportSize({ width: 920, height: 800 });
+      await page.locator(".run-diagnostics-resizer").focus();
+      await page.keyboard.press("End");
+      assert.equal(await page.locator("#run-panel-environment .run-environment-connections").evaluate(node => {
+        const panel = node.closest("#run-panel-environment");
+        const nodeBox = node.getBoundingClientRect();
+        const panelBox = panel.getBoundingClientRect();
+        return nodeBox.width > 560
+          && nodeBox.left >= panelBox.left - 1
+          && nodeBox.right <= panelBox.right + 1
+          && panel.scrollWidth <= panel.clientWidth + 1;
+      }), true, "Diagnostics connection fields use the expanded panel instead of leaving a capped blank column");
       assert.equal(await environmentModel.inputValue(), "gpt-alternate");
       await environmentModel.focus();
       await environmentModel.evaluate(node => { window.environmentModel = node; });
@@ -745,10 +821,23 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
       page.setDefaultTimeout(7000);
       let error = false, noModels = false, delay = false;
+      const initialOptions = longGatewayOptions(new URL("http://fixture/"));
+      const saved = {
+        ...initialOptions.gateways[0],
+        model: "gpt-latest",
+        sandboxGroup: initialOptions.sandboxGroups[0],
+      };
+      await page.route("**/api/local-readiness*", route => route.fulfill({ json: {
+        ready: true,
+        gatewayConfigured: true,
+        activeGateway: saved,
+        model: saved.model,
+        sandboxGroup: saved.sandboxGroup,
+      } }));
       await page.route("**/api/gateway-options*", async route => {
         if (delay) await new Promise(resolve => { release = resolve; });
         await route.fulfill(error ? { status: 503, json: { error: "Subscription discovery unavailable." } }
-          : { json: gatewayOptions(new URL(route.request().url()), { models: !noModels }) }).catch(cause => {
+          : { json: longGatewayOptions(new URL(route.request().url()), { models: !noModels }) }).catch(cause => {
             if (!/closed|cancelled|aborted/i.test(cause.message)) throw cause;
           });
       });
@@ -777,22 +866,69 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await content.getByRole("button", { name: "Retry scan", exact: true }).click();
       await content.getByRole("button", { name: "Configure Model", exact: true }).waitFor();
       assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
-      for (const [width, height] of [[320, 480], [380, 480], [620, 800]]) {
+      for (const [width, height] of [[380, 720], [920, 800]]) {
         await page.setViewportSize({ width, height });
         for (const theme of ["light", "dark"]) {
           await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
-          assert.equal(await content.evaluate(node => document.documentElement.scrollWidth <= innerWidth &&
-            node.scrollWidth <= node.clientWidth + 1), true);
+          assert.equal(await content.evaluate(node => {
+            const body = node.querySelector(".connections-body");
+            const root = node.querySelector(".connections-root");
+            const rootBox = root.getBoundingClientRect();
+            const controlsFit = Array.from(root.querySelectorAll("button, input, select"))
+              .filter(control => {
+                const style = getComputedStyle(control);
+                const box = control.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && box.width > 0 && box.height > 0;
+              })
+              .every(control => {
+                const box = control.getBoundingClientRect();
+                return box.left >= Math.max(0, rootBox.left) - 1
+                  && box.right <= Math.min(innerWidth, rootBox.right) + 1;
+              });
+            return document.documentElement.scrollWidth <= innerWidth
+              && node.scrollWidth <= node.clientWidth + 1
+              && body.scrollWidth <= body.clientWidth + 1
+              && controlsFit;
+          }), true, `Connections and visible controls fit ${width}x${height} in ${theme}`);
           await content.getByRole("button", { name: "Azure subscription", exact: true }).click();
           const search = page.getByRole("textbox", {
             name: "Filter Azure subscriptions by name or ID", exact: true,
           });
           await search.waitFor();
+          await search.fill(LONG_SUBSCRIPTIONS[1].id);
+          const option = page.getByRole("option", {
+            name: `${LONG_SUBSCRIPTIONS[1].name} ${LONG_SUBSCRIPTIONS[1].id}`,
+            exact: true,
+          });
+          await option.waitFor();
+          assert.equal(await option.locator(".ct-option-label").textContent(), LONG_SUBSCRIPTIONS[1].name);
+          assert.equal(await option.locator(".ct-option-description").textContent(), LONG_SUBSCRIPTIONS[1].id);
+          assert.deepEqual(await option.locator(".ct-option-description").evaluate(node => {
+            const style = getComputedStyle(node);
+            return {
+              fontSize: style.fontSize,
+              fontWeight: style.fontWeight,
+              whiteSpace: style.whiteSpace,
+              fits: node.scrollWidth <= node.clientWidth + 1,
+            };
+          }), {
+            fontSize: "11px",
+            fontWeight: "400",
+            whiteSpace: "nowrap",
+            fits: true,
+          });
           assert.equal(await search.evaluate(node => {
             const panel = node.closest(".ct-select-panel");
+            const icon = panel.querySelector(".ct-select-search-row svg");
+            const iconBox = icon.getBoundingClientRect();
+            const inputBox = node.getBoundingClientRect();
             const box = panel.getBoundingClientRect();
-            return box.left >= 0 && box.right <= innerWidth && panel.scrollWidth <= panel.clientWidth + 1;
-          }), true);
+            return box.left >= 0 && box.right <= innerWidth
+              && panel.scrollWidth <= panel.clientWidth + 1
+              && inputBox.left - iconBox.right >= 7
+              && Array.from(panel.querySelectorAll(".ct-select-option")).every(optionEl =>
+                optionEl.scrollWidth <= optionEl.clientWidth + 1);
+          }), true, `Open subscription picker fits ${width}x${height} in ${theme}`);
           await page.keyboard.press("Escape");
           assert.equal(await content.locator(".connections-footer").evaluate(node => {
             const box = node.getBoundingClientRect();

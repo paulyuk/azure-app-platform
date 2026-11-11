@@ -4449,7 +4449,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       envSection.append(prereqBlock);
 
       const gatewayBlock = document.createElement("div");
-      gatewayBlock.className = "gateway-fields";
+      gatewayBlock.className = "gateway-fields run-environment-connections";
       gatewayBlock.style.marginTop = "16px";
       appendText(gatewayBlock, "h3", "AI Gateway & ACA Sandbox Group");
       envSection.append(gatewayBlock);

@@ -32,14 +32,17 @@ export const STUDIO_FILTERABLE_DROPDOWN_CSS = `
     padding:10px 12px 6px; color:var(--studio-ink);
     font:600 12px/1.4 var(--font-sans, system-ui, sans-serif);
   }
-  .studio-filterable-dropdown .ct-select-search-row { position:relative; margin:0 8px 8px; }
-  .studio-filterable-dropdown .ct-select-search-row > svg {
-    position:absolute; top:50%; left:10px; transform:translateY(-50%);
-    width:16px; height:16px; color:var(--studio-muted); pointer-events:none;
+  .studio-filterable-dropdown .ct-select-search-row {
+    display:grid; grid-template-columns:16px minmax(0, 1fr); align-items:center; gap:8px;
+    margin:0 8px 8px;
   }
+  .studio-filterable-dropdown .ct-select-search-row > svg {
+    position:static; width:16px; height:16px; color:var(--studio-muted); pointer-events:none;
+  }
+  .studio-filterable-dropdown .ct-select-search-row > .ct-input-root { display:block; width:100%; min-width:0; }
   .studio-filterable-dropdown .ct-provider .ct-select-search.ct-input {
     box-sizing:border-box; width:100%; min-width:0; min-height:32px;
-    padding:5px 8px 5px 32px;
+    padding:5px 8px;
     border:1px solid var(--studio-line); border-radius:var(--studio-control-radius, 6px);
     background:var(--studio-panel); color:var(--studio-ink);
     font:400 12px/1.4 var(--font-sans, system-ui, sans-serif);
@@ -51,7 +54,9 @@ export const STUDIO_FILTERABLE_DROPDOWN_CSS = `
   }
   .studio-filterable-dropdown .ct-select-options { padding:4px; border-top:1px solid var(--studio-line); }
   .studio-filterable-dropdown .ct-select-option {
-    align-items:flex-start; min-height:32px; padding:6px 8px; border-radius:var(--studio-control-radius, 4px);
+    box-sizing:border-box; display:flex; align-items:flex-start; gap:8px;
+    width:100%; max-width:100%; min-width:0; min-height:32px; padding:6px 8px;
+    border-radius:var(--studio-control-radius, 4px);
     color:var(--studio-ink); font:400 13px/1.4 var(--font-sans, system-ui, sans-serif);
   }
   .studio-filterable-dropdown .ct-select-option:hover,
@@ -61,13 +66,21 @@ export const STUDIO_FILTERABLE_DROPDOWN_CSS = `
   }
   .studio-filterable-dropdown .ct-select-option[data-selected] { background:var(--studio-accent-soft); }
   .studio-filterable-dropdown .ct-option-check {
-    display:inline-flex; align-items:center; justify-content:center; height:18px; color:var(--studio-accent);
+    display:inline-flex; flex:0 0 18px; align-items:center; justify-content:center; height:18px; color:var(--studio-accent);
   }
-  .studio-filterable-dropdown .ct-option-label { color:var(--studio-ink); font-weight:400; line-height:1.4; }
+  .studio-filterable-dropdown .ct-select-option > span:last-child { flex:1; min-width:0; }
+  .studio-filterable-dropdown .ct-option-label {
+    display:block; min-width:0; color:var(--studio-ink); font-weight:400; line-height:1.4;
+    overflow-wrap:anywhere;
+  }
   .studio-filterable-dropdown .ct-select-option[data-selected] .ct-option-label { font-weight:600; }
   .studio-filterable-dropdown .ct-option-description,
   .studio-filterable-dropdown .ct-select-empty {
-    color:var(--studio-muted); font-size:11px; font-weight:400; line-height:1.4;
+    display:block; min-width:0; color:var(--studio-muted); font-size:11px; font-weight:400; line-height:1.4;
+    overflow-wrap:anywhere;
+  }
+  .studio-filterable-dropdown .ct-option-description.studio-single-line-description {
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; overflow-wrap:normal;
   }
 `;
 
@@ -100,8 +113,26 @@ export function createStudioToolkitComponents(toolkit) {
     };
     let disposed = false;
     let handle;
+    let visualLabelObserver;
 
     const selectedOptions = () => state.value ? [state.value] : [];
+    const applyVisualLabels = () => {
+      if (typeof element.querySelectorAll !== "function") return;
+      const optionsByLabel = new Map();
+      for (const option of state.options) {
+        optionsByLabel.set(option.label, option);
+        if (option.visualLabel) optionsByLabel.set(option.visualLabel, option);
+      }
+      for (const label of element.querySelectorAll(".ct-option-label")) {
+        const option = optionsByLabel.get(label.textContent);
+        if (!option) continue;
+        if (option.visualLabel && label.textContent !== option.visualLabel) {
+          label.textContent = option.visualLabel;
+        }
+        label.parentElement?.querySelector(".ct-option-description")
+          ?.classList.toggle("studio-single-line-description", Boolean(option.singleLineDescription));
+      }
+    };
     const updateHandle = () => handle.update({
       options: state.options,
       selectedOptions: selectedOptions(),
@@ -130,6 +161,7 @@ export function createStudioToolkitComponents(toolkit) {
         if (disposed) return;
         disposed = true;
         views.delete(element);
+        visualLabelObserver?.disconnect();
         handle.dispose();
       },
     };
@@ -150,6 +182,13 @@ export function createStudioToolkitComponents(toolkit) {
         state.onChange(nextValue, event);
       },
     });
+    const MutationObserverClass = element.ownerDocument?.defaultView?.MutationObserver
+      || globalThis.MutationObserver;
+    if (typeof MutationObserverClass === "function" && typeof element.querySelectorAll === "function") {
+      visualLabelObserver = new MutationObserverClass(applyVisualLabels);
+      visualLabelObserver.observe(element, { childList: true, subtree: true, characterData: true });
+      applyVisualLabels();
+    }
     Object.defineProperties(element, {
       value: {
         configurable: true,

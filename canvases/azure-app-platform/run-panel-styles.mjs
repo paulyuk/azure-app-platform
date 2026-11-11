@@ -63,6 +63,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] button:not(.ct-button):disabled, #details[data-mode="deploy"] button:not(.ct-button):disabled { opacity:.6; cursor:not-allowed; }
 #details[data-mode="manage"] button.danger, #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) .error { color:var(--studio-danger); }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) .gateway-fields { display:grid; gap:14px; min-width:0; max-width:560px; }
+#details[data-mode="manage"] .run-environment-connections { box-sizing:border-box; width:100%; max-width:none; }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) .studio-field { display:grid; gap:6px; min-width:0; color:var(--studio-ink); font:600 12px/1.4 var(--font-sans, system-ui, sans-serif); }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) .studio-field > span:first-child { display:block; font-size:12px; font-weight:600; color:var(--studio-ink); }
 #details:is([data-mode="manage"], [data-mode="deploy"], [data-mode="connections"]) select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; height:34px; min-height:34px; padding:6px 10px; border:1px solid var(--studio-line); border-radius:6px; color:var(--studio-ink); background:var(--studio-raised); font:13px/1.4 var(--font-sans, system-ui, sans-serif); }

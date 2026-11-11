@@ -5,21 +5,24 @@ export const CONNECTION_PANEL_CSS = `
   .connections-mount { display:flex; flex:1; flex-direction:column; min-height:0; min-width:0; }
   .connections-root { display:flex; flex-direction:column; min-width:0; }
   .connections-root[data-page="true"] { flex:1; min-height:0; }
-  .connections-body { min-width:0; }
+  .connections-body { box-sizing:border-box; width:100%; max-width:100%; min-width:0; }
   .connections-root[data-page="true"] .connections-body { overflow:auto; flex:1; min-height:0; padding:12px 24px 20px; scrollbar-gutter:stable; }
   .connections-current { padding:4px 10px; border-left:2px solid var(--studio-line); margin-bottom:16px; overflow-wrap:anywhere; }
   .connections-current small { color:var(--studio-muted); }
   .connections-current[data-dirty="true"] small { color:var(--studio-warn); }
   .connections-current p { margin:4px 0 0 !important; }
-  .connection-section { min-width:0; padding:16px; margin-bottom:12px; border:1px solid var(--studio-line); border-radius:var(--studio-surface-radius, 6px); }
+  .connection-section { box-sizing:border-box; width:100%; max-width:100%; min-width:0; padding:16px; margin-bottom:12px; border:1px solid var(--studio-line); border-radius:var(--studio-surface-radius, 6px); }
   .connection-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; }
   #details .connection-section-heading h3, .studio-settings .connection-section-heading h3 { margin:0; font-size:14px; }
-  .connection-fields { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; min-width:0; }
+  .connection-fields { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; min-width:0; contain:layout inline-size; }
   .connection-fields > .connection-model { grid-column:1 / -1; }
   .connection-inline { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:end; gap:8px; min-width:0; }
   #details .connections-root .studio-field, .studio-settings .connections-root .studio-field { display:grid; gap:6px; min-width:0; font:inherit; font-weight:400; }
   #details .connections-root .studio-field > span, .studio-settings .connections-root .studio-field > span { font:inherit; font-weight:400; }
-  #details .connections-root select, .studio-settings .connections-root select { width:100%; min-width:0; max-width:100%; padding-block:0; }
+  #details .connections-root select, .studio-settings .connections-root select {
+    display:block; width:100%; min-width:0; max-width:100%; padding-block:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
   .connections-feedback { margin-bottom:12px; }
   .connections-feedback[data-quiet="true"] { margin-bottom:0; }
   .connections-feedback-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
@@ -263,9 +266,16 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       buttons.update(view.setup, { hidden: phase !== "error", disabled: applying });
       view.skeleton.hidden = Boolean(options) || !(checking || loading);
       view.form.hidden = !options;
-      const subscriptions = (options?.subscriptions || []).map(item => ({
-        value: item.id, label: item.name + (item.isDefault ? " (default)" : "") + " · " + item.id,
-      }));
+      const subscriptions = (options?.subscriptions || []).map(item => {
+        const visualLabel = item.name + (item.isDefault ? " (default)" : "");
+        return {
+          value: item.id,
+          label: visualLabel + " · " + item.id,
+          visualLabel,
+          description: item.id,
+          singleLineDescription: true,
+        };
+      });
       const scopes = [{ value: "*", label: "All enabled subscriptions",
         description: "Search gateways or sandbox groups across enabled subscriptions." }, ...subscriptions];
       updateOptions(view.subscription, scopes, draft.subscriptionId, locked);
