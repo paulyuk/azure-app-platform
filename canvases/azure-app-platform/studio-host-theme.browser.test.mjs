@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
 import { renderPresentationStyles } from "./studio-presentation.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -58,7 +59,7 @@ for (const [name, engine] of [["chromium", chromium], ["webkit", webkit]]) {
             action.id = "legacy-primary-proof";
             action.textContent = "Primary action";
             action.style.cssText = "position:fixed;top:8px;right:8px;z-index:100";
-            document.querySelector("#details").append(action);
+            document.body.append(action);
           });
           for (const tone of ["light", "dark"]) {
             const palette = palettes[tone];
@@ -99,7 +100,7 @@ for (const [name, engine] of [["chromium", chromium], ["webkit", webkit]]) {
               return { background: style.backgroundColor, color: style.color, font: style.font };
             });
             const expected = await computed("#" + reference);
-            for (const selector of ["body", "#details", ".studio-workspace-content", "#workspace-diagnostics"]) {
+            for (const selector of ["body", "#details", ".run-execution-view", ".studio-workspace-content", "#workspace-diagnostics"]) {
               const actual = await computed(selector);
               if (selector !== ".studio-workspace-content") assert.equal(actual.background, expected.background, `${tone} ${selector} uses page, not overlay`);
               if (selector !== "#workspace-diagnostics") assert.equal(actual.font, expected.font, `${tone} ${selector} inherits host typography`);
@@ -141,7 +142,7 @@ for (const [name, engine] of [["chromium", chromium], ["webkit", webkit]]) {
             };
             if (baseline) await capture("before-" + baselinePath.split(/[\\/]/).at(-1).replace(/\.css$/, ""), baseline);
             await capture("after-" + revision, styles);
-            await page.getByRole("button", { name: "Settings", exact: true }).click();
+            await openStudioSettings(page);
             assert.equal((await computed(".studio-settings")).background, await colorOf(palette.overlay));
             await page.getByRole("button", { name: "Close settings", exact: true }).click();
             await page.evaluate(() => { document.querySelector("#legacy-primary-proof").hidden = false; });

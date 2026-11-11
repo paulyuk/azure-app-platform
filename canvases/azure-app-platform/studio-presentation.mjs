@@ -90,6 +90,7 @@ const sharedPresentationLayout = `
   }
   :root.studio-shared-presentation body,
   :root.studio-shared-presentation .studio-workspace-content,
+  :root.studio-shared-presentation .run-execution-view,
   :root.studio-shared-presentation :is(#details, #customize-content)[data-mode="build"],
   :root.studio-shared-presentation #details[data-mode="manage"],
   :root.studio-shared-presentation .studio-settings {
@@ -110,11 +111,11 @@ const sharedPresentationLayout = `
     min-height: var(--studio-control-height); padding: var(--studio-control-padding);
   }
   :root.studio-shared-presentation :is(.journey, .choice, .capability, .mapping, .review-row, .surface, .subsurface, .tier-card, .map-node, .map-empty, .map-loading, .header-actions, .endpoint-row, .action-card, .management-section),
-  :root.studio-shared-presentation #details :is(.run-card, .agent-response, .document-assessment, .command-output, .action-card, .management-section) {
+  :root.studio-shared-presentation :is(#details, #run-execution-workspace) :is(.run-card, .agent-response, .document-assessment, .command-output, .action-card, .management-section) {
     border-radius: var(--studio-surface-radius);
   }
   :root.studio-shared-presentation :is(.journey, .choice, .capability, .mapping, .review-row, .subsurface, .tier-card),
-  :root.studio-shared-presentation #details :is(.run-card, .agent-response, .document-assessment) {
+  :root.studio-shared-presentation :is(#details, #run-execution-workspace) :is(.run-card, .agent-response, .document-assessment) {
     padding: var(--studio-space-normal);
   }
   :root.studio-shared-presentation :is(.studio-settings, .confirm-dialog) { border-radius: var(--studio-dialog-radius); }
