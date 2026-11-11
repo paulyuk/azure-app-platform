@@ -37,6 +37,12 @@ From **Home**, choose **Create a new app**, **Open an app**, or **Assemble exist
 
 Home refreshes recent apps in the background without blocking starting journeys, and built-in starter templates are available immediately while reference samples finish loading. Stacked skeleton cards share a 12px gap across Home, the picker, initial controls, and the workspace shell. Selecting an app opens a themed workspace shell while its source graph loads, and workspace creation streams real progress stages while keeping the submitted review form visible. Loading spinners keep rotating even when reduced motion is enabled so pending operations remain visibly active.
 
+When embedded in GitHub Copilot, the canvas uses the host's page surface and
+typography throughout the workspace, reserving overlay surfaces for dialogs.
+Primary actions follow the host's button colors, including hover and pressed
+states, rather than using link colors as button fills. Live host theme changes
+apply without reloading; the standalone appearance remains independent.
+
 Catalog discovery bounds concurrent worktree inspection and resolves folder
 aliases once, retaining the complete inventory without launching Git commands
 for every worktree at the same time. Matching in-flight source-list requests
