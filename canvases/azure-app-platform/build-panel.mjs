@@ -4,7 +4,7 @@ import { octiconMask } from "./studio-icons.mjs";
 
 export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] { --build-code-bg:light-dark(var(--studio-raised),color-mix(in srgb,var(--studio-panel) 94%,var(--studio-ink))); display:flex; flex-direction:column; overflow:hidden; container-type:inline-size; container-name:build-panel; padding:0; font:13px/20px var(--font-sans,system-ui); }
-:is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-height:0; width:100%; margin-inline:auto; padding:20px 24px 0; }
+:is(#details, #customize-content)[data-mode="build"] .build-workspace { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-height:0; width:100%; margin-inline:auto; padding:0; }
 :is(#details, #customize-content)[data-mode="build"] h2 { margin:0; font-size:15px; line-height:22px; font-weight:600; color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] p { margin:4px 0 12px; color:var(--studio-muted); font-size:13px; line-height:20px; }
 :is(#details, #customize-content)[data-mode="build"] button:not([role="tab"]) { ${ACTION_BUTTON_STYLE} }
@@ -13,7 +13,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-area-header { display:grid; gap:4px; margin-bottom:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-area-title { margin:0; font-size:14px; line-height:20px; font-weight:600; color:var(--studio-ink); }
 :is(#details, #customize-content)[data-mode="build"] .build-file { box-sizing:border-box; display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; padding:0; border:0; border-radius:0; background:transparent; }
-:is(#details, #customize-content)[data-mode="build"] .build-block-files { display:flex; flex-direction:column; gap:var(--canvas-spacing-normal,16px); min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-block-files { display:flex; flex-direction:column; gap:var(--canvas-spacing-condensed,8px); min-width:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-files .build-file { flex:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-files .build-file-source { flex:none; min-height:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-block-files[data-view="stack"] .build-file-source { border-bottom:1px solid var(--studio-line); box-shadow:0 6px 6px -6px var(--studio-line); }
@@ -48,7 +48,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-icon-settings { mask-image:${octiconMask("gear")}; }
 :is(#details, #customize-content)[data-mode="build"] :is(button,select):disabled { opacity:.65; cursor:not-allowed; }
 :is(#details, #customize-content)[data-mode="build"] .build-handoff-feedback { margin:4px 0 8px; font-size:12px; }
-:is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; margin:8px var(--build-content-gutter); border:1px solid var(--studio-line); border-radius:8px; overflow:hidden; background:var(--build-code-bg); cursor:default; }
+:is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; margin:0; border:0; border-radius:0; overflow:hidden; background:var(--build-code-bg); cursor:default; }
 :is(#details, #customize-content)[data-mode="build"] .build-file > :not(.build-file-source) { flex-shrink:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-source > :not(.build-source-preview) { flex:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-preview-badge { display:inline-flex; align-items:center; gap:4px; color:var(--studio-muted); font-size:11px; }
@@ -70,7 +70,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-warning { color:var(--studio-warn); font-size:12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-error { color:var(--studio-danger); }
 :is(#details, #customize-content)[data-mode="build"] .build-error:empty, :is(#details, #customize-content)[data-mode="build"] [hidden] { display:none; }
-:is(#details, #customize-content)[data-mode="build"] .build-browser { display:grid; grid-template-columns:minmax(0,var(--build-rail-width,28%)) var(--canvas-spacing-condensed,8px) minmax(0,1fr); flex:1; min-width:0; min-height:0; margin-top:16px; }
+:is(#details, #customize-content)[data-mode="build"] .build-browser { display:grid; grid-template-columns:minmax(0,var(--build-rail-width,28%)) var(--canvas-spacing-condensed,8px) minmax(0,1fr); flex:1; min-width:0; min-height:0; margin-top:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-divider { position:relative; min-width:0; cursor:col-resize; touch-action:none; }
 :is(#details, #customize-content)[data-mode="build"] .build-divider::before { content:""; position:absolute; inset-block:0; inset-inline-start:50%; width:1px; background:var(--studio-line); }
 :is(#details, #customize-content)[data-mode="build"] .build-divider:is(:hover,:focus-visible,[data-dragging])::before { width:2px; background:var(--studio-accent); }
@@ -87,7 +87,7 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-category { padding:8px 0; }
 :is(#details, #customize-content)[data-mode="build"] .build-category + .build-category { border-top:1px solid var(--studio-line); }
 :is(#details, #customize-content)[data-mode="build"] .build-category summary { padding:2px 10px 6px; color:var(--studio-muted); font-size:12px; font-weight:600; cursor:pointer; }
-:is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-normal,16px); box-sizing:border-box; display:flex; flex-direction:column; min-width:0; min-height:0; padding:0; overflow:auto; container-type:inline-size; container-name:build-source; }
+:is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-condensed,8px); box-sizing:border-box; display:flex; flex-direction:column; min-width:0; min-height:0; padding:0; overflow:auto; container-type:inline-size; container-name:build-source; }
 :is(#details, #customize-content)[data-mode="build"] .build-content > .build-area-header { position:sticky; top:0; z-index:2; padding-inline:var(--build-content-gutter); background:var(--studio-bg); }
 :is(#details, #customize-content)[data-mode="build"] .build-file > :is(.build-warning,.build-error,.build-handoff-feedback) { padding-inline:var(--build-content-gutter); }
 :is(#details, #customize-content)[data-mode="build"] .build-content .build-add-form { box-sizing:border-box; padding-inline:var(--build-content-gutter); }
@@ -101,10 +101,6 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .studio-field-mount > .ct-provider { display:contents; }
 :is(#details, #customize-content)[data-mode="build"] .build-add-form p { margin:0; font-size:12px; }
 :is(#details, #customize-content)[data-mode="build"] .build-template-path { font:11px/18px var(--font-mono,monospace); overflow-wrap:anywhere; }
-@container build-panel (max-width:600px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-workspace { padding:12px 12px 0; }
-  :is(#details, #customize-content)[data-mode="build"] .build-content { --build-content-gutter:var(--canvas-spacing-condensed,8px); }
-}
 @container build-panel (max-width:420px) {
   :is(#details, #customize-content)[data-mode="build"] .build-explorer-heading { flex-wrap:wrap; padding:8px; }
 }
@@ -158,8 +154,8 @@ export const BUILD_EXPLORER_CSS = `
   :is(#details, #customize-content)[data-mode="build"] .build-ai-form .build-actions button { width:100%; white-space:normal; }
 }
 @container build-panel (max-width:520px) {
-  :is(#details, #customize-content)[data-mode="build"] .build-compact-navigation { display:block; flex:none; margin-top:8px; }
-  :is(#details, #customize-content)[data-mode="build"] .build-browser { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); margin-top:8px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-compact-navigation { display:block; flex:none; padding:8px; }
+  :is(#details, #customize-content)[data-mode="build"] .build-browser { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
   :is(#details, #customize-content)[data-mode="build"] .build-divider { display:none; }
   :is(#details, #customize-content)[data-mode="build"] .build-explorer { display:none; grid-area:1 / 1; background:var(--studio-bg); }
   :is(#details, #customize-content)[data-mode="build"] .build-content { grid-area:1 / 1; }
@@ -357,7 +353,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       const height = contentPanel.querySelector(".build-area-header")?.getBoundingClientRect().height ?? 0;
       contentPanel.style.setProperty("--build-header-height", height + "px");
     }
-    const observer = new ResizeObserver(() => { applyWidth(); updateFileOverflow?.(); updateHeaderHeight(); updatePreviewEdges(); });
+    let resizeFrame;
+    const observer = new ResizeObserver(() => {
+      if (resizeFrame !== undefined) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = undefined;
+        applyWidth();
+        updateFileOverflow?.();
+        updateHeaderHeight();
+        updatePreviewEdges();
+      });
+    });
     observePreviews = () => {
       observer.disconnect();
       observer.observe(browser);
@@ -369,6 +375,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     applyWidth();
     disposeSplitPane = () => {
       observer.disconnect();
+      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       endDrag();
       listeners.abort();
       disposeSplitPane = undefined;
@@ -952,11 +959,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         },
       }));
     }
+    const moreButton = { size: "small", appearance: "subtle", "data-focus-key": "file-picker" };
     const more = buttons.menu({
-      label: null,
-      button: { size: "small", appearance: "subtle",
-        icon: buttons.icon('<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>'),
-        "aria-label": "More files", title: "More files", "data-focus-key": "file-picker" },
+      label: "+" + members.length + " more",
+      button: moreButton,
       positioning: { position: "below", align: "end" },
       items: collectionFileItems(),
     });
@@ -966,6 +972,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     buttons.update(add, { appearance: "subtle" });
     add.dataset.focusKey = "collection-add";
     const moreMount = buttons.host(more).closest(".ct-dom-content") ?? buttons.host(more);
+    let labeledHiddenCount;
+    function labelHiddenFiles(count) {
+      if (count === labeledHiddenCount) return;
+      labeledHiddenCount = count;
+      const label = "+" + count + " more";
+      buttons.update(more, {
+        label,
+        button: { ...moreButton, "aria-label": "More files (" + label + ")",
+          title: count + " more " + (count === 1 ? "file" : "files") },
+      });
+    }
     updateFileOverflow = () => {
       if (!controls.getClientRects().length || controls.clientWidth === 0) return;
       const gap = parseFloat(getComputedStyle(controls).columnGap) || 0;
@@ -976,19 +993,22 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       let nextCount = members.length;
       if (!fits) {
         moreMount.hidden = false;
-        const available = controls.clientWidth - stackWidth - gap - addWidth - actionGap - more.getBoundingClientRect().width;
         const stripStyle = getComputedStyle(fullStrip);
         const itemGap = parseFloat(stripStyle.columnGap) || 0;
-        let used = parseFloat(stripStyle.paddingLeft) + parseFloat(stripStyle.paddingRight);
-        nextCount = 0;
+        const widths = [parseFloat(stripStyle.paddingLeft) + parseFloat(stripStyle.paddingRight)];
         for (const item of fullStrip.querySelectorAll("button")) {
-          used += item.getBoundingClientRect().width + (nextCount ? itemGap : 0);
-          if (used > available) break;
-          nextCount++;
+          widths.push(widths.at(-1) + item.getBoundingClientRect().width + (widths.length > 1 ? itemGap : 0));
+        }
+        // The count changes the disclosure width, including at digit boundaries.
+        for (nextCount = members.length - 1; nextCount >= 0; nextCount--) {
+          labelHiddenFiles(members.length - nextCount);
+          const used = stackWidth + (nextCount ? widths[nextCount] + gap : 0) +
+            more.getBoundingClientRect().width + actionGap + addWidth;
+          if (used <= controls.clientWidth || nextCount === 0) break;
         }
       }
       const focusedFile = pages.contains(document.activeElement) ? document.activeElement?.dataset.focusKey : undefined;
-      const focusedMore = more === document.activeElement;
+      const focusedMore = more === document.activeElement || more.getAttribute("aria-expanded") === "true";
       if (nextCount === members.length && more.getAttribute("aria-expanded") === "true") more.click();
       moreMount.hidden = nextCount === members.length;
       controls.toggleAttribute("data-file-overflow", nextCount < members.length);

@@ -104,11 +104,7 @@ const sharedPresentationLayout = `
   :root.studio-shared-presentation :is(.studio-settings, .confirm-dialog) { border-radius: var(--studio-dialog-radius); }
   :root.studio-shared-presentation :is(.studio-settings-heading, .studio-settings-content, .confirm-dialog) { padding: var(--studio-space-normal); }
   :root.studio-shared-presentation :is(.journeys, .actions, .actions-right) { gap: var(--studio-space-condensed); }
-  :root.studio-shared-presentation :is(#details, #customize-content) .build-workspace { padding: var(--studio-space-spacious) var(--studio-space-spacious) 0; }
   :root.studio-shared-presentation #details[data-mode="manage"] { padding: var(--studio-space-spacious); }
-  @container build-panel (max-width: 620px) {
-    :root.studio-shared-presentation :is(#details, #customize-content) .build-workspace { padding: var(--studio-space-normal) var(--studio-space-normal) 0; }
-  }
   @media (max-width: 620px) {
     :root.studio-shared-presentation #details[data-mode="manage"] { padding: var(--studio-space-normal); }
   }

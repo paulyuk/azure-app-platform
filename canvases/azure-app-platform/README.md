@@ -44,6 +44,12 @@ share one read within a canvas and its authorized-folder scope. Completed
 results are not cached by the server; retries, changed folder scopes, and
 creation or mutation checks still perform fresh discovery.
 
+In **Build**, source previews fill the available pane without nested outer
+gutters. Collections show the filenames that fit, followed by **+N more** for
+only the hidden files. Widening the pane restores filenames and removes the
+disclosure when all fit. Selecting a filename opens Page view; Stack view,
+per-file line numbers, and **Add building block** remain available.
+
 In **Run**, enter a prompt and attach documents on the invocation screen, with
 **Try a boundary test** placed directly below **Event triggers**. **Invoke
 agent** opens a separate execution view containing the execution layers,
