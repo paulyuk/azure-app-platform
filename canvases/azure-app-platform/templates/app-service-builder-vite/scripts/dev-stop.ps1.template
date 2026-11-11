@@ -1,0 +1,14 @@
+$ErrorActionPreference = "SilentlyContinue"
+$Root = Split-Path -Parent $PSScriptRoot
+$RunDir = Join-Path $Root ".dev-run"
+$ProcessFile = Join-Path $RunDir "processes.json"
+
+if (Test-Path $ProcessFile) {
+  $records = Get-Content -Path $ProcessFile -Raw | ConvertFrom-Json
+  foreach ($record in @($records)) {
+    if ($record.Pid) {
+      Stop-Process -Id ([int]$record.Pid) -Force
+    }
+  }
+}
+Remove-Item -Path $RunDir -Recurse -Force

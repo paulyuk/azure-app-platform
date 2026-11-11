@@ -1,0 +1,110 @@
+# Document validation tool: egress and credential boundary
+
+## ACA Sandbox Group
+
+The harness creates each microVM with `--egress-default Deny` and
+`--traffic-inspection Full`, applies `config/egress-policy.yaml` with
+`aca sandbox egress apply`, runs the tool, and deletes the microVM. No
+credentials are passed with `--env` or attached credential resources.
+
+The YAML follows `aca sandbox egress init` / `schema` from CLI
+`1.0.0-preview.5`. That version uses ordered `rules` and rejects legacy
+`hostRules`. The harness derives exact-host Allow rules from
+`config/egress-allowlist.json` only when `documentToolEgressEnabled` is true.
+By default it is false and `allowedFqdns` is empty: document sanitization
+needs no outbound traffic, including to `api.lender.example.com`.
+
+For a future reviewed HTTPS integration (TCP 443), add the exact domain to
+the allowlist and scope a Transform by host/path/method. Never use a wildcard
+or a broad Allow that precedes the Transform. The YAML includes examples:
+
+```yaml
+action:
+  type: Transform
+  headers:
+    - operation: Set
+      name: Authorization
+      valueRef:
+        secretRef:
+          secretId: reviewed-api
+          secretKey: token
+          format: "Bearer {value}"
+```
+
+Or replace `secretRef` with:
+
+```yaml
+managedIdentityRef:
+  type: SystemAssigned
+  resource: "https://management.azure.com"
+  format: "Bearer {value}"
+```
+
+The Egress Proxy resolves the group secret or managed-identity token and
+injects it outside the microVM. The host's credentials are not inherited.
+Do not explicitly inject upstream secrets through sandbox environment
+variables, images, files, or inputs. Proxy identity access is not permission
+for sandbox code to access managed identity directly.
+
+## Runtime probes
+
+Document text selects a probe; it does not establish a verdict about the
+network. The tool counts nonempty credential-like variable names in its live
+environment and attempts a credential-free `HEAD` to the requested origin.
+It sends no original path/query, userinfo, document body, or authentication
+headers, follows no redirects, and reads no response body. The ACA runner
+does not scrub the environment before inspection.
+
+Before deletion, the harness polls
+`aca sandbox egress decisions --id <sandbox-id> --output json` and correlates
+the denied host, HEAD method, scheme, and root path. Only a matching platform
+audit decision supports `enforcement: "aca-egress-proxy"`. HTTP 403, DNS,
+TLS, timeout, or connection failures alone remain unverified. A fictional
+`.example` target can fail DNS without exercising the proxy; use an
+operator-controlled, resolvable destination for live denial verification.
+
+The HTTP 422 `unauthorized-egress` result includes `sandboxProbe`: observed
+credential-like variable count, network outcome, enforcement source, and
+bounded audit counts. `envKeys` contains up to 32 sorted names, with the full
+count in `envKeyCount`; no values are returned. `secretFilesPresent` and
+`secretFileCount` report presence at `~/.azure`, `~/.aws`, `~/.config/gh`,
+`~/.git-credentials`, and `/var/run/secrets`. These are directory-entry checks,
+including symlinks, not file reads or a complete filesystem scan. Inspection
+errors fail explicitly.
+
+`acaDeniedDecision` contains only the correlated action, HEAD method, scheme,
+host, root path, and a safe rule identifier. Missing rule identifiers are
+`unreported`; structured or unsafe rule metadata is `[REDACTED]`.
+`[sandbox-env]`, `[sandbox-net]`, and `[sandbox-egress]` records go to stderr.
+The ACA microVM harness emits validated observations in its own logs without
+forwarding raw child stderr. Local tool calls do not replay child diagnostics.
+Never return credential values or raw decision payloads.
+A zero count is not an exhaustive secret scan. A nonzero count,
+successful unauthorized request, or unverified denial needs investigation.
+Instruction-override checks remain separate and do not claim a network test.
+
+## Local fallback and custom-container sessions
+
+Without an ACA group, the local tool receives a minimal allowlisted
+environment and installs a Python audit hook denying outbound socket/DNS
+operations. The probe actually exercises that policy. It is still a
+**local process simulation**, not OS or Azure isolation; use synthetic data.
+It does not protect against arbitrary native code or child executables.
+
+The optional Copilot SDK mode still needs a document custom-container
+session pool separate from the agent pool. The document deployment must:
+
+1. Default-deny outbound traffic, including private ranges, Azure metadata,
+   and every public destination unless explicitly reviewed.
+2. Receive no GitHub, Copilot, AI Gateway, or model credentials.
+3. Keep direct session managed-identity access disabled
+   (`managedIdentitySettings.lifecycle: None`).
+4. Disable payload capture. Emit only lifecycle events, duration, verdict
+   code, and exit status; never log raw or sanitized document text.
+5. Stop each session after the verdict, with a short platform cooldown only
+   as a failure fallback.
+
+Before a demo, verify from inside the actual document sandbox that HTTPS to
+`api.lender.example.com` and an unrelated resolvable endpoint both fail
+under the default policy, and check matching platform denial evidence.
+Treat a successful unauthorized request as a release blocker.

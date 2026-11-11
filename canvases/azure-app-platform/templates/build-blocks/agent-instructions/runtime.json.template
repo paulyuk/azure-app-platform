@@ -1,0 +1,8 @@
+{
+  "name": "__BLOCK_NAME__",
+  "status": "not_configured",
+  "instructions": "prompts/system.md",
+  "runtime": null,
+  "modelConnection": null,
+  "tools": []
+}

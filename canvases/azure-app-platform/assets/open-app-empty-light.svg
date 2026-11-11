@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="empty-light-title empty-light-description">
+  <title id="empty-light-title">Your next code app</title>
+  <desc id="empty-light-description">Code brackets inside an open app window, with a circular plus at the upper-right corner.</desc>
+  <g id="empty-light-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M432 224v164a28 28 0 0 1-28 28H108a28 28 0 0 1-28-28V136a28 28 0 0 1 28-28h216M80 176h240M208 232l-40 48 40 48M304 232l40 48-40 48"/>
+  </g>
+  <g id="empty-light-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 144h48M272 224l-32 112"/>
+  </g>
+  <g id="empty-light-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="396" cy="136" r="60"/>
+    <path d="M396 108v56M368 136h56"/>
+  </g>
+</svg>

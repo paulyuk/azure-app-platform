@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="working-title working-description">
+  <title id="working-title">A task on its way to a result</title>
+  <desc id="working-description">A task in an intake tray connects to a port on an empty result window. The empty destination represents a response still awaited, not success.</desc>
+  <g id="working-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M96 304l-32 48v64h224v-64l-24-48M64 352h64l24 24h48l24-24h64M112 304V200h88l32 32v72M200 200v32h32"/>
+    <rect x="304" y="80" width="144" height="152" rx="16"/>
+    <path d="M304 128h144"/>
+  </g>
+  <g id="working-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M148 264h44M332 104h24"/>
+  </g>
+  <g id="working-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M288 352h56q40 0 40-40v-68"/>
+    <rect data-spot-part="port" x="372" y="220" width="24" height="24" rx="4"/>
+  </g>
+</svg>

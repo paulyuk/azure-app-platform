@@ -1,0 +1,14 @@
+name: __APP_SLUG__-agent
+description: "__PURPOSE_JSON__"
+# Discovery metadata only; main.py implements HTTP serving and reads runtime.json.
+instructions_file: prompts/system.md
+triggers:
+  - type: http
+    route: /invoke
+tools:
+  - name: document-validation
+    # Default local mode. config/runtime.json selects the optional ACA transport.
+    invocation: subprocess
+    path: ../tools/document-validation/main.py
+gateway:
+  configuration_path: ../../infra-ai-gateway

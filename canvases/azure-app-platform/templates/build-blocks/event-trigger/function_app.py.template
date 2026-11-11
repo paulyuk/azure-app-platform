@@ -1,0 +1,8 @@
+import azure.functions as func
+
+app = func.FunctionApp()
+
+
+@app.event_grid_trigger(arg_name="event")
+def invoke(event: func.EventGridEvent) -> None:
+    raise NotImplementedError("Implement idempotent __BLOCK_NAME__ handling before connecting Event Grid.")

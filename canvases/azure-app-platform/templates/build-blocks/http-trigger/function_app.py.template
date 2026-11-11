@@ -1,0 +1,12 @@
+import azure.functions as func
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+
+@app.route(route="__BLOCK_NAME__", methods=["POST"])
+def invoke(_: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(
+        '{"error":"not_implemented","message":"Define and validate the operation before connecting this trigger."}',
+        status_code=501,
+        mimetype="application/json",
+    )

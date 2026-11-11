@@ -1,0 +1,16 @@
+{
+  "name": "__BLOCK_NAME__",
+  "resourceType": "Microsoft.Web/connections",
+  "status": "not_configured",
+  "provider": null,
+  "endpoint": null,
+  "authentication": {
+    "mode": "managed-identity",
+    "scope": null
+  },
+  "operations": [],
+  "limits": {
+    "timeoutSeconds": 30,
+    "maxResponseBytes": 65536
+  }
+}

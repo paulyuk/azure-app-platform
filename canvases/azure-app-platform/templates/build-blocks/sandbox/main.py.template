@@ -1,0 +1,35 @@
+"""Bounded stdin/stdout entry point for __BLOCK_NAME__."""
+
+import json
+import sys
+from typing import NoReturn
+
+MAX_INPUT_BYTES = 64 * 1024
+MAX_TEXT_LENGTH = 4096
+
+
+def fail(code: str, message: str, status: int) -> NoReturn:
+    print(json.dumps({"error": {"code": code, "message": message}}), file=sys.stderr)
+    raise SystemExit(status)
+
+
+def main() -> None:
+    raw = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
+    if len(raw) > MAX_INPUT_BYTES:
+        fail("input_too_large", "Input exceeds 64 KiB.", 2)
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        fail("invalid_input", "Provide a UTF-8 JSON object with a text field.", 2)
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"text"}
+        or not isinstance(payload["text"], str)
+        or len(payload["text"]) > MAX_TEXT_LENGTH
+    ):
+        fail("invalid_input", "Provide only a text field of at most 4096 characters.", 2)
+    fail("not_implemented", "Implement __BLOCK_NAME__ before connecting this tool.", 1)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "coreai-microsoft/canvases-cloud-foundation",
+    "commit": "0b5ca6c5f98f1b695492699e596fdd4c3af48176",
+    "package": "@microsoft/canvas-toolkit",
+    "version": "0.1.0",
+    "published": false
+  },
+  "build": {
+    "node": "v24.22.1",
+    "npm": "11.19.1",
+    "esbuild": "0.25.12",
+    "lockSha256": "f059dd7f4058e725c6d3492b3e6d6dc1f4a1e5bc6bfeacbfbbc7cb19bd06203d",
+    "builderSha256": "c91beb7e23ffb0d0c040e4a6cdd7e33e601404d0fd71294f32ec981c3ae710cb",
+    "command": "npm ci --ignore-scripts --workspace=@microsoft/canvas-toolkit --include-workspace-root --no-audit --no-fund; buildToolkitUi(); prepareCanvasUiAssets(output)",
+    "repeatBuildVerified": true
+  },
+  "files": [
+    {
+      "route": "/canvas-ui/base.mjs",
+      "file": "ui/browser/base.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "de3ae25cb9eae2ecfbe67f7cf5fdb06e283f9d5c8385a4aaeb1e39ec1dffc1a8"
+    },
+    {
+      "route": "/canvas-ui/react-runtime.mjs",
+      "file": "ui/browser/react-runtime.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "838f484a9f589bf40486f9c79a0552784df0bba7ab9d8316764da030e661afca"
+    },
+    {
+      "route": "/canvas-ui/styles.css",
+      "file": "ui/styles.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "f4188ad417039a227b67e7787ed127cf90154f02ddc08d4784bb44d9c3afc534"
+    },
+    {
+      "route": "/canvas-ui/base.css",
+      "file": "ui/base.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "bc5c434a1dc8f297b75b8e26163edd24cba56f3d273fa0e3f6aace2495c22346"
+    },
+    {
+      "route": "/canvas-ui/visual-profiles.mjs",
+      "file": "ui/visual-profiles.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "2646c87f2f130fafd63635f482422af3475ed57922a8a707f8e65873d0b1fd79"
+    },
+    {
+      "route": "/canvas-ui/profiles/github-app.css",
+      "file": "ui/profiles/github-app.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "06185010c79026f67384ac8703c67cbf3f59b77bc7b759adc70cb9f1a3fcf7de"
+    },
+    {
+      "route": "/canvas-ui/hosts/github-app/design.md",
+      "file": "ui/hosts/github-app/design.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "647d57c51d13f4da00948df4a3bede7bdad26fc0b649c6310aa7ba3f6a61becf"
+    },
+    {
+      "route": "/canvas-ui/hosts/github-app/theming.md",
+      "file": "ui/hosts/github-app/theming.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "beb5c62b8edb5f5fe6caa11244e8da44287870495424b6e39f01834472410e73"
+    },
+    {
+      "route": "/canvas-ui/THIRD_PARTY_NOTICES.txt",
+      "file": "ui/browser/THIRD_PARTY_NOTICES.txt",
+      "contentType": "text/plain; charset=utf-8",
+      "sha256": "826d02d87439afbf3a28bb865be0b73a1b5190615b51a8d0b4917abaa2a5ff06"
+    },
+    {
+      "route": "/canvas-ui/LICENSE",
+      "file": "LICENSE",
+      "contentType": "text/plain; charset=utf-8",
+      "sha256": "d25deed12d803f6c973597348627b1939e2d19bbc28fda83c93ea0cde44702da"
+    }
+  ]
+}

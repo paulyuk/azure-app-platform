@@ -1,0 +1,12 @@
+[project]
+name = "docs-agent5-document-validation"
+version = "0.1.0"
+description = "process untrusted documents for a loan agent, redact PII and certify trust for downstream approval processing."
+requires-python = "==3.13.*"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,17 @@
+name: docs-agent5
+purpose: "process untrusted documents for a loan agent, redact PII and certify trust for downstream approval processing."
+capabilities:
+  agent:
+    path: src/agent
+    # Default only; scripts and Studio apply .azure-app-platform/ports.env when saved.
+    interface: http://localhost:8088
+    links: [sandbox, gateway]
+  sandbox:
+    path: src/tools/document-validation
+    # ACA_SANDBOX_GROUP selects microVMs; otherwise a local process, not OS isolation.
+    interface: subprocess
+    links: [agent]
+  gateway:
+    path: infra-ai-gateway
+    interface: configuration
+    links: [agent]

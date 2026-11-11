@@ -1,0 +1,34 @@
+# ACA CLI 1.0.0-preview.5: aca sandbox egress init / schema.
+# Exact hosts from egress-allowlist.json become rules only when
+# documentToolEgressEnabled is true. The default tool needs no outbound access.
+defaultAction: Deny
+trafficInspection: Full
+rules: []
+
+# Optional authenticated integration, after review and explicit enablement.
+# Add the exact host to allowedFqdns and replace rules: [] with a Transform.
+# The proxy resolves these references outside the microVM. Never use --env
+# or a literal header value for the upstream credential.
+#
+# rules:
+#   - name: reviewed-api-auth
+#     match:
+#       host: "__EGRESS_ALLOW_DOMAIN__"
+#       path: "/v1/*"
+#       methods: [GET, POST]
+#     action:
+#       type: Transform
+#       headers:
+#         - operation: Set
+#           name: Authorization
+#           valueRef:
+#             secretRef:
+#               secretId: reviewed-api
+#               secretKey: token
+#               format: "Bearer {value}"
+#
+# Alternative valueRef for a sandbox-group identity with upstream access:
+#             managedIdentityRef:
+#               type: SystemAssigned
+#               resource: "https://management.azure.com"
+#               format: "Bearer {value}"

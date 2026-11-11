@@ -1,0 +1,23 @@
+{
+  "name": "azure-app-platform",
+  "version": "0.5.0",
+  "type": "module",
+  "main": "extension.mjs",
+  "private": true,
+  "description": "Implementation inventory and navigation hub for Azure App Platform.",
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "vendor:syntax": "node scripts/build-syntax-vendor.mjs",
+    "vendor:icons": "node scripts/prepare-octicons.mjs",
+    "vendor:toolkit": "node scripts/prepare-toolkit-assets.mjs",
+    "check:toolkit": "node scripts/prepare-toolkit-assets.mjs --check"
+  },
+  "keywords": [
+    "azure-app-platform",
+    "aca-sandboxes",
+    "platform-discovery",
+    "app-map",
+    "copilot-canvas",
+    "cloud-foundation"
+  ]
+}

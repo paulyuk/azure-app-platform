@@ -1,0 +1,35 @@
+import { createServer } from "node:http";
+
+const agentUrl = process.env.AGENT_URL || "http://127.0.0.1:8088";
+const webPort = Number(process.env.WEB_PORT || 3000);
+const appNameHtml = __APP_NAME_HTML_JSON__;
+const purposeHtml = __PURPOSE_HTML_JSON__;
+const page = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>${appNameHtml}</title><style>
+body{max-width:720px;margin:64px auto;padding:0 20px;font:16px/1.5 system-ui}
+textarea,button{box-sizing:border-box;width:100%;padding:12px;margin-top:12px}
+pre{white-space:pre-wrap;background:#f6f8fa;padding:16px;border-radius:8px}
+</style></head><body><h1>${appNameHtml}</h1><p>${purposeHtml}</p>
+<textarea id="message" placeholder="Try the local agent boundary"></textarea>
+<button id="send">Send</button><pre id="result">Ready.</pre>
+<script>
+send.onclick=async()=>{result.textContent="Working…";const response=await fetch("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:message.value})});result.textContent=JSON.stringify(await response.json(),null,2)}
+</script></body></html>`;
+
+createServer(async (request, response) => {
+  if (request.method === "POST" && request.url === "/api/chat") {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const agent = await fetch(agentUrl + "/responses", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: Buffer.concat(chunks),
+    });
+    response.writeHead(agent.status, { "content-type": "application/json" });
+    response.end(await agent.text());
+    return;
+  }
+  response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  response.end(page);
+}).listen(webPort, "127.0.0.1");

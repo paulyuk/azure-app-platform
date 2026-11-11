@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "agentRuntime": "local",
+  "http": {
+    "host": "127.0.0.1",
+    "port": 8088,
+    "maxRequestBytes": 131072
+  },
+  "gateway": {
+    "baseUrlEnv": "AI_GATEWAY_BASE_URL",
+    "modelEnv": "AI_GATEWAY_MODEL",
+    "defaultModel": "gpt-5.6-sol",
+    "wireApi": "responses",
+    "chatCompletionsPath": "chat/completions",
+    "apiKeyEnv": "AI_GATEWAY_API_KEY",
+    "apiKeyHeader": "api-key",
+    "bearerTokenEnv": "AI_GATEWAY_BEARER_TOKEN",
+    "subscriptionKeyEnv": "AI_GATEWAY_SUBSCRIPTION_KEY",
+    "subscriptionKeyHeader": "Ocp-Apim-Subscription-Key",
+    "useAzureIdentityEnv": "AI_GATEWAY_USE_AZURE_IDENTITY",
+    "azureIdentityScope": "https://ai.azure.com/.default",
+    "allowAnonymous": false,
+    "maxOutputTokens": 4096,
+    "timeoutSeconds": 60
+  },
+  "documentTool": {
+    "localTimeoutSeconds": 10,
+    "aca": {
+      "poolManagementEndpointEnv": "DOCUMENT_TOOL_SESSION_POOL_ENDPOINT",
+      "route": "/process",
+      "apiVersion": "2025-02-02-preview",
+      "tokenScope": "https://dynamicsessions.io/.default",
+      "timeoutSeconds": 30
+    }
+  },
+  "copilotSdkSandbox": {
+    "poolManagementEndpointEnv": "COPILOT_AGENT_SESSION_POOL_ENDPOINT",
+    "route": "/invoke",
+    "apiVersion": "2025-02-02-preview",
+    "tokenScope": "https://dynamicsessions.io/.default",
+    "timeoutSeconds": 90
+  }
+}

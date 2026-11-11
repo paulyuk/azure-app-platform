@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="assemble-title assemble-description">
+  <title id="assemble-title">Assemble existing projects</title>
+  <desc id="assemble-description">A source project and resource component connect through separate ports into one app window.</desc>
+  <g id="assemble-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="280" y="104" width="168" height="296" rx="20"/>
+    <path d="M280 168h168M88 128l-24 24 24 24M128 128l24 24-24 24"/>
+    <rect x="64" y="296" width="96" height="88" rx="12"/>
+    <path d="M88 324h48M88 352h32"/>
+  </g>
+  <g id="assemble-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 136h40M320 224h88M320 264h64M320 304h88M160 152h40q24 0 24 24v36q0 12 12 12h32M160 340h108"/>
+  </g>
+  <g id="assemble-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect data-spot-part="port" x="268" y="212" width="24" height="24" rx="4"/>
+    <rect data-spot-part="port" x="268" y="328" width="24" height="24" rx="4"/>
+  </g>
+</svg>

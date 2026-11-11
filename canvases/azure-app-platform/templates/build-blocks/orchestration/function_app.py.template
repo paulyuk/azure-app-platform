@@ -1,0 +1,36 @@
+import json
+
+import azure.functions as func
+import azure.durable_functions as df
+
+app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+
+@app.route(route="__BLOCK_NAME__/start", methods=["POST"])
+@app.durable_client_input(client_name="client")
+async def start(request: func.HttpRequest, client: df.DurableOrchestrationClient) -> func.HttpResponse:
+    if len(request.get_body()) > 65536:
+        return func.HttpResponse("Request exceeds 64 KiB.", status_code=413)
+    try:
+        payload = request.get_json()
+    except ValueError:
+        return func.HttpResponse("Expected a JSON object.", status_code=400)
+    if not isinstance(payload, dict):
+        return func.HttpResponse("Expected a JSON object.", status_code=400)
+    # Do not schedule work that the starter cannot process.
+    return func.HttpResponse(
+        json.dumps({"error": "not_implemented", "message": "Implement the activity and explicitly enable scheduling."}),
+        status_code=501,
+        mimetype="application/json",
+    )
+
+
+@app.orchestration_trigger(context_name="context")
+def workflow(context: df.DurableOrchestrationContext):
+    result = yield context.call_activity("perform_operation", context.get_input())
+    return result
+
+
+@app.activity_trigger(input_name="payload")
+def perform_operation(payload: dict):
+    raise NotImplementedError("Implement idempotent __BLOCK_NAME__ work before starting this workflow.")

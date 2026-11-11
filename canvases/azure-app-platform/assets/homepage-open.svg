@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="open-title open-description">
+  <title id="open-title">Open an app</title>
+  <desc id="open-description">An existing app window in an open project folder, with a forward arrow to resume work.</desc>
+  <g id="open-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M80 304V204a20 20 0 0 1 20-20h52M176 248V104a16 16 0 0 1 16-16h192a16 16 0 0 1 16 16v112M176 144h224"/>
+    <path d="M304 408H104a24 24 0 0 1-24-24V272a24 24 0 0 1 24-24h108l32-32h164a24 24 0 0 1 24 24v56"/>
+  </g>
+  <g id="open-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M216 116h32M216 184h88"/>
+  </g>
+  <g id="open-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M328 356h104M396 320l36 36-36 36"/>
+  </g>
+</svg>

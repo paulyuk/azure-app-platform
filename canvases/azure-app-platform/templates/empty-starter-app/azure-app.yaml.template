@@ -1,0 +1,19 @@
+name: __APP_SLUG__
+purpose: "__PURPOSE_JSON__"
+capabilities:
+  web:
+    path: src/web
+    interface: http://localhost:3000
+    links: [agent]
+  agent:
+    path: src/agent
+    interface: http://localhost:8088
+    links: [gateway, skills]
+  gateway:
+    path: infra-ai-gateway
+    interface: configuration
+    links: [agent]
+  skills:
+    path: src/skills/__SKILL_NAME__
+    interface: http://localhost:7071
+    links: [agent]

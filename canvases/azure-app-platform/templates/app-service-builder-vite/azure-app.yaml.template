@@ -1,0 +1,7 @@
+name: __APP_SLUG__
+purpose: "__PURPOSE_JSON__"
+capabilities:
+  web:
+    path: .
+    interface: http://localhost:8080
+    links: []

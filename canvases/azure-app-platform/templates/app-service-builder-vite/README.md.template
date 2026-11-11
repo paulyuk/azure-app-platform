@@ -1,0 +1,52 @@
+# __APP_NAME__ — App Service Builder (Vite TypeScript Starter)
+
+__PURPOSE__
+
+Built from the [Azure-Samples/app-service-builder-vite](https://github.com/Azure-Samples/app-service-builder-vite) reference pattern and deployed as static assets with [App Service Builder](https://builder.appservice.azure.com/) (`microsoft/azure-app-service-builder`).
+
+## Static deployment contract (`builder.yaml`)
+
+`builder.yaml` sits at the repository root:
+
+```yaml
+components:
+  - name: site
+    role: static
+    platform: nodejs
+    platformVersion: "24"
+    output: dist
+```
+
+- Single static component named `site`; repository root is implicitly the source root.
+- Node.js 24 is the **build toolchain**, not a deployed runtime server.
+- Vite compiles TypeScript (`tsc --noEmit && vite build`) and outputs static assets to `dist/` (`dist/index.html`, `dist/assets/`, and `dist/health` copied from `public/health`).
+
+## Run locally
+
+### macOS / Linux
+
+```bash
+./scripts/dev-start.sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+./scripts/dev-start.ps1
+```
+
+Or run the Vite workflow directly:
+
+```bash
+npm install --ignore-scripts
+npm run build
+npm test
+npm run preview
+```
+
+## Hand off to App Service Builder Canvas or CLI
+
+- **App Service Builder Canvas**: Install the Builder plugin or release package from [microsoft/azure-app-service-builder Releases](https://github.com/microsoft/azure-app-service-builder/releases) (`copilot plugin marketplace add microsoft/azure-app-service-builder` and `copilot plugin install builder@azure-app-service-builder`), then run:
+  > Open App Service Builder canvas.
+- **Builder CLI**: Validate the manifest locally with `builder manifest validate` (see [getting-started.md](https://github.com/microsoft/azure-app-service-builder/blob/main/docs/getting-started.md)).
+- **Builder Portal**: Connect your repository root at <https://builder.appservice.azure.com/> and explicitly trigger a deployment.

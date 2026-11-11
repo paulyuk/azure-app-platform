@@ -1,0 +1,11 @@
+# __BLOCK_NAME__ egress
+
+Use deny-by-default outbound access when connecting this tool to an ACA Sandbox.
+Add only the destinations required by the implemented operation. Do not pass
+agent-host credentials, environment secrets, or host filesystem mounts.
+
+`egress-policy.yaml` contains the ACA policy with `defaultAction: Deny`,
+`trafficInspection: Full`, and optional proxy-side credential references.
+Apply it with `aca sandbox egress apply` and verify platform decisions with
+`aca sandbox egress decisions` before using untrusted input. The README lists
+the commands. The container image does not configure Azure networking.

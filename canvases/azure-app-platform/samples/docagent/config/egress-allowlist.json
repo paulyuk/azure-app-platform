@@ -1,0 +1,6 @@
+{
+  "allowedFqdns": [],
+  "defaultDeny": true,
+  "documentToolEgressEnabled": false,
+  "notes": "The document validation tool needs no network and must remain egress-disabled (default-deny). Add exact FQDNs here only after a threat-model review and set documentToolEgressEnabled to true to activate them; never use a wildcard. Authentication belongs in proxy Transform valueRef rules, not the sandbox environment. See src/tools/document-validation/egress-policy.md."
+}

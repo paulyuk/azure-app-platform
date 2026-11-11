@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="ready-title ready-description">
+  <title id="ready-title">Waiting for a task</title>
+  <desc id="ready-description">An empty inbox tray with an open receiving slot waits for a task. No task is running.</desc>
+  <g id="ready-subject" data-spot-role="outline" fill="none" stroke="#1f2328" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path data-spot-part="inbox" d="M104 136h304l40 144v72a24 24 0 0 1-24 24H88a24 24 0 0 1-24-24v-72l40-144ZM64 280h120M328 280h120"/>
+  </g>
+  <g id="ready-detail" data-spot-role="supporting-detail" fill="none" stroke="#59636e" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M144 192h224"/>
+  </g>
+  <g id="ready-accent" data-spot-role="accent" fill="none" stroke="#6b3fd6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path data-spot-part="receiving-slot" d="M184 280l24 32h96l24-32"/>
+  </g>
+</svg>

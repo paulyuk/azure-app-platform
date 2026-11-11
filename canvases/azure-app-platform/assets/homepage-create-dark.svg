@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="create-title create-description">
+  <title id="create-title">Create a new app</title>
+  <desc id="create-description">An app window with an empty component slot and a plus for adding a new app.</desc>
+  <g id="create-subject" data-spot-role="outline" fill="none" stroke="#edf0f5" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M288 392H104a24 24 0 0 1-24-24V128a24 24 0 0 1 24-24h280a24 24 0 0 1 24 24v144M80 168h328"/>
+  </g>
+  <g id="create-detail" data-spot-role="supporting-detail" fill="none" stroke="#b6becb" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M136 136h40M128 224h104M128 260h104M128 296h72"/>
+    <rect x="288" y="216" width="64" height="64" rx="8"/>
+    <path d="M320 280v16"/>
+  </g>
+  <g id="create-accent" data-spot-role="accent" fill="none" stroke="#c5a6ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M384 324v88M340 368h88"/>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+# __BLOCK_NAME__
+
+Describe the agent's purpose, permitted tools, and response format here.
+Do not claim a tool succeeded without checking its result.
+
+This instruction starter is not connected to a runtime. Choose a runtime,
+register the tools, and test the behavior before deploying.
