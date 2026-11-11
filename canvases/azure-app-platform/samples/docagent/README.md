@@ -19,8 +19,8 @@ This is the app used in the Azure App Platform demo. Start with the
 
 **The diagram shows the cloud pattern.** The quick start below runs the Python
 loan agent and document validation tool on your machine. Only the model is
-remote. It does not create Azure sandboxes, and a local child process is not a
-secure sandbox. See [runtime options](docs/demos/loan-application/HOW-IT-WORKS.md#which-runtime-actually-runs)
+remote unless an ACA Sandbox Group is configured. A local child process is not
+a secure sandbox. See [runtime options](docs/demos/loan-application/HOW-IT-WORKS.md#which-runtime-actually-runs)
 for the Azure Container Apps option.
 
 ## Try it locally
@@ -99,11 +99,70 @@ reported remediation, then rerun the stop command before starting again.
 | File types and size limits | [Tool contract](src/tools/document-validation/contract.json) |
 | Rules the tool and harness must follow | [Document policy](config/document-policy.json) |
 | Local or Azure runtime settings | [Runtime settings](config/runtime.json) |
+| Default-deny egress and optional proxy authentication | [Egress policy](config/egress-policy.yaml), [allowlist](config/egress-allowlist.json), and [policy notes](src/tools/document-validation/egress-policy.md) |
 
 In Azure App Platform, **Customize** groups read-only source previews by purpose.
 Use **Edit in Files** to change the actual file in the native Files canvas,
 or **Open in &lt;editor&gt;** for an external editor. Set the preferred external
 editor in **Settings**; VS Code is the default.
+
+## ACA Sandbox boundary
+
+With `ACA_SANDBOX_GROUP`, `ACA_RESOURCE_GROUP`, `ACA_REGION`, and
+`ACA_SUBSCRIPTION` configured on the harness, the normal start script uses the
+`aca` CLI to create a fresh document-tool microVM with
+`--egress-default Deny --traffic-inspection Full`, apply the reviewed policy,
+execute the tool, and delete the sandbox. Configure those variables with
+`export NAME="value"` on macOS/Linux or `$env:NAME = "value"` in PowerShell.
+A configured group without the CLI fails explicitly; it never silently
+downgrades to a local process.
+
+The microVM does not inherit the host's credentials. Do not explicitly inject
+them through images, files, inputs, or environment variables. Authenticated
+outbound APIs use the ACA Sandbox Egress Proxy's `Transform` rules with
+`valueRef.secretRef` or `valueRef.managedIdentityRef`, resolved and injected
+outside the microVM. The checked-in policy defaults to no outbound access.
+The current CLI uses ordered `rules`, not the legacy `hostRules` field.
+
+An egress test actually inspects the tool's environment and attempts a
+credential-free `HEAD` to the requested origin, with no document body, path,
+query, userinfo, authentication headers, or redirects. The harness polls ACA
+egress decisions before deletion. `sandboxProbe` reports up to 32 sorted
+environment names with a total count, credential-like variable counts,
+presence at five common credential locations, network outcome, matching
+decision counts, and a sanitized `acaDeniedDecision`. No values or file
+contents are read into the result. Inspection errors fail explicitly.
+DNS/TLS failures and upstream HTTP 403 remain unverified without a matching
+platform denial.
+
+The `[sandbox-env]`, `[sandbox-net]`, and `[sandbox-egress]` stderr records
+show the observations and correlated platform denial. In Canvas, expand the
+sandbox execution layer for **Outbound probe**, **Sandbox env keys**,
+**ACA matched rule**, and **Verify in code**. Start with
+`config/egress-policy.yaml`, `src/tools/document-validation/main.py`, and
+`src/agent/main.py`. The
+[pattern and validation guide](../../../../docs/sandbox-boundary-validation.md)
+maps every check to its source and verification commands.
+
+Every microVM run logs the applied egress policy, allowed/denied audit counts,
+verdict, reason, and redaction counts. `[sandbox-session]` records custom-pool
+dispatch and completion after `stopSession`, including cleanup success.
+Cleanup failures are logged without replacing the invocation outcome.
+`[http]` records one timed outcome per POST; GET readiness stays quiet.
+No tokens, query strings, document text, or raw upstream errors are logged.
+Local tool calls emit no invocation logs or replayed child diagnostics.
+
+Without ACA configured, the tool gets a minimal environment and a Python
+audit hook that denies socket/DNS access. That is a real process-local check,
+not OS or microVM isolation. Use synthetic data. A nonzero credential-like
+count, reachable unauthorized origin, or unverified ACA denial needs
+investigation even though the application rejects the request before a model
+call.
+
+Canvas boundary tests also work with customized documents and sandbox apps
+that accept no documents. Attached content is preserved; prompt-only/code
+apps stage the probe in the message instead. Selection never runs the test
+automatically, and Canvas highlights do not prove sandbox enforcement.
 
 ## What the checks don't prove
 

@@ -55,7 +55,10 @@ test("invocation progress and results retain separate availability facts", () =>
       assert.equal(status.state, requestState);
       assert.equal(status.title, title);
       assert.equal(status.agent, "Not ready");
-      if (requestState === "succeeded") assert.match(status.description, /not proof of safety or tool success/);
+      if (requestState === "succeeded") {
+        assert.match(status.description, /not proof of safety or tool success/);
+        assert.match(status.description, /Select View execution/);
+      }
     }
   }
 });

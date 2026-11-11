@@ -3,7 +3,8 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { installStudioAssetRoutes, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { installStudioAssetRoutes, openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { returnToRun } from "./run-settings-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -206,12 +207,14 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Hello dealer");
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".agent-response")?.textContent === "Hello from the agent");
-    assert.equal(await page.locator(".run-primary .agent-response").count(), 1);
+    assert.equal(await page.locator(".run-primary .agent-response").count(), 0);
+    assert.equal(await page.locator(".run-execution-view .agent-response").count(), 1);
     assert.equal(await page.locator('[data-run-panel="output"] .agent-response').count(), 0);
     assert.deepEqual(invocations[0], { root: graph.root, port: 8091, message: "Hello dealer" });
-    await page.locator(".run-tool-activity > summary").click();
-    await page.getByText("inventory_search · Call reported", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    assert.equal(await page.locator(".run-tool-activity").count(), 0);
+    assert.match(await page.locator('[data-layer="tool-0"]').textContent(), /inventory_search/);
+    await returnToRun(page);
+    await openStudioSettings(page);
     await page.getByRole("button", { name: "Pick available ports", exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Pick available ports", exact: true }).isDisabled(), true);
     await page.getByRole("button", { name: "Close settings" }).click();
@@ -224,7 +227,7 @@ test("Focused Run preserves setup, ports, output, operations, endpoints, invocat
     assert.equal(await page.locator(".command-record .command-code").first().evaluate((el) => getComputedStyle(el).fontSize), "12px");
     recovered = true;
     appState = "starting";
-    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Stop partial startup");
+    await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.getAttribute("aria-label") === "Stop partial startup");
     assert.equal(await page.locator("#app-status-badge").textContent(), "Partial startup");
     await page.locator("#header-runtime-action").click();
     await page.waitForFunction(() => document.querySelector("#header-runtime-action")?.textContent === "Run app");

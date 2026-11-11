@@ -10,6 +10,7 @@ import test from "node:test";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { inspectSpotArtwork } from "./spot-artwork-test-fixture.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let playwright;
@@ -246,9 +247,13 @@ test("packaged simple home preserves the three explicit journeys", {
           assert.equal(await page.locator(".studio-welcome-brand").count(), 0);
           assert.equal(await page.getByRole("button", { name: "App home", exact: true }).isVisible(), true,
             await page.locator(".studio-site-nav").evaluate(element => element.outerHTML));
-          assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true,
-            await page.locator(".studio-site-nav").evaluate(element => element.outerHTML));
-          assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
+          if (baseline) {
+            assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).isVisible(), true);
+            assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).isVisible(), true);
+          } else {
+            assert.equal(await page.getByRole("button", { name: "More options", exact: true }).isVisible(), true);
+            assert.equal(await page.getByRole("menuitem", { name: "Docs", exact: true }).count(), 0);
+          }
           if (!baseline) assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
           if (!baseline) {
             assert.equal(await page.getByRole("heading", { name: "What would you like to do?", exact: true }).count(), 1);
@@ -605,7 +610,7 @@ test("packaged simple home preserves the three explicit journeys", {
           assert.equal(await page.evaluate(() => window.originalHome === document.querySelector("#studio-home .ct-provider")
             && window.originalCreate === document.activeElement), true, "Host theme changes preserve roots and focus");
         }
-        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await openStudioSettings(page);
         await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("dark");
         await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
         await expectArtwork("dark");
@@ -624,19 +629,22 @@ test("packaged simple home preserves the three explicit journeys", {
           await page.screenshot({ path: join(output, `${label}.png`), fullPage: true });
           captures.push({ label, synthetic: true, screenshotSha256: hash(await readFile(join(output, `${label}.png`))) });
         }
-        await page.getByRole("button", { name: "Settings", exact: true }).focus();
+        await page.getByRole("button", { name: "More options", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await page.getByRole("menuitem", { name: "Settings", exact: true }).focus();
         await page.keyboard.press("Enter");
         await page.getByRole("dialog", { name: "Settings", exact: true }).waitFor();
         await page.keyboard.press("Escape");
-        assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate(element => element === document.activeElement), true);
-        const docs = page.getByRole("link", { name: "Docs", exact: true });
-        assert.equal(await docs.getAttribute("href"), "https://github.com/coreai-microsoft/azure-app-platform/tree/main/canvases/azure-app-platform#readme");
+        assert.equal(await page.getByRole("button", { name: "More options", exact: true }).evaluate(element => element === document.activeElement), true);
+        await page.keyboard.press("Enter");
+        const docs = page.getByRole("menuitem", { name: "Docs", exact: true });
         await page.context().route("https://github.com/**", route => route.fulfill({ contentType: "text/html", body: "<h1>Synthetic Docs destination</h1>" }));
         const popupReady = page.waitForEvent("popup");
         await docs.focus();
         await page.keyboard.press("Enter");
         const popup = await popupReady;
         await popup.getByRole("heading", { name: "Synthetic Docs destination" }).waitFor();
+        assert.equal(popup.url(), "https://github.com/coreai-microsoft/azure-app-platform/tree/main/canvases/azure-app-platform#readme");
         await popup.close();
         await page.context().unroute("https://github.com/**");
         const search = page.getByRole("searchbox", { name: "Find a recent app" });

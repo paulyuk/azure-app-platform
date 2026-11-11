@@ -311,6 +311,24 @@ test("repository discovery classifies candidates from evidence and skips secrets
   });
 });
 
+test("sandbox discovery recognizes actual YAML policies without a phantom app-config project", async () => {
+  await withFixture({
+    "azure-app.yaml": "capabilities:\n  sandbox:\n    path: tools/calculator\n",
+    "tools/calculator/pyproject.toml": '[project]\nname = "calculator"\nversion = "0.1.0"\n',
+    "tools/calculator/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
+    "config/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
+  }, async root => {
+    const discovery = await discoverRepository(root);
+    const sandboxes = discovery.candidates.filter(candidate => candidate.tierId === "sandbox");
+    assert.equal(sandboxes.length, 1);
+    assert.equal(sandboxes[0].projectPath, "tools/calculator");
+    assert.ok(sandboxes[0].evidence.some(item => item.path === "tools/calculator/egress-policy.yaml" && item.rule === "sandbox-boundary"));
+    await rm(join(root, "azure-app.yaml"));
+    const inferred = (await discoverRepository(root)).candidates.filter(candidate => candidate.tierId === "sandbox");
+    assert.deepEqual(inferred.map(candidate => candidate.projectPath), ["tools/calculator"]);
+  });
+});
+
 test("browser snapshots and runtime output cannot create phantom components or disconnect the request flow", async () => {
   await withFixture(GENERIC_APP, async (root) => {
     const before = await traceApp({ root });
@@ -989,6 +1007,10 @@ test("sandbox & gateway minimal materializer creates a headless agent + sandbox 
     assert.equal(await readFile(join(root, "src", "tools", "document-validation", "main.py"), "utf8").then(() => true), true);
     const egressConfig = JSON.parse(await readFile(join(root, "config", "egress-allowlist.json"), "utf8"));
     assert.deepEqual(egressConfig.allowedFqdns, []);
+    assert.match(
+      await readFile(join(root, "config", "egress-policy.yaml"), "utf8"),
+      /^defaultAction: Deny\ntrafficInspection: Full\nrules: \[\]$/m,
+    );
     assert.match(
       await readFile(join(root, "src", "tools", "document-validation", "egress-policy.md"), "utf8"),
       /api\.lender\.example\.com/,
@@ -2196,6 +2218,66 @@ app = create_function_app()
       false,
     );
   });
+});
+
+test("Command output renders turn dividers, red error badges, Clear button, and bottom scroll", async () => {
+  const { createRequire } = await import("node:module");
+  const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
+  let chromium;
+  try {
+    ({ chromium } = requireWeb("playwright"));
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND") return;
+    throw error;
+  }
+  const { createRunSettingsFixture } = await import("./run-settings-test-fixture.mjs");
+  const fixture = await createRunSettingsFixture();
+  fixture.state.lines = [
+    "[startup] Starting local services",
+    "[sandbox] Creating ephemeral microVM",
+    "[http] POST /invoke -> HTTP 200",
+    "[sandbox] Creating ephemeral microVM",
+    "[egress] host=httpbin.org status=422 verdict=rejected denied=1 reason=domain_not_allowed",
+  ];
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 820, height: 760 } });
+    let cleared = false;
+    await page.route("**/api/app-output/clear", async (route) => {
+      cleared = true;
+      fixture.state.lines = [];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, clearedCount: 5 }),
+      });
+    });
+    await page.goto(fixture.origin + "/app-map");
+    await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+    await page.locator("#run-diagnostics-toggle").click();
+    const output = page.locator("[data-runtime-output]");
+    await output.waitFor({ state: "visible" });
+    await page.waitForFunction(() => document.querySelector("[data-runtime-output]")?.textContent?.includes("status=422"));
+
+    const errorLines = await output.locator(".command-output-line.is-error").count();
+    assert.equal(errorLines, 1);
+    const errorTokens = await output.locator(".command-output-error-token").allTextContents();
+    assert.deepEqual(errorTokens, ["status=422", "verdict=rejected", "denied=1", "reason=domain_not_allowed"]);
+
+    const turnDividers = await output.locator(".command-output-line.is-turn-start").count();
+    assert.equal(turnDividers, 2);
+
+    const clearBtn = page.locator('[data-clear-output="true"]');
+    assert.equal(await clearBtn.isVisible(), true);
+    await clearBtn.click();
+    assert.equal(cleared, true);
+    await page.waitForFunction(() =>
+      document.querySelector("[data-runtime-output]")?.textContent?.includes("Command output cleared.")
+    );
+  } finally {
+    await browser.close();
+    await fixture.close();
+  }
 });
 
 test("Windows command launcher normalizes Path/PATH and wraps .cmd binaries via cmd.exe", async () => {

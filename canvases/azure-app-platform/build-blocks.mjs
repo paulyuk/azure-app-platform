@@ -26,7 +26,7 @@ export const BUILD_BLOCK_TEMPLATES = Object.freeze([
     description: "An HTTP-started Durable Functions workflow with an intentionally unimplemented activity. Configure storage and implement the operation.",
     entry: "function_app.py", source: "build-blocks/orchestration", authoringSkill: "azure-app-platform-block-authoring" },
   { id: "sandbox", name: "Sandbox - Isolated tool execution", tierId: "sandbox", projectPath: "src/sandboxes/{name}",
-    description: "A bounded tool contract, Python entry point, container, and egress-policy guidance. Implement the operation and connect an ACA Sandbox separately.",
+    description: "A bounded tool contract, Python entry point, container, and ACA egress policy. Implement the operation and connect an ACA Sandbox separately.",
     entry: "main.py", source: "build-blocks/sandbox", authoringSkill: "azure-app-platform-block-authoring" },
   { id: "operations", name: "Operations - Observability / SRE Agent", tierId: "sre", projectPath: "src/operations/{name}",
     description: "An operations runbook and SRE configuration starter. No monitoring, permissions, remediation, or Azure agent is created.",

@@ -4,8 +4,8 @@ import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
+import { openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -23,7 +23,7 @@ for (const [engine, browserType] of [["chromium", chromium], ["webkit", webkit]]
       page.on("pageerror", error => errors.push(error.message));
       await installToolkitRoutes(page);
       await page.goto(fixture.origin + "/app-map");
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       const settings = page.getByRole("dialog", { name: "Settings", exact: true });
       await settings.locator("[data-settings-navigation]").selectOption("general");
       await settings.getByRole("button", { name: "Rename app", exact: true }).waitFor();
@@ -183,7 +183,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     await selectWorkspace(page, "manage-app");
     const message = page.getByRole("textbox", { name: "Agent message", exact: true });
     await message.fill("Find an SUV under $35,000.");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openStudioSettings(page);
     const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
     await dialog.waitFor();
     assert.equal(fixture.mutations.length, 0);
@@ -227,11 +227,11 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
       "Reopening a setting uses current lifecycle state");
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "hidden" });
-    assert.equal(await page.getByRole("button", { name: "Settings", exact: true }).evaluate((el) => el === document.activeElement), true);
+    assert.equal(await page.getByRole("button", { name: "More options", exact: true }).evaluate((el) => el === document.activeElement), true);
     assert.equal(await message.inputValue(), "Find an SUV under $35,000.");
     fixture.state.app = "stopped";
     await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openStudioSettings(page);
     await dialog.locator('[data-settings-target="danger"]').click();
     await dialog.getByRole("button", { name: "Delete local app..." }).click();
     assert.equal(fixture.mutations.filter((item) => item.path === "/api/delete-app").length, 0);
@@ -244,7 +244,7 @@ test("Settings retain scope, focus, appearance rollback, lifecycle gates and rev
     const deletion = fixture.mutations.filter((item) => item.path === "/api/delete-app");
     assert.deepEqual(deletion.map((item) => item.body), [{ root: "/fixture/dealer", confirmed: true }]);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openStudioSettings(page);
     assert.equal(await page.getByRole("alertdialog").count(), 0, "Closing resets deletion review");
     for (const [width, height] of [[380, 640], [620, 780], [1440, 900]]) {
       await page.setViewportSize({ width, height });
@@ -353,8 +353,9 @@ test("Run tabs preserve editing state, expose hidden failures, and retain output
     assert.equal(await message.inputValue(), "Find an SUV.");
     await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
     await page.locator(".agent-response").filter({ hasText: "three vehicles" }).waitFor();
-    await page.locator('[data-run-disclosure="tool-activity"] > summary').click();
-    await page.getByText("inventory_search · Call reported", { exact: true }).waitFor();
+    assert.equal(await page.locator('[data-run-disclosure="tool-activity"]').count(), 0);
+    assert.match(await page.locator('[data-layer="tool-0"]').textContent(), /inventory_search/);
+    await returnToRun(page);
     await deploy.click();
     await page.getByRole("button", { name: "Set up Azure resources" }).click();
     await page.waitForFunction(() => document.querySelector("#app-status-badge").textContent.includes("Provisioning"));
@@ -404,7 +405,7 @@ test("Run tabs are single-panel, responsive, themed, and support roving keyboard
     assert.equal(await runTabs.locator(".studio-tab-icon").evaluateAll((icons) =>
       icons.every((icon) => getComputedStyle(icon).webkitMaskImage !== "none")), true);
     for (const theme of ["light", "dark"]) {
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
       await dialog.getByRole("combobox", { name: "Appearance" }).selectOption(theme);
       await page.waitForFunction((value) => document.documentElement.dataset.studioTheme === value, theme);

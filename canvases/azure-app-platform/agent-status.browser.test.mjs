@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -221,8 +221,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await eventTriggerSelect.isVisible(), true);
       assert.equal(await page.locator("button.event-preset-chip").count(), 0);
       await eventTriggerSelect.selectOption("loan.document.submitted");
-      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
-      const document = page.getByLabel("Document text", { exact: true });
+      const prompt = page.locator('textarea[aria-label="Agent message"]');
+      const document = page.locator('textarea[aria-label="Document text"]');
       const notice = page.locator("[data-document-test-notice] .ct-message");
       await notice.filter({ hasText: "Added the loan.document.submitted event prompt and attached sample document sample-loan-note.md" }).waitFor();
       assert.equal(await notice.getAttribute("data-intent"), "info");
@@ -246,6 +246,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await notice.filter({ hasText: "Added sample document sample-loan-note.md" }).waitFor();
       const payload = await prompt.inputValue(), documentText = await document.inputValue();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="invoking"]').waitFor();
       assert.deepEqual(await page.evaluate(() => {
         const button = document.querySelector("[data-invoke-agent]");
@@ -259,6 +260,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           buttonSpin: buttonRing ? getComputedStyle(buttonRing).animationName : "",
           buttonColorMatches: Boolean(button && buttonRing && getComputedStyle(buttonRing).borderTopColor === getComputedStyle(button).color),
           statusSpinnerCount: document.querySelectorAll(".agent-status-brief .agent-status-spinner").length,
+          statusSpin: getComputedStyle(statusIcon.querySelector(".ct-spinner-ring")).animationName,
           statusIconTimer: decodeURIComponent(iconMask).includes('data-octicon="stopwatch"'),
           statusColorMatches: Boolean(heading && statusIcon && getComputedStyle(statusIcon).backgroundColor === getComputedStyle(heading).color),
         };
@@ -267,8 +269,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         buttonInvoking: "true",
         buttonSpin: "ct-spin",
         buttonColorMatches: true,
-        statusSpinnerCount: 0,
-        statusIconTimer: true,
+        statusSpinnerCount: 1,
+        statusSpin: "ct-spin",
+        statusIconTimer: false,
         statusColorMatches: true,
       });
       assert.equal(await prompt.isDisabled(), true);
@@ -292,12 +295,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       });
       assert.match(await status.innerText(), /Not ready/);
       assert.match(await status.innerText(), /not proof of safety/);
+      await page.locator("[data-view-execution]").click();
       const raw = page.locator('[data-run-disclosure="raw-response"]');
+      assert.equal(await raw.evaluate(node => node.open), false);
       await raw.locator("summary").click();
+      assert.equal(await raw.evaluate(node => node.open), true);
       assert.match(await raw.innerText(), /response-only/);
-      await page.locator('[data-run-disclosure="tool-activity"]').locator("summary").click();
-      assert.match(await page.locator('[data-run-disclosure="tool-activity"]').innerText(), /inventory_search.*Call reported/);
-      await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      assert.equal(await page.locator('[data-run-disclosure="tool-activity"]').count(), 0);
+      assert.match(await page.locator('[data-layer="tool-0"]').innerText(), /inventory_search[\s\S]*Call reported/);
+      await page.locator('[data-document-assessment][data-state="approved"]').waitFor({ state: "attached" });
+      await returnToRun(page);
       await prompt.focus();
       await prompt.evaluate(node => node.setSelectionRange(6, 12));
       fixture.state.health = "Polled health update";
@@ -306,20 +313,26 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await raw.evaluate(node => node.open), true);
       assert.equal(await document.inputValue(), documentText);
       const result = page.getByRole("region", { name: "Agent response", exact: true });
+      await page.locator("[data-view-execution]").click();
       await result.focus();
-      await result.evaluate(node => { node.scrollTop = 90; });
+      const executionBody = page.locator(".run-execution-body");
+      await executionBody.evaluate(node => { node.scrollTop = 90; });
       fixture.state.health = "Result focus polling update";
       await page.waitForFunction(() => document.querySelector("#run-panel-services")?.textContent.includes("Result focus polling update"));
-      assert.deepEqual(await result.evaluate(node => [node === globalThis.document.activeElement, node.scrollTop]), [true, 90]);
+      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true);
+      assert.equal(await executionBody.evaluate(node => node.scrollTop), 90);
+      await returnToRun(page);
       await page.locator("#map-app").click();
       await page.locator("#manage-app").click();
+      await page.locator("[data-view-execution]").click();
       await raw.waitFor();
       assert.equal(await raw.evaluate(node => node.open), true);
       assert.equal(await prompt.inputValue(), payload);
       assert.deepEqual(await prompt.evaluate(node => [node.selectionStart, node.selectionEnd]), [6, 12]);
       assert.match(await raw.innerText(), /response-only/);
       assert.match(await page.locator(".agent-response").innerText(), /Task output/);
-      assert.equal(await result.evaluate(node => node.scrollTop), 90);
+      assert.equal(await executionBody.evaluate(node => node.scrollTop), 90);
+      await returnToRun(page);
       available = true;
       fixture.state.app = "running";
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Endpoint available"));
@@ -335,14 +348,16 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#status").evaluate(node => node.classList.contains("visually-hidden")), true,
         "Failed task execution must not render duplicate error text above the Status Brief.");
       assert.match(await page.locator(".agent-response").innerText(), /simulated upstream timeout/);
-      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true,
-        "A temporarily disabled invocation action keeps focus in its result, not the page body.");
+      await returnToRun(page);
+      const executionLink = page.locator("[data-view-execution]");
+      assert.equal(await executionLink.evaluate(node => node === globalThis.document.activeElement), true,
+        "Returning to Run focuses the action that reopens the execution.");
       assert.equal(await raw.count(), 0, "A failed retry must not present a previous run's raw output.");
-      assert.doesNotMatch(await page.locator('[data-run-disclosure="tool-activity"]').innerText(), /inventory_search/);
+      assert.equal(await page.locator('[data-layer^="tool-"]').count(), 0);
       fixture.state.app = "stopping";
       available = false;
       await page.waitForFunction(() => document.querySelector(".agent-status-facts")?.textContent.includes("Stopping"));
-      assert.equal(await result.evaluate(node => node === globalThis.document.activeElement), true);
+      assert.equal(await executionLink.evaluate(node => node === globalThis.document.activeElement), true);
       await page.locator("#map-app").click();
       await page.locator("#manage-app").click();
       await page.locator('.agent-status-brief[data-state="stopping"]').waitFor();
@@ -409,6 +424,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         return node && node.dataset.typing === "true" && node.value.length > 0;
       });
       await invoke.click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
       assert.match(requests.at(-1).message, /^Event \[applicant\.intake\.received\].*missing borrower attestations\.$/);
       assert.equal(await prompt.inputValue(), requests.at(-1).message);
@@ -432,10 +448,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
   }, async () => {
     const fixture = await createRunSettingsFixture();
     const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
-    let release, recovered = false, holdStop = true;
+    let page, release, recovered = false, holdStop = true;
     const operations = [];
     try {
-      const page = await browser.newPage({ viewport: { width: 620, height: 800 } });
+      page = await browser.newPage({ viewport: { width: 620, height: 800 } });
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
@@ -467,7 +483,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const checkPlacement = async () => {
         assert.equal(await action.locator('svg[data-octicon="play"]').count(),
           await action.getAttribute("data-operation") === "run-local" ? 1 : 0);
-        assert.equal(await action.getAttribute("aria-label"), await action.innerText());
+        const stopping = await action.getAttribute("data-operation") === "stop-local"
+          || await action.getAttribute("aria-label") === "Stopping…";
+        assert.equal(await action.innerText(), stopping ? "" : await action.getAttribute("aria-label"));
+        assert.equal(await action.getAttribute("title"), await action.getAttribute("aria-label"));
+        assert.equal(await action.locator('svg[data-octicon="square"]').count(), stopping ? 1 : 0);
         if (await action.getAttribute("data-operation") === "run-local") {
           const icon = action.locator('svg[data-octicon="play"]');
           assert.equal(await icon.getAttribute("aria-hidden"), "true");
@@ -476,7 +496,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok(await icon.locator("path").getAttribute("d"));
           assert.equal(await icon.evaluate(node => getComputedStyle(node).stroke), "none");
         }
-        for (const width of [320, 380, 620, 680, 681, 800, 1280]) {
+        for (const width of [320, 380, 620, 680, 681, 800, 920, 1280]) {
           await page.setViewportSize({ width, height: 480 });
           for (const theme of ["light", "dark"]) {
             await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
@@ -486,13 +506,28 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
               const first = document.querySelector("#build-workspace").getBoundingClientRect();
               const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+              const peers = [...document.querySelectorAll("#workspace-runtime-actions button")]
+                .filter(peer => peer !== node && peer.checkVisibility());
+              const next = peers[0];
+              const stopIcon = node.querySelector('[data-octicon="square"]');
+              const colorReference = document.createElement("span");
+              colorReference.style.color = "var(--studio-danger)";
+              document.body.append(colorReference);
+              const dangerColor = getComputedStyle(colorReference).color;
+              colorReference.remove();
+              const group = document.querySelector("#workspace-runtime-actions").getBoundingClientRect();
               const brief = document.querySelector(".agent-status-brief").getBoundingClientRect();
               const style = getComputedStyle(node);
               return {
                 sameRow: Math.abs(button.top - first.top) <= 1,
                 belowMenu: button.top >= menu.bottom + 4,
-                actionsTogether: Math.abs(button.top - logs.top) <= 1 && button.right < logs.left,
-                rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
+                actionsTogether: Math.abs(button.top - logs.top) <= 1
+                  && (node.closest("#workspace-runtime-actions")
+                    ? Math.abs(button.right - next.getBoundingClientRect().left) <= 1 : button.right < logs.left),
+                stopLeading: document.querySelector("#workspace-runtime-actions button") === node,
+                stopDivided: getComputedStyle(next).borderInlineStartWidth === "1px",
+                stopColor: stopIcon ? getComputedStyle(stopIcon).color : null, dangerColor,
+                rightAligned: Math.abs(group.right - (bar.right - 12)) <= 1,
                 briefLeftAligned: Math.abs(brief.left - menu.left) <= 1,
                 briefCentered: brief.width <= 960 && Math.abs(brief.left - menu.left) > 1,
                 separated: button.left >= menu.right + 7,
@@ -510,10 +545,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               geometry.actionsTogether && geometry.rightAligned &&
               (width <= 960 ? geometry.briefLeftAligned : geometry.briefCentered) &&
               geometry.fits && geometry.taskHeight > 150, JSON.stringify({ width, theme, geometry }));
+            const isStop = geometry.operation === "stop-local" || stopping;
+            if (isStop) {
+              assert.equal(geometry.stopLeading, true);
+              assert.equal(geometry.stopDivided, true);
+              assert.equal(geometry.stopColor, geometry.dangerColor);
+            }
             assert.deepEqual([geometry.toolkit, geometry.size, geometry.height, geometry.padding],
-              [true, "small", 28, "3px 8px"]);
-            const isStop = geometry.operation === "stop-local";
-            assert.equal(geometry.appearance, isStop ? "secondary" : "primary");
+              [true, "small", 28, isStop ? "0px" : "3px 8px"]);
+            assert.equal(geometry.appearance, isStop ? "subtle" : "primary");
             assert.equal(geometry.invokeAppearance, geometry.isPlaying ? "primary" : "secondary");
             if (!isStop) assert.equal(geometry.prominent, true);
           }
@@ -523,23 +563,46 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.match(await page.getByRole("region", { name: "Status Brief", exact: true }).innerText(), /Running locally/);
       assert.equal(await page.getByRole("button", { name: "Stop app", exact: true }).count(), 1);
-      assert.equal(await action.innerText(), "Stop app");
+      assert.equal(await action.innerText(), "");
       assert.equal(await page.locator("[data-task-runtime-action],[data-task-start-app]").count(), 0);
       assert.deepEqual(await page.locator(".agent-task-actions button").allTextContents(), ["Invoke agent"]);
       await checkPlacement();
-      await page.locator("#deploy-workspace").focus();
-      await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
-      assert.equal(await action.evaluate(node => node === document.activeElement), true);
+      for (const width of [380, 920]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          await page.locator("#deploy-workspace").focus();
+          for (const id of ["header-runtime-action", "header-open-app", "run-diagnostics-toggle"]) {
+            await page.keyboard.press(name === "WebKit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+            const button = page.locator("#" + id);
+            assert.equal(await button.evaluate(node => node === document.activeElement), true);
+            const focus = await button.evaluate(node => {
+              const style = getComputedStyle(node);
+              return [node.matches(":focus-visible"), style.outlineStyle, style.outlineWidth,
+                getComputedStyle(node.closest("#workspace-runtime-actions")).overflow];
+            });
+            assert.deepEqual(focus, [true, "solid", "2px", "visible"]);
+            const background = await button.evaluate(node => getComputedStyle(node).backgroundColor);
+            await button.hover();
+            assert.notEqual(await button.evaluate(node => getComputedStyle(node).backgroundColor), background);
+            await page.mouse.move(0, 0);
+          }
+        }
+      }
+      await action.focus();
+      await page.waitForResponse(response => new URL(response.url()).pathname === "/api/app-status");
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+      assert.equal(await action.evaluate(node => node === document.activeElement), true, "Polling retains runtime keyboard focus.");
       await page.locator("#map-app").click();
-      assert.equal(await action.innerText(), "Stop app");
+      assert.equal(await action.getAttribute("aria-label"), "Stop app");
       assert.equal(await page.locator("dialog[open]").count(), 0);
       assert.deepEqual(operations, [], "Navigation alone never starts or stops the app.");
       await action.focus();
       await page.keyboard.press("Enter");
       await page.locator('.agent-status-facts').filter({ hasText: "Stopping" }).waitFor();
-      assert.equal(await action.innerText(), "Stopping…");
+      assert.equal(await action.getAttribute("aria-label"), "Stopping…");
       assert.equal(await action.isDisabled(), true);
-      assert.equal(await action.getAttribute("data-appearance"), "secondary");
+      assert.equal(await action.getAttribute("data-appearance"), "subtle");
       assert.equal(await invoke.isDisabled(), true);
       release();
       holdStop = false;
@@ -554,13 +617,19 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.getByRole("button", { name: "Run app", exact: true }).count(), 1);
       await page.locator("#manage-app").click();
       await action.evaluate(node => { window.retainedRuntimeAction = node; });
-      await action.click();
+      await action.focus();
+      await action.press("Enter");
       await page.getByRole("button", { name: "Cancel startup", exact: true }).waitFor();
+      assert.equal(await action.evaluate(node => node === document.activeElement), true, "Starting retains focus as the action joins the icon group.");
+      assert.equal(await invoke.isDisabled(), true);
+      const startupRing = page.locator('.agent-status-brief[data-state="starting"] .agent-status-spinner .ct-spinner-ring');
+      assert.equal(await startupRing.evaluate(node => getComputedStyle(node).animationName), "ct-spin");
+      assert.equal(await prompt.inputValue(), "Retain this event while controlling the app.");
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(operations.at(-1).operation, "run-local");
       await checkPlacement();
       recovered = true;
-      await action.filter({ hasText: "Stop partial startup" }).waitFor();
+      await page.locator('#header-runtime-action[aria-label="Stop partial startup"]').waitFor();
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
       await checkPlacement();
       await action.click();
@@ -569,7 +638,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       fixture.state.app = "running";
       await page.locator('.agent-status-brief[data-state="preview"]').waitFor();
       assert.equal(await page.locator("#app-status-badge").isVisible(), true);
-      assert.equal(await action.innerText(), "Stop preview");
+      assert.equal(await action.getAttribute("aria-label"), "Stop preview");
       await action.click();
       await action.filter({ hasText: "Run preview" }).waitFor();
       assert.deepEqual(operations, ["stop-local", "run-local", "stop-local", "stop-local"]
@@ -592,7 +661,88 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await action.getAttribute("data-appearance"), "primary");
       assert.equal(await action.evaluate(node => node === window.retainedRuntimeAction), true);
       assert.deepEqual(errors, []);
-    } finally { release?.(); await browser.close(); await fixture.close(); }
+    } finally {
+      release?.();
+      await page?.unrouteAll({ behavior: "wait" });
+      await browser.close();
+      await fixture.close();
+    }
+  });
+
+  test(`Startup disables duplicate invocation and retains cancellation, failure and retry in ${name}`, {
+    skip: !engine && "Install src/web dependencies to run browser coverage.",
+  }, async () => {
+    const fixture = await createRunSettingsFixture();
+    fixture.state.app = "stopped";
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    const operations = [], requests = [], errors = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+      page.setDefaultTimeout(10000);
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/app-command", route => {
+        const { operation } = route.request().postDataJSON();
+        operations.push(operation);
+        fixture.state.app = operation === "run-local" ? "starting" : "stopped";
+        fixture.state.error = "";
+        return route.fulfill({ json: { outcome: "command-started" } });
+      });
+      await page.route("**/api/agent-invoke", route => {
+        requests.push(route.request().postDataJSON());
+        return route.fulfill({ json: { response: { output_text: "Retry completed." },
+          summary: { text: "Retry completed.", tools: [] } } });
+      });
+      await page.goto(fixture.origin + "/app-map");
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      const invoke = page.locator("[data-invoke-agent]");
+      const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
+      await prompt.fill("Retain this task through cancelled startup.");
+      await invoke.click();
+      await returnToRun(page);
+      await page.locator('#header-runtime-action[aria-label="Cancel startup"]').waitFor();
+      assert.equal(await invoke.isDisabled(), true);
+      await invoke.dispatchEvent("click");
+      assert.deepEqual(operations, ["run-local"], "One-click Invoke starts once; duplicate activation does not start again.");
+      assert.deepEqual(requests, [], "Startup does not dispatch before the agent is ready.");
+      await page.locator("#header-runtime-action").click();
+      await page.locator('.agent-response[data-state="failed"]').waitFor({ state: "attached" });
+      await page.locator('.agent-status-brief[data-state="stopped"]').waitFor();
+      assert.equal(await invoke.isDisabled(), false);
+      assert.equal(await prompt.inputValue(), "Retain this task through cancelled startup.");
+      assert.deepEqual(operations, ["run-local", "stop-local"]);
+      assert.deepEqual(requests, []);
+      await invoke.click();
+      await returnToRun(page);
+      await page.locator('#header-runtime-action[aria-label="Cancel startup"]').waitFor();
+      fixture.state.app = "failed";
+      fixture.state.error = "Agent could not start.";
+      await page.locator('.agent-response[data-state="failed"]').waitFor({ state: "attached" });
+      await page.locator('.agent-status-brief[data-state="runtime-failed"]').waitFor();
+      assert.equal(await invoke.isDisabled(), false);
+      assert.equal(await prompt.inputValue(), "Retain this task through cancelled startup.");
+      await page.getByRole("button", { name: "Retry startup", exact: true }).click();
+      await page.locator('.agent-status-brief[data-state="starting"]').waitFor();
+      assert.equal(await invoke.isDisabled(), true);
+      for (const width of [380, 920]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const theme of ["light", "dark"]) {
+          await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+          await page.emulateMedia({ reducedMotion: "reduce" });
+          const ring = page.locator(".agent-status-spinner .ct-spinner-ring");
+          assert.equal(await ring.evaluate(node => getComputedStyle(node).animationName), "ct-spin");
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        }
+      }
+      fixture.state.app = "running";
+      await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+      assert.equal(await invoke.isDisabled(), false);
+      await invoke.click();
+      await page.locator('.agent-response[data-state="succeeded"]').waitFor();
+      assert.deepEqual(operations, ["run-local", "stop-local", "run-local", "run-local"]);
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].message, "Retain this task through cancelled startup.");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); await fixture.close(); }
   });
 
   test(`Status Brief groups truthful summary and divided fact cells without compact overflow in ${name}`, {
@@ -729,7 +879,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.waitForFunction(value => document.querySelector("#app-status-badge").textContent === value, label);
         assert.equal(await badge.getAttribute("data-color"), color);
         assert.equal(await page.locator("#header-runtime-action").getAttribute("data-appearance"),
-          ["running", "starting", "stopping"].includes(state) ? "secondary" : "primary");
+          ["running", "starting", "stopping"].includes(state) ? "subtle" : "primary");
         assert.equal(await badge.getAttribute("aria-live"), "polite");
         assert.match(await page.locator("#app-status-control").getAttribute("aria-label"), new RegExp(label));
         for (const width of [320, 380, 620, 1280]) {

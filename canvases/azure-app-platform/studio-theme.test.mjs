@@ -33,7 +33,8 @@ test("home and map render explicit initial preference with shared settings and a
     ]) {
       assert.match(html, new RegExp(`data-studio-theme="${theme}"`));
       assert.match(html, /aria-label="App utilities"/);
-      assert.match(html, /data-studio-settings-toggle/);
+      assert.match(html, /data-studio-utilities-menu/);
+      assert.match(html, /"aria-label": "More options", title: "More options"/);
       assert.match(html, /data-studio-theme-select/);
       assert.match(html, /aria-label="Preferred external editor"/);
       assert.match(html, /data-studio-editor-select/);
@@ -44,7 +45,7 @@ test("home and map render explicit initial preference with shared settings and a
         assert.match(html, /class="studio-brand" href="\/" aria-label="App home"/);
         assert.match(html, /class="studio-logo"[^>]+aria-hidden="true"/);
       }
-      assert.match(html, /title="Settings"/);
+      assert.match(html, /id: "settings", label: "Settings"/);
       assert.doesNotMatch(html, />Light<\/button>|>Dark<\/button>/);
       assert.match(html, /\/api\/preferences/);
       assert.match(html, /\/api\/editor-settings/);

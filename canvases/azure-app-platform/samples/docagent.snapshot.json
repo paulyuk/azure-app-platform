@@ -34,6 +34,56 @@
         "docs/demos/loan-application/HOW-IT-WORKS.md",
         "docs/demos/loan-application/README.md"
       ]
+    },
+    {
+      "amendedAt": "2026-11-10T20:09:52.117Z",
+      "kind": "sandbox-egress-runtime",
+      "description": "Replace simulated credential and egress checks with ACA proxy policy application, live redacted environment/network observations, correlated egress audit decisions, local socket denial, updated contracts, tests, and setup documentation.",
+      "paths": [
+        "README.md",
+        "azure-app.yaml",
+        "config/egress-allowlist.json",
+        "config/egress-policy.yaml",
+        "docs/demos/loan-application/HOW-IT-WORKS.md",
+        "src/agent/main.py",
+        "src/agent/pyproject.toml",
+        "src/agent/tests/test_runtime.py",
+        "src/agent/uv.lock",
+        "src/policy/enforcement.py",
+        "src/tools/document-validation/contract.json",
+        "src/tools/document-validation/egress-policy.md",
+        "src/tools/document-validation/main.py",
+        "src/tools/document-validation/pyproject.toml",
+        "src/tools/document-validation/tests/test_main.py",
+        "src/tools/document-validation/uv.lock"
+      ]
+    },
+    {
+      "kind": "sandbox-boundary-observability",
+      "description": "Bounded live environment names, credential-location presence checks, redacted runtime diagnostics, sanitized correlated ACA decisions, and verification guidance.",
+      "paths": [
+        "README.md",
+        "src/agent/main.py",
+        "src/agent/tests/test_runtime.py",
+        "src/policy/enforcement.py",
+        "src/tools/document-validation/contract.json",
+        "src/tools/document-validation/egress-policy.md",
+        "src/tools/document-validation/main.py",
+        "src/tools/document-validation/tests/test_main.py"
+      ]
+    },
+    {
+      "kind": "sandbox-runtime-outcome-logs",
+      "description": "Session dispatch, validated completion and cleanup outcomes; applied egress policy and every-run audit summaries; timed redacted HTTP POST outcomes; quiet local tool invocations.",
+      "paths": [
+        "README.md",
+        "src/agent/main.py",
+        "src/agent/tests/test_runtime.py",
+        "src/policy/enforcement.py",
+        "src/tools/document-validation/egress-policy.md",
+        "src/tools/document-validation/main.py",
+        "src/tools/document-validation/tests/test_main.py"
+      ]
     }
   ],
   "excluded": [
@@ -51,7 +101,7 @@
     {
       "path": "README.md",
       "sourceSha256": "23ff9df2ba162d70ec5daea7fb8f95641af47d466bb4459570c613d6868ca8d5",
-      "sha256": "b11bf5d1c0aa40dafb1d38b79e5702b6b36c553c036bb49270e0d9a597d3dedd",
+      "sha256": "deb3a0de500bdfd320d32b11353c64d87ea650ad15f278589da04ba63ff0e886",
       "note": "README rewritten after capture, retaining lifecycle-safety guidance. Script fixes are recorded separately in followupChanges."
     },
     {
@@ -64,7 +114,8 @@
     },
     {
       "path": "config/egress-allowlist.json",
-      "sha256": "db23cf33b59ab1f902527d1bf66577a5e0d5da1dc16f073ac6573e6df8f8ba89"
+      "sha256": "c0eaeb5d9c6736f40fecc515481e6a494b89340f8590cabe5d7d6deb149f20ce",
+      "sourceSha256": "db23cf33b59ab1f902527d1bf66577a5e0d5da1dc16f073ac6573e6df8f8ba89"
     },
     {
       "path": "config/runtime.json",
@@ -72,7 +123,8 @@
     },
     {
       "path": "docs/demos/loan-application/HOW-IT-WORKS.md",
-      "sha256": "79b840281ba9f19676715ae3546888a242876f2443ee3fada1e42bfc6868bdf0"
+      "sha256": "6a68173c020b3ba68a8c0c1c9f95f42d6df0e9d35379dd53bfdd9ce867a0a810",
+      "sourceSha256": "79b840281ba9f19676715ae3546888a242876f2443ee3fada1e42bfc6868bdf0"
     },
     {
       "path": "docs/demos/loan-application/README.md",
@@ -120,7 +172,8 @@
     },
     {
       "path": "src/agent/main.py",
-      "sha256": "711517ff6598650cbd1271c6720887e014dd76406c18fd7f8e8f928c546e6764"
+      "sha256": "524ea2aa40974797dba402924fc89c48ece26679e9fb284f7d13b17a049946c4",
+      "sourceSha256": "711517ff6598650cbd1271c6720887e014dd76406c18fd7f8e8f928c546e6764"
     },
     {
       "path": "src/agent/prompts/system.md",
@@ -128,19 +181,23 @@
     },
     {
       "path": "src/agent/pyproject.toml",
-      "sha256": "297e2144c8f83ba1b557544498f75ea48a041465af1b7adb7d78ada5f9154705"
+      "sha256": "95b88d85b5e5b9a4c8976e785549eabb43778c1d24d06a331ebdca9052d006c2",
+      "sourceSha256": "297e2144c8f83ba1b557544498f75ea48a041465af1b7adb7d78ada5f9154705"
     },
     {
       "path": "src/agent/tests/test_runtime.py",
-      "sha256": "b60bc332acd12bf0ae9faf7443698ec7cb183d774c36f5f0ef3126daa7223290"
+      "sha256": "6c048ee02de2260aa0d077e3bec31454fc8055506c2d040579ff1b607b86c58b",
+      "sourceSha256": "b60bc332acd12bf0ae9faf7443698ec7cb183d774c36f5f0ef3126daa7223290"
     },
     {
       "path": "src/agent/uv.lock",
-      "sha256": "0157cc5f14af957d2d03f99584f6e05c49b93fd163b2c39c6c270e3f345f6a23"
+      "sha256": "03d453cec4d9887f832f730a3e94a26a2bb20f4af0d801cb5268333eb1192b56",
+      "sourceSha256": "0157cc5f14af957d2d03f99584f6e05c49b93fd163b2c39c6c270e3f345f6a23"
     },
     {
       "path": "src/policy/enforcement.py",
-      "sha256": "0104b0ea9cab83417e2eccccae48d266c9e89454bef20b2a6258e0ecd1005c96"
+      "sha256": "10d49dff02e2c6819fc857e0cf0501a299f2c7976f8413b4187746ea62234f12",
+      "sourceSha256": "0104b0ea9cab83417e2eccccae48d266c9e89454bef20b2a6258e0ecd1005c96"
     },
     {
       "path": "src/tools/document-validation/Dockerfile",
@@ -148,27 +205,41 @@
     },
     {
       "path": "src/tools/document-validation/contract.json",
-      "sha256": "c81580bd6e4983943bf88e328c83194d2f61bfe8aa7bb6598b71e0778ee5ee9f"
+      "sha256": "38b8b8c7ca8af3fd172079f5d4f160048bbb97059233f4a3b2b72bd73036303e",
+      "sourceSha256": "c81580bd6e4983943bf88e328c83194d2f61bfe8aa7bb6598b71e0778ee5ee9f"
     },
     {
       "path": "src/tools/document-validation/egress-policy.md",
-      "sha256": "0dcb315b6e3ceff0b5876b3a7228093883f8971ab4717e83b7e123afd0520ca8"
+      "sha256": "f3a19fde30b90c206e83a3903505dac5acd1f74dfef402d9d76b8d0b4dc4e81a",
+      "sourceSha256": "0dcb315b6e3ceff0b5876b3a7228093883f8971ab4717e83b7e123afd0520ca8"
     },
     {
       "path": "src/tools/document-validation/main.py",
-      "sha256": "6ef91001039a75659b4b887e046575c134aebf8382447c8c33142cf57fb53876"
+      "sha256": "1d6e4c8bd358152723f9c180837f2fa21897cbbbb2c954fb269d8f5b21ffb0a5",
+      "sourceSha256": "6ef91001039a75659b4b887e046575c134aebf8382447c8c33142cf57fb53876"
     },
     {
       "path": "src/tools/document-validation/pyproject.toml",
-      "sha256": "2f51c06ba50a6bb487e5b26fe58f61154dfae4fa31b9d264f7a3025870d93c4c"
+      "sha256": "4bbd44efa0e4a84713ab1298454b52d9663dbd045bb589ae2651eda6ba05abb3",
+      "sourceSha256": "2f51c06ba50a6bb487e5b26fe58f61154dfae4fa31b9d264f7a3025870d93c4c"
     },
     {
       "path": "src/tools/document-validation/tests/test_main.py",
-      "sha256": "356c6ddf913ab161b9a36107faef45ee3ef5cdf049dc0407122ffd5e850a10d0"
+      "sha256": "174fad44c2073bc52b73eef96c38ca081de3b988850f2e617c1ba4f5c810da6f",
+      "sourceSha256": "356c6ddf913ab161b9a36107faef45ee3ef5cdf049dc0407122ffd5e850a10d0"
     },
     {
       "path": "azure-app.yaml",
-      "sha256": "771c231e0a6be8906f34121efbc524ef9b2e94dc19b0a0e9f008612b72b404d2"
+      "sha256": "713d4aa894841738cb7f8239773999c6462e08f1108a1486e4b2f860265922b9",
+      "sourceSha256": "771c231e0a6be8906f34121efbc524ef9b2e94dc19b0a0e9f008612b72b404d2"
+    },
+    {
+      "path": "config/egress-policy.yaml",
+      "sha256": "2a1d3526866fd01702fb5feb2dfc91f37065ce84e0110803322b12c89ef8a912"
+    },
+    {
+      "path": "src/tools/document-validation/uv.lock",
+      "sha256": "ea05f654a207e48d96abce17c6174cfdb3a212318cb538014a644116ca542a77"
     }
   ]
 }

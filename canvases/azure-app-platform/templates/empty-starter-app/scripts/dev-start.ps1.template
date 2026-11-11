@@ -33,14 +33,14 @@ function Wait-Port($Name, $Port, $Process) {
 $processes = @()
 try {
   if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv is required." }
-  $agent = Start-Process uv -ArgumentList "run", "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -PassThru
+  $agent = Start-Process uv -ArgumentList "run", "main.py" -WorkingDirectory (Join-Path $Root "src/agent") -WindowStyle Hidden -PassThru
   $processes += @{ name = "agent"; port = $AgentPort; pid = $agent.Id }
-  $web = Start-Process npm.cmd -ArgumentList "run", "dev" -WorkingDirectory (Join-Path $Root "src/web") -PassThru
+  $web = Start-Process npm.cmd -ArgumentList "run", "dev" -WorkingDirectory (Join-Path $Root "src/web") -WindowStyle Hidden -PassThru
   $processes += @{ name = "web"; port = $WebPort; pid = $web.Id }
   Wait-Port "agent" $AgentPort $agent
   Wait-Port "web" $WebPort $web
   if (-not $SkipSkill -and (Get-Command uv -ErrorAction SilentlyContinue) -and (Get-Command func -ErrorAction SilentlyContinue)) {
-    $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "$SkillPort" -WorkingDirectory (Join-Path $Root "src/skills/__SKILL_NAME__") -PassThru
+    $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "$SkillPort" -WorkingDirectory (Join-Path $Root "src/skills/__SKILL_NAME__") -WindowStyle Hidden -PassThru
     $processes += @{ name = "skill"; port = $SkillPort; pid = $skill.Id }
     Wait-Port "skill" $SkillPort $skill
   }

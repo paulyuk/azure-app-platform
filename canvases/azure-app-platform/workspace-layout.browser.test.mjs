@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
-import { installStudioAssetRoutes, openWorkspaceNavigation, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { installStudioAssetRoutes, openStudioSettings, openWorkspaceNavigation, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -145,7 +145,8 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "light");
     assert.equal(await page.getByRole("button", { name: "App home" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Home", exact: true }).count(), 0);
-    assert.equal(await page.getByRole("link", { name: "Docs", exact: true }).getAttribute("target"), "_blank");
+    assert.equal(await page.getByRole("button", { name: "More options", exact: true }).isVisible(), true);
+    assert.equal(await page.getByRole("menuitem", { name: "Docs", exact: true }).count(), 0);
     assert.deepEqual(await page.getByRole("navigation", { name: "App workspaces", exact: true }).locator("li button").allTextContents(), ["Build", "Connect", "Run", "Observe", "Deploy"]);
     assert.equal(await page.locator(".header-actions [role='tab']").count(), 0);
     assert.equal(await page.locator("body > .studio-site-nav").count(), 0);
@@ -280,7 +281,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await selectWorkspace(page, "build-workspace");
     await openBuildPreview();
     assert.equal(await source.textContent(), "Explain applications.");
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openStudioSettings(page);
     await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("dark");
     await page.waitForFunction(() => document.documentElement.dataset.studioTheme === "dark");
     await page.getByRole("button", { name: "Close settings" }).click();
@@ -545,7 +546,7 @@ test("Build, Run, Map and Logs own the workspace independently of the collapsibl
     await openBuildPreview();
     assert.equal(await page.locator("html").getAttribute("data-studio-theme"), "dark");
     preferenceFailure = true;
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openStudioSettings(page);
     assert.equal(await page.getByRole("combobox", { name: "Preferred external editor" }).inputValue(), "vscode");
     await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption("light");
     await page.getByText("Preference save failed.", { exact: true }).waitFor();

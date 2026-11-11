@@ -22,3 +22,8 @@ export async function selectWorkspace(page, id) {
   await openWorkspaceNavigation(page);
   await page.locator("#" + id).click();
 }
+
+export async function openStudioSettings(page) {
+  await page.getByRole("button", { name: "More options", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
+}

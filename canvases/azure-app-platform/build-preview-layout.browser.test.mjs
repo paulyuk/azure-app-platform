@@ -21,7 +21,7 @@ for (const [name, engine, presentationProfile] of [
     const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
     try {
       const page = await browser.newPage({ viewport: { width: 1000, height: 900 } });
-      const content = [`# ${"x".repeat(84)}`, ...Array.from({ length: 13 }, (_, index) => `line ${index}`)].join("\n");
+      const content = [`# ${"x".repeat(160)}`, ...Array.from({ length: 24 }, (_, index) => `line ${index}`)].join("\n");
       const artifacts = ["first", "second"].map((id) => ({
         id, customizationArea: "behavior", title: id, path: `src/agent/${id}.py`,
         projectPath: `src/agent/${id}`, projectName: "Agent", available: true, content,
@@ -31,7 +31,7 @@ for (const [name, engine, presentationProfile] of [
       })), [
         { id: "reflow-code", customizationArea: "tools", title: "Reflow implementation",
           path: "src/skills/reflow/function_app.py", projectPath: "src/skills/reflow", projectName: "Reflow",
-          available: true, content: "# " + "x".repeat(400) },
+          available: true, content: "# " + "x".repeat(560) },
         { id: "reflow-config", customizationArea: "runtime", title: "Reflow configuration",
           path: "src/skills/reflow/agents.config.yaml", projectPath: "src/skills/reflow", projectName: "Reflow",
           available: true, content: "name: reflow\n" },
@@ -106,8 +106,8 @@ for (const [name, engine, presentationProfile] of [
           const inline = pages.getByRole("button", { name: filename, exact: true });
           if (await inline.isVisible()) await inline.click();
           else {
-            await page.getByRole("button", { name: "More files", exact: true }).click();
-            await page.getByRole("menu", { name: "More files", exact: true })
+            await page.getByRole("button", { name: /^More files \(/ }).click();
+            await page.getByRole("menu", { name: /^More files \(/ })
               .getByRole("menuitem", { name: filename, exact: true }).click();
           }
         }
@@ -148,7 +148,7 @@ for (const [name, engine, presentationProfile] of [
       "Resizing preserves the source node and its scroll position");
       for (const theme of ["light", "dark"]) {
         await page.evaluate((value) => { document.documentElement.dataset.studioTheme = value; }, theme);
-        for (const width of [1000, 320, 380, 480, 620, 1000, 380]) {
+        for (const width of [1000, 320, 380, 480, 620, 920, 1000, 380]) {
           await page.setViewportSize({ width, height: 900 });
           await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
           const compact = await filesToggle.isVisible();
@@ -234,13 +234,22 @@ for (const [name, engine, presentationProfile] of [
               codeInset: source.left - frame.left,
               headerLeft: header.left - pane.left, headerWidth: header.width - element.clientWidth };
           });
-          assert.ok(Math.abs(gutters.left - gutters.expected) <= 1 &&
-            Math.abs(gutters.right - 2 * gutters.expected) <= 1 && Math.abs(gutters.codeInset - 1) <= 1 &&
+          assert.ok(Math.abs(gutters.left) <= 1 &&
+            Math.abs(gutters.right) <= 1 && Math.abs(gutters.codeInset) <= 1 &&
             Math.abs(gutters.headerLeft) <= 1 && Math.abs(gutters.headerWidth) <= 1,
-          "File header fills the pane while the preview is evenly inset: " + JSON.stringify(gutters));
-          assert.equal(gutters.border, 1);
-          assert.equal(gutters.radius, 8);
+          "File header and preview fill the pane without nested gutters: " + JSON.stringify(gutters));
+          assert.equal(gutters.border, 0);
+          assert.equal(gutters.radius, 0);
           assert.equal(gutters.cursor, "default");
+          assert.ok(await page.locator(".build-workspace").evaluate(element => {
+            const workspace = element.getBoundingClientRect();
+            const host = element.parentElement.getBoundingClientRect();
+            const browser = element.querySelector(".build-browser").getBoundingClientRect();
+            const compact = element.querySelector(".build-compact-navigation");
+            const compactBottom = compact.getClientRects().length ? compact.getBoundingClientRect().bottom : host.top;
+            return Math.abs(workspace.left - host.left) <= 1 && Math.abs(workspace.right - host.right) <= 1 &&
+              Math.abs(browser.top - compactBottom) <= 1;
+          }), "Build removes outer side gutters and the redundant gap above its browser");
           if (compact) await filesToggle.click();
           const fixedHeader = await page.locator(".build-explorer-header").boundingBox();
           const list = page.locator(".build-explorer-body");
@@ -305,8 +314,8 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(page.viewportSize().width, 1000, "Exercise a narrow embedded canvas inside a wide desktop");
       assert.equal(await divider.isVisible(), false, "The compact layout follows the canvas width, not the viewport");
       assert.equal(await page.locator(".build-workspace").evaluate(workspace =>
-        parseFloat(getComputedStyle(workspace).paddingInlineStart)), presentationProfile === "github-app" ? 16 : 12,
-      "Compact gutters follow the embedded canvas width in both presentations");
+        parseFloat(getComputedStyle(workspace).paddingInlineStart)), 0,
+      "Both presentations remove outer gutters in an embedded compact canvas");
       await filesToggle.click();
       assert.equal(await ai.isVisible(), false);
       await filesToggle.click();
@@ -400,8 +409,8 @@ for (const [name, engine, presentationProfile] of [
       await block.waitFor();
       const stackView = page.getByRole("button", { name: "Stack view", exact: true });
       const filePages = page.getByRole("toolbar", { name: "File pages", exact: true, includeHidden: true });
-      const filePicker = page.getByRole("button", { name: "More files", exact: true });
-      const fileMenu = page.getByRole("menu", { name: "More files", exact: true });
+      const filePicker = page.getByRole("button", { name: /^More files \(/ });
+      const fileMenu = page.getByRole("menu", { name: /^More files \(/ });
       const implementation = block.locator('[data-artifact="deal-implementation"]');
       const config = block.locator('[data-artifact="deal-config"]');
       assert.equal(await stackView.getAttribute("aria-pressed"), "true", "Every block defaults to Stack view");
@@ -412,7 +421,7 @@ for (const [name, engine, presentationProfile] of [
         "The stack button precedes the filename choices");
       assert.equal(await filePages.locator('[aria-pressed="true"]').count(), 0);
       await stackView.click();
-      await page.setViewportSize({ width: 380, height: 900 });
+      await page.setViewportSize({ width: 350, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await filePicker.isVisible(), true, JSON.stringify(await page.locator(".build-block-controls").evaluate(controls => ({
         width: controls.clientWidth,
@@ -420,6 +429,8 @@ for (const [name, engine, presentationProfile] of [
         strip: controls.querySelector(".build-file-measure > *").getBoundingClientRect().width,
         items: [...controls.querySelector(".build-file-measure").querySelectorAll("button")].map(node => node.getBoundingClientRect().width),
       }))));
+      assert.equal((await filePicker.textContent()).trim(), "+1 more");
+      assert.equal(await filePicker.getAttribute("aria-label"), "More files (+1 more)");
       await filePicker.press("ArrowDown");
       await fileMenu.waitFor();
       assert.deepEqual(await fileMenu.getByRole("menuitem").allTextContents(),
@@ -445,7 +456,7 @@ for (const [name, engine, presentationProfile] of [
       assert.equal(await config.locator(".build-highlight").textContent(), artifacts.at(-1).content);
       const fileRowModes = new Set();
       const fileRowSizes = [];
-      for (const width of [1600, 1000, 620, 380, 320, 1600]) {
+      for (const width of [1600, 1000, 920, 620, 380, 320, 1600]) {
         await page.setViewportSize({ width, height: 900 });
         await page.waitForFunction(() => document.querySelector(".build-content").getBoundingClientRect().width >= 119);
         await page.locator(".build-content").evaluate(pane => { pane.scrollTop = 0; });
@@ -490,6 +501,8 @@ for (const [name, engine, presentationProfile] of [
         assert.equal(await filePicker.isVisible(), toolbar.hasOverflow, "Only hidden filenames expose the overflow trigger");
         const inlineFiles = await filePages.getByRole("button").allTextContents();
         if (toolbar.hasOverflow) {
+          assert.equal((await filePicker.textContent()).trim(), "+" + (2 - inlineFiles.length) + " more",
+            "The disclosure counts only the files absent from the inline strip");
           await filePicker.press("ArrowDown");
           await fileMenu.waitFor();
           assert.deepEqual(await fileMenu.getByRole("menuitem").allTextContents(),
@@ -500,7 +513,10 @@ for (const [name, engine, presentationProfile] of [
             "The file picker stays inside the viewport");
           await page.keyboard.press("Escape");
           assert.ok(await filePicker.evaluate(button => button === document.activeElement), "Escape returns to the overflow trigger");
-        } else assert.equal(inlineFiles.length, 2, "Growing the pane restores every inline filename");
+        } else {
+          assert.equal(inlineFiles.length, 2, "Growing the pane restores every inline filename");
+          assert.equal(await page.locator("[data-file-picker]").isVisible(), false, "No +0 disclosure remains when all files fit");
+        }
         const sizes = await block.locator(".build-source-preview").evaluateAll(previews => previews.map(preview => ({
           height: preview.getBoundingClientRect().height,
           maxHeight: getComputedStyle(preview).maxHeight,
@@ -733,7 +749,7 @@ for (const [name, engine, presentationProfile] of [
           Math.abs(pinned.fileTop - pinned.contextBottom) <= 1 && pinned.actionExposed,
         `Stack keeps each file's actions below the responsive context header at ${width}px: ${JSON.stringify(pinned)}`);
       }
-      await page.setViewportSize({ width: 380, height: 900 });
+      await page.setViewportSize({ width: 350, height: 900 });
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await filePicker.click();
       await fileMenu.getByRole("menuitem", { name: "agents.config.yaml", exact: true }).click();
@@ -787,10 +803,10 @@ for (const [name, engine, presentationProfile] of [
         return !row.querySelector(".build-source-preview").hasAttribute("data-clipped") &&
           row.querySelector(".build-preview-expand").hidden;
       });
-      const validationFiles = ["main.py", "contract.json", "Dockerfile", "egress-policy.md"];
+      const validationFiles = ["main.py", "contract.json", "Dockerfile", "egress-policy.yaml"];
       artifacts.push(...validationFiles.map((filename, index) => ({
         id: "validation-" + index, customizationArea: "tools", title: filename,
-        path: "src/tools/document-validation/" + filename,
+        path: filename === "egress-policy.yaml" ? "config/egress-policy.yaml" : "src/tools/document-validation/" + filename,
         projectPath: "src/tools/document-validation", projectName: "Document validation",
         available: true, content: "# Document validation\n",
       })));
@@ -801,12 +817,12 @@ for (const [name, engine, presentationProfile] of [
       const validationInline = await filePages.getByRole("button").allTextContents();
       assert.ok(validationInline.length >= 2 && validationInline.length < validationFiles.length);
       assert.deepEqual(validationInline, validationFiles.slice(0, validationInline.length));
-      assert.equal(validationInline.includes("egress-policy.md"), false,
+      assert.equal(validationInline.includes("egress-policy.yaml"), false,
         "The reported Document validation layout excludes the entire egress filename, not just its clipped suffix");
       await filePicker.click();
       assert.deepEqual(await fileMenu.getByRole("menuitem").allTextContents(), validationFiles.slice(validationInline.length));
-      await fileMenu.getByRole("menuitem", { name: "egress-policy.md", exact: true }).click();
-      assert.equal(await filePages.getByRole("button", { name: "egress-policy.md", exact: true }).count(), 0,
+      await fileMenu.getByRole("menuitem", { name: "egress-policy.yaml", exact: true }).click();
+      assert.equal(await filePages.getByRole("button", { name: "egress-policy.yaml", exact: true }).count(), 0,
         "Selecting Egress does not put a clipped selected filename back into the row");
       assert.ok(await page.locator(".build-block-controls").evaluate(controls =>
         controls.scrollWidth <= controls.clientWidth + 1), "The reported filename row has no horizontal scrolling");
@@ -883,6 +899,7 @@ for (const [name, engine, presentationProfile] of [
       const retainedWidth = await railWidth();
       await page.getByRole("button", { name: "Create from template", exact: true }).click();
       await page.locator('.build-file[data-artifact="new-block"]').waitFor();
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.ok(Math.abs(await railWidth() - retainedWidth) <= 1,
         "Creating a block retains the chosen split across a workspace rebuild");
       assert.equal(await page.locator(".build-explorer").getByRole("button", { name: "Open App Map", exact: true }).count(), 0,
@@ -892,6 +909,130 @@ for (const [name, engine, presentationProfile] of [
         .getByRole("button", { name: "Observe", exact: true }).click();
       await page.waitForFunction(() => window.appPlatformReady && document.body.dataset.workspace === "map");
       assert.equal(documentLoads, 2, "Opening Observe after template creation must load a fresh App Map graph");
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser.close();
+    }
+  });
+
+  test(`Build hidden-file counts adapt without losing keyboard focus in ${name} (${presentationProfile})`, {
+    skip: !engine || !existsSync(engine.executablePath())
+      ? "Install src/web Playwright dependencies and chromium/webkit browsers for scrollbar coverage." : false,
+  }, async () => {
+    const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+    try {
+      const page = await browser.newPage({ viewport: { width: 920, height: 900 } });
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      const artifacts = Array.from({ length: 12 }, (_, index) => ({
+        id: "agent-" + index, customizationArea: "behavior", projectName: "Agent", projectPath: "src/agent",
+        path: "src/agent/f" + String(index).padStart(2, "0") + ".py", title: "Agent source " + index,
+        available: true, content: "value = " + index + "\n# " + "x".repeat(200) + "\n",
+      }));
+      const graph = { root: "/fixture", nodes: [], edges: [], unresolved: [], diagnostics: [],
+        summary: { projectNodes: 0, operationNodes: 0, edges: 0, unresolved: 0 } };
+      await page.route("http://build-count.test/**", async route => {
+        const path = new URL(route.request().url()).pathname;
+        if (path === "/") return route.fulfill({ contentType: "text/html",
+          body: renderInteractiveAppMapHtml(graph, { apiToken: "fixture", theme: "light", presentationProfile })
+            .replace("</head>", "<style>::-webkit-scrollbar { width:16px; height:16px; }</style></head>") });
+        const responses = {
+          "/api/build-workspace": { artifacts },
+          "/api/build-templates": { templates: BUILD_BLOCK_TEMPLATES },
+          "/api/app-status": { state: "stopped", recovered: false, foreignEntrypoints: [], entrypoints: [] },
+          "/api/local-readiness": { ready: false, gatewayConfigured: false },
+          "/api/app-output": { lines: [], commands: [] },
+          "/api/gateway-options": { subscriptions: [], gateways: [], models: [], active: null },
+          "/api/preferences": { theme: "light" },
+          "/api/editor-settings": { editorId: "vscode", editors: [{ id: "vscode", label: "VS Code" }] },
+        };
+        if (responses[path]) return route.fulfill({ json: responses[path] });
+        if (path.startsWith("/assets/")) return route.fulfill({ status: 204 });
+        throw new Error("Unexpected counter request: " + path);
+      });
+      await page.addInitScript(() => localStorage.setItem("unity-workspace:/fixture:guide-collapsed", "true"));
+      await installStudioAssetRoutes(page);
+      await page.goto("http://build-count.test/");
+      await page.locator("#build-workspace").click();
+      await page.locator(".build-source-preview").first().waitFor();
+      const pages = page.getByRole("toolbar", { name: "File pages", includeHidden: true });
+      const more = page.locator("[data-file-picker]");
+      const menu = page.getByRole("menu", { name: /^More files \(/ });
+      const settle = () => page.evaluate(() => new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
+      const counts = new Set();
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(value => { document.documentElement.dataset.studioTheme = value; }, theme);
+        for (const width of [320, 380, 920, 1800, 380]) {
+          await page.setViewportSize({ width, height: 900 });
+          await settle();
+          const inline = await pages.getByRole("button").allTextContents();
+          const hidden = artifacts.length - inline.length;
+          counts.add(hidden);
+          assert.deepEqual(inline, artifacts.slice(0, inline.length).map(item => item.path.split("/").pop()));
+          assert.equal(await more.isVisible(), hidden > 0);
+          if (hidden) {
+            assert.equal((await more.textContent()).trim(), "+" + hidden + " more");
+            assert.equal(await more.getAttribute("aria-label"), "More files (+" + hidden + " more)");
+            const nextFits = await page.locator(".build-block-controls").evaluate((controls, count) => {
+              const strip = controls.querySelector(".build-file-measure > *");
+              const style = getComputedStyle(strip);
+              const gap = parseFloat(getComputedStyle(controls).columnGap);
+              const next = count + 1;
+              const trigger = controls.querySelector("[data-file-picker]");
+              const probe = trigger.cloneNode(true);
+              probe.style.cssText = "position:fixed;visibility:hidden;width:max-content";
+              const walker = document.createTreeWalker(probe, NodeFilter.SHOW_TEXT);
+              while (walker.nextNode()) {
+                if (/^\+\d+ more$/.test(walker.currentNode.textContent)) walker.currentNode.textContent = "+" + (12 - next) + " more";
+              }
+              controls.append(probe);
+              const filesWidth = [...strip.querySelectorAll("button")].slice(0, next)
+                .reduce((sum, item) => sum + item.getBoundingClientRect().width, 0) +
+                parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + (next - 1) * parseFloat(style.columnGap);
+              const actionGap = parseFloat(getComputedStyle(controls.querySelector(".build-collection-actions")).columnGap);
+              const width = controls.querySelector('[aria-label="Stack view"]').getBoundingClientRect().width +
+                gap + filesWidth + gap + (next < 12 ? probe.getBoundingClientRect().width + actionGap : 0) +
+                controls.querySelector('[aria-label="Add building block"]').getBoundingClientRect().width;
+              probe.remove();
+              return width <= controls.clientWidth;
+            }, inline.length);
+            assert.equal(nextFits, false, `${name} ${theme} ${width}px does not hide a filename that would fit`);
+            await more.press("ArrowDown");
+            assert.deepEqual(await menu.getByRole("menuitem").allTextContents(),
+              artifacts.slice(inline.length).map(item => item.path.split("/").pop()));
+            await page.keyboard.press("Escape");
+            assert.ok(await more.evaluate(element => element === document.activeElement));
+          } else assert.equal(inline.length, artifacts.length);
+          assert.ok(await page.locator(".build-block-controls").evaluate(element => element.scrollWidth <= element.clientWidth + 1));
+        }
+      }
+      assert.ok([...counts].some(count => count >= 10) && [...counts].some(count => count > 0 && count < 10) && counts.has(0),
+        "Exercise single-digit, double-digit, and no-hidden-file counts: " + JSON.stringify([...counts]));
+      await more.click();
+      await menu.getByRole("menuitem", { name: "f11.py", exact: true }).click();
+      assert.equal(await page.locator('.build-file[data-artifact="agent-11"]').isVisible(), true);
+      assert.equal(await page.getByRole("button", { name: "Stack view", exact: true }).getAttribute("aria-pressed"), "false");
+      assert.equal(await page.locator('.build-file[data-artifact="agent-11"] .build-code-line[data-line="1"]').count(), 1);
+      await page.setViewportSize({ width: 1800, height: 900 });
+      await settle();
+      const selected = pages.getByRole("button", { name: "f11.py", exact: true });
+      assert.equal(await selected.getAttribute("aria-pressed"), "true");
+      await selected.focus();
+      await page.setViewportSize({ width: 380, height: 900 });
+      await settle();
+      assert.ok(await more.evaluate(element => element === document.activeElement),
+        "A filename moved into overflow hands keyboard focus to the disclosure");
+      await more.press("ArrowDown");
+      await menu.waitFor();
+      await page.setViewportSize({ width: 1800, height: 900 });
+      await settle();
+      assert.equal(await menu.count(), 0, "Restoring all tabs closes the now-unnecessary menu");
+      assert.ok(await page.getByRole("button", { name: "Add building block", exact: true })
+        .evaluate(element => element === document.activeElement), "Focus moves to Add when its disclosure disappears");
+      assert.equal(await selected.getAttribute("aria-pressed"), "true", "Resizing retains the selected file");
+      await page.getByRole("button", { name: "Add building block", exact: true }).press("Enter");
+      await page.getByRole("textbox", { name: "Block name", exact: true }).waitFor();
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();

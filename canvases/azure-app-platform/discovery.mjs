@@ -326,7 +326,9 @@ function collectFileEvidence(file, projectRoots) {
   if (file.name === "Dockerfile") {
     addMarker("sandbox", "container-image", "medium", "Container build definition");
   }
-  if (lowerName === "egress-policy.md") {
+  // App-level policy belongs to the selected sandbox, not a separate config project.
+  if (lowerName === "egress-policy.md"
+    || (lowerName === "egress-policy.yaml" && file.path !== "config/egress-policy.yaml")) {
     addMarker("sandbox", "sandbox-boundary", "high", "Sandbox lifecycle or egress boundary");
   } else if (!isDocumentation) {
     addMatch("sandbox", "sandbox-boundary", "high", /Microsoft\.App\/(jobs|containerApps)|ACA sandbox/i, "Sandbox lifecycle or egress boundary");

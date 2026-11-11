@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let playwright;
@@ -32,7 +33,7 @@ for (const engine of ["chromium", "webkit"]) {
         await page.goto(fixture.origin + "/app-map");
         await page.waitForFunction(() => window.appPlatformReady
           && document.querySelector("#header-runtime-action").textContent === "Run app");
-        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await openStudioSettings(page);
         await page.getByRole("combobox", { name: "Settings section", exact: true }).selectOption("danger");
         await page.getByRole("button", { name: "Delete local app...", exact: true }).click();
         const dialog = page.getByRole("alertdialog", { name: "Delete Document helper <draft>?", exact: true });

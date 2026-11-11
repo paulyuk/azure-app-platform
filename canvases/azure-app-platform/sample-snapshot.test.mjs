@@ -28,6 +28,7 @@ test("docagent sample preserves the generated source without local runtime state
   }
   for (const path of [
     "azure-app.yaml", "README.md", "config/runtime.json", "config/document-policy.json",
+    "config/egress-policy.yaml", "config/egress-allowlist.json",
     "src/agent/main.py", "src/agent/uv.lock", "src/agent/tests/test_runtime.py",
     "src/tools/document-validation/main.py", "src/tools/document-validation/contract.json",
     "src/tools/document-validation/tests/test_main.py", "src/policy/enforcement.py",
@@ -37,4 +38,14 @@ test("docagent sample preserves the generated source without local runtime state
   assert.ok(artifacts.length >= 5);
   assert.equal(new Set(artifacts.map(artifact => artifact.path)).size, artifacts.length);
   assert.ok(artifacts.every((artifact) => artifact.available));
+  const agent = artifacts.filter(artifact => artifact.projectPath === "src/agent");
+  assert.equal(agent[0].path, "src/agent/main.py");
+  assert.ok(agent.every(artifact => artifact.projectName === "Agent"));
+  const sandbox = artifacts.filter(artifact => artifact.projectPath === "src/tools/document-validation");
+  assert.deepEqual(sandbox.slice(0, 2).map(artifact => artifact.path), ["src/tools/document-validation/main.py", "config/egress-policy.yaml"]);
+  assert.ok(sandbox.every(artifact => artifact.projectName === "Document validation" && !artifact.path.endsWith(".md")));
+  const policy = sandbox.find(artifact => artifact.id === "egress-policy");
+  assert.match(policy.content, /^defaultAction: Deny$/m);
+  assert.match(policy.content, /^trafficInspection: Full$/m);
+  assert.match(policy.content, /secretRef:[\s\S]*managedIdentityRef:/);
 });

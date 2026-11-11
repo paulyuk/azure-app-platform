@@ -53,7 +53,9 @@ test("both real Studio renderers embed valid scripts and official control icons"
     for (const [, script] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
       assert.doesNotThrow(() => new Script(script));
     }
-    assert.ok(html.includes(renderOcticon("gear", { size: 18 })));
+    for (const name of ["kebab-horizontal", "gear", "link-external"]) {
+      assert.ok(html.includes(JSON.stringify(renderOcticon(name))));
+    }
     assert.ok(html.includes(renderOcticon("x")));
     assert.doesNotMatch(html, /fill:none;\s*stroke:currentColor/);
   }

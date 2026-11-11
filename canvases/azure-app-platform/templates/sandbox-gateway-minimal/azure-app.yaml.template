@@ -8,7 +8,7 @@ capabilities:
     links: [sandbox, gateway]
   sandbox:
     path: src/tools/document-validation
-    # Default local simulation; config/runtime.json selects optional ACA sessions.
+    # ACA_SANDBOX_GROUP selects microVMs; otherwise a local process, not OS isolation.
     interface: subprocess
     links: [agent]
   gateway:

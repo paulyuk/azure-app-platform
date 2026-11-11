@@ -141,6 +141,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
     "azure-app.yaml",
     "config/domain.json",
     "config/egress-allowlist.json",
+    "config/egress-policy.yaml",
     "config/runtime.json",
     "config/document-policy.json",
     "scripts/dev-start.sh",
@@ -416,20 +417,31 @@ async function listSourceWorktrees({ workspaceRoot, commandRunner, additionalRoo
     "list",
     "--porcelain",
   ]);
-  if (!result.ok) {
-    throw new Error(`Could not list Git worktrees: ${result.stderr || result.error || "unknown error"}`);
-  }
   const discovered = [];
   const knownPaths = new Set();
-  for (const worktree of parseWorktrees(result.stdout)) {
+  if (!result.ok) {
+    const reason = result.stderr || result.error || "";
+    if (!/not a git repository/i.test(reason)) {
+      throw new Error(`Could not list Git worktrees: ${reason || "unknown error"}`);
+    }
     try {
-      const path = await realpath(worktree.path);
-      const key = catalogPathKey(path);
-      if (knownPaths.has(key)) continue;
-      knownPaths.add(key);
-      discovered.push({ worktree: { ...worktree, path } });
+      const path = await realpath(workspaceRoot);
+      knownPaths.add(catalogPathKey(path));
+      discovered.push({ worktree: { path, commit: null, branch: null } });
     } catch (error) {
       discovered.push({ error });
+    }
+  } else {
+    for (const worktree of parseWorktrees(result.stdout)) {
+      try {
+        const path = await realpath(worktree.path);
+        const key = catalogPathKey(path);
+        if (knownPaths.has(key)) continue;
+        knownPaths.add(key);
+        discovered.push({ worktree: { ...worktree, path } });
+      } catch (error) {
+        discovered.push({ error });
+      }
     }
   }
   for (const path of additionalRoots) {

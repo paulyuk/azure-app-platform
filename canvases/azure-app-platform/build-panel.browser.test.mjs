@@ -165,8 +165,8 @@ test("Build is a focused read-only customization workspace with document and Run
             .getByRole("button", { name: filename, exact: true });
           if (await inline.isVisible()) await inline.click();
           else {
-            await page.getByRole("button", { name: "More files", exact: true }).click();
-            await page.getByRole("menu", { name: "More files", exact: true })
+            await page.getByRole("button", { name: /^More files \(/ }).click();
+            await page.getByRole("menu", { name: /^More files \(/ })
               .getByRole("menuitem", { name: filename, exact: true }).click();
           }
         }
@@ -183,10 +183,10 @@ test("Build is a focused read-only customization workspace with document and Run
           assert.equal(await row.locator(".build-warning").count(), 0);
           assert.doesNotMatch(await row.innerText(), /Developer-owned enforcement|rebuild cloud images/);
         }
-        const filePicker = page.getByRole("button", { name: "More files", exact: true });
+        const filePicker = page.getByRole("button", { name: /^More files \(/ });
         if (await filePicker.isVisible()) {
           await filePicker.click();
-          const menu = page.getByRole("menu", { name: "More files", exact: true });
+          const menu = page.getByRole("menu", { name: /^More files \(/ });
           const inline = await page.getByRole("toolbar", { name: "File pages", exact: true }).getByRole("button").allTextContents();
           assert.deepEqual(await menu.getByRole("menuitem").allTextContents(),
             ["runtime.json", "document-policy.json"].filter(filename => !inline.includes(filename)),

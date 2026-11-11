@@ -12,9 +12,9 @@ const names = [
   "agent", "alert", "apps", "arrow-left", "arrow-right", "check", "chevron-down", "chevron-right",
   "comment-discussion", "project", "sidebar-expand", "search",
   "code", "codespaces", "database", "dot-fill", "eye", "gear",
-  "info", "link", "list-unordered", "meter", "plus", "question", "screen-full",
+  "info", "kebab-horizontal", "link", "list-unordered", "meter", "plus", "question", "screen-full",
   "shield-check", "shield-lock", "sidebar-collapse", "skip",
-  "stopwatch", "sync", "terminal", "tools", "trash", "workflow", "x",
+  "square", "stopwatch", "sync", "terminal", "tools", "trash", "workflow", "x",
   "zoom-in", "zoom-out", "play", "browser", "link-external", "cloud",
 ];
 const icons = Object.fromEntries(names.sort().map((name) => {

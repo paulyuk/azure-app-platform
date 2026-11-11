@@ -10,7 +10,7 @@ import test from "node:test";
 import { EMPTY_TEMPLATE } from "./source-catalog.mjs";
 import { DEFAULT_EDITOR_SETTINGS } from "./editor-settings.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -284,7 +284,7 @@ test("packaged presentation follows late host delivery without remounting contro
         });
         assert.equal((await read()).scheme, "dark");
         // A saved preference update cannot change integration identity or override the host.
-        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await openStudioSettings(page);
         await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption(tone === "light" ? "dark" : "light");
         await page.getByRole("button", { name: "Close settings", exact: true }).click();
         assert.equal((await read()).color, late.color);

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 import { invocationBody } from "./run-contract.mjs";
 
 async function fixture(action, toolDirectory = "src/tools/document-validation") {
@@ -34,6 +34,42 @@ test("Build reads canonical files for preview without advertising inline mutatio
     assert.equal("sha" in instructions, false);
     assert.equal(await resolveBuildArtifactPath(root, instructions.id), join(root, instructions.path));
   });
+});
+
+test("Build leads document collections with runtime code and the real egress policy when present", async () => {
+  for (const directory of ["src/tools/document-validation", "src/sandbox/tool"]) {
+    await fixture(async root => {
+      await writeFile(join(root, "src/agent/main.py"), "class AgentHarness: pass\n");
+      await writeFile(join(root, "config/egress-policy.yaml"), "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n");
+      await writeFile(join(root, "azure-app.yaml"), `capabilities:\n  agent:\n    path: src/agent\n  sandbox:\n    path: ${directory}\n`);
+      await writeFile(join(root, directory, "egress-policy.md"), "Supplementary guidance.");
+      await writeFile(join(root, directory, "README.md"), "Tool documentation.");
+      const { artifacts } = await readBuildWorkspace(root);
+      const agent = artifacts.filter(item => item.projectPath === "src/agent");
+      assert.equal(agent[0].path, "src/agent/main.py");
+      assert.equal(agent[0].title, "Agent runtime & egress audit");
+      assert.equal(agent[0].blockTemplateId, "agent-instructions");
+      assert.ok(agent.every(item => item.projectName === "Agent"));
+      assert.equal(await resolveProjectSourcePath(root, "src/agent"), join(root, "src/agent/main.py"));
+      const sandbox = artifacts.filter(item => item.projectPath === directory);
+      assert.deepEqual(sandbox.slice(0, 2).map(item => item.path), [`${directory}/main.py`, "config/egress-policy.yaml"]);
+      assert.ok(sandbox.every(item => item.projectName === "Document validation" && item.blockCategory === "sandbox"));
+      const policy = sandbox.find(item => item.id === "egress-policy");
+      assert.equal(policy.customizationArea, "policies");
+      assert.equal(policy.blockTemplateId, "sandbox");
+      assert.equal(policy.title, "Sandbox egress policy");
+      assert.equal(policy.available, true);
+      assert.match(policy.content, /^defaultAction: Deny/);
+      assert.equal(await resolveBuildArtifactPath(root, policy.id), join(root, policy.path));
+      assert.ok(!sandbox.some(item => item.path.endsWith(".md")));
+      assert.equal(new Set(artifacts.map(item => item.path)).size, artifacts.length);
+      await rm(join(root, policy.path));
+      assert.ok(!(await readBuildWorkspace(root)).artifacts.some(item => item.id === "egress-policy"));
+      await assert.rejects(resolveBuildArtifactPath(root, policy.id), /known Customize artifact/);
+      await symlink(join(root, "config/document-policy.json"), join(root, policy.path));
+      await assert.rejects(readBuildWorkspace(root), /not symlinks/);
+    }, directory);
+  }
 });
 
 test("Build resolves allowlisted developer files and rejects arbitrary paths and symlinked source", async () => {

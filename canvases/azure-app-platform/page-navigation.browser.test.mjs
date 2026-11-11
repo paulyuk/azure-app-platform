@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
+import { openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -44,9 +44,10 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const mode = async expected => {
         await page.waitForFunction(value => document.body.dataset.workspace === value, expected);
         const action = page.locator(".workspace-lifecycle-actions #header-runtime-action");
-        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "Stop app");
+        assert.equal(await action.innerText(), fixture.state.app === "stopped" ? "Run app" : "");
+        assert.equal(await action.getAttribute("aria-label"), fixture.state.app === "stopped" ? "Run app" : "Stop app");
         assert.equal(await action.locator('svg[data-octicon="play"]').count(), fixture.state.app === "stopped" ? 1 : 0);
-        assert.equal(await action.getAttribute("data-appearance"), fixture.state.app === "stopped" ? "primary" : "secondary");
+        assert.equal(await action.getAttribute("data-appearance"), fixture.state.app === "stopped" ? "primary" : "subtle");
         assert.equal(await action.evaluate(node => node === window.navigationRuntimeAction), true);
         assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       };
@@ -58,7 +59,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.getByRole("button", { name: "Customize", exact: true }).count(), 0);
       assert.equal(await page.locator("#deploy-app").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Deploy", exact: true }).count(), 1);
-      assert.deepEqual(await page.locator("#workspace-runtime-actions button").allTextContents(), ["Open app"]);
+      assert.deepEqual(await page.locator("#workspace-runtime-actions button").allTextContents(), ["", "", ""]);
+      assert.deepEqual(await page.locator("#workspace-runtime-actions button").evaluateAll(buttons =>
+        buttons.map(button => [button.getAttribute("aria-label"), button.title, button.querySelector("svg")?.dataset.octicon])),
+      [["Stop app", "Stop app", "square"], ["Open app", "Open app", "link-external"], ["Logs", "Show logs", "terminal"]]);
+      assert.equal(await page.locator(".studio-theme-control #header-open-app").count(), 0);
       await page.locator("#header-runtime-action").evaluate(node => { window.navigationRuntimeAction = node; });
       assert.equal(await page.locator("#browse-workspaces,.ct-shell-navigation").count(), 0);
       assert.equal(await back.isDisabled(), true);
@@ -87,7 +92,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await nav.getByRole("button", { name: "Run", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByText("Autonomous event / task payload", { exact: true }).waitFor();
       await page.getByText("Event triggers:", { exact: true }).waitFor();
-      await page.getByText("Autonomous run result", { exact: true }).waitFor();
+      assert.equal(await page.getByText("Autonomous run result", { exact: true }).count(), 0);
       const draft = page.getByRole("textbox", { name: "Agent message", exact: true });
       await page.locator("[data-event-preset-select]").selectOption("loan.document.submitted");
       await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
@@ -113,6 +118,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const menuStyle = getComputedStyle(menu);
             const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
             const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
+            const open = document.querySelector("#header-open-app").getBoundingClientRect();
             const first = document.querySelector("#build-workspace").getBoundingClientRect();
             return {
               overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
@@ -122,19 +128,24 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               menuHeight: menu.getBoundingClientRect().height,
               belowMenu: action.top >= group.bottom + 4,
               besideMenu: action.left >= group.right + 7 && Math.abs(action.top - first.top) <= 1,
-              actionsTogether: Math.abs(action.top - logs.top) <= 1 && action.right < logs.left,
-              rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 12)) <= 1,
+              actionsTogether: Math.abs(action.top - logs.top) <= 1
+                && Math.abs(action.right - open.left) <= 1 && Math.abs(open.right - logs.left) <= 1,
+              rightAligned: Math.abs(logs.right - (menu.getBoundingClientRect().right - 13)) <= 1,
               primaryActions: [...menu.querySelectorAll('button[data-appearance="primary"]')].map(button => button.id),
               runtimeAppearance: document.querySelector("#header-runtime-action").dataset.appearance,
               menuBorders: [menuStyle.borderTopWidth, menuStyle.borderBottomWidth,
                 menuStyle.borderTopStyle, menuStyle.borderBottomStyle],
               menuBorderColors: [menuStyle.borderTopColor, menuStyle.borderBottomColor],
               themeBorder: getComputedStyle(document.querySelector("#workspace-runtime-bar")).borderBottomColor,
+              switchBorder: getComputedStyle(document.querySelector(".workspace-view-switch")).borderWidth,
+              groupBorder: getComputedStyle(document.querySelector("#workspace-runtime-actions")).borderWidth,
               buttons: [...menu.querySelectorAll("button")].filter(button => button.checkVisibility()).map(button => {
                 const style = getComputedStyle(button);
                 return {
                   toolkit: button.classList.contains("ct-button"), size: button.dataset.size,
                   height: button.getBoundingClientRect().height, padding: style.padding,
+                  iconOnly: Boolean(button.closest("#workspace-runtime-actions")),
+                  width: button.closest("#workspace-runtime-actions") ? button.getBoundingClientRect().width : null,
                 };
               }),
             };
@@ -145,16 +156,20 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           assert.ok(geometry.navRight <= width &&
             (width <= 680 ? Math.abs(geometry.groupWidth - (width - 24)) <= 1 : geometry.groupWidth < 400),
             JSON.stringify({ width, tone, geometry }));
-          assert.deepEqual(geometry.menuBorders, ["1px", "1px", "solid", "solid"]);
-          assert.deepEqual(geometry.menuBorderColors, [geometry.themeBorder, geometry.themeBorder]);
+          assert.deepEqual(geometry.menuBorders, ["0px", "1px", "none", "solid"]);
+          assert.equal(geometry.menuBorderColors[1], geometry.themeBorder);
+          assert.equal(geometry.switchBorder, "0px");
+          assert.equal(geometry.groupBorder, "1px");
           assert.ok(geometry.menuHeight <= (width <= 680 ? 108 : 44), JSON.stringify({ width, tone, geometry }));
           assert.ok((width <= 680 ? geometry.belowMenu : geometry.besideMenu) &&
             geometry.actionsTogether && geometry.rightAligned, JSON.stringify({ width, tone, geometry }));
-          assert.equal(geometry.buttons.length, 7);
+          assert.equal(geometry.buttons.length, 8);
           assert.deepEqual(geometry.primaryActions, []);
-          assert.equal(geometry.runtimeAppearance, "secondary");
+          assert.equal(geometry.runtimeAppearance, "subtle");
           for (const button of geometry.buttons) {
-            assert.deepEqual(button, { toolkit: true, size: "small", height: 28, padding: "3px 8px" });
+            assert.deepEqual(button, { toolkit: true, size: "small", height: 28,
+              padding: button.iconOnly ? "0px" : "3px 8px", iconOnly: button.iconOnly,
+              width: button.iconOnly ? 32 : null });
           }
         }
       }
@@ -232,7 +247,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#workspace-status-footer,#action-center,#guide-rail").count(), 0);
 
       // Existing settings and source handoff stay independent of destination history.
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       await page.getByRole("combobox", { name: "Appearance", exact: true }).waitFor();
       await page.getByRole("button", { name: "Close settings", exact: true }).click();
       assert.equal(await draft.inputValue(), "Preserve this event payload.");
@@ -244,6 +259,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(fixture.mutations[0].body.port, 3000);
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await page.getByRole("region", { name: "Agent response", exact: true }).filter({ hasText: "three vehicles" }).waitFor();
+      await returnToRun(page);
       assert.equal(fixture.mutations.at(-1).path, "/api/agent-invoke");
       assert.equal(fixture.mutations.at(-1).body.message, "Preserve this event payload.");
       assert.equal(fixture.mutations.at(-1).body.document.name, "sample-loan-note.md");

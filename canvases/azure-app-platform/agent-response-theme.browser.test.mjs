@@ -2,15 +2,13 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { readFile } from "node:fs/promises";
-import { inspectSpotArtwork } from "./spot-artwork-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
 try { ({ chromium, webkit } = requireWeb("playwright")); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  test(`Idle inbox artwork follows distinct host color roles in ${name}`, {
+  test(`Execution layers retain semantic host colors in ${name}`, {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const browser = await engine.launch({ headless: true });
@@ -18,57 +16,63 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       for (const presentationProfile of ["standalone", "github-app"]) {
         const fixture = await createRunSettingsFixture({ preview: true, presentationProfile });
         const page = await browser.newPage({ viewport: { width: 430, height: 800 } });
+        let release;
         try {
+          await page.route("**/api/agent-invoke", async route => {
+            await new Promise(resolve => { release = resolve; });
+            await route.fulfill({ json: { response: "Complete" } });
+          });
           await page.goto(fixture.origin + "/app-map");
-          await inspectSpotArtwork(page, await readFile(new URL("./assets/run-ready-spot.svg", import.meta.url), "utf8"));
-          const svg = page.locator(".agent-response svg.agent-result-illustration");
-          await svg.waitFor();
-          const geometry = await svg.evaluate(node => [...node.querySelectorAll("path")].map(path => path.getAttribute("d")));
+          await page.getByRole("textbox", { name: "Agent message", exact: true })
+            .fill("Check execution layer theme colors.");
+          await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+          const view = page.getByRole("region", { name: "Run execution", exact: true });
+          const active = view.locator('.run-execution-layer[data-state="active"]');
+          await active.waitFor();
           const palettes = [];
           for (const theme of ["light", "dark"]) {
+            const expected = theme === "light"
+              ? { overlay: "rgb(253, 247, 232)", text: "rgb(48, 32, 16)",
+                muted: "rgb(128, 80, 48)", accent: "rgb(176, 32, 112)" }
+              : { overlay: "rgb(32, 29, 48)", text: "rgb(250, 240, 224)",
+                muted: "rgb(208, 176, 144)", accent: "rgb(224, 144, 192)" };
             if (presentationProfile === "github-app") {
-              await page.evaluate(theme => {
-                const hostColors = theme === "light"
-                  ? { "--background-color-overlay": "#fdf7e8", "--text-color-default": "#302010", "--text-color-muted": "#805030",
-                    "--text-color-accent": "#b02070", "--background-color-accent-muted": "#f8d0e8",
-                    "--text-color-button-primary-rest": "#fffaf0", "--true-color-blue": "#1473e6" }
-                  : { "--background-color-overlay": "#201d30", "--text-color-default": "#f0e0ff", "--text-color-muted": "#d0b090",
-                    "--text-color-accent": "#e090c0", "--background-color-accent-muted": "#403050",
-                    "--text-color-button-primary-rest": "#302010", "--true-color-blue": "#82baff" };
-                for (const [token, value] of Object.entries(hostColors)) document.documentElement.style.setProperty(token, value);
-              }, theme);
+              await page.evaluate(({ theme, expected }) => {
+                const hostColors = {
+                  "--background-color-overlay": expected.overlay,
+                  "--text-color-default": expected.text,
+                  "--text-color-muted": expected.muted,
+                  "--text-color-accent": expected.accent,
+                };
+                for (const [token, value] of Object.entries(hostColors)) {
+                  document.documentElement.style.setProperty(token, value);
+                }
+                document.documentElement.dataset.themeTone = theme;
+                document.documentElement.dataset.colorMode = theme;
+              }, { theme, expected });
             }
             await page.evaluate(theme => { document.documentElement.dataset.studioTheme = theme; }, theme);
-            const palette = await svg.evaluate(node => {
-              const probe = document.createElementNS("http://www.w3.org/2000/svg", "path");
-              node.append(probe);
-              const resolve = token => {
-                probe.setAttribute("fill", "var(" + token + ")");
-                return getComputedStyle(probe).fill;
+            const palette = await view.evaluate(node => {
+              const active = node.querySelector('.run-execution-layer[data-state="active"]');
+              return {
+                overlay: getComputedStyle(node.querySelector(".run-execution-view")).backgroundColor,
+                text: getComputedStyle(active.querySelector(".run-execution-label")).color,
+                muted: getComputedStyle(active.querySelector(".run-execution-detail")).color,
+                accent: getComputedStyle(active).borderColor,
+                trail: getComputedStyle(active.querySelector(".run-execution-trail rect")).stroke,
+                mark: getComputedStyle(active.querySelector(".run-execution-mark")).color,
               };
-              const colors = [
-                [getComputedStyle(node.querySelector('[data-spot-role="outline"] path')).stroke, resolve("--studio-ink")],
-                [getComputedStyle(node.querySelector('[data-spot-role="supporting-detail"] path')).stroke, resolve("--studio-muted")],
-                [getComputedStyle(node.querySelector('[data-spot-role="accent"] path')).stroke, resolve("--studio-accent")],
-              ];
-              probe.remove();
-              return colors;
             });
-            for (const [actual, expected] of palette) assert.equal(actual, expected, `idle ${presentationProfile} ${theme} uses semantic theme tokens`);
-            palettes.push(palette.map(([actual]) => actual));
-            assert.equal(new Set(palette.slice(0, 3).map(([actual]) => actual)).size, 3,
-              "Neutral subject, supporting detail and selective accent remain distinct");
-            assert.deepEqual(await svg.evaluate(node => [...node.querySelectorAll("path")].map(path => path.getAttribute("d"))), geometry);
-            assert.equal(await svg.getAttribute("aria-hidden"), "true");
-            assert.equal(await svg.getAttribute("focusable"), "false");
+            assert.equal(palette.accent, palette.trail);
+            assert.equal(palette.accent, palette.mark);
+            if (presentationProfile === "github-app") {
+              assert.deepEqual(palette, { ...expected, trail: expected.accent, mark: expected.accent });
+            }
+            palettes.push(palette);
           }
-          assert.notDeepEqual(palettes[0], palettes[1], `idle ${presentationProfile} must follow live theme colors`);
-          if (presentationProfile === "github-app") {
-            assert.deepEqual(palettes[0], ["rgb(48, 32, 16)", "rgb(128, 80, 48)", "rgb(176, 32, 112)"]);
-            assert.deepEqual(palettes[1], ["rgb(240, 224, 255)", "rgb(208, 176, 144)", "rgb(224, 144, 192)"]);
-          }
-          assert.deepEqual(fixture.mutations, [], "Theme changes do not invoke the agent");
-        } finally { await page.close(); await fixture.close(); }
+          assert.notDeepEqual(palettes[0], palettes[1],
+            `${presentationProfile} execution colors must follow the active theme.`);
+        } finally { release?.(); await page.close(); await fixture.close(); }
       }
     } finally { await browser.close(); }
   });

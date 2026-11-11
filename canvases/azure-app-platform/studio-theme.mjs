@@ -70,10 +70,8 @@ export function renderThemeStyles(presentationProfile = "standalone") {
     .studio-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
     .studio-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--studio-ink); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
     .studio-logo { flex: 0 0 auto; width: 32px; height: 28px; object-fit: contain; }
-    .studio-brand:focus-visible, .studio-theme-control a:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; border-radius: 4px; }
+    .studio-brand:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; border-radius: 4px; }
     .studio-theme-control { display: flex; align-items: center; gap: 10px; position: relative; }
-    .studio-theme-control .studio-docs { color: var(--studio-muted); font-size: 12px; text-decoration: none; }
-    .studio-theme-control .studio-docs:hover { color: var(--studio-ink); text-decoration: underline; }
     .studio-theme-error { position: absolute; z-index: 10; top: 100%; right: 0; width: min(260px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--studio-line); border-radius: 4px; background: var(--studio-raised); color: var(--studio-danger); font-size: 12px; }
     .studio-theme-error:empty { display: none; }
     button.primary, button.run-button-primary { color: var(--studio-on-accent); background: var(--studio-accent); border-color: var(--studio-accent); }
@@ -99,10 +97,7 @@ export function renderThemeToggle(theme = "light", presentationProfile = "standa
   validateTheme(theme);
   const presentation = getStudioPresentation(presentationProfile);
   return `<div class="studio-theme-control" role="group" aria-label="App utilities">
-    <a class="studio-docs" tabindex="-1" href="https://github.com/coreai-microsoft/azure-app-platform/tree/main/canvases/azure-app-platform#readme" target="_blank" rel="noopener noreferrer">Docs</a>
-    <button data-studio-button="subtle" tabindex="-1" class="studio-settings-toggle" type="button" data-studio-settings-toggle aria-label="Settings" title="Settings" aria-haspopup="dialog">
-      ${renderOcticon("gear", { size: 18 })}
-    </button>
+    <span data-studio-utilities-menu></span>
     <span class="studio-theme-error" role="status"></span>
     <span class="studio-theme-error" data-studio-editor-status role="status"></span>
     <dialog class="studio-settings" aria-labelledby="studio-settings-title">
@@ -159,8 +154,35 @@ export function renderThemeClientScript(apiToken, editorSettings = { editorId: "
         onChange: (state) => window.dispatchEvent(new CustomEvent("app-platform-editor-settings-change", { detail: state })),
       });
       window.appPlatformEditorPreference = editorPreference;
+      const buttons = window.appPlatformButtons;
+      const utilitiesTrigger = buttons.menu({
+        label: null, positioning: "below-end",
+        button: {
+          appearance: "subtle", size: "small", className: "studio-utilities-toggle", tabIndex: 0,
+          icon: buttons.icon(${JSON.stringify(renderOcticon("kebab-horizontal"))}),
+          "aria-label": "More options", title: "More options", "data-studio-utilities-toggle": "",
+        },
+        items: [
+          {
+            id: "docs", label: "Docs",
+            icon: buttons.icon(${JSON.stringify(renderOcticon("link-external"))}),
+            onClick: () => window.open(
+              "https://github.com/coreai-microsoft/azure-app-platform/tree/main/canvases/azure-app-platform#readme",
+              "_blank", "noopener,noreferrer"),
+          },
+          {
+            id: "settings", label: "Settings", "aria-haspopup": "dialog",
+            icon: buttons.icon(${JSON.stringify(renderOcticon("gear"))}),
+            onClick: () => {
+              utilitiesTrigger.focus({ preventScroll: true });
+              window.appPlatformSettings.open();
+            },
+          },
+        ],
+      });
+      buttons.append(document.querySelector("[data-studio-utilities-menu]"), utilitiesTrigger);
       window.appPlatformSettings = (${createStudioSettings.toString()})({
-        dialog, trigger: document.querySelector("[data-studio-settings-toggle]"),
+        dialog, trigger: utilitiesTrigger,
         onOpen: () => { void editorPreference.refresh(); },
         onClear: element => {
           window.appPlatformToolkitComponents?.clear(element);

@@ -3,17 +3,26 @@ import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
 import { serveStudioAsset } from "./studio-assets.mjs";
 import { getTierDefinition } from "./tier-definitions.mjs";
 
-export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone" } = {}) {
+export async function returnToRun(page) {
+  const execution = page.getByRole("region", { name: "Run execution", exact: true });
+  if (await execution.isVisible()) {
+    await execution.getByRole("button", { name: "Back to input", exact: true }).click();
+  }
+}
+
+export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone", sandbox = false,
+  gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" },
+} = {}) {
   const graph = {
     root: "/fixture/dealer", generatedAt: new Date().toISOString(),
     nodes: [
       { id: "web", tierId: "web", name: "Dealer web", projectPath: "src/web" },
       { id: "agent", tierId: "agent", name: "Deal finder", projectPath: "src/agent" },
       { id: "inventory", tierId: "skills", name: "Inventory search", projectPath: "src/skills/inventory" },
+      ...(sandbox ? [{ id: "sandbox", tierId: "sandbox", name: "Code interpreter", projectPath: "src/interpreter" }] : []),
     ].map((node) => ({ ...node, kind: "project", badges: [], evidence: [] })),
-    edges: [], summary: { projectNodes: 3, operationNodes: 0, edges: 0 },
+    edges: [], summary: { projectNodes: sandbox ? 4 : 3, operationNodes: 0, edges: 0 },
   };
-  const gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" };
   const editors = [
     { id: "vscode", label: "VS Code" },
     { id: "vscode-insiders", label: "VS Code Insiders" },
@@ -25,6 +34,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
   const state = {
     app: "running", operation: null, error: "", theme: "light", configured: true, gatewayAvailable: true,
     outputError: false, preferenceError: false, deleteError: false, deleteOutcome: "complete", deleteDelay: null, documentInput: false,
+    sandboxBoundaryTest: null, starterPrompt: "",
     health: "Healthy", editorId: "vscode", commands: [], appName: "Dealer · UI preview", renameError: false,
     lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
   };
@@ -80,10 +90,12 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
             healthStatus: ready ? state.health : "Offline", url: "http://localhost:" + item.port };
         }),
       };
-      else if (path === "/api/local-readiness") result = {
+      else if (path === "/api/local-readiness" || path === "/api/connection-state") result = {
         ready: true, gatewayConfigured: state.configured, model: state.configured ? gateway.model : null,
         activeGateway: state.configured ? gateway : null, mode: state.configured ? "full" : "preview",
-        ...(state.documentInput ? { agentRuntime: "local", documentInput: { extensions: [".txt", ".md"], maxBytes: 65536 } } : {}),
+        ...(state.documentInput ? { agentRuntime: "local", documentInput: typeof state.documentInput === "object"
+          ? state.documentInput : { extensions: [".txt", ".md"], maxBytes: 65536 } } : {}),
+        sandboxBoundaryTest: state.sandboxBoundaryTest, starterPrompt: state.starterPrompt,
       };
       else if (path === "/api/build-workspace") result = { artifacts: [] };
       else if (path === "/api/app-output") {
@@ -141,6 +153,12 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
         if (!files[body.projectPath]) throw new Error("Choose a known preview source project.");
         result = { path: files[body.projectPath], canvas: { canvasId: "editor" } };
       } else if (path === "/api/open-entrypoint" || path === "/api/open-source") result = { outcome: "opened" };
+      else if (path === "/api/open-vscode") result = { outcome: "opened-in-vscode", root: body.root, command: "code" };
+      else if (path === "/api/blocked-result-recovery") result = {
+        outcome: "blocked-result-recovery-requested",
+        messageId: "fixture-recovery-message",
+        targetSessionId: "fixture-app-session",
+      };
       else if (path === "/api/app-logs") result = {
         root: graph.root, scope: { serviceId: null, label: "All services", groupedByService: true, description: "Simulated local service logs." },
         catalog: [{ id: "agent", label: "Deal finder", kind: "component", componentId: "agent", tierId: "agent", projectPath: "src/agent", aliases: [] }],

@@ -1,0 +1,31 @@
+# Apply this policy to the ACA Sandbox before running untrusted input.
+defaultAction: Deny
+trafficInspection: Full
+rules: []
+
+# Optional authenticated integration after reviewing the exact host and path.
+# Replace rules: [] with the reviewed Transform rule. The proxy resolves
+# credentials outside the microVM; never inject them into the tool environment.
+#
+# rules:
+#   - name: reviewed-api-auth
+#     match:
+#       host: "api.example.com"
+#       path: "/v1/*"
+#       methods: [GET, POST]
+#     action:
+#       type: Transform
+#       headers:
+#         - operation: Set
+#           name: Authorization
+#           valueRef:
+#             secretRef:
+#               secretId: reviewed-api
+#               secretKey: token
+#               format: "******"
+#
+# Alternative valueRef for a sandbox-group identity with upstream access:
+#             managedIdentityRef:
+#               type: SystemAssigned
+#               resource: "https://management.azure.com"
+#               format: "******"

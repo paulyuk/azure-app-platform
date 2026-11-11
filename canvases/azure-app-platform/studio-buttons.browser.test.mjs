@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createStudioButtons } from "./studio-buttons.mjs";
 import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
-import { selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
+import { openStudioSettings, selectWorkspace } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium;
@@ -292,10 +292,10 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
             screenshotSha256: hash(await readFile(join(output, label + ".png"))),
             button: { ...button, contrastRatio: contrastRatio(button.foreground, button.background) } });
         }
-        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await openStudioSettings(page);
         await page.getByRole("combobox", { name: "Appearance", exact: true }).selectOption(tone === "light" ? "dark" : "light");
         await page.getByRole("button", { name: "Close settings", exact: true }).click();
-        await page.waitForFunction(() => document.activeElement?.classList.contains("studio-settings-toggle"));
+        await page.waitForFunction(() => document.activeElement?.matches("[data-studio-utilities-toggle]"));
         assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "Keep my unsent draft");
       }
     }
@@ -323,6 +323,7 @@ test("runtime actions use canonical geometry and live host tokens in compact lig
     });
     await page.locator("#host-action").focus();
     await page.keyboard.press("Shift+Tab");
+    assert.equal(await page.locator("#host-subtle").evaluate(element => element === document.activeElement), true);
     await page.keyboard.press("Tab");
     await page.waitForFunction(() => {
       const action = document.querySelector("#host-action");

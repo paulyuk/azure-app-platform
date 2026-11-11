@@ -50,6 +50,46 @@ share one read within a canvas and its authorized-folder scope. Completed
 results are not cached by the server; retries, changed folder scopes, and
 creation or mutation checks still perform fresh discovery.
 
+In **Build**, source previews fill the available pane without nested outer
+gutters. Collections show the filenames that fit, followed by **+N more** for
+only the hidden files. Widening the pane restores filenames and removes the
+disclosure when all fit. Selecting a filename opens Page view; Stack view,
+per-file line numbers, and **Add building block** remain available.
+
+In **Run**, enter a prompt and attach documents on the invocation screen, with
+**Try a boundary test** placed directly below **Event triggers**. **Invoke
+agent** opens a separate execution view containing the execution layers,
+document policy assessment, tool activity, and response output. These outputs
+are not shown on the prompt-entry screen. The active layer has a clockwise
+glowing border trail (or a steady highlight when reduced motion is enabled);
+execution layers remain stacked directly above the response without a parent
+summary accordion, and each layer opens inline as an accordion to inspect
+runtime, harness, policy, or MCP tool details. Startup and request states follow
+actual readiness and HTTP boundaries. Model and tool steps are not streamed:
+tool reports and policy stages appear when returned, and an unconfirmed tool
+call stays **Unverified**. **Back to input** returns to the prompt without
+cancelling execution. Use **Clear input** to reset the task payload without
+discarding the latest run. **View execution** in the input header or workspace
+history revisits that run, while the **Output** tab exposes its logs.
+
+**Connect** shows this app's saved gateway, model, and sandbox selection from
+local configuration before refreshing Azure resources in the background. An
+unconfigured app shows empty connection controls without waiting for Azure.
+Discovery failures leave the saved connection visible; applying changes still
+requires current app status and completed discovery.
+
+The header's **More options** (three-dot) menu contains **Docs** and **Settings**
+on both Home and the workspace. Docs opens in a new tab; closing Settings
+returns focus to the menu button.
+
+The runtime action bar groups **Stop app**, **Open app**, and **Logs** as
+icon-only controls with accessible names and tooltips. Stop comes first with a
+red outline icon and a divider before the other controls. **Open app** appears
+only when the web endpoint is ready. During startup, a spinner marks
+**Waiting for the agent** and **Invoke agent** is disabled; the stop control
+remains **Cancel startup**. From a stopped app, **Invoke agent** still starts
+the app and waits for its agent endpoint before sending the task.
+
 ### 3. Run canvas tests (maintainers)
 
 From the repository root:

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -102,7 +102,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const badge = logs.locator(".logs-warning-badge");
       assert.equal(await logs.innerText(), "");
       assert.equal(await logs.getAttribute("aria-label"), "Logs");
-      assert.equal(await logs.getAttribute("data-appearance"), "secondary");
+      assert.equal(await logs.getAttribute("data-appearance"), "subtle");
       assert.equal(await logs.locator('svg[data-octicon="terminal"]').count(), 1);
       assert.equal(await badge.count(), 0);
       await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Retain this task while reviewing logs.");
@@ -137,7 +137,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
             const geometry = await page.evaluate(() => {
               const action = document.querySelector("#header-runtime-action").getBoundingClientRect();
               const logs = document.querySelector("#run-diagnostics-toggle").getBoundingClientRect();
-              const divider = document.querySelector(".workspace-action-divider").getBoundingClientRect();
+              const open = document.querySelector("#header-open-app");
+              const next = open.checkVisibility() ? open : document.querySelector("#run-diagnostics-toggle");
+              const group = document.querySelector("#workspace-runtime-actions").getBoundingClientRect();
               const menu = document.querySelector(".workspace-view-switch").getBoundingClientRect();
               const first = document.querySelector("#build-workspace").getBoundingClientRect();
               const bar = document.querySelector(".workspace-navigation-bar").getBoundingClientRect();
@@ -145,11 +147,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
               const dock = document.querySelector("#workspace-diagnostics").getBoundingClientRect();
               return {
                 fits: document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth,
-                divided: action.right < divider.left && divider.right < logs.left && divider.height === 20,
+                divided: getComputedStyle(next).borderInlineStartWidth === "1px"
+                  && Math.abs(action.right - next.getBoundingClientRect().left) <= 1,
                 sameRow: Math.abs(action.top - logs.top) <= 1,
                 belowMenu: action.top >= menu.bottom + 4,
                 besideMenu: action.left >= menu.right + 7 && Math.abs(action.top - first.top) <= 1,
-                rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1,
+                rightAligned: Math.abs(group.right - (bar.right - 12)) <= 1,
                 below: main.bottom <= dock.top + 1,
                 mainHeight: main.height,
               };
@@ -211,7 +214,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await route.fulfill({ response, json: { ...await response.json(), recovered: true } });
       });
       fixture.state.app = "starting";
-      await page.locator("#header-runtime-action").filter({ hasText: "Stop partial startup" }).waitFor();
+      await page.locator('#header-runtime-action[aria-label="Stop partial startup"]').waitFor();
       for (const width of [320, 380, 620, 800]) {
         await page.setViewportSize({ width, height: 480 });
         const geometry = await page.evaluate(() => {
@@ -221,14 +224,14 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
           const bar = document.querySelector(".workspace-navigation-bar").getBoundingClientRect();
           return { separated: action.left >= menu.right + 7, belowMenu: action.top >= menu.bottom + 4,
             sameRow: Math.abs(action.top - logs.top) <= 1,
-            rightAligned: Math.abs(logs.right - (bar.right - 12)) <= 1, fits: logs.right <= innerWidth,
+            rightAligned: Math.abs(logs.right - (bar.right - 13)) <= 1, fits: action.right <= innerWidth,
             label: document.querySelector("#header-runtime-action").getAttribute("aria-label") };
         });
         assert.ok((width <= 680 ? geometry.belowMenu : geometry.separated) &&
           geometry.sameRow && geometry.rightAligned && geometry.fits, JSON.stringify({ width, geometry }));
         assert.equal(geometry.label, "Stop partial startup");
       }
-      await page.unroute("**/api/app-status*");
+      await page.unrouteAll({ behavior: "wait" });
       fixture.state.app = "stopped";
       fixture.state.commands = [];
       fixture.state.outputError = true;
@@ -410,7 +413,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#workspace-status-footer,#workspace-guide,#action-center,#guide-rail,[data-guide-stage]").count(), 0);
       assert.equal(await page.locator('[aria-controls*="guide-"]').count(), 0);
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
-      assert.equal(await page.locator(".studio-theme-control #header-open-app").isVisible(), true);
+      assert.equal(await page.locator("#workspace-runtime-actions #header-open-app").isVisible(), true);
       assert.ok(await page.evaluate(() => Math.abs(document.querySelector("#app-workspace-main").getBoundingClientRect().top -
         document.querySelector(".workspace-navigation-bar").getBoundingClientRect().bottom) <= 1),
       "Healthy Run starts immediately after navigation, with no empty runtime row.");
@@ -481,6 +484,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
       assert.equal(await logs.getAttribute("aria-expanded"), "false");
       assert.equal(await logs.locator(".logs-warning-badge").count(), 0);
+      await returnToRun(page);
       await page.locator("#map-app").click();
       assert.equal(await page.locator("#workspace-runtime-bar").isVisible(), false);
       assert.equal(await page.locator(".workspace-lifecycle-actions #header-runtime-action").isVisible(), true,

@@ -1,5 +1,5 @@
 import { summarizeAgentResult } from "./agent-result.mjs";
-import { BLOCKED_AGENT_RESPONSE_VERSION, normalizeBlockedAgentResponse } from "./blocked-agent-response.mjs";
+import { BLOCKED_AGENT_RESPONSE_VERSION, normalizeBlockedAgentResponse, normalizeSandboxProbe } from "./blocked-agent-response.mjs";
 import { assessDocumentResult } from "./document-assessment.mjs";
 
 function parseBody(text) {
@@ -13,6 +13,10 @@ function parseBody(text) {
 function fallbackPreModelBlockedResponse(result, status) {
   if (status !== 422 || result?.verdict !== "rejected" || !result?.toolResult || !result?.runtime) return null;
   const runtime = result.runtime;
+  const sandboxTest = result.testKind === "sandbox-boundary";
+  const sandboxProbe = result.toolResult.reasonCode === "unauthorized-egress"
+    ? normalizeSandboxProbe(result.toolResult.sandboxProbe) : null;
+  if (result.toolResult.sandboxProbe !== undefined && !sandboxProbe) return null;
   const mode = runtime.agentRuntime === "copilot-sdk-sandbox"
     ? "aca-session"
     : runtime.documentToolRuntime === "aca-custom-container-session"
@@ -24,28 +28,32 @@ function fallbackPreModelBlockedResponse(result, status) {
     responseOrigin: "agent-harness",
     upstreamHttpStatus: 422,
     executionKind: "agent-invocation",
-    testKind: "document-input",
+    testKind: sandboxTest ? "sandbox-boundary" : "document-input",
     mode,
     reasonCode: result.toolResult.reasonCode,
     operatorMessage: typeof result.message === "string" && result.message
       ? result.message
-      : `Document rejected before any model call: ${result.toolResult.message || ""}`,
-    summary: "The hostile document did not reach the model in this request.",
+      : `${sandboxTest ? "Sandbox input" : "Document"} rejected before any model call: ${result.toolResult.message || ""}`,
+    summary: `The hostile ${sandboxTest ? "sandbox input" : "document"} did not reach the model in this request.`,
     stages: [
       { id: "agent-harness", state: "succeeded", detail: "Request received" },
-      { id: "document-tool", state: "rejected", detail: "Rejected", reasonCode: result.toolResult.reasonCode },
+      { id: sandboxTest ? "sandbox-tool" : "document-tool", state: "rejected", detail: "Rejected", reasonCode: result.toolResult.reasonCode },
       { id: "model", state: "not-attempted", detail: "Not attempted" },
       { id: "approval-disclosure", state: "not-applicable", detail: "Not part of this test" },
     ],
     limitations: [
       "no-model-call",
-      "no-hostile-outbound-probe",
+      ...(!sandboxProbe ? ["no-hostile-outbound-probe"] : []),
+      ...(sandboxProbe && !(sandboxProbe.outboundOutcome === "denied"
+        && ["python-audit-hook", "aca-egress-proxy"].includes(sandboxProbe.enforcement))
+        ? ["outbound-denial-unverified"] : []),
       mode === "local-simulation" ? "local-process-not-isolation-boundary" : "cloud-isolation-not-verified",
     ],
     evidence: {
       runtime,
       modelAuthoredTextShown: false,
-      outboundDenialProbeAttempted: false,
+      outboundDenialProbeAttempted: Boolean(sandboxProbe),
+      ...(sandboxProbe ? { sandboxProbe } : {}),
     },
   };
 }

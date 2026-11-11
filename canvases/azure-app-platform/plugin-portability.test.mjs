@@ -22,8 +22,17 @@ test("installed payload opens and materializes templates without checkout depend
     await mkdir(workspace);
     await execute("git", ["init", "--quiet", workspace]);
     const manifest = JSON.parse(await readFile(join(payload, ".github/plugin/plugin.json"), "utf8"));
+    const rootManifest = JSON.parse(await readFile(join(payload, "plugin.json"), "utf8"));
+    assert.deepEqual(rootManifest, manifest);
+    assert.equal(manifest.$schema, "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
     assert.equal(manifest.name, "azure-app-platform");
-    assert.equal(manifest.extensions, ".");
+    assert.deepEqual(manifest.extensions, {
+      "com.github.copilot": {
+        logo: "assets/run-ready-spot.svg",
+      },
+    });
+    assert.equal((await readFile(join(payload, "com.github.copilot/extensions/azure-app-platform/extension.mjs"), "utf8")).trim(),
+      'import "../../../extension.mjs";');
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
     assert.equal(packageJson.name, manifest.name);
     assert.equal(packageJson.version, manifest.version);
@@ -53,7 +62,7 @@ test("installed payload opens and materializes templates without checkout depend
     const { stdout } = await execute(process.execPath, ["--input-type=module", "--eval", `
       import assert from "node:assert/strict";
       import { createHash } from "node:crypto";
-      import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+      import { access, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
       import { isBuiltin, registerHooks } from "node:module";
       import { join, sep } from "node:path";
       import { pathToFileURL } from "node:url";
@@ -109,7 +118,7 @@ test("installed payload opens and materializes templates without checkout depend
           return resolved;
         },
       });
-      await import(base + "extension.mjs");
+      await import(base + "com.github.copilot/extensions/azure-app-platform/extension.mjs");
       checkpoint("provider imported");
       const { renderOcticon } = await import(base + "studio-icons.mjs");
       assert.match(renderOcticon("gear"), /data-octicon="gear"/);
@@ -141,6 +150,30 @@ test("installed payload opens and materializes templates without checkout depend
         assert.equal(globalThis.portabilityNamingAgents[0].modelPolicy, "required");
         const namingToken = html.match(/const apiToken = ("[^"]+")/);
         assert.ok(namingToken);
+        const connectionUrl = new URL("/api/connection-state?root=" + encodeURIComponent(process.cwd()), opened.url);
+        const connectionHeaders = { "X-App-Platform-Token": JSON.parse(namingToken[1]) };
+        assert.equal((await fetch(connectionUrl)).status, 403);
+        const emptyConnection = await fetch(connectionUrl, { headers: connectionHeaders, signal: AbortSignal.timeout(1500) });
+        assert.equal(emptyConnection.status, 200);
+        assert.deepEqual(await emptyConnection.json(), {
+          activeGateway: null, gatewayConfigured: false, model: null, sandboxGroup: null, agentRuntime: null,
+        });
+        await mkdir(join(process.cwd(), "src/agent"), { recursive: true });
+        await mkdir(join(process.cwd(), "config"));
+        await writeFile(join(process.cwd(), "src/agent/.env"),
+          "AI_GATEWAY_BASE_URL=https://portable.example.test/openai/v1\\nAI_GATEWAY_API_KEY=portable-private-key\\n");
+        await writeFile(join(process.cwd(), "config/runtime.json"),
+          JSON.stringify({ agentRuntime: "local", gateway: { defaultModel: "gpt-6.1-sol" } }));
+        const knownConnection = await fetch(connectionUrl, { headers: connectionHeaders, signal: AbortSignal.timeout(1500) });
+        assert.equal(knownConnection.status, 200);
+        const connection = await knownConnection.json();
+        assert.equal(connection.activeGateway.endpoint, "https://portable.example.test/openai/v1");
+        assert.equal(connection.activeGateway.model, "gpt-6.1-sol");
+        assert.equal(connection.activeGateway.configurationStatus, "local");
+        assert.equal(connection.gatewayConfigured, false);
+        assert.ok(!JSON.stringify(connection).includes("portable-private-key"));
+        await rm(join(process.cwd(), "src"), { recursive: true });
+        await rm(join(process.cwd(), "config"), { recursive: true });
         const named = await fetch(new URL("/api/app-name", opened.url), {
           method: "POST", headers: { "Content-Type": "application/json", "X-App-Platform-Token": JSON.parse(namingToken[1]) },
           body: JSON.stringify({ instructions: "Review documents" }),

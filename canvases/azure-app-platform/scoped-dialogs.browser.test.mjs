@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture, returnToRun } from "./run-settings-test-fixture.mjs";
 import { renderStudioHtml } from "./studio-ui.mjs";
+import { openStudioSettings } from "./workspace-navigation-test-helpers.mjs";
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -66,7 +67,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       await prompt.fill("Preserve this unattended event.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await page.locator('[data-document-assessment][data-state="approved"]').waitFor({ state: "attached" });
+      await returnToRun(page);
       await page.getByLabel("Document attachment", { exact: true }).click();
       await page.getByRole("button", { name: "Edit document", exact: true }).click();
       const text = page.getByLabel("Document text", { exact: true });
@@ -172,6 +174,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("#manage-app").click();
       await page.getByRole("button", { name: "Cancel document edit", exact: true }).click();
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
+      await returnToRun(page);
       await page.locator('.agent-status-brief[data-state="succeeded"]').waitFor();
       assert.deepEqual(fixture.mutations, []);
       assert.equal(invocations.length, 2);
@@ -229,10 +232,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("button", { name: "Open connections", exact: true }).waitFor();
       const prompt = page.getByRole("textbox", { name: "Agent message", exact: true });
       await prompt.fill("Keep the event draft.");
-      const trigger = page.getByRole("button", { name: "Settings", exact: true });
       const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
       const initialDiscovery = discovery;
-      await trigger.click();
+      await openStudioSettings(page);
       await dialog.getByRole("combobox", { name: "Appearance", exact: true }).waitFor();
       assert.equal(discovery, initialDiscovery, "Opening General never starts additional discovery beyond existing Environment setup");
       assert.equal(await dialog.locator('[data-settings-section]:visible').count(), 1);
@@ -292,7 +294,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "hidden" });
-      assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
+      await page.waitForFunction(() => document.activeElement?.matches("[data-studio-utilities-toggle]"));
       assert.equal(await prompt.inputValue(), "Keep the event draft.");
       assert.equal(fixture.mutations.some(item => item.path === "/api/app-command"), false);
       await page.locator("#run-diagnostics-toggle").click();
@@ -302,7 +304,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.setViewportSize({ width: 620, height: 800 });
       fixture.state.app = "stopped";
       await page.waitForFunction(() => document.querySelector("#header-runtime-action").textContent === "Run app");
-      await trigger.click();
+      await openStudioSettings(page);
       await selectSection(page, "ports");
       assert.equal(await dialog.getByRole("button", { name: "Pick available ports", exact: true }).isEnabled(), true);
       await selectSection(page, "danger");
@@ -318,7 +320,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.route("**/api/gateway-options*", route => route.fulfill({
         status: 503, json: { error: "Gateway discovery unavailable." },
       }));
-      await trigger.click();
+      await openStudioSettings(page);
       await selectSection(page, "connection");
       await dialog.getByText("Gateway discovery unavailable.", { exact: true }).waitFor();
       await page.keyboard.press("Escape");
@@ -346,7 +348,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       }));
       await page.route("**/api/sources", route => route.fulfill({ json: { roots: [], apps: [], templates: [] } }));
       await page.goto(fixture.origin + "/home-settings");
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openStudioSettings(page);
       const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
       await dialog.getByRole("combobox", { name: "Preferred external editor", exact: true }).waitFor();
       assert.deepEqual(await dialog.locator("[data-settings-section]").evaluateAll(nodes =>
@@ -355,8 +357,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         .locator("option").allTextContents(), ["General · Across all apps"]);
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "hidden" });
-      assert.equal(await page.getByRole("button", { name: "Settings", exact: true })
-        .evaluate(node => node === document.activeElement), true);
+      await page.waitForFunction(() => document.activeElement?.matches("[data-studio-utilities-toggle]"));
       assert.deepEqual(fixture.mutations, []);
       assert.deepEqual(errors, []);
     } finally {

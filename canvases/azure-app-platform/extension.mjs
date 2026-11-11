@@ -17,6 +17,7 @@ import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import {
@@ -55,6 +56,7 @@ import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./edito
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 import { openBuildFileCanvas } from "./build-file-canvas.mjs";
 import { BUILD_BLOCK_TEMPLATES, createdBuildBlock, requestBuildAdjustment } from "./build-blocks.mjs";
+import { requestBlockedResultRecovery } from "./blocked-result-recovery.mjs";
 import { materializeBuildBlock } from "./template-materializer.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
@@ -64,11 +66,12 @@ import { assessDocumentResult } from "./document-assessment.mjs";
 import { readAgentHttpResponse } from "./agent-http-response.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
 import { normalizeSandboxGroupCreateRequest } from "./sandbox-group-config.mjs";
+import { readLocalConnectionState } from "./connection-state.mjs";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readAppInputCapabilities, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 import {
   resolveAgentInvocation,
   invocationBody,
@@ -95,12 +98,15 @@ const appStates = new Map();
 const appOutput = new Map();
 const activeGateways = new Map();
 const gatewayWriteQueues = new Map();
+const inFlightLocalReadiness = new Map();
 let cachedDefaultInfraPromise = null;
+let cachedDefaultInfraNegativeUntil = 0;
 let session;
 const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
 const pendingAppMutations = new Set();
 const commandActivities = new Map();
 const portStopReviews = new Map();
+const clearedOutputBaselines = new Map();
 
 function commandLogDirectory(root) {
   const rootHash = createHash("sha256").update(root).digest("hex").slice(0, 20);
@@ -151,20 +157,38 @@ function formatLogSourceLabel(prefix, entryName) {
 }
 
 function formatOutputLine(sourceLabel, line) {
-  if (/^\[(?:sandbox|gateway|agent|startup|shutdown|gateway-setup|provision|deploy)\]/i.test(line)) {
+  if (/^\[(?:sandbox(?:-[a-z0-9-]+)?|gateway|agent|http|startup|shutdown|gateway-setup|provision|deploy)\]/i.test(line)) {
     return line;
   }
   return `[${sourceLabel}] ${line}`;
 }
 
-async function readRuntimeOutput(root) {
+async function collectRawRuntimeOutput(root) {
   const run = appOutput.get(root);
   const lines = [];
   async function readLogs(directory, prefix = "") {
-    const entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
-    const logEntries = prefix === "azure-app-platform/"
-      ? entries.filter((entry) => entry.isFile() && entry.name.endsWith(".log")).slice(-2)
-      : entries;
+    let entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    if (!prefix && entries.some((entry) => entry.name === "agent.log")) {
+      entries = [
+        ...entries.filter((entry) => entry.name !== "agent.log"),
+        ...entries.filter((entry) => entry.name === "agent.log"),
+      ];
+    }
+    let logEntries = entries;
+    if (prefix === "azure-app-platform/") {
+      const filesWithStats = [];
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".log")) continue;
+        try {
+          const stats = await stat(`${directory}/${entry.name}`);
+          filesWithStats.push({ entry, mtimeMs: stats.mtimeMs });
+        } catch {
+          // Ignore deleted or unreadable transient log files
+        }
+      }
+      filesWithStats.sort((a, b) => a.mtimeMs - b.mtimeMs || a.entry.name.localeCompare(b.entry.name));
+      logEntries = filesWithStats.slice(-2).map((item) => item.entry);
+    }
     for (const entry of logEntries) {
       const path = `${directory}/${entry.name}`;
       if (entry.isDirectory()) {
@@ -181,13 +205,6 @@ async function readRuntimeOutput(root) {
     }
   }
   try {
-    if (run?.state !== "stopping") {
-      await readLogs(`${root}/.dev-run`);
-    }
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  try {
     await readLogs(commandLogDirectory(root), "azure-app-platform/");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -201,8 +218,34 @@ async function readRuntimeOutput(root) {
       if (error.code !== "ENOENT") throw error;
     }
   }
+  try {
+    if (run?.state !== "stopping") {
+      await readLogs(`${root}/.dev-run`);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   lines.push(...(run?.lines ?? []));
   return lines.slice(-400).map(redactActivityText);
+}
+
+async function readRuntimeOutput(root) {
+  const all = await collectRawRuntimeOutput(root);
+  const baseline = clearedOutputBaselines.get(root);
+  if (!baseline?.length) return all;
+  let matchIndex = 0;
+  for (let i = 0; i < all.length && matchIndex < baseline.length; i++) {
+    if (all[i] === baseline[matchIndex]) matchIndex++;
+  }
+  if (matchIndex === baseline.length) {
+    return all.slice(baseline.length);
+  }
+  return all;
+}
+
+async function clearRuntimeOutput(root) {
+  const all = await collectRawRuntimeOutput(root);
+  clearedOutputBaselines.set(root, all);
 }
 
 async function readAppRuntimeProfile(root) {
@@ -619,6 +662,7 @@ async function persistActiveGateway(root, active, expectedConfigurationId) {
         });
         await rename(temporary, target);
         activeGateways.set(root, active);
+        inFlightLocalReadiness.delete(root);
         return true;
       } catch (error) {
         try {
@@ -661,18 +705,20 @@ let cachedPrerequisiteTimestamp = 0;
 
 async function detectLocalPrerequisites({ force = false } = {}) {
   const now = Date.now();
-  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 30_000) {
+  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 300_000) {
     return cachedPrerequisitePromise;
   }
   cachedPrerequisiteTimestamp = now;
   cachedPrerequisitePromise = (async () => {
-    const [uvRes, azRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
+    const [uvRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
       runCommand("uv", ["--version"], { timeout: 5_000 }),
-      runCommand("az", ["--version"], { timeout: 8_000 }),
       runCommand("aca", ["--version"], { timeout: 5_000 }),
       runCommand("az", ["account", "show", "--query", "{id:id,name:name}", "-o", "json"], { timeout: 8_000 }),
       runCommand("az", ["aigateway", "version", "-o", "json"], { timeout: 8_000 }),
     ]);
+    const azRes = azAccountRes?.ok || azAigatewayRes?.ok
+      ? { ok: true, stdout: "" }
+      : await runCommand("az", ["--version"], { timeout: 8_000 });
     let azSignedIn = false;
     let subscriptionName = "";
     let subscriptionId = "";
@@ -689,7 +735,7 @@ async function detectLocalPrerequisites({ force = false } = {}) {
       }
     }
     const uvInstalled = Boolean(uvRes?.ok);
-    const azInstalled = Boolean(azRes?.ok);
+    const azInstalled = Boolean(azAccountRes?.ok || azAigatewayRes?.ok || azRes?.ok);
     const acaInstalled = Boolean(acaRes?.ok);
     const aigatewayInstalled = Boolean(azAigatewayRes?.ok);
     const missingTools = [];
@@ -872,7 +918,7 @@ async function fetchGatewayApiKey(gateway) {
 async function probeGatewayModelResponses(endpoint, apiKey, model) {
   if (!endpoint || !apiKey || !model) return false;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), 6_000);
   timeout.unref?.();
   try {
     const response = await fetch(`${endpoint.replace(/\/+$/, "")}/default/models/openai/v1/responses`, {
@@ -884,7 +930,7 @@ async function probeGatewayModelResponses(endpoint, apiKey, model) {
       body: JSON.stringify({
         model,
         input: "Reply with exactly one word: ok",
-        max_output_tokens: 512,
+        max_output_tokens: 16,
         stream: false,
       }),
       signal: controller.signal,
@@ -923,8 +969,14 @@ async function probeSandboxGroupDataPlane(sandboxGroup) {
 }
 
 async function discoverDefaultCanvasInfra() {
-  if (cachedDefaultInfraPromise) return cachedDefaultInfraPromise;
-  cachedDefaultInfraPromise = (async () => {
+  if (
+    cachedDefaultInfraPromise
+    && (cachedDefaultInfraNegativeUntil === 0 || Date.now() < cachedDefaultInfraNegativeUntil)
+  ) {
+    return cachedDefaultInfraPromise;
+  }
+  cachedDefaultInfraNegativeUntil = 0;
+  const discoveryPromise = (async () => {
     try {
       const options = await discoverGatewayOptions(azureBootstrapRunner, null);
       const preferredOrder = [...options.gateways].sort((a, b) => {
@@ -937,15 +989,11 @@ async function discoverDefaultCanvasInfra() {
       let model = "";
       let apiKey = "";
       for (const candidate of preferredOrder) {
-        let models = [];
-        try {
-          models = await discoverGatewayModels(azureBootstrapRunner, candidate);
-        } catch {
-          models = [];
-        }
-        if (!models.length) continue;
-        const candidateKey = await fetchGatewayApiKey(candidate);
-        if (!candidateKey) continue;
+        const [models, candidateKey] = await Promise.all([
+          discoverGatewayModels(azureBootstrapRunner, candidate).catch(() => []),
+          fetchGatewayApiKey(candidate),
+        ]);
+        if (!models.length || !candidateKey) continue;
         const preferred = selectPreferredModelId(models);
         const orderedModels = [
           preferred,
@@ -993,8 +1041,11 @@ async function discoverDefaultCanvasInfra() {
       return null;
     }
   })();
-  const resolved = await cachedDefaultInfraPromise;
-  if (!resolved) cachedDefaultInfraPromise = null;
+  cachedDefaultInfraPromise = discoveryPromise;
+  const resolved = await discoveryPromise;
+  if (cachedDefaultInfraPromise === discoveryPromise) {
+    cachedDefaultInfraNegativeUntil = resolved ? 0 : Date.now() + 45_000;
+  }
   return resolved;
 }
 
@@ -1108,66 +1159,87 @@ async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
 }
 
 async function localReadiness(root) {
+  const existing = inFlightLocalReadiness.get(root);
+  if (existing) return existing;
+  const pending = (async () => {
+    let agentConfiguration = "";
+    try {
+      agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    let activeGateway = await loadActiveGateway(root, { refresh: true });
+    const isConfiguring = appStates.get(root)?.state === "configuring";
+    let gatewayReadiness = evaluateGatewayReadiness(
+      agentConfiguration,
+      activeGateway,
+      isConfiguring,
+    );
+    if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
+      const bootstrappedEnv = await ensureDefaultInfraConnected(root);
+      if (bootstrappedEnv) {
+        agentConfiguration = bootstrappedEnv;
+        activeGateway = await loadActiveGateway(root, { refresh: true });
+        if (appStates.get(root)?.state === "failed" && appStates.get(root)?.operation === "configuring") {
+          appStates.delete(root);
+        }
+        gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
+      }
+    } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
+      const infra = await discoverDefaultCanvasInfra();
+      if (infra?.sandboxGroup?.name && activeGateway) {
+        const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
+        await persistActiveGateway(root, updatedActive);
+        if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
+          agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
+          await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
+        }
+        gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
+      }
+    }
+    const runtime = await readAppRuntimeProfile(root);
+    const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
+    const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
+    const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
+    const inputCapabilities = await readAppInputCapabilities(root, { agentConfiguration });
+    const buildRuntime = await readBuildRuntime(root, inputCapabilities);
+    const prerequisites = await detectLocalPrerequisites();
+    const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(inputCapabilities.documentInput) });
+    return {
+      ...gatewayReadiness,
+      ready,
+      prerequisites,
+      starterPrompt,
+      agentRuntime: buildRuntime?.agentRuntime ?? null,
+      ...inputCapabilities,
+      deploymentBlocker: await documentDeploymentBlocker(root),
+      mode: previewMode ? "preview" : "full",
+      missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
+      guidance: previewMode
+        ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
+        : gatewayReadiness.guidance,
+    };
+  })();
+  inFlightLocalReadiness.set(root, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inFlightLocalReadiness.get(root) === pending) {
+      inFlightLocalReadiness.delete(root);
+    }
+  }
+}
+
+async function hasGatewayConfiguration(root) {
   let agentConfiguration = "";
   try {
     agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  let activeGateway = await loadActiveGateway(root, { refresh: true });
+  const activeGateway = await loadActiveGateway(root);
   const isConfiguring = appStates.get(root)?.state === "configuring";
-  let gatewayReadiness = evaluateGatewayReadiness(
-    agentConfiguration,
-    activeGateway,
-    isConfiguring,
-  );
-  if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
-    const bootstrappedEnv = await ensureDefaultInfraConnected(root);
-    if (bootstrappedEnv) {
-      agentConfiguration = bootstrappedEnv;
-      activeGateway = await loadActiveGateway(root, { refresh: true });
-      if (appStates.get(root)?.state === "failed" && appStates.get(root)?.operation === "configuring") {
-        appStates.delete(root);
-      }
-      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
-    }
-  } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
-    const infra = await discoverDefaultCanvasInfra();
-    if (infra?.sandboxGroup?.name && activeGateway) {
-      const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
-      await persistActiveGateway(root, updatedActive);
-      if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
-        agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
-        await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
-      }
-      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
-    }
-  }
-  const runtime = await readAppRuntimeProfile(root);
-  const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
-  const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
-  const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
-  const buildRuntime = await readBuildRuntime(root);
-  const prerequisites = await detectLocalPrerequisites();
-  const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(buildRuntime) });
-  return {
-    ...gatewayReadiness,
-    ready,
-    prerequisites,
-    starterPrompt,
-    agentRuntime: buildRuntime?.agentRuntime ?? null,
-    documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
-    deploymentBlocker: await documentDeploymentBlocker(root),
-    mode: previewMode ? "preview" : "full",
-    missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
-    guidance: previewMode
-      ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
-      : gatewayReadiness.guidance,
-  };
-}
-
-async function hasGatewayConfiguration(root) {
-  return (await localReadiness(root)).gatewayConfigured;
+  return evaluateGatewayReadiness(agentConfiguration, activeGateway, isConfiguring).gatewayConfigured;
 }
 
 async function currentAppState(root) {
@@ -1284,7 +1356,106 @@ async function resolveAuthorizedRoot(requestedRoot, workspaceRoot, authorizedRoo
   return resolveDiscoveryRoot(requestedRoot, workspaceRoot);
 }
 
+let cachedWindowsPowerShellPromise = null;
+async function resolveWindowsPowerShellCommand() {
+  if (process.platform !== "win32") return "powershell";
+  if (!cachedWindowsPowerShellPromise) {
+    cachedWindowsPowerShellPromise = (async () => {
+      const pwshCheck = await runCommand("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.Major"], { timeout: 4_000 }).catch(() => ({ ok: false }));
+      return pwshCheck?.ok ? "pwsh" : "powershell";
+    })();
+  }
+  return cachedWindowsPowerShellPromise;
+}
+
+function authorizedRootsRegistryPath(workspaceRoot) {
+  const workspaceHash = createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 20);
+  return `${tmpdir()}/azure-app-platform-command-logs/authorized-roots-${workspaceHash}.json`;
+}
+
+async function loadPersistedAuthorizedRoots(workspaceRoot) {
+  try {
+    const parsed = JSON.parse(await readFile(authorizedRootsRegistryPath(workspaceRoot), "utf8"));
+    return Array.isArray(parsed?.roots) ? parsed.roots.filter((item) => typeof item === "string" && item) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots) {
+  const targetPath = authorizedRootsRegistryPath(workspaceRoot);
+  try {
+    await mkdir(dirname(targetPath), { recursive: true, mode: 0o700 });
+    await writeFile(targetPath, JSON.stringify({ roots: [...authorizedRoots] }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  } catch {
+    // Best-effort persistence across extension reloads
+  }
+}
+
+async function syncExistingAppFixes(root) {
+  const ps1Path = `${root}/scripts/dev-start.ps1`;
+  try {
+    const ps1Text = await readFile(ps1Path, "utf8");
+    if (ps1Text.includes("Start-Process uv") && !ps1Text.includes("-WindowStyle Hidden")) {
+      const patchedPs1 = ps1Text.replace(
+        /(-WorkingDirectory\s+\(Join-Path\s+\$Root\s+"src\/agent"\)\s+`\r?\n)/,
+        "$1    -WindowStyle Hidden `\n",
+      );
+      if (patchedPs1 !== ps1Text) {
+        await writeFile(ps1Path, patchedPs1, "utf8");
+      }
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  const agentMainPath = `${root}/src/agent/main.py`;
+  try {
+    const mainText = await readFile(agentMainPath, "utf8");
+    if (
+      mainText.includes('base64.b64encode(_read_bytes(path)).decode("ascii")')
+      && !mainText.includes("zlib.compress(_read_bytes(path)")
+    ) {
+      let patchedMain = mainText;
+      if (!patchedMain.includes("import zlib")) {
+        patchedMain = patchedMain.replace("import urllib.request\n", "import urllib.request\nimport zlib\n");
+      }
+      patchedMain = patchedMain
+        .replace(
+          'base64.b64encode(_read_bytes(path)).decode("ascii")',
+          'base64.b64encode(zlib.compress(_read_bytes(path), level=9)).decode("ascii")',
+        )
+        .replace(
+          'request_b64 = base64.b64encode(json.dumps(request_payload).encode("utf-8")).decode("ascii")',
+          'request_b64 = base64.b64encode(zlib.compress(json.dumps(request_payload).encode("utf-8"), level=9)).decode("ascii")',
+        )
+        .replace(
+          '"import base64, json, os, subprocess, sys, tempfile\\n"',
+          '"import base64, json, os, subprocess, sys, tempfile, zlib\\n"',
+        )
+        .replace(
+          'bundle = json.loads(base64.b64decode(\\"{bundle_b64}\\").decode(\\"utf-8\\"))',
+          'bundle = json.loads(zlib.decompress(base64.b64decode(\\"{bundle_b64}\\")).decode(\\"utf-8\\"))',
+        )
+        .replace(
+          'dest.write_bytes(base64.b64decode(encoded))',
+          'dest.write_bytes(zlib.decompress(base64.b64decode(encoded)))',
+        )
+        .replace(
+          'payload = base64.b64decode(\\"{request_b64}\\")',
+          'payload = zlib.decompress(base64.b64decode(\\"{request_b64}\\"))',
+        );
+      if (patchedMain !== mainText) {
+        await writeFile(agentMainPath, patchedMain, "utf8");
+      }
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
 async function resolveLifecycleCommand(root, operation) {
+  await syncExistingAppFixes(root).catch(() => {});
   const scriptNames = operation === "run-local"
     ? ["dev-start.sh", "dev-start.ps1"]
     : ["dev-stop.sh", "dev-stop.ps1"];
@@ -1299,8 +1470,9 @@ async function resolveLifecycleCommand(root, operation) {
         const profileArgs = runtime && (
           runtime.requiresGatewayForFullStart !== true || readiness?.mode === "preview"
         ) ? runtime.startPowerShellArgs ?? [] : [];
+        const psCommand = await resolveWindowsPowerShellCommand();
         return {
-          command: "powershell",
+          command: psCommand,
           args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...profileArgs],
         };
       }
@@ -1326,8 +1498,9 @@ async function resolveGatewayConfigCommand(root) {
     const scriptPath = `${root}/infra-ai-gateway/scripts/${name}`;
     try {
       await access(scriptPath);
+      const psCommand = name.endsWith(".ps1") ? await resolveWindowsPowerShellCommand() : "powershell";
       return name.endsWith(".ps1")
-        ? { command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], cwd: `${root}/infra-ai-gateway` }
+        ? { command: psCommand, args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], cwd: `${root}/infra-ai-gateway` }
         : { command: "bash", args: [scriptPath], cwd: `${root}/infra-ai-gateway` };
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
@@ -1337,12 +1510,26 @@ async function resolveGatewayConfigCommand(root) {
 }
 
 async function syncGatewayConfigScript(root, workspaceRoot) {
+  await syncExistingAppFixes(root).catch(() => {});
   const sourceName = process.platform === "win32" ? "configure-ai-gateway.ps1" : "configure-ai-gateway.sh";
-  const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
   const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
-  await access(sourcePath);
-  await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
-  await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
+  const candidateSources = [
+    fileURLToPath(new URL(`./templates/sandbox-gateway-minimal/infra-ai-gateway/scripts/${sourceName}`, import.meta.url)),
+    `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`,
+  ];
+  for (const sourcePath of candidateSources) {
+    try {
+      await access(sourcePath);
+      await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
+      if (sourcePath !== targetPath) {
+        await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
+      }
+      return;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  await access(targetPath);
 }
 
 async function startAppCommand(root, command, args, state, options = {}) {
@@ -1393,7 +1580,8 @@ async function startAppCommand(root, command, args, state, options = {}) {
     child = spawn(resolvedCommand.command, resolvedCommand.args, {
       cwd: options.cwd ?? root,
       env: commandEnvironment,
-      detached: true,
+      detached: process.platform !== "win32",
+      windowsHide: true,
       stdio: ["ignore", logHandle.fd, logHandle.fd],
     });
   } catch (error) {
@@ -1500,6 +1688,18 @@ async function startGatewayConfiguration(root, gateway, workspaceRoot, configura
         lastSignal: signal,
       };
       await persistActiveGateway(root, completed, configurationId);
+      if (exitCode === 0 && completedState === "running") {
+        try {
+          const stopLifecycle = await resolveLifecycleCommand(root, "stop-local");
+          const stopResult = await runCommand(stopLifecycle.command, stopLifecycle.args, { cwd: root, timeout: 25_000 });
+          if (stopResult.ok) {
+            const startLifecycle = await resolveLifecycleCommand(root, "run-local");
+            await runCommand(startLifecycle.command, startLifecycle.args, { cwd: root, timeout: 60_000 });
+          }
+        } catch {
+          // Best-effort restart so running services reload updated .env settings
+        }
+      }
     },
   });
 }
@@ -1593,6 +1793,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       }
       const catalog = await pendingCatalog;
       for (const root of catalog.roots) authorizedRoots.add(root.path);
+      await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       sendJson(response, 200, catalog);
       return;
     }
@@ -1666,8 +1867,19 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (url.searchParams.get("refresh") === "true") {
         cachedPrerequisitePromise = null;
         cachedDefaultInfraPromise = null;
+        cachedDefaultInfraNegativeUntil = 0;
+        inFlightLocalReadiness.delete(root);
       }
       sendJson(response, 200, await localReadiness(root));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/connection-state") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Connection root is not an authorized app workspace.");
+      sendJson(response, 200, await readLocalConnectionState(root, {
+        activeGateway: await loadActiveGateway(root, { refresh: true }),
+        configuring: appStates.get(root)?.state === "configuring",
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/gateway-options") {
@@ -1675,6 +1887,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       if (url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true") {
         cachedDefaultInfraPromise = null;
+        cachedDefaultInfraNegativeUntil = 0;
       }
       const reqAbort = new AbortController();
       const abortFromRequest = () => reqAbort.abort();
@@ -1785,6 +1998,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, { lines, commands });
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/app-output/clear") {
+      const payload = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(payload.root ?? url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App output root is not an authorized app workspace.");
+      }
+      await clearRuntimeOutput(root);
+      const commands = await commandActivity(root).list();
+      sendJson(response, 200, { lines: [], commands });
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/run-commands") {
       const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Command root is not an authorized app workspace.");
@@ -1850,6 +2074,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         additionalRoots: [...authorizedRoots],
       });
       for (const candidate of catalog.roots) authorizedRoots.add(candidate.path);
+      await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       sendJson(response, 200, catalog);
       return;
     }
@@ -1920,6 +2145,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       });
       if (result.worktreePath) {
         authorizedRoots.add(await realpath(result.worktreePath));
+        await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
       }
       if (workspaceProgressStream) response.end(JSON.stringify({ type: "result", result }) + "\n");
       else sendJson(response, 202, result);
@@ -2020,6 +2246,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         const targetSessionId = await ensureAppSession(root, workspaceRoot);
         sendJson(response, 202, await requestBuildAdjustment({ session, root, id: input.id, instructions: input.instructions, targetSessionId }));
       }
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/blocked-result-recovery") {
+      const input = await readJsonBody(request, 256 * 1024);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Blocked-result recovery root is not an authorized app workspace.");
+      }
+      const targetSessionId = await ensureAppSession(root, workspaceRoot);
+      sendJson(response, 202, await requestBlockedResultRecovery({
+        session,
+        root,
+        targetSessionId,
+        blockedResponse: input.blockedResponse,
+        submission: input.submission,
+        findings: input.findings,
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {
@@ -2235,6 +2478,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               cachedPrerequisitePromise = null;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               if (exitCode === 0 && input.operation === "install-prereq-aca") {
                 const verify = await runCommand("aca", ["--version"], { timeout: 5_000 });
                 if (!verify.ok) {
@@ -2278,6 +2522,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               const newGroup = {
                 name: groupName,
                 resourceGroup,
@@ -2327,6 +2572,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               await ensureDefaultInfraConnected(root);
             },
           },
@@ -2388,6 +2634,7 @@ if ($firstModelId) {
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               await ensureDefaultInfraConnected(root);
             },
           },
@@ -2457,10 +2704,12 @@ if ($firstModelId) {
       });
       if (result.worktreeRemoved) {
         authorizedRoots.delete(root);
+        await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
         appStates.delete(root);
         appOutput.delete(root);
         activeGateways.delete(root);
         gatewayWriteQueues.delete(root);
+        inFlightLocalReadiness.delete(root);
       }
       sendJson(response, result.outcome === "failed" ? 500 : 200, result);
       return;
@@ -2527,7 +2776,7 @@ if ($firstModelId) {
 
 async function startServer(instanceId, workspaceRoot, presentationProfile) {
   const apiToken = randomUUID();
-  const authorizedRoots = new Set();
+  const authorizedRoots = new Set(await loadPersistedAuthorizedRoots(workspaceRoot));
   const pendingSourceCatalogReads = new Map();
   let trustedHost;
   const server = createServer((request, response) => {

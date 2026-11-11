@@ -96,8 +96,20 @@ already-sanitized result. That adapter is different from the document validation
 tool: it does not rerun validation or return the raw document. Built-in shell,
 filesystem, MCP, skill, and sub-agent tools are disabled.
 
-Local child processes provide **no OS or network isolation**: use synthetic
-documents. SDK mode requires two separately provisioned ACA session pools,
+With `ACA_SANDBOX_GROUP` configured, the local agent dispatches document work
+to a fresh ACA Sandbox microVM with default-deny egress and Full inspection,
+applies the reviewed policy, and deletes it after execution. Host credentials
+are not inherited; authenticated outbound integrations use proxy Transform
+rules with secret or managed-identity references outside the microVM.
+
+Without an ACA group, local child processes provide **no OS isolation**:
+their Python audit hook denies socket/DNS operations but is not a security
+boundary for arbitrary native code. Use synthetic documents. Egress probes
+inspect the live environment and attempt a bounded HEAD request, returning
+observations rather than a fixed credential-count claim. ACA denial requires
+matching platform audit evidence; DNS/TLS/HTTP failures alone are unverified.
+
+SDK mode requires two separately provisioned ACA session pools,
 images, identity, network policy, and configuration. Selecting the mode does not
 create, deploy, or verify any of them. The model remains remote through AI
 Gateway either way. Whole-app `azd` deployment remains blocked to avoid

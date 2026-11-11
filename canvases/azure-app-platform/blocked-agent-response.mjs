@@ -11,13 +11,14 @@ const STAGE_STATES = new Set([
   "failed",
 ]);
 const MODES = new Set(["local-simulation", "aca-session", "aca-document-session"]);
-const TEST_KINDS = new Set(["document-input", "agent-output-policy"]);
+const TEST_KINDS = new Set(["document-input", "sandbox-boundary", "agent-output-policy"]);
 const LIMITATIONS = new Set([
   "no-model-call",
   "no-hostile-outbound-probe",
   "local-process-not-isolation-boundary",
   "cloud-isolation-not-verified",
   "model-output-not-shown",
+  "outbound-denial-unverified",
 ]);
 
 function isRecord(value) {
@@ -26,6 +27,51 @@ function isRecord(value) {
 
 function boundedString(value, maxLength) {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
+}
+
+export function normalizeSandboxProbe(value) {
+  const keys = new Set(["credentialLikeVariableCount", "credentialValuesReturned", "outboundAttempted",
+    "outboundOutcome", "enforcement", "httpStatus", "acaDecisionCount", "acaDeniedCount",
+    "envKeys", "envKeyCount", "secretFilesPresent", "secretFileCount", "acaDeniedDecision"]);
+  if (!isRecord(value) || Object.keys(value).some(key => !keys.has(key))
+    || !Number.isSafeInteger(value.credentialLikeVariableCount) || value.credentialLikeVariableCount < 0
+    || value.credentialLikeVariableCount > 65536
+    || value.credentialValuesReturned !== false || value.outboundAttempted !== true
+    || !["denied", "http-response", "transport-error"].includes(value.outboundOutcome)
+    || !["python-audit-hook", "aca-egress-proxy", "unverified"].includes(value.enforcement)
+    || !(value.httpStatus === null || (Number.isInteger(value.httpStatus) && value.httpStatus >= 100 && value.httpStatus <= 599))) return null;
+  for (const key of ["acaDecisionCount", "acaDeniedCount"]) {
+    if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 0 || value[key] > 100)) return null;
+  }
+  if (value.acaDecisionCount !== undefined && value.acaDeniedCount > value.acaDecisionCount) return null;
+  if (value.envKeys !== undefined && (!Array.isArray(value.envKeys) || value.envKeys.length > 32
+    || value.envKeys.some(key => !boundedString(key, 256) || /[=\u0000-\u001f\u007f]/u.test(key))
+    || new Set(value.envKeys).size !== value.envKeys.length)) return null;
+  if (value.envKeyCount !== undefined && (!Number.isSafeInteger(value.envKeyCount)
+    || value.envKeyCount < 0 || value.envKeyCount > 65536 || !value.envKeys
+    || value.envKeys.length !== Math.min(value.envKeyCount, 32)
+    || value.credentialLikeVariableCount > value.envKeyCount)) return null;
+  if (value.secretFilesPresent !== undefined && typeof value.secretFilesPresent !== "boolean") return null;
+  if (value.secretFileCount !== undefined && (!Number.isSafeInteger(value.secretFileCount)
+    || value.secretFileCount < 0 || value.secretFileCount > 5
+    || value.secretFilesPresent !== (value.secretFileCount > 0))) return null;
+  const decision = value.acaDeniedDecision;
+  if (decision !== undefined && (!isRecord(decision)
+    || Object.keys(decision).length !== 6
+    || Object.keys(decision).some(key => !["action", "method", "scheme", "host", "path", "matchedRule"].includes(key))
+    || decision.action !== "Denied" || decision.method !== "HEAD" || decision.path !== "/"
+    || !["http", "https"].includes(decision.scheme)
+    || !boundedString(decision.host, 253) || !/^[a-z0-9._:-]+$/.test(decision.host)
+    || !boundedString(decision.matchedRule, 128)
+    || !/^(?:[A-Za-z0-9][A-Za-z0-9_.:-]*|\[REDACTED\])$/.test(decision.matchedRule)
+    || value.outboundOutcome !== "denied" || value.enforcement !== "aca-egress-proxy"
+    || ![null, 403].includes(value.httpStatus)
+    || !(value.acaDeniedCount > 0 && value.acaDeniedCount <= value.acaDecisionCount))) return null;
+  return {
+    ...value,
+    ...(value.envKeys ? { envKeys: [...value.envKeys] } : {}),
+    ...(decision ? { acaDeniedDecision: { ...decision } } : {}),
+  };
 }
 
 function normalizeRuntime(value) {
@@ -62,7 +108,7 @@ function normalizeStages(value) {
   const stages = [];
   for (let index = 0; index < STAGE_IDS.length; index += 1) {
     const stage = value[index];
-    if (!isRecord(stage) || stage.id !== STAGE_IDS[index] || !STAGE_STATES.has(stage.state)
+    if (!isRecord(stage) || (stage.id !== STAGE_IDS[index] && !(index === 1 && stage.id === "sandbox-tool")) || !STAGE_STATES.has(stage.state)
       || !boundedString(stage.detail, 240)) return null;
     const normalized = { id: stage.id, state: stage.state, detail: stage.detail };
     if (stage.reasonCode !== undefined) {
@@ -78,9 +124,15 @@ function validatesClaims(response) {
   const [harness, documentTool, model, disclosure] = response.stages;
   const runtime = response.evidence.runtime;
   if (harness.state !== "succeeded" || harness.detail !== "Request received") return false;
-  if (!response.limitations.includes("no-hostile-outbound-probe")
-    || response.evidence.outboundDenialProbeAttempted !== false
-    || response.evidence.modelAuthoredTextShown !== false) return false;
+  const attempted = response.evidence.outboundDenialProbeAttempted;
+  const probe = response.evidence.sandboxProbe;
+  if (response.evidence.modelAuthoredTextShown !== false
+    || response.limitations.includes("no-hostile-outbound-probe") !== !attempted) return false;
+  if (attempted) {
+    if (!probe || !probe.outboundAttempted || response.reasonCode !== "unauthorized-egress") return false;
+    if (probe.outboundOutcome !== "denied"
+      && !response.limitations.includes("outbound-denial-unverified")) return false;
+  } else if (probe) return false;
   if (response.mode === "local-simulation") {
     if (!response.limitations.includes("local-process-not-isolation-boundary")
       || runtime.agentRuntime !== "local"
@@ -98,7 +150,7 @@ function validatesClaims(response) {
     || runtime.agentSessionDispatched) {
     return false;
   }
-  if (response.testKind === "document-input") {
+  if (["document-input", "sandbox-boundary"].includes(response.testKind)) {
     return response.upstreamHttpStatus === 422
       && documentTool.state === "rejected"
       && documentTool.reasonCode === response.reasonCode
@@ -140,10 +192,11 @@ export function normalizeBlockedAgentResponse(value, upstreamHttpStatus) {
     || new Set(value.limitations).size !== value.limitations.length
     || !isRecord(value.evidence)
     || value.evidence.modelAuthoredTextShown !== false
-    || value.evidence.outboundDenialProbeAttempted !== false) return null;
+    || typeof value.evidence.outboundDenialProbeAttempted !== "boolean") return null;
   const stages = normalizeStages(value.stages);
   const runtime = normalizeRuntime(value.evidence.runtime);
-  if (!stages || !runtime) return null;
+  const sandboxProbe = value.evidence.sandboxProbe === undefined ? undefined : normalizeSandboxProbe(value.evidence.sandboxProbe);
+  if (!stages || !runtime || sandboxProbe === null) return null;
   const response = {
     contractVersion: value.contractVersion,
     kind: value.kind,
@@ -160,7 +213,8 @@ export function normalizeBlockedAgentResponse(value, upstreamHttpStatus) {
     evidence: {
       runtime,
       modelAuthoredTextShown: false,
-      outboundDenialProbeAttempted: false,
+      outboundDenialProbeAttempted: value.evidence.outboundDenialProbeAttempted,
+      ...(sandboxProbe ? { sandboxProbe } : {}),
     },
   };
   return validatesClaims(response) ? response : null;
