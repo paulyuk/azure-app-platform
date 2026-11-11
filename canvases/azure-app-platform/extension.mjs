@@ -17,6 +17,7 @@ import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createCanvas, CanvasError, joinSession } from "@github/copilot-sdk/extension";
 
 import {
@@ -105,6 +106,7 @@ const transientAppStates = new Set(["starting", "stopping", "configuring", "prov
 const pendingAppMutations = new Set();
 const commandActivities = new Map();
 const portStopReviews = new Map();
+const clearedOutputBaselines = new Map();
 
 function commandLogDirectory(root) {
   const rootHash = createHash("sha256").update(root).digest("hex").slice(0, 20);
@@ -161,7 +163,7 @@ function formatOutputLine(sourceLabel, line) {
   return `[${sourceLabel}] ${line}`;
 }
 
-async function readRuntimeOutput(root) {
+async function collectRawRuntimeOutput(root) {
   const run = appOutput.get(root);
   const lines = [];
   async function readLogs(directory, prefix = "") {
@@ -172,9 +174,21 @@ async function readRuntimeOutput(root) {
         ...entries.filter((entry) => entry.name === "agent.log"),
       ];
     }
-    const logEntries = prefix === "azure-app-platform/"
-      ? entries.filter((entry) => entry.isFile() && entry.name.endsWith(".log")).slice(-2)
-      : entries;
+    let logEntries = entries;
+    if (prefix === "azure-app-platform/") {
+      const filesWithStats = [];
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".log")) continue;
+        try {
+          const stats = await stat(`${directory}/${entry.name}`);
+          filesWithStats.push({ entry, mtimeMs: stats.mtimeMs });
+        } catch {
+          // Ignore deleted or unreadable transient log files
+        }
+      }
+      filesWithStats.sort((a, b) => a.mtimeMs - b.mtimeMs || a.entry.name.localeCompare(b.entry.name));
+      logEntries = filesWithStats.slice(-2).map((item) => item.entry);
+    }
     for (const entry of logEntries) {
       const path = `${directory}/${entry.name}`;
       if (entry.isDirectory()) {
@@ -213,6 +227,25 @@ async function readRuntimeOutput(root) {
   }
   lines.push(...(run?.lines ?? []));
   return lines.slice(-400).map(redactActivityText);
+}
+
+async function readRuntimeOutput(root) {
+  const all = await collectRawRuntimeOutput(root);
+  const baseline = clearedOutputBaselines.get(root);
+  if (!baseline?.length) return all;
+  let matchIndex = 0;
+  for (let i = 0; i < all.length && matchIndex < baseline.length; i++) {
+    if (all[i] === baseline[matchIndex]) matchIndex++;
+  }
+  if (matchIndex === baseline.length) {
+    return all.slice(baseline.length);
+  }
+  return all;
+}
+
+async function clearRuntimeOutput(root) {
+  const all = await collectRawRuntimeOutput(root);
+  clearedOutputBaselines.set(root, all);
 }
 
 async function readAppRuntimeProfile(root) {
@@ -1847,6 +1880,17 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         readRuntimeOutput(root), commandActivity(root).list(),
       ]);
       sendJson(response, 200, { lines, commands });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/app-output/clear") {
+      const payload = await readJsonBody(request);
+      const root = await resolveAuthorizedRoot(payload.root ?? url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("App output root is not an authorized app workspace.");
+      }
+      await clearRuntimeOutput(root);
+      const commands = await commandActivity(root).list();
+      sendJson(response, 200, { lines: [], commands });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/run-commands") {

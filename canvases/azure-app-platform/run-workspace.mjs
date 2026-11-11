@@ -31,6 +31,11 @@ export function createRunWorkspace({
   const nodes = selector => roots().flatMap(root => [...root.querySelectorAll(selector)]);
 
   function restoreScrolling(root) {
+    if (!scrolling.has("output")) {
+      const selector = '[data-run-scroll-key="output"]';
+      const node = root ? root.querySelector(selector) : nodes(selector)[0];
+      if (node?.getClientRects().length) node.scrollTop = node.scrollHeight;
+    }
     for (const [id, [top, following]] of scrolling) {
       const selector = '[data-run-scroll-key="' + id + '"]';
       const node = root ? root.querySelector(selector) : nodes(selector)[0];

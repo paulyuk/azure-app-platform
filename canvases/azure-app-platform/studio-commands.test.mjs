@@ -2220,6 +2220,66 @@ app = create_function_app()
   });
 });
 
+test("Command output renders turn dividers, red error badges, Clear button, and bottom scroll", async () => {
+  const { createRequire } = await import("node:module");
+  const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
+  let chromium;
+  try {
+    ({ chromium } = requireWeb("playwright"));
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND") return;
+    throw error;
+  }
+  const { createRunSettingsFixture } = await import("./run-settings-test-fixture.mjs");
+  const fixture = await createRunSettingsFixture();
+  fixture.state.lines = [
+    "[startup] Starting local services",
+    "[sandbox] Creating ephemeral microVM",
+    "[http] POST /invoke -> HTTP 200",
+    "[sandbox] Creating ephemeral microVM",
+    "[egress] host=httpbin.org status=422 verdict=rejected denied=1 reason=domain_not_allowed",
+  ];
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 820, height: 760 } });
+    let cleared = false;
+    await page.route("**/api/app-output/clear", async (route) => {
+      cleared = true;
+      fixture.state.lines = [];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, clearedCount: 5 }),
+      });
+    });
+    await page.goto(fixture.origin + "/app-map");
+    await page.locator('.agent-status-brief[data-state="ready"]').waitFor();
+    await page.locator("#run-diagnostics-toggle").click();
+    const output = page.locator("[data-runtime-output]");
+    await output.waitFor({ state: "visible" });
+    await page.waitForFunction(() => document.querySelector("[data-runtime-output]")?.textContent?.includes("status=422"));
+
+    const errorLines = await output.locator(".command-output-line.is-error").count();
+    assert.equal(errorLines, 1);
+    const errorTokens = await output.locator(".command-output-error-token").allTextContents();
+    assert.deepEqual(errorTokens, ["status=422", "verdict=rejected", "denied=1", "reason=domain_not_allowed"]);
+
+    const turnDividers = await output.locator(".command-output-line.is-turn-start").count();
+    assert.equal(turnDividers, 2);
+
+    const clearBtn = page.locator('[data-clear-output="true"]');
+    assert.equal(await clearBtn.isVisible(), true);
+    await clearBtn.click();
+    assert.equal(cleared, true);
+    await page.waitForFunction(() =>
+      document.querySelector("[data-runtime-output]")?.textContent?.includes("Command output cleared.")
+    );
+  } finally {
+    await browser.close();
+    await fixture.close();
+  }
+});
+
 test("Windows command launcher normalizes Path/PATH and wraps .cmd binaries via cmd.exe", async () => {
   const { normalizePathEnv, resolveSpawnCommand } = await import("./discovery.mjs");
   const env = {

@@ -1380,12 +1380,24 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderOutput: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "h3", "Command output");
-        buttons.append(actions, actionButton("Open all logs", () => renderLogsPanel()));
-        const output = appendText(container, "pre", latestOutput, "command-output live-output");
+        const actionGroup = appendText(actions, "div", "", "run-section-button-group");
+        const clearBtn = buttons.create({
+          children: "Clear",
+          size: "small",
+          appearance: "secondary",
+          className: "studio-action command-output-clear",
+          onClick: () => clearRunOutput(),
+        });
+        clearBtn.dataset.clearOutput = "true";
+        clearBtn.title = "Clear command output";
+        buttons.append(actionGroup, clearBtn);
+        buttons.append(actionGroup, actionButton("Open all logs", () => renderLogsPanel()));
+        const output = appendText(container, "pre", "", "command-output live-output");
         output.dataset.runtimeOutput = "true";
         output.dataset.runScrollKey = "output";
         output.tabIndex = 0;
         output.setAttribute("aria-label", "Runtime output");
+        renderFormattedOutput(output, latestOutput);
       },
       renderOperations: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
@@ -4525,6 +4537,88 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       ].filter(Boolean).join(" ");
     }
 
+    function isErrorOutputLine(line) {
+      return /\\bstatus=(?:4\\d\\d|5\\d\\d)\\b|\\bHTTP(?:\\/\\d(?:\\.\\d)?)?\\s+(?:4\\d\\d|5\\d\\d)\\b|\\bverdict=rejected\\b|\\bdenied=[1-9]\\d*\\b|\\b(?:ERROR|CRITICAL|FATAL)\\b|\\bTraceback\\b|\\bfailed\\b|❌/i.test(line);
+    }
+
+    function appendHighlightedOutputLine(element, line, isError) {
+      const tokenRegex = /(\\bstatus=(?:4\\d\\d|5\\d\\d)\\b|\\bHTTP(?:\\/\\d(?:\\.\\d)?)?\\s+(?:4\\d\\d|5\\d\\d)\\b|\\bverdict=rejected\\b|\\bdenied=[1-9]\\d*\\b|\\breason=[a-z0-9_-]+\\b|\\b(?:ERROR|CRITICAL|FATAL|Traceback)\\b)/gi;
+      let lastIndex = 0;
+      let match;
+      while ((match = tokenRegex.exec(line)) !== null) {
+        const token = match[0];
+        if (!isError && /^reason=/i.test(token)) continue;
+        if (match.index > lastIndex) {
+          element.append(document.createTextNode(line.slice(lastIndex, match.index)));
+        }
+        const badge = document.createElement("span");
+        badge.className = "command-output-error-token";
+        badge.textContent = token;
+        element.append(badge);
+        lastIndex = match.index + token.length;
+      }
+      if (lastIndex < line.length) {
+        element.append(document.createTextNode(line.slice(lastIndex)));
+      }
+    }
+
+    function renderFormattedOutput(outputElement, text) {
+      if (!outputElement) return;
+      clearElement(outputElement);
+      const raw = String(text || "");
+      const lines = raw.split("\\n");
+      let previousPhase = "";
+      let afterHttpTurn = false;
+      let turnIndex = 0;
+      lines.forEach((line, index) => {
+        const row = document.createElement("span");
+        const isError = isErrorOutputLine(line);
+        const tagMatch = line.match(/^\\[([a-z0-9-]+)\\]/i);
+        const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
+        const phase = ["startup", "shutdown", "gateway-setup", "provision", "deploy"].includes(tag)
+          ? "lifecycle:" + tag
+          : tag ? "runtime" : previousPhase;
+        const isNewSandboxTurn = /^\\[sandbox\\]\\s+Creating ephemeral microVM/i.test(line);
+        const isPostTurnStart = afterHttpTurn && tag !== "http";
+        const isPhaseSwitch = Boolean(previousPhase && phase && previousPhase !== phase);
+        const isTurnStart = index > 0 && (isNewSandboxTurn || isPostTurnStart || isPhaseSwitch);
+        if (isNewSandboxTurn || isPostTurnStart || (index === 0 && phase === "runtime")) {
+          turnIndex += 1;
+        }
+        row.className = "command-output-line"
+          + (isError ? " is-error" : "")
+          + (isTurnStart ? " is-turn-start" : "");
+        if (isTurnStart && (isNewSandboxTurn || isPostTurnStart)) {
+          row.dataset.turnLabel = "Turn " + turnIndex;
+        }
+        appendHighlightedOutputLine(row, line, isError);
+        if (index < lines.length - 1) {
+          row.append(document.createTextNode("\\n"));
+        }
+        outputElement.append(row);
+        afterHttpTurn = /^\\[http\\]\\s+POST\\s+\\/(?:invoke|test-document|responses)\\b/i.test(line);
+        if (phase) previousPhase = phase;
+      });
+    }
+
+    async function clearRunOutput() {
+      try {
+        await apiRequest("/api/app-output/clear", {
+          method: "POST",
+          body: JSON.stringify({ root: MODEL.root }),
+        });
+        latestOutput = "Command output cleared. Waiting for new output.";
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
+        if (output) {
+          renderFormattedOutput(output, latestOutput);
+          output.scrollTop = output.scrollHeight;
+        }
+      } catch (error) {
+        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
+        if (output) renderFormattedOutput(output, "Unable to clear output: " + error.message);
+      }
+    }
+
     async function refreshRunOutput() {
       if (outputRefreshing) return;
       outputRefreshing = true;
@@ -4542,7 +4636,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         const output = diagnosticsContainer.querySelector("[data-runtime-output]");
         if (output && output.textContent !== latestOutput) {
           const following = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
-          output.textContent = latestOutput;
+          renderFormattedOutput(output, latestOutput);
           if (following) output.scrollTop = output.scrollHeight;
         }
       } catch (error) {
@@ -4553,7 +4647,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           error: error.message,
           issue: diagnosticsIssue(),
         });
-        if (output) output.textContent = "Unable to load output: " + error.message;
+        if (output) renderFormattedOutput(output, "Unable to load output: " + error.message);
       } finally { outputRefreshing = false; }
     }
 

@@ -241,7 +241,14 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       .command-panel > summary::before { content:""; flex:none; width:16px; height:16px; background:currentColor; mask:${octiconMask("chevron-right")} center/contain no-repeat; color:var(--studio-accent); transition:transform .2s; }
       .command-panel[open] > summary::before { transform: rotate(90deg); }
       .command-summary { margin-left: auto; color: #7f8ca3; font-weight: 400; }
+      .command-clear-btn { min-height: 22px; padding: 1px 7px; border-radius: 5px; border: 1px solid #2b384e; background: #162136; color: #c4d0e6; font: 600 10px/1.3 var(--font-sans, system-ui, sans-serif); cursor: pointer; }
+      .command-clear-btn:hover { border-color: var(--studio-accent); color: #ffffff; }
       .command-panel pre { margin: 0; min-height: 96px; max-height: 280px; overflow: auto; padding: 11px; color: #dbe5f7; font: 12px/1.55 var(--font-mono, "SFMono-Regular", Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .command-panel .command-output-line { display: block; padding: 1px 6px; margin: 0 -6px; border-inline-start: 2px solid transparent; border-radius: 3px; }
+      .command-panel .command-output-line.is-turn-start { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #2d3b55; border-top-left-radius: 0; border-top-right-radius: 0; }
+      .command-panel .command-output-line.is-turn-start[data-turn-label]::before { content: attr(data-turn-label); display: block; margin-bottom: 3px; font: 600 10px/1.2 var(--font-sans, system-ui, sans-serif); letter-spacing: .04em; text-transform: uppercase; color: #8c9bb5; }
+      .command-panel .command-output-line.is-error { border-inline-start-color: #f87171; background: rgba(248, 113, 113, 0.12); color: #fecaca; }
+      .command-panel .command-output-error-token { display: inline-block; padding: 0 5px; margin: 0 1px; border-radius: 4px; border: 1px solid rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.18); color: #fca5a5; font-weight: 650; }
       .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .lifecycle-actions button { flex: 1 1 180px; }
       .choice label, .capability label { display: flex; gap: 9px; align-items: start; }
@@ -1457,7 +1464,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<div class="lifecycle-actions"><button data-studio-button="primary" type="button" class="primary" id="local-action" data-app-command="run-local">Run locally</button></div>' +
           '<div class="component-list" id="entrypoints"></div><div id="component-actions"></div>' +
           '<details class="command-panel" id="local-command-panel"><summary><span>Command output</span>' +
-          '<span class="command-summary" id="local-command-summary">Idle</span></summary>' +
+          '<span class="command-summary" id="local-command-summary">Idle</span>' +
+          '<button type="button" class="command-clear-btn" id="clear-local-output" title="Clear command output">Clear</button></summary>' +
           '<pre id="local-output">Waiting for local app output.</pre></details></div></details>' +
           '<div class="section-label">Observe/Map</div>' +
           '<details class="surface app-map-region" open><summary class="surface-head">' +
@@ -1613,13 +1621,82 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             error(cause.message);
           }
          }
+          function renderLocalFormattedOutput(terminal, text) {
+            if (!terminal) return;
+            while (terminal.firstChild) terminal.firstChild.remove();
+            const lines = String(text || "").split("\\n");
+            let previousPhase = "";
+            let afterHttpTurn = false;
+            let turnIndex = 0;
+            lines.forEach((line, index) => {
+              const row = document.createElement("span");
+              const isError = /\\bstatus=(?:4\\d\\d|5\\d\\d)\\b|\\bHTTP(?:\\/\\d(?:\\.\\d)?)?\\s+(?:4\\d\\d|5\\d\\d)\\b|\\bverdict=rejected\\b|\\bdenied=[1-9]\\d*\\b|\\b(?:ERROR|CRITICAL|FATAL)\\b|\\bTraceback\\b|\\bfailed\\b|❌/i.test(line);
+              const tagMatch = line.match(/^\\[([a-z0-9-]+)\\]/i);
+              const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
+              const phase = ["startup", "shutdown", "gateway-setup", "provision", "deploy"].includes(tag)
+                ? "lifecycle:" + tag
+                : tag ? "runtime" : previousPhase;
+              const isNewSandboxTurn = /^\\[sandbox\\]\\s+Creating ephemeral microVM/i.test(line);
+              const isPostTurnStart = afterHttpTurn && tag !== "http";
+              const isPhaseSwitch = Boolean(previousPhase && phase && previousPhase !== phase);
+              const isTurnStart = index > 0 && (isNewSandboxTurn || isPostTurnStart || isPhaseSwitch);
+              if (isNewSandboxTurn || isPostTurnStart || (index === 0 && phase === "runtime")) {
+                turnIndex += 1;
+              }
+              row.className = "command-output-line"
+                + (isError ? " is-error" : "")
+                + (isTurnStart ? " is-turn-start" : "");
+              if (isTurnStart && (isNewSandboxTurn || isPostTurnStart)) {
+                row.dataset.turnLabel = "Turn " + turnIndex;
+              }
+              const tokenRegex = /(\\bstatus=(?:4\\d\\d|5\\d\\d)\\b|\\bHTTP(?:\\/\\d(?:\\.\\d)?)?\\s+(?:4\\d\\d|5\\d\\d)\\b|\\bverdict=rejected\\b|\\bdenied=[1-9]\\d*\\b|\\breason=[a-z0-9_-]+\\b|\\b(?:ERROR|CRITICAL|FATAL|Traceback)\\b)/gi;
+              let lastIndex = 0;
+              let match;
+              while ((match = tokenRegex.exec(line)) !== null) {
+                const token = match[0];
+                if (!isError && /^reason=/i.test(token)) continue;
+                if (match.index > lastIndex) {
+                  row.append(document.createTextNode(line.slice(lastIndex, match.index)));
+                }
+                const badge = document.createElement("span");
+                badge.className = "command-output-error-token";
+                badge.textContent = token;
+                row.append(badge);
+                lastIndex = match.index + token.length;
+              }
+              if (lastIndex < line.length) {
+                row.append(document.createTextNode(line.slice(lastIndex)));
+              }
+              if (index < lines.length - 1) {
+                row.append(document.createTextNode("\\n"));
+              }
+              terminal.append(row);
+              afterHttpTurn = /^\\[http\\]\\s+POST\\s+\\/(?:invoke|test-document|responses)\\b/i.test(line);
+              if (phase) previousPhase = phase;
+            });
+          }
+          document.getElementById("clear-local-output")?.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            try {
+              await request("/api/app-output/clear", {
+                method: "POST",
+                body: JSON.stringify({ root: result.worktreePath }),
+              });
+              const terminal = document.getElementById("local-output");
+              renderLocalFormattedOutput(terminal, "Command output cleared. Waiting for local app output.");
+              if (terminal) terminal.scrollTop = terminal.scrollHeight;
+            } catch (cause) {
+              error(cause.message);
+            }
+          });
           async function refreshLocalOutput() {
             try {
               const output = await request("/api/app-output?root=" + encodeURIComponent(result.worktreePath));
               const terminal = document.getElementById("local-output");
               const text = output.lines.join("\\n") || "Waiting for local app output.";
               if (terminal && terminal.textContent !== text) {
-                terminal.textContent = text;
+                renderLocalFormattedOutput(terminal, text);
                 terminal.scrollTop = terminal.scrollHeight;
               }
             } catch (cause) {
