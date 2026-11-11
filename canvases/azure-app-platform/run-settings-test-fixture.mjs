@@ -10,7 +10,9 @@ export async function returnToRun(page) {
   }
 }
 
-export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone", sandbox = false } = {}) {
+export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone", sandbox = false,
+  gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" },
+} = {}) {
   const graph = {
     root: "/fixture/dealer", generatedAt: new Date().toISOString(),
     nodes: [
@@ -21,7 +23,6 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
     ].map((node) => ({ ...node, kind: "project", badges: [], evidence: [] })),
     edges: [], summary: { projectNodes: sandbox ? 4 : 3, operationNodes: 0, edges: 0 },
   };
-  const gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" };
   const editors = [
     { id: "vscode", label: "VS Code" },
     { id: "vscode-insiders", label: "VS Code Insiders" },
@@ -89,7 +90,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
             healthStatus: ready ? state.health : "Offline", url: "http://localhost:" + item.port };
         }),
       };
-      else if (path === "/api/local-readiness") result = {
+      else if (path === "/api/local-readiness" || path === "/api/connection-state") result = {
         ready: true, gatewayConfigured: state.configured, model: state.configured ? gateway.model : null,
         activeGateway: state.configured ? gateway : null, mode: state.configured ? "full" : "preview",
         ...(state.documentInput ? { agentRuntime: "local", documentInput: typeof state.documentInput === "object"

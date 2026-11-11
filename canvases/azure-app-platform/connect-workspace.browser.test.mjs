@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { createRunSettingsFixture } from "./run-settings-test-fixture.mjs";
+import { createRunSettingsFixture as createFixture } from "./run-settings-test-fixture.mjs";
+
+const savedGateway = { name: "sub-a-first", subscriptionId: "sub-a", resourceGroup: "rg-sub-a",
+  model: "gpt-latest", sandboxGroup: null };
+const createRunSettingsFixture = () => createFixture({ gateway: savedGateway });
 
 const requireWeb = createRequire(new URL("../../src/web/package.json", import.meta.url));
 let chromium, webkit;
@@ -76,59 +80,117 @@ function deferred() {
 }
 
 for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
-  for (const endpoint of ["/api/app-status", "/api/local-readiness"]) {
-    test(`Connections show immediate loading before ${endpoint} resolves in ${name}`, {
+  for (const configured of [true, false]) {
+    test(`Connect renders ${configured ? "known" : "empty"} local state before runtime and Azure discovery resolve in ${name}`, {
       skip: !engine && "Install src/web dependencies to run browser coverage.",
     }, async () => {
       const fixture = await createRunSettingsFixture();
+      fixture.state.configured = configured;
       const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
-      const pending = deferred();
+      const pending = deferred(), discovery = deferred();
       try {
         const page = await browser.newPage({ viewport: { width: 380, height: 640 } });
         page.setDefaultTimeout(7000);
         const errors = [];
-        let failed = true, discoveries = 0;
+        let failed = true, discoveries = 0, localReads = 0;
         page.on("pageerror", error => errors.push(error.message));
-        await page.route("**" + endpoint + "*", async route => {
+        await page.route(/\/api\/(app-status|local-readiness)\?/, async route => {
           await pending.promise;
           if (failed) return route.fulfill({ status: 503, json: { error: "Connection status is unavailable." } });
           return route.continue();
         });
-        await page.route("**/api/gateway-options*", route => {
+        await page.route("**/api/connection-state*", route => {
+          localReads++;
+          return route.fulfill({ json: { activeGateway: configured ? { ...savedGateway, configurationStatus: "ready" } : null,
+            gatewayConfigured: configured, model: configured ? savedGateway.model : null, sandboxGroup: null } });
+        });
+        await page.route("**/api/gateway-options*", async route => {
           discoveries++;
-          return route.fulfill({ json: gatewayOptions(new URL(route.request().url())) });
+          await discovery.promise;
+          return route.fulfill(failed
+            ? { status: 503, json: { error: "Azure discovery is unavailable." } }
+            : { json: gatewayOptions(new URL(route.request().url())) });
         });
         await page.goto(fixture.origin + "/app-map");
         await page.waitForFunction(() => window.appPlatformReady);
+        const before = performance.now();
         await page.locator("#connect-workspace").click();
         const content = page.locator(".gateway-connection-page");
-        await content.getByRole("status").filter({ hasText: "Loading connections..." }).waitFor();
-        assert.equal(await content.locator(".connections-root").getAttribute("data-phase"), "checking");
-        assert.equal(await content.locator(".connections-skeleton").isVisible(), true);
-        assert.equal(await content.locator(".connections-skeleton .connection-section").count(), 2);
-        assert.equal(await content.locator(".connections-current").isVisible(), false);
+        const gateway = content.getByRole("combobox", { name: "AI Gateway", exact: true });
+        await gateway.waitFor({ timeout: 1500 });
+        assert.ok(performance.now() - before < 1500, "Local connection controls must not wait for held runtime or Azure calls");
+        await content.getByRole("status").filter({ hasText: "Refreshing available connections in the background..." }).waitFor();
+        assert.equal(await content.locator(".connections-skeleton").isVisible(), false);
+        assert.equal(await content.locator(".connections-current").isVisible(), true);
+        assert.match(await content.locator(".connections-current").innerText(), configured
+          ? /gpt-latest.*sub-a-first.*Sandbox not selected/ : /No connection has been saved/);
+        assert.equal(await content.getByRole("combobox", { name: "AI model", exact: true }).inputValue(),
+          configured ? savedGateway.model : "");
+        assert.equal(await content.getByText("Connection validated", { exact: true }).count(), configured ? 1 : 0);
         assert.equal(await content.getByRole("status").count(), 1);
         assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
-        assert.equal(await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).isVisible(), false);
-        assert.equal(await content.getByRole("combobox").count(), 0);
-        assert.equal(discoveries, 0, "Discovery waits for the real app safety check");
+        assert.equal(await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).isVisible(), true);
+        assert.equal(localReads, 1);
+        assert.equal(discoveries, 1, "Read-only discovery can run without waiting for mutation safety checks");
         assert.equal(await content.locator(".connections-footer").evaluate(node => {
           const box = node.getBoundingClientRect();
           return box.top >= 0 && box.bottom <= innerHeight;
         }), true);
         pending.resolve();
-        await content.getByRole("alert").filter({ hasText: "Connection status is unavailable." }).waitFor();
+        discovery.resolve();
+        await content.getByRole("alert").filter({ hasText: "Azure discovery is unavailable." }).waitFor();
         assert.equal(await content.locator(".connections-skeleton").isVisible(), false);
         assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
-        assert.equal(discoveries, 0);
+        assert.equal(await gateway.isVisible(), true, "Failures must not hide local configuration");
+        assert.match(await content.locator(".connections-current").innerText(), configured
+          ? /sub-a-first/ : /No connection has been saved/);
+        assert.equal(await content.getByRole("button", { name: "Retry scan", exact: true }).isEnabled(), true);
         failed = false;
-        await content.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor();
+        await content.getByRole("button", { name: "Retry scan", exact: true }).click();
+        await page.waitForFunction(() => document.querySelector(".connections-root")?.dataset.phase === "ready");
         assert.equal(await content.locator(".connections-skeleton").isVisible(), false);
         assert.equal(await content.locator(".connections-current").isVisible(), true);
-        assert.ok(discoveries > 0);
+        assert.equal(discoveries, 2);
         assert.deepEqual(fixture.mutations, []);
         assert.deepEqual(errors, []);
-      } finally { pending.resolve(); await browser.close(); await fixture.close(); }
+      } finally { pending.resolve(); discovery.resolve(); await browser.close(); await fixture.close(); }
+    });
+  }
+
+  for (const knownToRun of [true, false]) {
+    test(`Connect ${knownToRun ? "reuses Run's known connection" : "reads env-only configuration after Run readiness completes"} in ${name}`, {
+      skip: !engine && "Install src/web dependencies to run browser coverage.",
+    }, async () => {
+      const fixture = await createRunSettingsFixture();
+      fixture.state.configured = knownToRun;
+      const browser = await engine.launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
+      const discovery = deferred();
+      try {
+        const page = await browser.newPage({ viewport: { width: 380, height: 640 } });
+        page.setDefaultTimeout(7000);
+        let localReads = 0;
+        await page.route("**/api/connection-state*", route => {
+          localReads++;
+          return route.fulfill({ json: { activeGateway: { ...savedGateway, configurationStatus: "local" },
+            gatewayConfigured: false, model: savedGateway.model, sandboxGroup: null } });
+        });
+        await page.route("**/api/gateway-options*", async route => {
+          await discovery.promise;
+          return route.fulfill({ json: gatewayOptions(new URL(route.request().url())) });
+        });
+        await page.goto(fixture.origin + "/app-map");
+        await page.waitForFunction(() => window.appPlatformReady &&
+          document.querySelector("#header-runtime-action")?.dataset.operation === "stop-local");
+        await page.locator("#connect-workspace").click();
+        const content = page.locator(".gateway-connection-page");
+        await content.getByRole("combobox", { name: "AI Gateway", exact: true }).waitFor({ timeout: 1500 });
+        assert.match(await content.locator(".connections-current").innerText(), /gpt-latest.*sub-a-first/);
+        assert.equal(await content.getByText(knownToRun ? "Connection validated" : "Configured locally", { exact: true }).count(), 1);
+        assert.equal(await content.getByRole("combobox", { name: "AI model", exact: true }).inputValue(), savedGateway.model);
+        assert.equal(localReads, knownToRun ? 0 : 1, "Only a known Run selection can replace reading local connection configuration");
+        assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
+        assert.deepEqual(fixture.mutations, []);
+      } finally { discovery.resolve(); await browser.close(); await fixture.close(); }
     });
   }
 
@@ -199,17 +261,15 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         await page.goto(fixture.origin + "/app-map");
         await page.waitForFunction(() => window.appPlatformReady);
         let content = await open();
-        await content.getByRole("status").filter({ hasText: "Loading connections..." }).waitFor();
-        assert.equal(await content.locator(".connections-skeleton").isVisible(), true);
-        assert.equal(await content.locator(".connections-skeleton .connection-section").count(), 2);
-        assert.equal(await content.locator(".connections-current").isVisible(), false);
+        await content.getByRole("status").filter({ hasText: "Refreshing available connections in the background..." }).waitFor();
+        assert.equal(await content.locator(".connections-skeleton").isVisible(), false);
+        assert.equal(await content.locator(".connections-current").isVisible(), true);
         assert.equal(await content.getByRole("status").count(), 1);
-        assert.equal(await content.getByRole("combobox").count(), 0);
+        assert.equal(await content.getByRole("combobox").count(), 3);
         assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
-        assert.equal(await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).isVisible(), false);
-        assert.equal(discoveries, 0);
+        assert.equal(await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).isVisible(), true);
+        assert.equal(discoveries, 1);
         readiness.resolve();
-        await content.getByRole("status").filter({ hasText: "Finding available connections..." }).waitFor();
         assert.equal(await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).isEnabled(), true);
         assert.equal(await content.getByRole("button", { name: "Apply connections", exact: true }).isDisabled(), true);
         discovery.resolve();
@@ -319,8 +379,8 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       const apply = content.getByRole("button", { name: "Apply connections", exact: true });
       const refresh = content.getByRole("button", { name: "Refresh subscriptions & gateways", exact: true });
       await content.getByRole("button", { name: "Cancel Azure discovery scan", exact: true }).waitFor();
-      assert.equal(await content.locator(".connections-skeleton").isVisible(), true);
-      assert.equal(await content.getByRole("status").filter({ hasText: "Finding available connections..." }).count(), 1);
+      assert.equal(await content.locator(".connections-skeleton").isVisible(), false);
+      assert.equal(await content.getByRole("status").filter({ hasText: "Refreshing available connections in the background..." }).count(), 1);
       assert.equal(await apply.isDisabled(), true);
       held.resolve(); held = null;
       await field("AI Gateway").waitFor();

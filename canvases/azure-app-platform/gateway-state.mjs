@@ -3,7 +3,7 @@ function text(value) {
 }
 
 function envValue(contents, name) {
-  const match = contents.match(new RegExp(`^${name}\\s*=\\s*(.+)$`, "m"));
+  const match = contents.match(new RegExp(`^${name}[ \\t]*=[ \\t]*(.*)$`, "m"));
   if (!match) return "";
   const value = match[1].trim();
   if (

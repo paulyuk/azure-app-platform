@@ -65,6 +65,7 @@ import { assessDocumentResult } from "./document-assessment.mjs";
 import { readAgentHttpResponse } from "./agent-http-response.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
 import { normalizeSandboxGroupCreateRequest } from "./sandbox-group-config.mjs";
+import { readLocalConnectionState } from "./connection-state.mjs";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
@@ -1701,6 +1702,15 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         inFlightLocalReadiness.delete(root);
       }
       sendJson(response, 200, await localReadiness(root));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/connection-state") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Connection root is not an authorized app workspace.");
+      sendJson(response, 200, await readLocalConnectionState(root, {
+        activeGateway: await loadActiveGateway(root, { refresh: true }),
+        configuring: appStates.get(root)?.state === "configuring",
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/gateway-options") {
