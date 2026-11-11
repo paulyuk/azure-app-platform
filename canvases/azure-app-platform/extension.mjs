@@ -309,8 +309,57 @@ async function ensureAppSession(root, workspaceRoot) {
   return opened.sessionId;
 }
 
+async function detectDynamicBackendEntrypoints(root, settings = {}) {
+  const dynamic = [];
+  let hasAgent = false;
+  try {
+    await access(`${root}/src/agent/main.py`);
+    hasAgent = true;
+  } catch {
+    try {
+      const agentDirs = await readdir(`${root}/src/agents`, { withFileTypes: true });
+      for (const entry of agentDirs) {
+        if (!entry.isDirectory()) continue;
+        try {
+          await access(`${root}/src/agents/${entry.name}/main.py`);
+          hasAgent = true;
+          break;
+        } catch {}
+      }
+    } catch {}
+  }
+  if (hasAgent) {
+    dynamic.push({
+      name: "agent",
+      port: Number(settings.AGENT_PORT) || 8088,
+      expected: true,
+    });
+  }
+  try {
+    const skillDirs = await readdir(`${root}/src/skills`, { withFileTypes: true });
+    let skillIndex = 0;
+    const baseSkillPort = Number(settings.SKILL_PORT) || 7071;
+    for (const entry of skillDirs) {
+      if (!entry.isDirectory()) continue;
+      try {
+        await access(`${root}/src/skills/${entry.name}/function_app.py`);
+        dynamic.push({
+          name: entry.name,
+          port: baseSkillPort + skillIndex,
+          kind: "function",
+          expected: false,
+        });
+        skillIndex += 1;
+      } catch {}
+    }
+  } catch {}
+  return dynamic;
+}
+
 async function runtimePortCandidates(root) {
   const runtime = await readAppRuntimeProfile(root);
+  const settings = await readPortSettings(root);
+  const dynamicBackends = await detectDynamicBackendEntrypoints(root, settings);
   if (Array.isArray(runtime?.entrypoints)) {
     const gatewayConfigured = await hasGatewayConfiguration(root);
     const usesStartProfile = runtime.requiresGatewayForFullStart !== true || !gatewayConfigured;
@@ -324,6 +373,12 @@ async function runtimePortCandidates(root) {
       .map(normalizeRuntimeEntrypoint)
       .filter((entrypoint) =>
         entrypoint.name && Number.isInteger(entrypoint.port) && entrypoint.port > 0 && entrypoint.port <= 65_535);
+    for (const backend of dynamicBackends) {
+      if (!entrypoints.some((entrypoint) => entrypoint.name === backend.name || entrypoint.port === backend.port)) {
+        entrypoints.push(normalizeRuntimeEntrypoint(backend));
+        if (backend.expected) expectedPorts.add(backend.port);
+      }
+    }
     for (const port of runtime.reservedPorts ?? []) {
       const numericPort = Number(port);
       if (
@@ -341,10 +396,33 @@ async function runtimePortCandidates(root) {
     }));
   }
 
+  let hasBuilderConfig = false;
+  for (const configName of ["builder.yaml", "embr.yaml"]) {
+    try {
+      await access(`${root}/${configName}`);
+      hasBuilderConfig = true;
+      break;
+    } catch {}
+  }
+  let hasSrcWeb = false;
+  try {
+    await access(`${root}/src/web`);
+    hasSrcWeb = true;
+  } catch {}
+  const defaultWebPort = hasBuilderConfig && !hasSrcWeb ? 8080 : 3000;
+  const webPort = Number(settings.WEB_PORT) || defaultWebPort;
+  const agentPort = Number(settings.AGENT_PORT) || 8088;
+  const hasAgentBackend = dynamicBackends.some((entry) => entry.name === "agent");
+  const hasWebFrontend = hasBuilderConfig || hasSrcWeb;
   const candidates = [
-    { name: "web", port: 3000 },
-    { name: "agent", port: 8088 },
+    { name: "web", port: webPort, expected: hasWebFrontend || !hasAgentBackend },
+    { name: "agent", port: agentPort, expected: hasAgentBackend || !hasWebFrontend },
   ];
+  for (const backend of dynamicBackends) {
+    if (backend.name !== "agent" && !candidates.some((entry) => entry.port === backend.port)) {
+      candidates.push(backend);
+    }
+  }
   let lifecycleSource = "";
   for (const path of [`${root}/scripts/dev-start.sh`, `${root}/scripts/dev-start.ps1`]) {
     try {
@@ -354,7 +432,7 @@ async function runtimePortCandidates(root) {
     }
   }
   if (/7074|10002|AZURITE/i.test(lifecycleSource)) {
-    candidates.push(
+    for (const item of [
       { name: "inventory-search", port: 7071 },
       { name: "trade-in-value", port: 7072 },
       { name: "rate-sheet", port: 7073 },
@@ -362,7 +440,11 @@ async function runtimePortCandidates(root) {
       { name: "azurite", port: 10000 },
       { name: "azurite-queue", port: 10001 },
       { name: "azurite-table", port: 10002 },
-    );
+    ]) {
+      if (!candidates.some((entry) => entry.port === item.port)) {
+        candidates.push(item);
+      }
+    }
   }
   return candidates;
 }
@@ -1051,6 +1133,12 @@ async function discoverDefaultCanvasInfra() {
 
 function buildAgentEnvFileContent(active, apiKey, sandboxGroup) {
   const endpoint = active.endpoint.replace(/\/+$/, "");
+  let gatewayHost = "";
+  try {
+    gatewayHost = new URL(endpoint).host;
+  } catch {
+    gatewayHost = endpoint.replace(/^https?:\/\//i, "").split("/")[0] || "";
+  }
   const baseUrl = `${endpoint}/default/models/openai/v1`;
   const lines = [
     "# Auto-generated by Azure App Platform default infrastructure bootstrap — DO NOT COMMIT",
@@ -1059,9 +1147,11 @@ function buildAgentEnvFileContent(active, apiKey, sandboxGroup) {
     "AI_GATEWAY_API_KEY_HEADER=api-key",
     `AI_GATEWAY_MODEL=${active.model}`,
     `AZURE_AI_GATEWAY_ENDPOINT=${endpoint}`,
+    ...(gatewayHost ? [`AZURE_AI_GATEWAY_HOST=${gatewayHost}`] : []),
     `AZURE_AI_GATEWAY_API_KEY=${apiKey}`,
     `AZURE_AI_GATEWAY_MODEL=${active.model}`,
     `AZURE_AI_GATEWAY_MINI_MODEL=${active.model}`,
+    `OPENAI_MODEL=${active.model}`,
     `AZURE_SUBSCRIPTION_ID=${active.subscriptionId}`,
     `AI_GATEWAY_RESOURCE_GROUP=${active.resourceGroup}`,
     `AI_GATEWAY_NAME=${active.name}`,
@@ -1079,12 +1169,50 @@ function buildAgentEnvFileContent(active, apiKey, sandboxGroup) {
   return `${lines.join("\n")}\n`;
 }
 
-async function ensureDefaultInfraConnected(root) {
+async function readAppEnvConfiguration(root) {
+  for (const candidate of [`${root}/src/agent/.env`, `${root}/.env`]) {
+    try {
+      const content = await readFile(candidate, "utf8");
+      if (content.trim()) return content;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return "";
+}
+
+async function writeAppEnvConfiguration(root, envContent) {
+  let wrote = false;
   try {
     await access(`${root}/src/agent`);
-  } catch {
-    return null;
+    await writeFile(`${root}/src/agent/.env`, envContent, { encoding: "utf8", mode: 0o600 });
+    wrote = true;
+  } catch {}
+  let hasRootBuilder = false;
+  for (const configName of ["builder.yaml", "embr.yaml"]) {
+    try {
+      await access(`${root}/${configName}`);
+      hasRootBuilder = true;
+      break;
+    } catch {}
   }
+  if (hasRootBuilder || !wrote) {
+    await writeFile(`${root}/.env`, envContent, { encoding: "utf8", mode: 0o600 });
+    wrote = true;
+  }
+  return wrote;
+}
+
+async function ensureDefaultInfraConnected(root) {
+  let hasTarget = false;
+  for (const candidate of [`${root}/src/agent`, `${root}/builder.yaml`, `${root}/embr.yaml`]) {
+    try {
+      await access(candidate);
+      hasTarget = true;
+      break;
+    } catch {}
+  }
+  if (!hasTarget) return null;
   const infra = await discoverDefaultCanvasInfra();
   if (!infra?.gateway || !infra?.apiKey) return null;
   const configurationId = randomUUID();
@@ -1099,7 +1227,7 @@ async function ensureDefaultInfraConnected(root) {
     lastSignal: null,
   };
   const envContent = buildAgentEnvFileContent(active, infra.apiKey, infra.sandboxGroup);
-  await writeFile(`${root}/src/agent/.env`, envContent, { encoding: "utf8", mode: 0o600 });
+  await writeAppEnvConfiguration(root, envContent);
   await persistActiveGateway(root, active);
   return envContent;
 }
@@ -1162,12 +1290,7 @@ async function localReadiness(root) {
   const existing = inFlightLocalReadiness.get(root);
   if (existing) return existing;
   const pending = (async () => {
-    let agentConfiguration = "";
-    try {
-      agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
+    let agentConfiguration = await readAppEnvConfiguration(root);
     let activeGateway = await loadActiveGateway(root, { refresh: true });
     const isConfiguring = appStates.get(root)?.state === "configuring";
     let gatewayReadiness = evaluateGatewayReadiness(
@@ -1192,14 +1315,14 @@ async function localReadiness(root) {
         await persistActiveGateway(root, updatedActive);
         if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
           agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
-          await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
+          await writeAppEnvConfiguration(root, agentConfiguration);
         }
         gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
       }
     }
     const runtime = await readAppRuntimeProfile(root);
     const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
-    const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
+    const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim() && runtime?.requiresGatewayForFullStart !== true;
     const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
     const inputCapabilities = await readAppInputCapabilities(root, { agentConfiguration });
     const buildRuntime = await readBuildRuntime(root, inputCapabilities);
@@ -1231,12 +1354,7 @@ async function localReadiness(root) {
 }
 
 async function hasGatewayConfiguration(root) {
-  let agentConfiguration = "";
-  try {
-    agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+  const agentConfiguration = await readAppEnvConfiguration(root);
   const activeGateway = await loadActiveGateway(root);
   const isConfiguring = appStates.get(root)?.state === "configuring";
   return evaluateGatewayReadiness(agentConfiguration, activeGateway, isConfiguring).gatewayConfigured;
@@ -1480,6 +1598,53 @@ async function syncExistingAppFixes(root) {
       }
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
+    }
+  }
+
+  let isBuilderApp = false;
+  try {
+    const appJson = JSON.parse(await readFile(`${root}/.azure-app-platform/app.json`, "utf8"));
+    isBuilderApp = appJson?.templateId === "app-service-builder-vite";
+  } catch {}
+  if (isBuilderApp) {
+    const builderTemplateDir = `${EXTENSION_DIR}/templates/app-service-builder-vite/scripts`;
+    let appName = "App Service Builder app";
+    try {
+      const appJson = JSON.parse(await readFile(`${root}/.azure-app-platform/app.json`, "utf8"));
+      if (typeof appJson?.name === "string" && appJson.name.trim()) appName = appJson.name.trim();
+    } catch {}
+    const scriptUpgrades = [
+      {
+        target: `${root}/scripts/dev-start.sh`,
+        template: `${builderTemplateDir}/dev-start.sh.template`,
+        needsUpgrade: (text) => !text.includes("AGENT_PORT") || !text.includes("src/agent/main.py"),
+      },
+      {
+        target: `${root}/scripts/dev-stop.sh`,
+        template: `${builderTemplateDir}/dev-stop.sh`,
+        needsUpgrade: (text) => !text.includes("kill_tree"),
+      },
+      {
+        target: `${root}/scripts/dev-start.ps1`,
+        template: `${builderTemplateDir}/dev-start.ps1.template`,
+        needsUpgrade: (text) => text.includes("Import-AppPorts -Root") || !text.includes("AgentPort"),
+      },
+      {
+        target: `${root}/scripts/dev-stop.ps1`,
+        template: `${builderTemplateDir}/dev-stop.ps1.template`,
+        needsUpgrade: (text) => !text.includes("taskkill.exe"),
+      },
+    ];
+    for (const item of scriptUpgrades) {
+      try {
+        const currentText = await readFile(item.target, "utf8");
+        if (item.needsUpgrade(currentText)) {
+          const templateText = (await readFile(item.template, "utf8")).replaceAll("__APP_NAME__", appName);
+          await writeFile(item.target, templateText, { encoding: "utf8", mode: item.target.endsWith(".sh") ? 0o755 : 0o644 });
+        }
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
     }
   }
 }

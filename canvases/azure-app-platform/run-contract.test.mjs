@@ -132,6 +132,21 @@ test("web health probes only the fixed loopback root", async () => {
   assert.equal(calls[0][1].method, "GET");
   assert.equal(calls[0][1].redirect, "manual");
   assert.ok(calls[0][1].signal instanceof AbortSignal);
+
+  const fallbackCalls = [];
+  const fallbackResult = await probeHttpHealth({ name: "web", port: 8080, ready: true }, async (url) => {
+    fallbackCalls.push(url);
+    return url.endsWith("/health") ? { ok: true, status: 200 } : { ok: false, status: 404 };
+  });
+  assert.deepEqual(fallbackCalls, [
+    "http://127.0.0.1:8080/",
+    "http://127.0.0.1:8080/health",
+  ]);
+  assert.deepEqual(fallbackResult, {
+    healthy: true,
+    healthStatus: "Healthy",
+    healthDetail: "Web GET /health succeeded.",
+  });
 });
 
 test("agent health falls back to the real ResponsesHostServer readiness route", async () => {

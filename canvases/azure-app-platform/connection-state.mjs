@@ -31,10 +31,12 @@ function text(value) {
 }
 
 export async function readLocalConnectionState(root, { activeGateway = null, configuring = false } = {}) {
-  const [agentConfiguration, runtimeContents] = await Promise.all([
+  const [agentEnvContents, rootEnvContents, runtimeContents] = await Promise.all([
     optionalFile(`${root}/src/agent/.env`),
+    optionalFile(`${root}/.env`),
     optionalFile(`${root}/config/runtime.json`),
   ]);
+  const agentConfiguration = agentEnvContents || rootEnvContents;
   let runtime;
   try {
     runtime = runtimeContents ? JSON.parse(runtimeContents) : null;
@@ -43,12 +45,15 @@ export async function readLocalConnectionState(root, { activeGateway = null, con
     throw new SyntaxError("The app's config/runtime.json must contain valid JSON.");
   }
   const gateway = runtime?.gateway;
+  const gatewayHost = envValue(agentConfiguration, "AZURE_AI_GATEWAY_HOST");
   const endpoint = publicEndpoint(activeGateway?.endpoint
     || envValue(agentConfiguration, "AZURE_AI_GATEWAY_ENDPOINT")
-    || envValue(agentConfiguration, gateway?.baseUrlEnv || "AI_GATEWAY_BASE_URL"));
+    || envValue(agentConfiguration, gateway?.baseUrlEnv || "AI_GATEWAY_BASE_URL")
+    || (gatewayHost ? `https://${gatewayHost}` : ""));
   const model = text(activeGateway?.model
     || envValue(agentConfiguration, gateway?.modelEnv || "AI_GATEWAY_MODEL")
     || envValue(agentConfiguration, "AZURE_AI_GATEWAY_MODEL")
+    || envValue(agentConfiguration, "OPENAI_MODEL")
     || gateway?.defaultModel);
   const readiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, configuring);
   const sandboxGroup = activeGateway && Object.hasOwn(activeGateway, "sandboxGroup")

@@ -153,8 +153,12 @@ gateway_api_key="$(require_value AZURE_AI_GATEWAY_API_KEY "$gateway_api_key")"
 run_python() {
   if [ -x "${REPO_ROOT}/src/agent/.venv/bin/python" ]; then
     "${REPO_ROOT}/src/agent/.venv/bin/python" "$@"
-  else
+  elif [ -d "${REPO_ROOT}/src/agent" ]; then
     uv run --project "${REPO_ROOT}/src/agent" python "$@"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 "$@"
+  else
+    uv run python "$@"
   fi
 }
 
@@ -320,29 +324,44 @@ if [ -n "$aca_sandbox_group" ]; then
   echo "ACA Sandbox Group '${aca_sandbox_group}' verified (create and delete succeeded)."
 fi
 
-agent_env="${REPO_ROOT}/src/agent/.env"
-cat > "$agent_env" <<EOF
+gateway_host="${gateway_url#https://}"
+gateway_host="${gateway_host#http://}"
+gateway_host="${gateway_host%%/*}"
+
+write_env_file() {
+  local target_env="$1"
+  cat > "$target_env" <<EOF
 AI_GATEWAY_NAME="${gateway_name}"
 AI_GATEWAY_RESOURCE_GROUP="${resource_group}"
 AZURE_SUBSCRIPTION_ID="${subscription_id}"
 AZURE_AI_GATEWAY_ENDPOINT="${gateway_url%/}/"
+AZURE_AI_GATEWAY_HOST="${gateway_host}"
 AZURE_AI_GATEWAY_API_KEY="${gateway_api_key}"
 AZURE_AI_GATEWAY_MODEL="${gateway_model}"
 AZURE_AI_GATEWAY_MINI_MODEL="${gateway_mini_model}"
 AI_GATEWAY_BASE_URL="${gateway_url%/}/default/models/openai/v1"
 AI_GATEWAY_API_KEY="${gateway_api_key}"
 AI_GATEWAY_MODEL="${gateway_model}"
+OPENAI_MODEL="${gateway_model}"
 MOCK="0"
 EOF
-if [ -n "$aca_sandbox_group" ]; then
-  cat >> "$agent_env" <<EOF
+  if [ -n "$aca_sandbox_group" ]; then
+    cat >> "$target_env" <<EOF
 ACA_SANDBOX_GROUP="${aca_sandbox_group}"
 ACA_RESOURCE_GROUP="${aca_resource_group:-$resource_group}"
 ACA_REGION="${aca_region:-eastus2}"
 ACA_SUBSCRIPTION="${aca_subscription:-$subscription_id}"
 EOF
+  fi
+  chmod 600 "$target_env"
+}
+
+if [ -d "${REPO_ROOT}/src/agent" ]; then
+  write_env_file "${REPO_ROOT}/src/agent/.env"
 fi
-chmod 600 "$agent_env"
+if [ -f "${REPO_ROOT}/builder.yaml" ] || [ -f "${REPO_ROOT}/embr.yaml" ] || [ ! -d "${REPO_ROOT}/src/agent" ]; then
+  write_env_file "${REPO_ROOT}/.env"
+fi
 
 active_gateway_tmp="${active_gateway_file}.$$"
 run_python -c '

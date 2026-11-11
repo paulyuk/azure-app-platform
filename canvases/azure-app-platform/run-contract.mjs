@@ -243,13 +243,22 @@ export async function probeHttpHealth(candidate, fetchImpl = fetch) {
       (async () => {
         if (kind === "web") {
           const response = await request("/");
-          return responseOk(response)
-            ? statusResult(true, "Healthy")
-            : statusResult(
-              false,
-              "Unhealthy",
-              `Web health probe returned HTTP ${response?.status ?? "unknown"}.`,
-            );
+          if (responseOk(response)) {
+            return statusResult(true, "Healthy");
+          }
+          try {
+            const healthResponse = await request("/health");
+            if (responseOk(healthResponse)) {
+              return statusResult(true, "Healthy", "Web GET /health succeeded.");
+            }
+          } catch {
+            // Fall back to reporting the root probe failure.
+          }
+          return statusResult(
+            false,
+            "Unhealthy",
+            `Web health probe returned HTTP ${response?.status ?? "unknown"}.`,
+          );
         }
 
         if (kind === "function") {

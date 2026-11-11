@@ -1,19 +1,40 @@
 [CmdletBinding()]
-param([switch]$Help)
+param([switch]$Help, [switch]$SkipSkill)
 $ErrorActionPreference = "Stop"
 
 if ($Help) {
-  Write-Output "Usage: ./scripts/dev-start.ps1"
+  Write-Output "Usage: ./scripts/dev-start.ps1 [-SkipSkill]"
   exit 0
 }
 
 $Root = Split-Path -Parent $PSScriptRoot
 $RunDir = Join-Path $Root ".dev-run"
 . (Join-Path $PSScriptRoot "load-ports.ps1")
-Import-AppPorts -Root $Root
+Import-AppPorts $Root
 $WebPort = if ($env:WEB_PORT) { [int]$env:WEB_PORT } else { 8080 }
+$AgentPort = if ($env:AGENT_PORT) { [int]$env:AGENT_PORT } else { 8088 }
+$SkillPort = if ($env:SKILL_PORT) { [int]$env:SKILL_PORT } else { 7071 }
+$env:WEB_PORT = "$WebPort"
+$env:AGENT_PORT = "$AgentPort"
+$env:AGENT_URL = "http://127.0.0.1:$AgentPort"
 & (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
+Remove-Item Env:UV_FROZEN, Env:UV_LOCKED, Env:UV_OFFLINE, Env:UV_NO_SYNC, Env:UV_EXTRA_INDEX_URL -ErrorAction SilentlyContinue
+$env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
+$env:UV_DEFAULT_INDEX = $env:UV_INDEX_URL
+$env:PIP_INDEX_URL = if ($env:PIP_INDEX_URL) { $env:PIP_INDEX_URL } else { $env:UV_INDEX_URL }
+
+function Wait-Port($Name, $Port, $Process) {
+  for ($i = 0; $i -lt 120; $i++) {
+    if ($Process.HasExited) { throw "$Name exited before opening port $Port" }
+    if (Test-NetConnection 127.0.0.1 -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue) {
+      Write-Host "[$Name] READY on port $Port"
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "$Name timed out opening port $Port"
+}
 
 if (-not (Test-Path (Join-Path $Root "node_modules"))) {
   Push-Location $Root
@@ -22,7 +43,49 @@ if (-not (Test-Path (Join-Path $Root "node_modules"))) {
 Push-Location $Root
 try { npm run build } finally { Pop-Location }
 
-$web = Start-Process -FilePath "npx" -ArgumentList @("vite", "preview", "--host", "127.0.0.1", "--port", "$WebPort", "--strictPort") -WorkingDirectory $Root -PassThru
-@([pscustomobject]@{ Name = "web"; Port = $WebPort; Pid = $web.Id }) |
-  ConvertTo-Json | Set-Content -Path (Join-Path $RunDir "processes.json")
-Write-Output "__APP_NAME__ started: web http://localhost:$WebPort"
+$processes = @()
+try {
+  $AgentDir = $null
+  if (Test-Path (Join-Path $Root "src/agent/main.py")) {
+    $AgentDir = Join-Path $Root "src/agent"
+  } elseif (Test-Path (Join-Path $Root "src/agents")) {
+    $Candidate = Get-ChildItem -Path (Join-Path $Root "src/agents") -Directory | Where-Object { Test-Path (Join-Path $_.FullName "main.py") } | Select-Object -First 1
+    if ($Candidate) { $AgentDir = $Candidate.FullName }
+  }
+  if ($AgentDir) {
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv is required to run the backend agent." }
+    $agent = Start-Process uv -ArgumentList "run", "main.py" -WorkingDirectory $AgentDir -WindowStyle Hidden -PassThru
+    $processes += @{ name = "agent"; port = $AgentPort; pid = $agent.Id }
+    Wait-Port "agent" $AgentPort $agent
+  }
+
+  if (-not $SkipSkill -and (Test-Path (Join-Path $Root "src/skills"))) {
+    $SkillIndex = 0
+    foreach ($SkillDir in (Get-ChildItem -Path (Join-Path $Root "src/skills") -Directory)) {
+      if (-not (Test-Path (Join-Path $SkillDir.FullName "function_app.py"))) { continue }
+      $CurrentSkillPort = $SkillPort + $SkillIndex
+      $SkillIndex++
+      if ((Get-Command uv -ErrorAction SilentlyContinue) -and (Get-Command func -ErrorAction SilentlyContinue)) {
+        $skill = Start-Process uv -ArgumentList "run", "--with-requirements", "requirements.txt", "func", "start", "--port", "$CurrentSkillPort" -WorkingDirectory $SkillDir.FullName -WindowStyle Hidden -PassThru
+        $processes += @{ name = $SkillDir.Name; port = $CurrentSkillPort; pid = $skill.Id }
+        Wait-Port $SkillDir.Name $CurrentSkillPort $skill
+      }
+    }
+  }
+
+  $npxCmd = if ($IsWindows) { "npx.cmd" } else { "npx" }
+  $web = Start-Process -FilePath $npxCmd -ArgumentList @("vite", "preview", "--host", "127.0.0.1", "--port", "$WebPort", "--strictPort") -WorkingDirectory $Root -WindowStyle Hidden -PassThru
+  $processes += @{ name = "web"; port = $WebPort; pid = $web.Id }
+  Wait-Port "web" $WebPort $web
+  $processes | ConvertTo-Json | Set-Content -Path (Join-Path $RunDir "processes.json")
+  if ($AgentDir) {
+    Write-Output "__APP_NAME__ started: web http://localhost:$WebPort, agent http://localhost:$AgentPort"
+  } else {
+    Write-Output "__APP_NAME__ started: web http://localhost:$WebPort"
+  }
+} catch {
+  $processes | ConvertTo-Json | Set-Content -Path (Join-Path $RunDir "processes.json")
+  & (Join-Path $PSScriptRoot "dev-stop.ps1")
+  throw
+}
+

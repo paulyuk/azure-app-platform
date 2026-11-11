@@ -298,18 +298,22 @@ try {
         Write-Host "ACA Sandbox Group '$acaSandboxGroup' verified (create and delete succeeded)."
     }
 
+    $gatewayHost = ([Uri]$gatewayUrlTrimmed).Host
     $agentEnvPath = Join-Path $RepoRoot 'src\agent\.env'
+    $rootEnvPath = Join-Path $RepoRoot '.env'
     $agentEnvContent = @"
 AI_GATEWAY_NAME="$gatewayName"
 AI_GATEWAY_RESOURCE_GROUP="$resourceGroup"
 AZURE_SUBSCRIPTION_ID="$subscriptionId"
 AZURE_AI_GATEWAY_ENDPOINT="$gatewayUrlTrimmed/"
+AZURE_AI_GATEWAY_HOST="$gatewayHost"
 AZURE_AI_GATEWAY_API_KEY="$gatewayApiKey"
 AZURE_AI_GATEWAY_MODEL="$gatewayModel"
 AZURE_AI_GATEWAY_MINI_MODEL="$gatewayMiniModel"
 AI_GATEWAY_BASE_URL="$gatewayUrlTrimmed/default/models/openai/v1"
 AI_GATEWAY_API_KEY="$gatewayApiKey"
 AI_GATEWAY_MODEL="$gatewayModel"
+OPENAI_MODEL="$gatewayModel"
 MOCK="0"
 "@
     if (-not [string]::IsNullOrWhiteSpace($acaSandboxGroup)) {
@@ -324,11 +328,20 @@ ACA_REGION="$resolvedAcaRegion"
 ACA_SUBSCRIPTION="$resolvedAcaSub"
 "@
     }
-    [System.IO.File]::WriteAllText(
-        $agentEnvPath,
-        $agentEnvContent,
-        [System.Text.UTF8Encoding]::new($false)
-    )
+    if (Test-Path (Join-Path $RepoRoot 'src\agent')) {
+        [System.IO.File]::WriteAllText(
+            $agentEnvPath,
+            $agentEnvContent,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
+    if ((Test-Path (Join-Path $RepoRoot 'builder.yaml')) -or (Test-Path (Join-Path $RepoRoot 'embr.yaml')) -or -not (Test-Path (Join-Path $RepoRoot 'src\agent'))) {
+        [System.IO.File]::WriteAllText(
+            $rootEnvPath,
+            $agentEnvContent,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
 
     $activeGateway | Add-Member -NotePropertyName configurationStatus -NotePropertyValue 'ready' -Force
     $activeGateway | Add-Member -NotePropertyName configuredAt -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force

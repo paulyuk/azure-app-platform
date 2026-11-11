@@ -74,3 +74,39 @@ test("readiness fetch errors are explicit, not stopped or success-shaped default
   assert.equal(failure.state, "unavailable");
   assert.match(failure.description, /Status unavailable/);
 });
+
+test("Status Brief classifies App Service Builder web-only and multi-entrypoint states", () => {
+  const webOnlyStopped = getAgentStatus({
+    app: { state: "stopped" },
+    readiness: { ready: true, requiresGateway: false },
+    hasWeb: true,
+    webReady: false,
+    hasAgent: false,
+  });
+  assert.equal(webOnlyStopped.state, "stopped");
+  assert.equal(webOnlyStopped.title, "Ready to build & run web app");
+  assert.equal(webOnlyStopped.agent, "Not running");
+  assert.equal(webOnlyStopped.connection, "Not required");
+
+  const webOnlyRunning = getAgentStatus({
+    app: { state: "running" },
+    readiness: { ready: true, requiresGateway: false },
+    hasWeb: true,
+    webReady: true,
+    hasAgent: false,
+  });
+  assert.equal(webOnlyRunning.state, "ready");
+  assert.equal(webOnlyRunning.title, "Web app ready");
+  assert.equal(webOnlyRunning.agent, "Web app available");
+
+  const webOnlyNeedsGateway = getAgentStatus({
+    app: { state: "stopped" },
+    readiness: { ready: false, requiresGateway: true, gatewayConfigured: false, guidance: "Connect an AI Gateway and model." },
+    hasWeb: true,
+    webReady: false,
+    hasAgent: false,
+  });
+  assert.equal(webOnlyNeedsGateway.state, "connection");
+  assert.equal(webOnlyNeedsGateway.title, "Model connection required");
+});
+

@@ -1,4 +1,14 @@
-export function getAgentStatus({ app, readiness, agentReady = false, requestState = "idle", readinessError = "" } = {}) {
+export function getAgentStatus({
+  app,
+  readiness,
+  agentReady = false,
+  hasWeb = false,
+  webReady = false,
+  hasAgent = true,
+  requestState = "idle",
+  readinessError = "",
+} = {}) {
+  const webOnly = Boolean(hasWeb && !hasAgent);
   const runtime = !app ? readinessError ? "Unavailable" : "Checking"
     : ({
       running: readiness?.mode === "preview" ? "Local preview" : "Running locally",
@@ -10,7 +20,7 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
   const configuring = app?.state === "configuring" || readiness?.activeGateway?.configurationStatus === "configuring";
   const connection = configuring ? "Applying connection"
     : readiness?.gatewayConfigured ? [readiness.model, readiness.activeGateway?.name].filter(Boolean).join(" · ") || "Configured"
-    : readiness ? "Not configured" : "Unknown";
+    : readiness ? (readiness.requiresGateway === false ? "Not required" : "Not configured") : "Unknown";
   let state = "checking";
   let title = "Checking test readiness";
   let description = "Waiting for runtime and connection information. Your task stays here.";
@@ -21,15 +31,49 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
   } else if (app?.state === "stopping") {
     state = "stopping";
     title = "Stopping the app";
-    description = "Wait for shutdown before invoking another task. The payload and last result are retained.";
+    description = webOnly
+      ? "Wait for shutdown before restarting the App Service Builder front end."
+      : "Wait for shutdown before invoking another task. The payload and last result are retained.";
   } else if (configuring) {
     state = "configuring";
     title = "Applying model connection";
     description = "Connection settings are being applied. This does not verify agent execution or policy enforcement.";
-  } else if (!agentReady && app?.foreignEntrypoints?.length) {
+  } else if ((!agentReady && !webReady) && app?.foreignEntrypoints?.length) {
     state = "ports";
     title = "Local ports are in use";
     description = "Resolve the port conflict before starting this app. Another app's endpoint is not test readiness.";
+  } else if (webOnly) {
+    if (webReady) {
+      state = "ready";
+      title = "Web app ready";
+      description = readiness?.requiresGateway && !readiness?.gatewayConfigured
+        ? "The App Service Builder front end is running locally. Connect an AI Gateway and model to enable its gateway-backed features."
+        : "The App Service Builder front end is running locally. Open the web app to interact with its UX.";
+    } else if (app?.state === "failed" || (app?.state === "starting" && app.recovered)) {
+      state = "runtime-failed";
+      title = "Runtime needs attention";
+      description = "Startup or another app operation did not complete. Review Output and Operations before retrying.";
+    } else if (app?.state === "starting") {
+      state = "starting";
+      title = "Starting web app";
+      description = "The App Service Builder front end is building and starting locally.";
+    } else if (["provisioning", "deploying"].includes(app?.state)) {
+      state = app.state;
+      title = app.state === "provisioning" ? "Preparing Azure resources" : "Deploying the app";
+      description = "An Azure operation is in progress.";
+    } else if (readiness?.prerequisites?.ready === false) {
+      state = "prerequisites";
+      title = "Local prerequisites missing";
+      description = "Install the missing tools before building and running the web app.";
+    } else if (readiness?.requiresGateway && !readiness?.gatewayConfigured && !readiness?.ready) {
+      state = "connection";
+      title = "Model connection required";
+      description = readiness.guidance || "Connect an AI Gateway and model for this App Service Builder app.";
+    } else if (app && readiness) {
+      state = "stopped";
+      title = "Ready to build & run web app";
+      description = "Start the App Service Builder front end locally, then open its UX in a browser tab.";
+    }
   } else if (agentReady) {
     state = "ready";
     title = "Ready to test";
@@ -84,7 +128,9 @@ export function getAgentStatus({ app, readiness, agentReady = false, requestStat
   }
   return {
     state, availabilityState, title, description, runtime, connection,
-    agent: agentReady ? "Endpoint available" : !app ? "Unknown" : "Not ready",
+    agent: webOnly
+      ? (webReady ? "Web app available" : !app ? "Unknown" : "Not running")
+      : (agentReady ? "Endpoint available" : !app ? "Unknown" : "Not ready"),
     runtimeError: app?.error || "",
   };
 }

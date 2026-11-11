@@ -115,18 +115,32 @@ export function buildActionCenterModel(appMap) {
   const observabilityComplete = hasSreImplementation ||
     (runtimeNodes.length > 0 && instrumentedNodes.length === runtimeNodes.length);
   const hasObservability = hasSreImplementation || instrumentedNodes.length > 0;
-  const gatewayConnected = hasGateway && hasTierEdge("agent", "gateway");
-  const skillsConnected = !hasSkills || hasTierEdge("agent", "skills");
+  const webUsesGateway = hasWeb && (
+    hasTierEdge("web", "gateway")
+    || appMap.unresolved?.some((edge) => nodeTiers.get(edge.from) === "web" && edge.targetTierId === "gateway")
+  );
+  const requiresGateway = hasAgent || webUsesGateway;
+  const gatewayConnected = hasGateway && (hasTierEdge("agent", "gateway") || hasTierEdge("web", "gateway"));
+  const skillsConnected = !hasSkills || hasTierEdge("agent", "skills") || hasTierEdge("web", "skills");
   const unresolvedCount = appMap.unresolved?.length ?? 0;
   const opportunities = [];
 
-  if (!hasAgent) {
+  if (!hasAgent && !hasWeb) {
     opportunities.push({
       id: "add-agent",
       priority: "required",
       stage: "build",
       title: "Add your app's reasoning layer",
       detail: "Canvas did not find an agent yet. Describe what the app should accomplish and Canvas will guide the implementation.",
+      action: { kind: "add-tier", tierId: "agent", label: "Add an agent" },
+    });
+  } else if (!hasAgent && hasWeb) {
+    opportunities.push({
+      id: "add-agent",
+      priority: "optional",
+      stage: "build",
+      title: "Add a backend agent",
+      detail: "App Service Builder frontend discovered. Add an agent when you want autonomous backend reasoning or Hosted Skills.",
       action: { kind: "add-tier", tierId: "agent", label: "Add an agent" },
     });
   }
@@ -150,22 +164,22 @@ export function buildActionCenterModel(appMap) {
       action: { kind: "add-tier", tierId: "web", label: "Add an app surface" },
     });
   }
-  if (hasAgent && !hasGateway) {
+  if (requiresGateway && !hasGateway) {
     opportunities.push({
       id: "add-gateway",
       priority: "required",
       stage: "connect",
       title: "Connect governed model access",
-      detail: "The agent has no discovered AI Gateway binding. Canvas can guide model connection, policy, identity, and quota setup.",
+      detail: "No discovered AI Gateway binding was found. Canvas can guide model connection, policy, identity, and quota setup.",
       action: { kind: "add-tier", tierId: "gateway", label: "Connect AI models" },
     });
-  } else if (hasAgent && !gatewayConnected) {
+  } else if (requiresGateway && !gatewayConnected) {
     opportunities.push({
       id: "connect-gateway",
       priority: "required",
       stage: "connect",
-      title: "Wire the agent to its model gateway",
-      detail: "A gateway was found, but Canvas could not verify an agent-to-gateway relationship in source.",
+      title: "Wire the app to its model gateway",
+      detail: "A gateway was found, but Canvas could not verify an app-to-gateway relationship in source.",
       action: { kind: "add-tier", tierId: "gateway", label: "Complete model connection" },
     });
   }
@@ -218,21 +232,29 @@ export function buildActionCenterModel(appMap) {
   opportunities.sort((left, right) =>
     priorityOrder.get(left.priority) - priorityOrder.get(right.priority));
 
+  const buildReady = hasAgent || hasWeb;
+  const connectReady = (!requiresGateway || gatewayConnected) && skillsConnected && unresolvedCount === 0;
   return {
     stages: [
       {
         id: "build",
         label: "Build",
-        state: hasAgent ? "complete" : "next",
-        detail: hasAgent ? "Agent foundation discovered" : "Add an agent foundation",
+        state: buildReady ? "complete" : "next",
+        detail: hasAgent && hasWeb
+          ? "App Service Builder frontend and agent foundation discovered"
+          : hasWeb
+            ? "App Service Builder frontend discovered"
+            : hasAgent
+              ? "Agent foundation discovered"
+              : "Add an agent or web foundation",
       },
       {
         id: "connect",
         label: "Connect",
-        state: hasAgent && gatewayConnected && skillsConnected && unresolvedCount === 0 ? "complete" : hasAgent ? "next" : "blocked",
-        detail: gatewayConnected && skillsConnected
-          ? unresolvedCount === 0 ? "Core connections discovered" : "Review uncertain connections"
-          : "Connect models and capabilities",
+        state: buildReady && connectReady ? "complete" : buildReady ? "next" : "blocked",
+        detail: connectReady
+          ? requiresGateway ? "Core connections discovered" : "No external connections required"
+          : unresolvedCount > 0 ? "Review uncertain connections" : "Connect models and capabilities",
       },
       {
         id: "run",
@@ -1065,6 +1087,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let operationalFingerprint = "";
     let lifecycleOperation = null;
     const hasSandboxNode = MODEL.nodes.some((node) => node.tierId === "sandbox");
+    const hasWebNode = MODEL.nodes.some((node) => node.tierId === "web");
+    const hasAgentNode = MODEL.nodes.some((node) => node.tierId === "agent");
     const sandboxBoundary = (${createSandboxBoundaryTools.toString()})();
     const hasDealershipSkill = MODEL.nodes.some((node) => /inventory|trade-in|rate-sheet|deal-doc/i.test(node.name));
     let agentPromptDraft = hasDealershipSkill
@@ -1355,8 +1379,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       isActive: () => panelMode === "build",
       onRun: () => {
         if (panelMode !== "manage") renderManagePanel();
-        details.querySelector(".agent-tester")?.scrollIntoView({ block: "start" });
-        details.querySelector('[aria-label="Agent message"]')?.focus();
+        const webTarget = details.querySelector(".web-app-runner button") || details.querySelector(".web-app-runner");
+        const agentTarget = details.querySelector(".agent-tester");
+        (webTarget || agentTarget)?.scrollIntoView({ block: "start" });
+        if (details.querySelector('[aria-label="Agent message"]')) {
+          details.querySelector('[aria-label="Agent message"]')?.focus();
+        } else if (details.querySelector(".web-app-runner button")) {
+          details.querySelector(".web-app-runner button")?.focus();
+        }
       },
       onModel: event => {
         event.currentTarget.focus({ preventScroll: true });
@@ -1602,15 +1632,55 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
+    function hasWebEntrypoint() {
+      return hasWebNode || runtimeEntrypoints.some((entry) => normalized(entry.name) === "web");
+    }
+
+    function hasAgentEntrypoint() {
+      return hasAgentNode || runtimeEntrypoints.some((entry) => normalized(entry.name) === "agent");
+    }
+
     function updateAgentStatusBrief() {
       const { app, readiness } = operationalState;
+      const webPresent = hasWebEntrypoint();
+      const agentPresent = hasAgentEntrypoint();
+      const webEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "web");
+      const agentEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "agent");
       const status = getAgentStatus({
-        ...operationalState, readinessError, requestState: agentRequestState,
-        agentReady: runtimeEntrypoints.some(entry => entry.ready && normalized(entry.name) === "agent"),
+        ...operationalState,
+        readinessError,
+        requestState: agentRequestState,
+        agentReady: Boolean(agentEntry?.ready),
+        hasWeb: webPresent,
+        webReady: Boolean(webEntry?.ready),
+        hasAgent: agentPresent,
       });
       const prerequisites = readiness?.prerequisites?.missingTools || [];
       const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
       const actions = [];
+      if (webPresent && !agentPresent && webEntry?.ready) {
+        actions.push({
+          key: "open-web-app",
+          label: "Open web app",
+          onClick: async () => {
+            try {
+              await apiRequest("/api/open-entrypoint", {
+                method: "POST",
+                body: JSON.stringify({ root: MODEL.root, port: webEntry.port }),
+              });
+            } catch (error) {
+              setStatus(error.message, true);
+            }
+          },
+        });
+      } else if (webPresent && !agentPresent && app?.state === "stopped" && readiness?.ready) {
+        actions.push({
+          key: "build-run-web-app",
+          label: "Build & run web app",
+          disabled: busy,
+          onClick: () => runAppOperation("run-local"),
+        });
+      }
       if (status.state === "runtime-failed") {
         actions.push({ key: "open-logs", label: "Open logs", onClick: () => runWorkspace.openDiagnostics("output") });
       }
@@ -4491,10 +4561,84 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       deploymentSection.append(cloudActions);
     }
 
+    function renderWebAppRunner(container) {
+      const webPresent = hasWebEntrypoint();
+      if (!webPresent) return;
+      const agentPresent = hasAgentEntrypoint();
+      const webEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "web");
+      const webNode = MODEL.nodes.find((node) => node.tierId === "web");
+      const appState = operationalState.app?.state;
+      const busy = Boolean(lifecycleOperation) || ACTIVE_LIFECYCLE_STATES.includes(appState);
+      const card = document.createElement("div");
+      card.className = "developer-tool-card web-app-runner";
+      card.dataset.webAppRunner = "true";
+      card.dataset.webReady = String(Boolean(webEntry?.ready));
+      const header = appendText(card, "div", "", "event-runner-header");
+      const title = appendText(header, "div", "", "event-runner-title");
+      appendText(
+        title,
+        "strong",
+        webNode?.name ? "App Service Builder · " + webNode.name : "App Service Builder frontend",
+      );
+      if (webEntry?.url) {
+        appendText(header, "code", webEntry.url);
+      }
+      const description = webEntry?.ready
+        ? agentPresent
+          ? "The App Service Builder frontend is live. Open the web app to use the interactive UI, or test the backend agent and skills below."
+          : "The App Service Builder frontend is built and running locally. Open the web app to interact with its UI."
+        : appState === "starting"
+          ? "Building and starting the App Service Builder frontend and any configured backend services…"
+          : agentPresent
+            ? "Build and start the App Service Builder frontend alongside its backend agent and skills so all entrypoints run together."
+            : "Build and run the App Service Builder frontend locally, then load the interactive web app in your browser.";
+      appendText(card, "p", description);
+      if (runtimeEntrypoints.length > 1) {
+        const summary = runtimeEntrypoints
+          .filter((entry) => entry.expected !== false || entry.ready)
+          .map((entry) => humanize(entry.name) + " (" + (entry.ready ? "ready on :" + entry.port : ":" + entry.port) + ")")
+          .join(" · ");
+        if (summary) appendText(card, "small", "Entrypoints: " + summary);
+      }
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      if (webEntry?.ready) {
+        const openBtn = actionButton("Open web app", async () => {
+          try {
+            await apiRequest("/api/open-entrypoint", {
+              method: "POST",
+              body: JSON.stringify({ root: MODEL.root, port: webEntry.port }),
+            });
+          } catch (error) {
+            setStatus(error.message, true);
+          }
+        }, true);
+        openBtn.dataset.openWebApp = "true";
+        buttons.append(actions, openBtn);
+      } else {
+        const startLabel = appState === "starting" ? "Starting web app…" : "Build & run web app";
+        const startBtn = actionButton(startLabel, () => runAppOperation("run-local"), true);
+        startBtn.dataset.startWebApp = "true";
+        buttons.setDisabled(startBtn, busy || !operationalState.readiness?.ready);
+        buttons.append(actions, startBtn);
+      }
+      if (webNode?.projectPath) {
+        const editBtn = actionButton("Edit frontend files", () => {
+          void openCustomizeApp();
+        });
+        buttons.append(actions, editBtn);
+      }
+      card.append(actions);
+      container.append(card);
+    }
+
     function renderTryApp(container) {
       updateAgentStatusBrief();
       container.append(agentStatusRoot);
-      renderAgentTester(container);
+      renderWebAppRunner(container);
+      if (hasAgentEntrypoint() || !hasWebEntrypoint()) {
+        renderAgentTester(container);
+      }
     }
 
     function renderPrerequisitesSettings(container) {

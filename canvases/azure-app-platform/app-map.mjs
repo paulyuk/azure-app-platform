@@ -126,28 +126,56 @@ function addCrossTierEdges(nodes, files, edges, seen, unresolved) {
     const owned = candidateFiles(web, files);
     const reference = owned.map((file) => ({ file, found: firstMatch(file, /\bAGENT_(?:URL|ENDPOINT)\b|\/responses\b/) }))
       .find((entry) => entry.found);
-    if (!reference) {
-      continue;
+    if (reference) {
+      const targets = resolveTargets(web, agentNodes);
+      if (targets.length === 0) {
+        unresolved.push({
+          from: web.id,
+          reference: agentNodes.length > 1 ? "ambiguous agent endpoint" : "agent endpoint",
+          candidates: agentNodes.map((node) => node.id),
+          evidence: sourceEvidence(reference.file.path, reference.found.line, "agent-http-reference", reference.found.match[0]),
+        });
+      }
+      for (const agent of targets) {
+        addEdge(
+          edges,
+          seen,
+          web.id,
+          agent.id,
+          "http-request",
+          sourceEvidence(reference.file.path, reference.found.line, "agent-http-reference", reference.found.match[0]),
+          "high",
+        );
+      }
     }
-    const targets = resolveTargets(web, agentNodes);
-    if (targets.length === 0) {
-      unresolved.push({
-        from: web.id,
-        reference: agentNodes.length > 1 ? "ambiguous agent endpoint" : "agent endpoint",
-        candidates: agentNodes.map((node) => node.id),
-        evidence: sourceEvidence(reference.file.path, reference.found.line, "agent-http-reference", reference.found.match[0]),
-      });
-    }
-    for (const agent of targets) {
-      addEdge(
-        edges,
-        seen,
-        web.id,
-        agent.id,
-        "http-request",
-        sourceEvidence(reference.file.path, reference.found.line, "agent-http-reference", reference.found.match[0]),
-        "high",
-      );
+
+    if (agentNodes.length === 0) {
+      const gatewayReference = owned.map((file) => ({
+        file,
+        found: firstMatch(file, /AZURE_AI_GATEWAY_ENDPOINT|AZURE_AI_GATEWAY_HOST|AI_GATEWAY_BASE_URL|\/models\/openai\/v1|Api-Key/),
+      })).find((entry) => entry.found);
+      if (gatewayReference) {
+        const targets = resolveTargets(web, gatewayNodes);
+        if (targets.length === 0) {
+          unresolved.push({
+            from: web.id,
+            reference: gatewayNodes.length > 1 ? "ambiguous AI Gateway" : "AI Gateway",
+            candidates: gatewayNodes.map((node) => node.id),
+            evidence: sourceEvidence(gatewayReference.file.path, gatewayReference.found.line, "gateway-reference", gatewayReference.found.match[0]),
+          });
+        }
+        for (const gateway of targets) {
+          addEdge(
+            edges,
+            seen,
+            web.id,
+            gateway.id,
+            "model-request",
+            sourceEvidence(gatewayReference.file.path, gatewayReference.found.line, "gateway-reference", gatewayReference.found.match[0]),
+            "high",
+          );
+        }
+      }
     }
   }
 
@@ -155,7 +183,7 @@ function addCrossTierEdges(nodes, files, edges, seen, unresolved) {
     const owned = candidateFiles(agent, files);
     const gatewayReference = owned.map((file) => ({
       file,
-      found: firstMatch(file, /AZURE_AI_GATEWAY_ENDPOINT|\/models\/openai\/v1|Api-Key/),
+      found: firstMatch(file, /AZURE_AI_GATEWAY_ENDPOINT|AZURE_AI_GATEWAY_HOST|AI_GATEWAY_BASE_URL|\/models\/openai\/v1|Api-Key/),
     })).find((entry) => entry.found);
     if (gatewayReference) {
       const targets = resolveTargets(agent, gatewayNodes);

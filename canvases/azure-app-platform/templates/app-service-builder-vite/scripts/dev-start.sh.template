@@ -6,8 +6,13 @@ RUN_DIR="$ROOT/.dev-run"
 . "$ROOT/scripts/load-ports.sh"
 load_app_ports "$ROOT"
 WEB_PORT="${WEB_PORT:-8080}"
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  echo "Usage: ./scripts/dev-start.sh"
+AGENT_PORT="${AGENT_PORT:-8088}"
+SKILL_PORT="${SKILL_PORT:-7071}"
+SKIP_SKILL=0
+if [[ "${1:-}" == "--skip-skill" ]]; then
+  SKIP_SKILL=1
+elif [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  echo "Usage: ./scripts/dev-start.sh [--skip-skill]"
   exit 0
 elif (($#)); then
   echo "Unknown option: $1" >&2
@@ -15,6 +20,12 @@ elif (($#)); then
 fi
 "$ROOT/scripts/dev-stop.sh" >/dev/null 2>&1 || true
 mkdir -p "$RUN_DIR"
+: >"$RUN_DIR/processes.posix.tsv"
+
+unset UV_FROZEN UV_LOCKED UV_OFFLINE UV_NO_SYNC UV_EXTRA_INDEX_URL
+export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
+export PIP_INDEX_URL="${PIP_INDEX_URL:-$UV_INDEX_URL}"
 
 command -v npm >/dev/null || { echo "npm is required." >&2; exit 1; }
 if [[ ! -d "$ROOT/node_modules" ]]; then
@@ -46,12 +57,62 @@ wait_port() {
   exit 1
 }
 
+agent_dir=""
+if [[ -f "$ROOT/src/agent/main.py" ]]; then
+  agent_dir="$ROOT/src/agent"
+else
+  for candidate in "$ROOT"/src/agents/*/main.py; do
+    if [[ -f "$candidate" ]]; then
+      agent_dir="$(dirname "$candidate")"
+      break
+    fi
+  done
+fi
+
+if [[ -n "$agent_dir" ]]; then
+  command -v uv >/dev/null || { echo "uv is required to run the backend agent." >&2; exit 1; }
+  (cd "$agent_dir" && uv sync)
+  (
+    cd "$agent_dir"
+    exec env AGENT_PORT="$AGENT_PORT" uv run main.py
+  ) >"$RUN_DIR/agent.log" 2>&1 &
+  agent_pid=$!
+  printf "agent\t%s\t%s\n" "$AGENT_PORT" "$agent_pid" >>"$RUN_DIR/processes.posix.tsv"
+  wait_port agent "$AGENT_PORT" "$agent_pid"
+fi
+
+if ((!SKIP_SKILL)) && [[ -d "$ROOT/src/skills" ]]; then
+  skill_index=0
+  for skill_dir in "$ROOT"/src/skills/*; do
+    [[ -f "$skill_dir/function_app.py" ]] || continue
+    skill_name="$(basename "$skill_dir")"
+    current_skill_port=$((SKILL_PORT + skill_index))
+    skill_index=$((skill_index + 1))
+    if command -v uv >/dev/null && command -v func >/dev/null; then
+      (
+        cd "$skill_dir"
+        exec uv run --with-requirements requirements.txt func start --port "$current_skill_port"
+      ) >"$RUN_DIR/$skill_name.log" 2>&1 &
+      skill_pid=$!
+      printf "%s\t%s\t%s\n" "$skill_name" "$current_skill_port" "$skill_pid" >>"$RUN_DIR/processes.posix.tsv"
+      wait_port "$skill_name" "$current_skill_port" "$skill_pid"
+    else
+      echo "Hosted Skill $skill_name not started: install uv and Azure Functions Core Tools when you are ready to run it."
+    fi
+  done
+fi
+
 (
   cd "$ROOT"
-  exec npx vite preview --host 127.0.0.1 --port "$WEB_PORT" --strictPort
+  exec env WEB_PORT="$WEB_PORT" AGENT_URL="http://127.0.0.1:$AGENT_PORT" npx vite preview --host 127.0.0.1 --port "$WEB_PORT" --strictPort
 ) >"$RUN_DIR/web.log" 2>&1 &
 web_pid=$!
-printf "web\t%s\t%s\n" "$WEB_PORT" "$web_pid" >"$RUN_DIR/processes.posix.tsv"
+printf "web\t%s\t%s\n" "$WEB_PORT" "$web_pid" >>"$RUN_DIR/processes.posix.tsv"
 
 wait_port web "$WEB_PORT" "$web_pid"
-echo "__APP_NAME__ started: web http://localhost:$WEB_PORT"
+if [[ -n "$agent_dir" ]]; then
+  echo "__APP_NAME__ started: web http://localhost:$WEB_PORT, agent http://localhost:$AGENT_PORT"
+else
+  echo "__APP_NAME__ started: web http://localhost:$WEB_PORT"
+fi
+

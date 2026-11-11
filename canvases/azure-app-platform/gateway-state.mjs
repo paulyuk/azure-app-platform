@@ -466,9 +466,14 @@ export async function loadGatewayModelOptions(commandRunner, options, requestedG
 }
 
 export function evaluateGatewayReadiness(agentConfiguration, activeGateway, configuring = false) {
-  const endpoint = envValue(agentConfiguration, "AZURE_AI_GATEWAY_ENDPOINT");
-  const apiKey = envValue(agentConfiguration, "AZURE_AI_GATEWAY_API_KEY");
-  const model = envValue(agentConfiguration, "AZURE_AI_GATEWAY_MODEL");
+  const gatewayHost = envValue(agentConfiguration, "AZURE_AI_GATEWAY_HOST");
+  const endpoint = envValue(agentConfiguration, "AZURE_AI_GATEWAY_ENDPOINT")
+    || (gatewayHost ? `https://${gatewayHost}` : "");
+  const apiKey = envValue(agentConfiguration, "AZURE_AI_GATEWAY_API_KEY")
+    || envValue(agentConfiguration, "AI_GATEWAY_API_KEY");
+  const model = envValue(agentConfiguration, "AZURE_AI_GATEWAY_MODEL")
+    || envValue(agentConfiguration, "AI_GATEWAY_MODEL")
+    || envValue(agentConfiguration, "OPENAI_MODEL");
   const configuredGatewayName = envValue(agentConfiguration, "AI_GATEWAY_NAME");
   const configuredResourceGroup = envValue(agentConfiguration, "AI_GATEWAY_RESOURCE_GROUP");
   const configuredSubscriptionId = envValue(agentConfiguration, "AZURE_SUBSCRIPTION_ID");

@@ -305,7 +305,7 @@ function collectFileEvidence(file, projectRoots) {
   }
 
   if (!isDocumentation) {
-    addMatch("gateway", "gateway-reference", "medium", /AZURE_AI_GATEWAY_ENDPOINT|Microsoft\.ApiManagement\/service|ai[_ -]?gateway/i, "AI Gateway endpoint or resource reference");
+    addMatch("gateway", "gateway-reference", "medium", /AZURE_AI_GATEWAY_ENDPOINT|AZURE_AI_GATEWAY_HOST|AI_GATEWAY_BASE_URL|Microsoft\.ApiManagement\/(?:service|aigateways)|ai[_ -]?gateway/i, "AI Gateway endpoint or resource reference");
   }
 
   if (file.name === "agents.config.yaml") {
