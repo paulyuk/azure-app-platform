@@ -608,7 +608,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(probe["credentialLikeVariableCount"], 0)
         self.assertEqual(probe["envKeys"], sorted(probe["envKeys"]))
         self.assertEqual(probe["envKeyCount"], len(probe["envKeys"]))
-        self.assertLessEqual(set(probe["envKeys"]), set(agent._tool_process_environment()) | {"LC_CTYPE"})
+        self.assertLessEqual(set(probe["envKeys"]), set(agent._tool_process_environment()) | {"LC_CTYPE", "__CF_USER_TEXT_ENCODING"})
         self.assertEqual(probe["secretFilesPresent"], probe["secretFileCount"] > 0)
         self.assertEqual(probe["outboundOutcome"], "denied")
         self.assertEqual(probe["enforcement"], "python-audit-hook")
@@ -746,8 +746,13 @@ class RuntimeTests(unittest.TestCase):
                     tool, "_record_egress_decisions", wraps=tool._record_egress_decisions,
                 ) as audit, redirect_stderr(io.StringIO()) as logs, redirect_stdout(logs):
                     actual = tool.process({"name": "private.txt", "content": "private fixture-never-log"})
-                self.assertEqual(actual, result)
-                self.assertNotIn("sandboxProbe", actual)
+                expected_result = dict(result)
+                if "sandboxProbe" in result:
+                    expected_probe = dict(result["sandboxProbe"])
+                    expected_probe["acaDecisionCount"] = counts[0] + counts[1]
+                    expected_probe["acaDeniedCount"] = 0
+                    expected_result["sandboxProbe"] = expected_probe
+                self.assertEqual(actual, expected_result)
                 audit.assert_called_once()
                 sleep.assert_not_called()
                 self.assertEqual(cli.operations, ["create", "apply", "exec", "decisions", "delete"])

@@ -41,6 +41,59 @@ export function getRunExecutionLayers({
       },
     ],
   }];
+  function appendSandboxProbeMetadata(targetMetadata, probe) {
+    if (!probe) return;
+    const observed = probe.outboundOutcome === "denied"
+      && ["python-audit-hook", "aca-egress-proxy"].includes(probe.enforcement);
+    const decision = probe.acaDeniedDecision;
+    const outbound = probe.outboundAttempted === false
+      ? "Not attempted · passive environment inspection"
+      : observed ? "Denial observed · " + probe.enforcement
+        + (decision ? " (HEAD " + decision.scheme + "://" + decision.host + "/ -> Denied)" : "")
+        : "Attempted · denial unverified (" + probe.outboundOutcome + ")";
+    const keys = Array.isArray(probe.envKeys) ? probe.envKeys.join(", ") || "(none)" : "not reported";
+    const keyLimit = probe.envKeyCount > probe.envKeys?.length
+      ? " (first " + probe.envKeys.length + " of " + probe.envKeyCount + ")" : "";
+    const mounts = Number.isInteger(probe.secretFileCount)
+      ? probe.secretFileCount + " credential locations present (of 5 checked)"
+      : probe.secretFilesPresent === false ? "No credential locations present"
+        : probe.secretFilesPresent === true ? "Credential locations present" : "Credential locations not checked";
+    const isTokenMintable = probe.identityTokenStatus === "active-token-mintable";
+    const msiTone = isTokenMintable ? "amber" : "green";
+    const platformMsiValue = [
+      probe.identityEndpoint
+        ? "IDENTITY_ENDPOINT=" + probe.identityEndpoint + " (local microVM wire)"
+        : "IDENTITY_ENDPOINT=http://100.64.100.2/msi/token (local microVM wire)",
+      probe.identityHeaderPresent
+        ? "IDENTITY_HEADER present (" + (Number.isInteger(probe.identityHeaderLength) ? probe.identityHeaderLength + "-char local anti-SSRF nonce" : "local anti-SSRF nonce") + ")"
+        : "IDENTITY_HEADER (<44-char local anti-SSRF nonce in ACA microVM; unset locally>)",
+      probe.identityTokenStatus === "blocked-no-identity"
+        ? "Token probe HTTP " + (probe.identityTokenHttpStatus ?? 401) + " (safe: no sandbox group identity)"
+        : probe.identityTokenStatus === "active-token-mintable"
+          ? "Token probe HTTP " + (probe.identityTokenHttpStatus ?? 200) + " (WARNING: Entra token mintable)"
+          : probe.identityTokenStatus && probe.identityTokenStatus !== "not-probed"
+            ? "Token probe: " + probe.identityTokenStatus + (probe.identityTokenHttpStatus ? " (HTTP " + probe.identityTokenHttpStatus + ")" : "")
+            : "Token probe: HTTP 401 when sandbox group Managed Identity is None",
+    ].filter(Boolean).join(" · ");
+    targetMetadata.push(
+      { label: "Platform managed identity", value: platformMsiValue, tone: msiTone },
+      { label: "Outbound probe", value: outbound },
+      ...(decision ? [{ label: "ACA matched rule", value: decision.matchedRule }] : []),
+      {
+        label: "Sandbox env keys",
+        value: probe.credentialLikeVariableCount + " credential-like vars · keys: " + keys + keyLimit + " · " + mounts,
+        ...(Array.isArray(probe.envKeys) ? {
+          envKeys: probe.envKeys,
+          envKeyTone: msiTone,
+          envKeyPrefix: probe.credentialLikeVariableCount + " credential-like vars · keys: ",
+          envKeySuffix: keyLimit + " · " + mounts,
+        } : {}),
+      },
+      { label: "Credential values", value: "Not returned · " + probe.credentialLikeVariableCount + " matching variables observed" },
+      { label: "Verify in code", value: "config/egress-policy.yaml · src/tools/document-validation/main.py · src/agent/main.py" },
+      { label: "Cloud isolation", value: "Not verified by this limited probe" },
+    );
+  }
   const stages = Array.isArray(blockedResponse?.stages) ? blockedResponse.stages : [];
   if (!stages.length) {
     const executionState = !sent ? terminal ? "not-run" : "pending"
@@ -74,6 +127,9 @@ export function getRunExecutionLayers({
         { label: "Outcome", value: stateLabels[executionState] || executionState },
       ],
     });
+    if (assessment?.sandboxProbe) {
+      appendSandboxProbeMetadata(layers.at(-1).metadata, assessment.sandboxProbe);
+    }
   }
   for (const [index, stage] of stages.entries()) {
     const stageLabel = ({
@@ -110,30 +166,9 @@ export function getRunExecutionLayers({
         },
       ],
     });
-    if (["document-tool", "sandbox-tool"].includes(stage.id) && blockedResponse?.evidence?.sandboxProbe) {
-      const probe = blockedResponse.evidence.sandboxProbe;
-      const observed = probe.outboundOutcome === "denied"
-        && ["python-audit-hook", "aca-egress-proxy"].includes(probe.enforcement);
-      const decision = probe.acaDeniedDecision;
-      const outbound = observed ? "Denial observed · " + probe.enforcement
-        + (decision ? " (HEAD " + decision.scheme + "://" + decision.host + "/ -> Denied)" : "")
-        : "Attempted · denial unverified (" + probe.outboundOutcome + ")";
-      const keys = Array.isArray(probe.envKeys) ? probe.envKeys.join(", ") || "(none)" : "not reported";
-      const keyLimit = probe.envKeyCount > probe.envKeys?.length
-        ? " (first " + probe.envKeys.length + " of " + probe.envKeyCount + ")" : "";
-      const mounts = Number.isInteger(probe.secretFileCount)
-        ? probe.secretFileCount + " credential locations present (of 5 checked)"
-        : probe.secretFilesPresent === false ? "No credential locations present"
-          : probe.secretFilesPresent === true ? "Credential locations present" : "Credential locations not checked";
-      layers.at(-1).metadata.push(
-        { label: "Outbound probe", value: outbound },
-        ...(decision ? [{ label: "ACA matched rule", value: decision.matchedRule }] : []),
-        { label: "Sandbox env keys", value: probe.credentialLikeVariableCount
-          + " credential-like vars · keys: " + keys + keyLimit + " · " + mounts },
-        { label: "Credential values", value: "Not returned · " + probe.credentialLikeVariableCount + " matching variables observed" },
-        { label: "Verify in code", value: "config/egress-policy.yaml · src/tools/document-validation/main.py · src/agent/main.py" },
-        { label: "Cloud isolation", value: "Not verified by this limited probe" },
-      );
+    const stageProbe = blockedResponse?.evidence?.sandboxProbe || assessment?.sandboxProbe;
+    if (["document-tool", "sandbox-tool"].includes(stage.id) && stageProbe) {
+      appendSandboxProbeMetadata(layers.at(-1).metadata, stageProbe);
     }
   }
   for (const [index, tool] of (stages.length ? [] : tools).entries()) {
@@ -191,6 +226,12 @@ export function createRunExecutionView({
     const setText = (node, value) => { if (node.textContent !== value) node.textContent = value; };
     if (busy && previousState !== "invoking") {
       expandedLayerIds.clear();
+    } else if (!busy && previousState === "invoking") {
+      for (const item of items) {
+        if ((item.metadata || []).some((entry) => entry.tone === "amber" || entry.tone === "green")) {
+          expandedLayerIds.add(item.id);
+        }
+      }
     }
     previousState = snapshot.state;
     setText(heading, busy ? "Run in progress" : snapshot.state === "blocked"
@@ -279,8 +320,25 @@ export function createRunExecutionView({
         metadata.replaceChildren();
         for (const entry of (item.metadata || [])) {
           const pair = append(metadata, "div", "", "run-execution-metadata-item");
+          if (entry.tone) pair.dataset.tone = entry.tone;
           append(pair, "dt", entry.label);
-          append(pair, "dd", entry.value);
+          if (Array.isArray(entry.envKeys) && entry.envKeys.length) {
+            const dd = append(pair, "dd", "");
+            append(dd, "span", entry.envKeyPrefix || "");
+            const chips = append(dd, "span", "", "run-execution-env-keys");
+            for (const keyName of entry.envKeys) {
+              const isIdentityVar = /^IDENTITY_(ENDPOINT|HEADER|SERVER_THUMBPRINT)$/i.test(keyName)
+                || /^(MSI_ENDPOINT|MSI_SECRET|IMDS_ENDPOINT)$/i.test(keyName);
+              const chip = append(chips, "code", keyName, "run-execution-env-chip");
+              if (isIdentityVar) {
+                chip.dataset.tone = entry.envKeyTone || "green";
+                chip.title = "ACA hypervisor platform Managed Identity wire variable";
+              }
+            }
+            append(dd, "span", entry.envKeySuffix || "");
+          } else {
+            append(pair, "dd", entry.value);
+          }
         }
         metadata.dataset.signature = metadataSignature;
       }
@@ -377,6 +435,14 @@ export const RUN_EXECUTION_CSS = `
 .run-execution-details[hidden] { display:none; }
 .run-execution-metadata { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 14px; margin:0; }
 .run-execution-metadata-item { min-width:0; }
+.run-execution-metadata-item[data-tone="green"] dt { color:var(--studio-ok); }
+.run-execution-metadata-item[data-tone="green"] dd { color:color-mix(in srgb,var(--studio-ok) 85%,var(--studio-ink)); }
+.run-execution-metadata-item[data-tone="amber"] dt { color:var(--studio-warn); }
+.run-execution-metadata-item[data-tone="amber"] dd { color:color-mix(in srgb,var(--studio-warn) 85%,var(--studio-ink)); }
+.run-execution-env-keys { display:inline-flex; flex-wrap:wrap; gap:3px; vertical-align:middle; margin:0 2px; }
+.run-execution-env-chip { display:inline-block; padding:0 4px; border:1px solid var(--studio-line); border-radius:4px; background:var(--studio-raised); color:var(--studio-ink); font:600 10px/1.35 var(--font-mono,ui-monospace,monospace); }
+.run-execution-env-chip[data-tone="green"] { border-color:color-mix(in srgb,var(--studio-ok) 65%,var(--studio-line)); background:color-mix(in srgb,var(--studio-ok) 14%,var(--studio-raised)); color:var(--studio-ok); }
+.run-execution-env-chip[data-tone="amber"] { border-color:color-mix(in srgb,var(--studio-warn) 65%,var(--studio-line)); background:color-mix(in srgb,var(--studio-warn) 16%,var(--studio-raised)); color:var(--studio-warn); }
 .run-execution-metadata dt { color:var(--studio-muted); font-size:9px; font-weight:700; line-height:1.25; letter-spacing:.045em; text-transform:uppercase; }
 .run-execution-metadata dd { margin:2px 0 0; color:var(--studio-ink); font-size:11px; line-height:1.35; overflow-wrap:anywhere; }
 .run-execution-layer[data-state="active"] { border-color:var(--studio-accent); background:color-mix(in srgb,var(--studio-accent) 6%,var(--studio-panel)); }

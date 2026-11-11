@@ -14,9 +14,11 @@ function fallbackPreModelBlockedResponse(result, status) {
   if (status !== 422 || result?.verdict !== "rejected" || !result?.toolResult || !result?.runtime) return null;
   const runtime = result.runtime;
   const sandboxTest = result.testKind === "sandbox-boundary";
-  const sandboxProbe = result.toolResult.reasonCode === "unauthorized-egress"
+  const sandboxProbe = result.toolResult.sandboxProbe !== undefined
     ? normalizeSandboxProbe(result.toolResult.sandboxProbe) : null;
   if (result.toolResult.sandboxProbe !== undefined && !sandboxProbe) return null;
+  if (result.toolResult.reasonCode === "unauthorized-egress" && !sandboxProbe?.outboundAttempted) return null;
+  const outboundAttempted = Boolean(sandboxProbe?.outboundAttempted);
   const mode = runtime.agentRuntime === "copilot-sdk-sandbox"
     ? "aca-session"
     : runtime.documentToolRuntime === "aca-custom-container-session"
@@ -43,8 +45,8 @@ function fallbackPreModelBlockedResponse(result, status) {
     ],
     limitations: [
       "no-model-call",
-      ...(!sandboxProbe ? ["no-hostile-outbound-probe"] : []),
-      ...(sandboxProbe && !(sandboxProbe.outboundOutcome === "denied"
+      ...(!outboundAttempted ? ["no-hostile-outbound-probe"] : []),
+      ...(outboundAttempted && !(sandboxProbe.outboundOutcome === "denied"
         && ["python-audit-hook", "aca-egress-proxy"].includes(sandboxProbe.enforcement))
         ? ["outbound-denial-unverified"] : []),
       mode === "local-simulation" ? "local-process-not-isolation-boundary" : "cloud-isolation-not-verified",
@@ -52,7 +54,7 @@ function fallbackPreModelBlockedResponse(result, status) {
     evidence: {
       runtime,
       modelAuthoredTextShown: false,
-      outboundDenialProbeAttempted: Boolean(sandboxProbe),
+      outboundDenialProbeAttempted: outboundAttempted,
       ...(sandboxProbe ? { sandboxProbe } : {}),
     },
   };

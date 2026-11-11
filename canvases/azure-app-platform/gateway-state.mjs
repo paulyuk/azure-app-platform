@@ -79,6 +79,13 @@ export function normalizeSandboxGroupCandidate(group) {
   const resourceGroupIndex = resourceIdParts.findIndex((part) =>
     part.toLowerCase() === "resourcegroups");
   const nestedSandbox = group?.sandbox && typeof group.sandbox === "object" ? group.sandbox : null;
+  const rawIdentityType = text(
+    group?.identityType
+    || group?.identity?.type
+    || group?.properties?.identity?.type
+    || nestedSandbox?.identityType
+    || nestedSandbox?.identity?.type,
+  );
   return {
     name: text(group?.name || group?.sandbox_group || group?.group || nestedSandbox?.group || nestedSandbox?.name),
     resourceGroup: text(
@@ -96,6 +103,7 @@ export function normalizeSandboxGroupCandidate(group) {
       || nestedSandbox?.subscription
       || nestedSandbox?.subscriptionId,
     ),
+    ...(rawIdentityType ? { identityType: rawIdentityType } : {}),
   };
 }
 
@@ -142,7 +150,7 @@ export async function discoverSandboxGroups(
   };
 
   const queryResourceGraphSandboxGroups = () => runResourceGraphQuery(commandRunner, {
-    query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId | order by name asc | limit 200",
+    query: "Resources | where type =~ 'microsoft.app/sandboxgroups' | project id, name, resourceGroup, location, subscriptionId, identity | order by name asc | limit 200",
     options: { "$top": 200 },
   });
 
@@ -177,11 +185,15 @@ export async function discoverSandboxGroups(
     configured?.name
     && configured?.resourceGroup
     && matchesSub(configured.subscriptionId, effectiveFilterSub)
-    && !groups.some((item) =>
-      item.name === configured.name && item.resourceGroup === configured.resourceGroup
-    )
   ) {
-    groups.unshift(configured);
+    const existing = groups.find((item) =>
+      item.name === configured.name && item.resourceGroup === configured.resourceGroup
+    );
+    if (!existing) {
+      groups.unshift(configured);
+    } else if (configured.identityType && !existing.identityType) {
+      existing.identityType = configured.identityType;
+    }
   }
   groups.sort((a, b) => a.name.localeCompare(b.name));
   const suggested = (
@@ -475,6 +487,7 @@ export function evaluateGatewayReadiness(agentConfiguration, activeGateway, conf
         resourceGroup: sandboxResourceGroup,
         location: sandboxRegion,
         subscriptionId: sandboxSubscriptionId,
+        ...(activeGateway?.sandboxGroup?.identityType ? { identityType: activeGateway.sandboxGroup.identityType } : {}),
       }
     : null;
   const gatewayConfigured = Boolean(activeGateway)

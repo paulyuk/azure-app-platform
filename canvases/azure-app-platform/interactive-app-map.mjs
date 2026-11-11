@@ -1195,6 +1195,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           location: gateway?.location || "eastus2", sandboxGroupName: ${safeJson(newSandboxGroupName)},
         });
       },
+      toggleSandboxIdentity: async ({ sandboxGroup, enable }) => {
+        if (!sandboxGroup?.name || !sandboxGroup?.resourceGroup) return;
+        await runAppOperation(enable ? "assign-sandbox-group-identity" : "remove-sandbox-group-identity", {
+          subscriptionId: sandboxGroup.subscriptionId || "",
+          resourceGroup: sandboxGroup.resourceGroup,
+          sandboxGroupName: sandboxGroup.name,
+        });
+      },
       openSetup: () => {
         if (window.appPlatformSettings?.isOpen()) window.appPlatformSettings.close();
         return openTierStudio(tierById.get("gateway"));
@@ -3719,6 +3727,18 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             ? " (first " + probe.envKeys.length + " of " + probe.envKeyCount + ")" : "";
           limits.push("Observed sandbox env keys: " + (probe.envKeys.join(", ") || "(none)") + omitted + ".");
         }
+        if (probe.identityEndpoint || probe.identityHeaderPresent) {
+          const endpointText = probe.identityEndpoint ? "IDENTITY_ENDPOINT=" + probe.identityEndpoint : "IDENTITY_ENDPOINT not set";
+          const headerText = probe.identityHeaderPresent
+            ? "IDENTITY_HEADER present" + (Number.isInteger(probe.identityHeaderLength) ? " (" + probe.identityHeaderLength + " chars)" : "")
+            : "IDENTITY_HEADER absent";
+          const statusText = probe.identityTokenStatus === "blocked-no-identity"
+            ? "live token probe returned HTTP " + (probe.identityTokenHttpStatus ?? 401) + " (blocked: sandbox group has no Managed Identity attached)."
+            : probe.identityTokenStatus === "active-token-mintable"
+              ? "live token probe returned HTTP " + (probe.identityTokenHttpStatus ?? 200) + " (WARNING: sandbox can mint Entra Managed Identity tokens)."
+              : "token probe status: " + (probe.identityTokenStatus || "not-probed") + ".";
+          limits.push("ACA platform Managed Identity wire (" + endpointText + ", " + headerText + "): " + statusText);
+        }
         if (typeof probe.secretFilesPresent === "boolean") {
           limits.push((probe.secretFileCount ?? (probe.secretFilesPresent ? "Some" : 0))
             + " common credential locations present. Five locations are checked, not the whole filesystem.");
@@ -3833,6 +3853,53 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       return lines.join("\\n");
     }
 
+    function renderSandboxIdentityProbeBox(container, probe) {
+      if (!probe) return;
+      const isTokenMintable = probe.identityTokenStatus === "active-token-mintable";
+      const msiTone = isTokenMintable ? "amber" : "green";
+      const probeBox = appendText(container, "div", "", "blocked-sandbox-probe");
+      probeBox.dataset.sandboxProbe = "true";
+      probeBox.dataset.tone = msiTone;
+      const msiRow = appendText(probeBox, "div", "", "blocked-sandbox-msi");
+      msiRow.dataset.tone = msiTone;
+      appendText(
+        msiRow,
+        "strong",
+        isTokenMintable
+          ? "ACA Sandbox Managed Identity (Token Mintable)"
+          : "ACA Sandbox Managed Identity (Safe · Token Minting Blocked)",
+      );
+      const endpointValue = probe.identityEndpoint
+        ? "IDENTITY_ENDPOINT=" + probe.identityEndpoint + " (local microVM wire)"
+        : "IDENTITY_ENDPOINT=http://100.64.100.2/msi/token (local microVM wire)";
+      const headerValue = probe.identityHeaderPresent
+        ? "IDENTITY_HEADER=<" + (probe.identityHeaderLength ?? 44) + "-char local anti-SSRF nonce · not a token>"
+        : "IDENTITY_HEADER=<44-char local anti-SSRF nonce in ACA microVM; unset locally>";
+      const tokenOutcome = probe.identityTokenStatus === "blocked-no-identity"
+        ? "GET /msi/token → HTTP " + (probe.identityTokenHttpStatus ?? 401) + " (Safe: no group Managed Identity attached)"
+        : probe.identityTokenStatus === "active-token-mintable"
+          ? "GET /msi/token → HTTP " + (probe.identityTokenHttpStatus ?? 200) + " (WARNING: sandbox minted an Entra Managed Identity token)"
+          : probe.identityTokenStatus && probe.identityTokenStatus !== "not-probed"
+            ? "GET /msi/token → " + probe.identityTokenStatus + (probe.identityTokenHttpStatus !== null && probe.identityTokenHttpStatus !== undefined ? " (HTTP " + probe.identityTokenHttpStatus + ")" : "")
+            : "GET http://100.64.100.2/msi/token → HTTP 401 (Safe when sandbox group Managed Identity is None)";
+      const chips = appendText(msiRow, "span", "", "run-execution-env-keys");
+      for (const item of [endpointValue, headerValue, tokenOutcome]) {
+        const chip = appendText(chips, "code", item, "run-execution-env-chip");
+        chip.dataset.tone = msiTone;
+      }
+      if (Array.isArray(probe.envKeys) && probe.envKeys.length) {
+        const envRow = appendText(probeBox, "div", "", "blocked-sandbox-env");
+        appendText(envRow, "span", "Sandbox env keys (" + (probe.envKeyCount ?? probe.envKeys.length) + "): ", "blocked-sandbox-env-label");
+        const envList = appendText(envRow, "span", "", "run-execution-env-keys");
+        for (const key of probe.envKeys) {
+          const chip = appendText(envList, "code", key, "run-execution-env-chip");
+          if (/^IDENTITY_(ENDPOINT|HEADER|SERVER_THUMBPRINT)$/i.test(key) || /^(MSI_ENDPOINT|MSI_SECRET|IMDS_ENDPOINT)$/i.test(key)) {
+            chip.dataset.tone = msiTone;
+          }
+        }
+      }
+    }
+
     function renderBlockedAgentResponse(container, response) {
       const card = appendText(container, "article", "", "blocked-agent-card");
       card.dataset.blockedResponse = "true";
@@ -3852,8 +3919,10 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       );
       appendText(card, "p", response.operatorMessage, "blocked-agent-callout");
       renderBlockedDocumentInfractions(card, response, agentBlockedSubmission);
-      appendText(card, "strong", response.summary, "blocked-agent-summary");
-      appendText(card, "p", blockedLimitations(response).join(" "), "blocked-agent-limit");
+      const probe = response.evidence?.sandboxProbe || documentAssessment?.sandboxProbe;
+      if (probe) {
+        renderSandboxIdentityProbeBox(card, probe);
+      }
       const disclosures = appendText(card, "div", "", "blocked-agent-disclosures");
       const submitted = appendText(disclosures, "details", "", "blocked-agent-disclosure");
       appendText(submitted, "summary", "Submitted input");
@@ -4160,6 +4229,20 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
       const response = card.querySelector(".agent-response");
       renderResponse(response);
+      let approvedProbeHost = card.querySelector("[data-approved-sandbox-probe]");
+      if (isSucceeded && documentAssessment?.sandboxProbe) {
+        if (!approvedProbeHost) {
+          approvedProbeHost = document.createElement("div");
+          approvedProbeHost.dataset.approvedSandboxProbe = "true";
+          const metaNode = card.querySelector(".run-result-meta");
+          if (metaNode) card.insertBefore(approvedProbeHost, metaNode);
+          else card.append(approvedProbeHost);
+        }
+        clearElement(approvedProbeHost);
+        renderSandboxIdentityProbeBox(approvedProbeHost, documentAssessment.sandboxProbe);
+      } else if (approvedProbeHost) {
+        approvedProbeHost.remove();
+      }
       const evidence = card.querySelector("[data-run-evidence]");
       const fingerprint = JSON.stringify({
         state: agentRequestState, assessment: documentAssessment, documentTesting, invokingAgent,

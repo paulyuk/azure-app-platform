@@ -128,7 +128,9 @@ for (const scenario of ["default-document", "custom-document", "code-interpreter
           assert.equal(Object.hasOwn(requests.at(-1), "documents"), false);
           assert.ok(await page.getByRole("region", { name: "Prompt infractions in Agent prompt", exact: true }).isVisible());
         }
-        const limits = await page.locator(".blocked-agent-limit").textContent();
+        const limitsDisclosure = page.locator(".blocked-agent-disclosure").filter({ hasText: "Limits" });
+        await limitsDisclosure.locator("summary").click();
+        const limits = await limitsDisclosure.textContent();
         if (mode === "egress") {
           assert.match(limits, /Outbound denial was observed by (python-audit-hook|aca-egress-proxy)/);
           assert.match(limits, /does not verify whole-cloud isolation/);
@@ -136,6 +138,12 @@ for (const scenario of ["default-document", "custom-document", "code-interpreter
           assert.match(limits, /Observed sandbox env keys: HOME, LANG, PATH/);
           assert.match(limits, /0 common credential locations present/);
           assert.match(limits, /Verify in code: config\/egress-policy\.yaml/);
+          const probeBanner = page.locator("[data-sandbox-probe]");
+          await probeBanner.waitFor();
+          assert.deepEqual(
+            await probeBanner.locator('.blocked-sandbox-msi .run-execution-env-chip[data-tone="amber"]').allTextContents(),
+            ["IDENTITY_ENDPOINT", "IDENTITY_HEADER"],
+          );
           const layer = page.locator('.run-execution-layer[data-layer="policy-1"]');
           await layer.locator(".run-execution-trigger").click();
           const details = await layer.locator(".run-execution-details").innerText();

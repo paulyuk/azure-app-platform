@@ -1452,6 +1452,36 @@ async function syncExistingAppFixes(root) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
+
+  const templateDir = `${EXTENSION_DIR}/templates/sandbox-gateway-minimal`;
+  const msiUpgradeTargets = [
+    {
+      target: `${root}/src/tools/document-validation/contract.json`,
+      template: `${templateDir}/src/tools/document-validation/contract.json`,
+      marker: "identityTokenStatus",
+    },
+    {
+      target: `${root}/src/tools/document-validation/main.py`,
+      template: `${templateDir}/src/tools/document-validation/main.py.template`,
+      marker: "identityTokenStatus",
+    },
+    {
+      target: `${root}/src/agent/main.py`,
+      template: `${templateDir}/src/agent/main.py.template`,
+      marker: "identityTokenStatus",
+    },
+  ];
+  for (const item of msiUpgradeTargets) {
+    try {
+      const currentText = await readFile(item.target, "utf8");
+      if (!currentText.includes(item.marker) && currentText.includes("sandboxProbe")) {
+        const templateText = await readFile(item.template, "utf8");
+        await writeFile(item.target, templateText, "utf8");
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
 }
 
 async function resolveLifecycleCommand(root, operation) {
@@ -1918,6 +1948,26 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         }),
       ]);
       if (reqAbort.signal.aborted || response.writableEnded) return;
+      const targetGroup = configuredSandboxGroup?.name
+        ? sandboxDiscovery.sandboxGroups.find(
+            (item) => item.name === configuredSandboxGroup.name && item.resourceGroup === configuredSandboxGroup.resourceGroup,
+          ) || sandboxDiscovery.suggested
+        : sandboxDiscovery.suggested;
+      if (targetGroup?.name && targetGroup?.resourceGroup && !targetGroup.identityType) {
+        const idArgs = ["sandboxgroup", "identity", "show", "--group", targetGroup.name, "--resource-group", targetGroup.resourceGroup, "-o", "json"];
+        if (targetGroup.subscriptionId) idArgs.push("--subscription", targetGroup.subscriptionId);
+        const idProbe = await runner("aca", idArgs).catch(() => ({ ok: false }));
+        if (idProbe.ok) {
+          try {
+            const parsedId = JSON.parse(idProbe.stdout || "{}");
+            if (typeof parsedId?.type === "string" && parsedId.type.trim()) {
+              targetGroup.identityType = parsedId.type.trim();
+            }
+          } catch {
+            // Best-effort identity enrichment
+          }
+        }
+      }
       sendJson(response, 200, {
         ...modelOptions,
         sandboxGroups: sandboxDiscovery.sandboxGroups,
@@ -2486,6 +2536,53 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
                     verify.stderr || verify.error || "ACA CLI installer finished, but 'aca --version' could not be verified.",
                   );
                 }
+              }
+            },
+          },
+        ));
+        return;
+      }
+      if (input.operation === "assign-sandbox-group-identity" || input.operation === "remove-sandbox-group-identity") {
+        const active = await loadActiveGateway(root, { refresh: true });
+        const subscriptionId = String(input.subscriptionId || active?.sandboxGroup?.subscriptionId || active?.subscriptionId || "").trim();
+        const resourceGroup = String(input.resourceGroup || active?.sandboxGroup?.resourceGroup || "").trim();
+        const groupName = String(input.sandboxGroupName || active?.sandboxGroup?.name || "").trim();
+        if (!groupName || !resourceGroup) {
+          throw new Error("Select an ACA Sandbox Group before changing its Managed Identity.");
+        }
+        const assign = input.operation === "assign-sandbox-group-identity";
+        const args = [
+          "sandboxgroup",
+          "identity",
+          assign ? "assign" : "remove",
+          "--group",
+          groupName,
+          "--system-assigned",
+          "--resource-group",
+          resourceGroup,
+          ...(assign ? [] : ["--yes"]),
+        ];
+        if (subscriptionId) args.push("--subscription", subscriptionId);
+        sendJson(response, 202, await startAppCommand(
+          root,
+          "aca",
+          args,
+          "configuring",
+          {
+            completedState: postCommandState,
+            onComplete: async ({ exitCode }) => {
+              if (exitCode !== 0) return;
+              cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
+              const latestActive = await loadActiveGateway(root, { refresh: true });
+              if (latestActive?.sandboxGroup?.name === groupName) {
+                await persistActiveGateway(root, {
+                  ...latestActive,
+                  sandboxGroup: {
+                    ...latestActive.sandboxGroup,
+                    identityType: assign ? "SystemAssigned" : "None",
+                  },
+                });
               }
             },
           },

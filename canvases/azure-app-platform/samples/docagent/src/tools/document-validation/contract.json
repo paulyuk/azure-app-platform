@@ -154,6 +154,9 @@
             },
             "safety": {
               "$ref": "#/$defs/safety"
+            },
+            "sandboxProbe": {
+              "$ref": "#/$defs/sandboxProbe"
             }
           }
         },
@@ -189,8 +192,7 @@
           },
           "allOf": [{
             "if": { "properties": { "reasonCode": { "const": "unauthorized-egress" } } },
-            "then": { "required": ["sandboxProbe"] },
-            "else": { "not": { "required": ["sandboxProbe"] } }
+            "then": { "required": ["sandboxProbe"] }
           }]
         }
       ]
@@ -213,9 +215,9 @@
         "envKeyCount": { "type": "integer", "minimum": 0, "maximum": 65536 },
         "secretFilesPresent": { "type": "boolean" },
         "secretFileCount": { "type": "integer", "minimum": 0, "maximum": 5 },
-        "outboundAttempted": { "const": true },
-        "outboundOutcome": { "enum": ["denied", "http-response", "transport-error"] },
-        "enforcement": { "enum": ["python-audit-hook", "aca-egress-proxy", "unverified"] },
+        "outboundAttempted": { "type": "boolean" },
+        "outboundOutcome": { "enum": ["denied", "http-response", "transport-error", "not-attempted"] },
+        "enforcement": { "enum": ["python-audit-hook", "aca-egress-proxy", "unverified", "not-applicable"] },
         "httpStatus": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
         "acaDecisionCount": { "type": "integer", "minimum": 0, "maximum": 100 },
         "acaDeniedCount": { "type": "integer", "minimum": 0, "maximum": 100 },
@@ -230,7 +232,14 @@
             "path": { "const": "/" },
             "matchedRule": { "type": "string", "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}|\\[REDACTED\\])$" }
           }
-        }
+        },
+        "identityEndpoint": { "const": "http://100.64.100.2/msi/token" },
+        "identityHeaderPresent": { "type": "boolean" },
+        "identityHeaderLength": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "identityTokenStatus": {
+          "enum": ["blocked-no-identity", "active-token-mintable", "http-error", "transport-error", "not-probed"]
+        },
+        "identityTokenHttpStatus": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 }
       }
     },
     "safety": {

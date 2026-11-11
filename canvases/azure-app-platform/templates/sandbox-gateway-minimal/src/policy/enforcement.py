@@ -71,7 +71,7 @@ def probe_origin(url):
     return origin
 
 
-def log_sandbox_probe(probe, origin):
+def log_sandbox_probe(probe, origin=None):
     keys = json.dumps(probe["envKeys"], ensure_ascii=True, separators=(",", ":"))
     print(
         f'[sandbox-env] env_keys={keys} env_key_count={probe["envKeyCount"]} '
@@ -79,12 +79,22 @@ def log_sandbox_probe(probe, origin):
         f'secret_files={probe["secretFileCount"]} values_returned=false',
         file=sys.stderr, flush=True,
     )
-    print(
-        f'[sandbox-net] probe={json.dumps("HEAD " + origin + "/")} '
-        f'outcome={probe["outboundOutcome"]} enforcement={probe["enforcement"]} '
-        f'http_status={probe["httpStatus"]}',
-        file=sys.stderr, flush=True,
-    )
+    if probe.get("identityEndpoint") == "http://100.64.100.2/msi/token":
+        print(
+            f'[sandbox-msi] endpoint={probe.get("identityEndpoint")} '
+            f'header_present={str(bool(probe.get("identityHeaderPresent"))).lower()} '
+            f'header_length={probe.get("identityHeaderLength", 0)} '
+            f'token_status={runtime_log_token(probe.get("identityTokenStatus") or "not-probed")} '
+            f'http_status={probe.get("identityTokenHttpStatus")}',
+            file=sys.stderr, flush=True,
+        )
+    if origin is not None and probe.get("outboundAttempted"):
+        print(
+            f'[sandbox-net] probe={json.dumps("HEAD " + origin + "/")} '
+            f'outcome={probe["outboundOutcome"]} enforcement={probe["enforcement"]} '
+            f'http_status={probe["httpStatus"]}',
+            file=sys.stderr, flush=True,
+        )
 
 
 def runtime_log_token(value):

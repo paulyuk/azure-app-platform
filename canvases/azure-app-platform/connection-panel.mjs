@@ -15,7 +15,22 @@ export const CONNECTION_PANEL_CSS = `
   .connection-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; }
   #details .connection-section-heading h3, .studio-settings .connection-section-heading h3 { margin:0; font-size:14px; }
   .connection-fields { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; min-width:0; contain:layout inline-size; }
-  .connection-fields > .connection-model { grid-column:1 / -1; }
+  .connection-fields > .connection-model, .connection-fields > .connection-sandbox-identity { grid-column:1 / -1; }
+  .connection-sandbox-identity { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; padding:8px 10px; border:1px solid var(--studio-line); border-radius:var(--studio-control-radius, 6px); background:var(--studio-panel); }
+  .connection-sandbox-identity[data-tone="green"] { border-color:color-mix(in srgb,var(--studio-ok) 60%,var(--studio-line)); background:color-mix(in srgb,var(--studio-ok) 10%,var(--studio-panel)); }
+  .connection-sandbox-identity[data-tone="amber"] { border-color:color-mix(in srgb,var(--studio-warn) 60%,var(--studio-line)); background:color-mix(in srgb,var(--studio-warn) 10%,var(--studio-panel)); }
+  .connection-sandbox-identity-copy { display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; min-width:0; flex:1 1 220px; }
+  .connection-sandbox-identity-copy strong { font-size:12px; color:var(--studio-ink); }
+  .connection-sandbox-identity[data-tone="green"] .connection-sandbox-identity-copy strong { color:var(--studio-ok); }
+  .connection-sandbox-identity[data-tone="amber"] .connection-sandbox-identity-copy strong { color:var(--studio-warn); }
+  .connection-sandbox-identity-info, button.connection-sandbox-identity-info { position:relative; display:inline-flex; align-items:center; justify-content:center; width:16px !important; height:16px !important; min-height:16px !important; min-width:16px !important; padding:0 !important; border:1px solid var(--studio-line); border-radius:999px !important; background:var(--studio-raised); color:var(--studio-muted); font:700 10px/1 var(--font-sans,system-ui,sans-serif); cursor:help; flex:none; }
+  .connection-sandbox-identity[data-tone="green"] .connection-sandbox-identity-info:hover, .connection-sandbox-identity[data-tone="green"] .connection-sandbox-identity-info:focus-visible { border-color:var(--studio-ok); color:var(--studio-ok); outline:none; }
+  .connection-sandbox-identity[data-tone="amber"] .connection-sandbox-identity-info:hover, .connection-sandbox-identity[data-tone="amber"] .connection-sandbox-identity-info:focus-visible { border-color:var(--studio-warn); color:var(--studio-warn); outline:none; }
+  .connection-sandbox-identity-tooltip { position:absolute; bottom:calc(100% + 6px); left:0; z-index:20; display:none; width:max-content; max-width:min(320px, 75vw); padding:6px 8px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-raised); color:var(--studio-ink); box-shadow:0 6px 18px rgb(0 0 0 / .22); font:400 11px/1.4 var(--font-sans,system-ui,sans-serif); text-align:start; white-space:normal; pointer-events:none; }
+  .connection-sandbox-identity-info:hover .connection-sandbox-identity-tooltip, .connection-sandbox-identity-info:focus-visible .connection-sandbox-identity-tooltip { display:block; }
+  .connection-sandbox-identity-chips { display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; }
+  .connection-sandbox-identity-chip { display:inline-block; padding:1px 5px; border:1px solid color-mix(in srgb,var(--studio-ok) 65%,var(--studio-line)); border-radius:4px; background:color-mix(in srgb,var(--studio-ok) 14%,var(--studio-raised)); color:var(--studio-ok); font:600 10px/1.35 var(--font-mono,ui-monospace,monospace); }
+  .connection-sandbox-identity[data-tone="amber"] .connection-sandbox-identity-chip { border-color:color-mix(in srgb,var(--studio-warn) 65%,var(--studio-line)); background:color-mix(in srgb,var(--studio-warn) 16%,var(--studio-raised)); color:var(--studio-warn); }
   .connection-inline { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:end; gap:8px; min-width:0; }
   #details .connections-root .studio-field, .studio-settings .connections-root .studio-field { display:grid; gap:6px; min-width:0; font:inherit; font-weight:400; }
   #details .connections-root .studio-field > span, .studio-settings .connections-root .studio-field > span { font:inherit; font-weight:400; }
@@ -47,7 +62,7 @@ export const CONNECTION_PANEL_CSS = `
 `;
 
 export function createConnectionPanel({ buttons, notices, toolkitComponents, request, readLocal, tracker, getRuntime, applySelection,
-  createGateway, createSandbox, configureModel, openSetup, selectModel }) {
+  createGateway, createSandbox, toggleSandboxIdentity, configureModel, openSetup, selectModel }) {
   const views = new Map();
   let options = null;
   let phase = "idle";
@@ -296,6 +311,37 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
       buttons.setDisabled(view.refreshSandbox, locked);
       buttons.setDisabled(view.createGateway, locked);
       buttons.setDisabled(view.createSandbox, locked);
+      const selectedSandbox = draft.sandbox;
+      const sandboxIdentityType = selectedSandbox?.identityType || "";
+      const hasManagedIdentity = /systemassigned|userassigned/i.test(sandboxIdentityType);
+      if (view.sandboxIdentityRow) {
+        const msiTone = hasManagedIdentity ? "amber" : "green";
+        view.sandboxIdentityRow.hidden = false;
+        view.sandboxIdentityRow.dataset.tone = msiTone;
+        view.sandboxIdentityTitle.textContent = selectedSandbox
+          ? (hasManagedIdentity
+              ? `Sandbox Group Managed Identity: ${sandboxIdentityType} (Active · Token Mintable)`
+              : `Sandbox Group Managed Identity: ${sandboxIdentityType || "None"} (Safe · Token Blocked)`)
+          : "Sandbox Group Managed Identity: None (Safe · Token Blocked)";
+        const detailText = hasManagedIdentity
+          ? "IDENTITY_ENDPOINT (http://100.64.100.2/msi/token) & IDENTITY_HEADER (44-char secret) can mint Entra tokens inside the sandbox. Disable unless a sandboxed tool or ACA Connector requires Managed Identity."
+          : "ACA hypervisor pre-populates IDENTITY_ENDPOINT=http://100.64.100.2/msi/token and a local anti-SSRF IDENTITY_HEADER in every microVM. With Sandbox Group Managed Identity off, neither variable carries any Entra privileges and /msi/token is blocked (HTTP 401).";
+        view.sandboxIdentityInfo.title = detailText;
+        view.sandboxIdentityInfo.setAttribute("aria-label", detailText);
+        view.sandboxIdentityTooltip.textContent = detailText;
+        if (view.sandboxIdentityTokenChip) {
+          view.sandboxIdentityTokenChip.textContent = hasManagedIdentity
+            ? "GET /msi/token → HTTP 200 (Entra token mintable)"
+            : "GET /msi/token → HTTP 401 (safe: no group identity)";
+        }
+        if (view.toggleSandboxIdentity) {
+          buttons.update(view.toggleSandboxIdentity, {
+            hidden: !toggleSandboxIdentity || !selectedSandbox,
+            disabled: locked,
+            children: hasManagedIdentity ? "Disable Managed Identity" : "Enable Managed Identity",
+          });
+        }
+      }
       buttons.update(view.configure, { hidden: !availableGateways.some(item => identity(item) === identity(draft.gateway)) || Boolean(models().length), disabled: locked });
       buttons.update(view.apply, { disabled: !canApply(), children: applying ? "Applying..." : "Apply connections" });
       buttons.update(view.discard, { hidden: !dirty(), disabled: locked });
@@ -453,6 +499,30 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     const createSandboxButton = button(sandboxInline, "Create", () => createSandbox({
       subscriptionId: draft.sandboxSubscriptionId, gatewaySubscriptionId: draft.subscriptionId, gateway: draft.gateway,
     }), false, "Create Sandbox Group");
+    const sandboxIdentityRow = text(execution.fields, "div", "", "connection-sandbox-identity");
+    sandboxIdentityRow.dataset.tone = "green";
+    const sandboxIdentityCopy = text(sandboxIdentityRow, "div", "", "connection-sandbox-identity-copy");
+    const sandboxIdentityTitle = text(sandboxIdentityCopy, "strong", "Sandbox Group Managed Identity: None (Safe · Token Blocked)");
+    const defaultIdentityDetail = "ACA hypervisor pre-populates IDENTITY_ENDPOINT=http://100.64.100.2/msi/token and a local anti-SSRF IDENTITY_HEADER in every microVM. With Sandbox Group Managed Identity off, neither variable carries any Entra privileges and /msi/token is blocked (HTTP 401).";
+    const sandboxIdentityInfo = text(sandboxIdentityCopy, "button", "i", "connection-sandbox-identity-info");
+    sandboxIdentityInfo.type = "button";
+    sandboxIdentityInfo.title = defaultIdentityDetail;
+    sandboxIdentityInfo.setAttribute("aria-label", defaultIdentityDetail);
+    const sandboxIdentityTooltip = text(sandboxIdentityInfo, "span", defaultIdentityDetail, "connection-sandbox-identity-tooltip");
+    sandboxIdentityTooltip.setAttribute("role", "tooltip");
+    const sandboxIdentityChips = text(sandboxIdentityCopy, "span", "", "connection-sandbox-identity-chips");
+    text(sandboxIdentityChips, "code", "IDENTITY_ENDPOINT=http://100.64.100.2/msi/token (local wire)", "connection-sandbox-identity-chip");
+    text(sandboxIdentityChips, "code", "IDENTITY_HEADER=<44-char local nonce>", "connection-sandbox-identity-chip");
+    const sandboxIdentityTokenChip = text(sandboxIdentityChips, "code", "GET /msi/token → HTTP 401 (safe: no group identity)", "connection-sandbox-identity-chip");
+    const toggleSandboxIdentityButton = button(sandboxIdentityRow, "Enable Managed Identity", async () => {
+      if (!toggleSandboxIdentity || !draft.sandbox) return;
+      const enabled = /systemassigned|userassigned/i.test(draft.sandbox.identityType || "");
+      await toggleSandboxIdentity({
+        sandboxGroup: draft.sandbox,
+        enable: !enabled,
+      });
+      void load(true, "sandbox");
+    }, false, "Toggle Sandbox Group Managed Identity");
     const explanation = text(form, "details", "", "connections-explanation");
     text(explanation, "summary", "What Apply changes");
     text(explanation, "p", "Apply saves this app's gateway, model, and sandbox selection, then validates the connection. Create actions use a separate resource workflow.");
@@ -472,7 +542,8 @@ export function createConnectionPanel({ buttons, notices, toolkitComponents, req
     const view = { root, body, scrollToRestore: scrollTop, summary, currentLabel, currentText, currentState, notice, feedbackArea, feedbackActions,
       cancel: cancelButton, retry, setup,
       discoveryWarnings, skeleton, form, subscription, gateway, model, configure, sandboxSubscription, sandbox,
-      refresh, refreshSandbox, createGateway: createGatewayButton,
+      sandboxIdentityRow, sandboxIdentityTitle, sandboxIdentityInfo, sandboxIdentityTooltip, sandboxIdentityTokenChip, toggleSandboxIdentity: toggleSandboxIdentityButton,
+      refresh, refreshSandbox, createGateway: createSandboxButton ? createGatewayButton : createGatewayButton,
       createSandbox: createSandboxButton, apply: applyButton, discard, footerText };
     views.set(container, view);
     for (const event of ["wheel", "pointerdown", "keydown"]) body.addEventListener(event, () => { view.scrollToRestore = null; }, { passive: true });

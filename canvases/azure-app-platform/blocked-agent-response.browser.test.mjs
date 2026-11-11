@@ -320,8 +320,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await execution.locator(".run-execution-layers").innerText(), /Rejected · instruction-override/);
       assert.match(await execution.locator(".run-execution-layers").innerText(), /Model[\s\S]*Not attempted/);
       assert.match(await execution.locator(".run-execution-layers").innerText(), /Approval \/ disclosure[\s\S]*Not part of this test/);
-      assert.match(await blocked.innerText(), /hostile document did not reach the model/i);
-      assert.match(await blocked.innerText(), /local child process is not a network or isolation boundary/i);
+      assert.doesNotMatch(await blocked.innerText(), /hostile document did not reach the model/i);
+      assert.equal(await blocked.locator(".blocked-agent-limit").count(), 0);
+      assert.equal(await blocked.locator(".blocked-agent-summary").count(), 0);
       const overrideReview = blocked.getByRole("region", {
         name: "Document infractions in unsafe-override-test.md",
       });
@@ -367,9 +368,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator("[data-blocked-response][data-mode='aca-document-session']").waitFor();
       const acaText = await page.locator("[data-blocked-response]").innerText();
       assert.match(acaText, /ACA document session/);
-      assert.match(acaText, /No hostile-target network-denial probe was performed/);
-      assert.match(acaText, /ACA session or control-plane requests may have occurred/);
-      assert.match(acaText, /Cloud isolation is not verified/);
+      assert.equal(await page.locator("[data-blocked-response] .blocked-agent-limit").count(), 0);
       const egressReview = page.locator(".blocked-document-review");
       assert.match(await egressReview.locator(".blocked-document-name").innerText(), /\.md$/);
       assert.match(await egressReview.innerText(), /3 infractions/);
@@ -424,12 +423,11 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await returnToRun(page);
       await invoke.click();
       await page.locator("[data-blocked-response]").filter({
-        hasText: "A model response was received but blocked before disclosure.",
+        hasText: "Agent output was blocked by deterministic policy.",
       }).waitFor();
       const postText = await execution.innerText();
       assert.match(postText, /Model[\s\S]*Response received/);
       assert.match(postText, /Approval \/ disclosure[\s\S]*Output blocked by policy · agent-output-policy-blocked/);
-      assert.match(postText, /No model-authored text is shown/);
       assert.doesNotMatch(postText, /412-88-3920/);
       assert.equal(await page.getByRole("button", {
         name: "Review response policy with Copilot",

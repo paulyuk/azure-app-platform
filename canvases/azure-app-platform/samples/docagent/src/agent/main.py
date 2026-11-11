@@ -101,7 +101,7 @@ def _blocked_agent_response(
             else "cloud-isolation-not-verified"
         ),
     ]
-    if sandbox_probe is None:
+    if sandbox_probe is None or not sandbox_probe.get("outboundAttempted"):
         limitations.append("no-hostile-outbound-probe")
     elif sandbox_probe["outboundOutcome"] != "denied":
         limitations.append("outbound-denial-unverified")
@@ -121,7 +121,7 @@ def _blocked_agent_response(
         "evidence": {
             "runtime": runtime,
             "modelAuthoredTextShown": False,
-            "outboundDenialProbeAttempted": sandbox_probe is not None,
+            "outboundDenialProbeAttempted": bool(sandbox_probe and sandbox_probe.get("outboundAttempted")),
             **({"sandboxProbe": sandbox_probe} if sandbox_probe is not None else {}),
         },
     }
@@ -811,9 +811,14 @@ def _validate_sandbox_probe(probe: Any) -> None:
         "outboundOutcome", "enforcement", "httpStatus", "envKeys", "envKeyCount",
         "secretFilesPresent", "secretFileCount",
     }
+    optional = {
+        "acaDecisionCount", "acaDeniedCount", "acaDeniedDecision",
+        "identityEndpoint", "identityHeaderPresent", "identityHeaderLength",
+        "identityTokenStatus", "identityTokenHttpStatus",
+    }
     if (
         not isinstance(probe, dict)
-        or set(probe) - required - {"acaDecisionCount", "acaDeniedCount", "acaDeniedDecision"}
+        or set(probe) - required - optional
         or not required <= set(probe)
     ):
         raise UpstreamError("Sandbox probe evidence is incomplete or contains unexpected fields")
@@ -821,7 +826,7 @@ def _validate_sandbox_probe(probe: Any) -> None:
     if (
         type(count) is not int or not 0 <= count <= 65536
         or probe["credentialValuesReturned"] is not False
-        or probe["outboundAttempted"] is not True
+        or type(probe["outboundAttempted"]) is not bool
     ):
         raise UpstreamError("Sandbox probe credential observations violate the redacted contract")
     keys, total = probe["envKeys"], probe["envKeyCount"]
@@ -843,15 +848,24 @@ def _validate_sandbox_probe(probe: Any) -> None:
     if (
         not isinstance(probe["outboundOutcome"], str)
         or not isinstance(probe["enforcement"], str)
-        or probe["outboundOutcome"] not in {"denied", "http-response", "transport-error"}
-        or probe["enforcement"] not in {"python-audit-hook", "aca-egress-proxy", "unverified"}
+        or probe["outboundOutcome"] not in {"denied", "http-response", "transport-error", "not-attempted"}
+        or probe["enforcement"] not in {"python-audit-hook", "aca-egress-proxy", "unverified", "not-applicable"}
     ):
         raise UpstreamError("Sandbox probe has invalid network observations")
     status = probe["httpStatus"]
     if status is not None and (type(status) is not int or not 100 <= status <= 599):
         raise UpstreamError("Sandbox probe HTTP status is invalid")
-    if (
-        (probe["outboundOutcome"] == "http-response" and status is None)
+    if not probe["outboundAttempted"]:
+        if (
+            probe["outboundOutcome"] != "not-attempted"
+            or probe["enforcement"] != "not-applicable"
+            or status is not None
+        ):
+            raise UpstreamError("Sandbox probe passive inspection has invalid network observations")
+    elif (
+        probe["outboundOutcome"] == "not-attempted"
+        or probe["enforcement"] == "not-applicable"
+        or (probe["outboundOutcome"] == "http-response" and status is None)
         or (probe["outboundOutcome"] == "transport-error" and status is not None)
         or (probe["outboundOutcome"] == "denied" and status not in {None, 403})
     ):
@@ -883,8 +897,24 @@ def _validate_sandbox_probe(probe: Any) -> None:
             0 < probe.get("acaDeniedCount", 0) <= probe.get("acaDecisionCount", 0)
         ):
             raise UpstreamError("ACA egress denial needs matching platform audit decisions")
-    elif probe["enforcement"] != "unverified":
+    elif probe["outboundAttempted"] and probe["enforcement"] != "unverified":
         raise UpstreamError("Unverified egress cannot claim observed enforcement")
+    if "identityEndpoint" in probe and probe["identityEndpoint"] != "http://100.64.100.2/msi/token":
+        raise UpstreamError("Sandbox probe identityEndpoint is invalid")
+    if "identityHeaderPresent" in probe and type(probe["identityHeaderPresent"]) is not bool:
+        raise UpstreamError("Sandbox probe identityHeaderPresent is invalid")
+    if "identityHeaderLength" in probe and (
+        type(probe["identityHeaderLength"]) is not int or not 0 <= probe["identityHeaderLength"] <= 256
+    ):
+        raise UpstreamError("Sandbox probe identityHeaderLength is invalid")
+    if "identityTokenStatus" in probe and probe["identityTokenStatus"] not in {
+        "blocked-no-identity", "active-token-mintable", "http-error", "transport-error", "not-probed",
+    }:
+        raise UpstreamError("Sandbox probe identityTokenStatus is invalid")
+    if "identityTokenHttpStatus" in probe:
+        msi_status = probe["identityTokenHttpStatus"]
+        if msi_status is not None and (type(msi_status) is not int or not 100 <= msi_status <= 599):
+            raise UpstreamError("Sandbox probe identityTokenHttpStatus is invalid")
 
 
 def _validate_tool_result(result: Any) -> dict[str, Any]:
@@ -896,14 +926,18 @@ def _validate_tool_result(result: Any) -> dict[str, Any]:
     if verdict not in {"approved", "rejected"}:
         raise UpstreamError("Document tool verdict must be 'approved' or 'rejected'")
     if verdict == "approved":
-        if set(result) != {
+        allowed_fields = {
             "contractVersion",
             "verdict",
             "reasonCode",
             "document",
             "analysis",
             "safety",
-        }:
+        }
+        if "sandboxProbe" in result:
+            allowed_fields.add("sandboxProbe")
+            _validate_sandbox_probe(result.get("sandboxProbe"))
+        if set(result) != allowed_fields:
             raise UpstreamError("Approved document tool result has unexpected fields")
         if result.get("reasonCode") != "sanitized":
             raise UpstreamError("Approved document tool result has an invalid reasonCode")
@@ -964,7 +998,7 @@ def _validate_tool_result(result: Any) -> dict[str, Any]:
             "message",
             "safety",
         }
-        if result.get("reasonCode") == "unauthorized-egress":
+        if result.get("reasonCode") == "unauthorized-egress" or "sandboxProbe" in result:
             expected.add("sandboxProbe")
             _validate_sandbox_probe(result.get("sandboxProbe"))
         if set(result) != expected:
@@ -1197,9 +1231,12 @@ class AcaSandboxGroupDocumentTool:
             validated = _validate_tool_result(parsed)
             if "sandboxProbe" in validated:
                 probe = validated["sandboxProbe"]
-                if probe["enforcement"] != "unverified":
-                    raise UpstreamError("ACA tool must report its native runtime, not a local socket policy")
-                log_sandbox_probe(probe, probe_origin(outbound_probe_url(document["content"])))
+                if probe["outboundAttempted"]:
+                    if probe["enforcement"] != "unverified":
+                        raise UpstreamError("ACA tool must report its native runtime, not a local socket policy")
+                    log_sandbox_probe(probe, probe_origin(outbound_probe_url(document["content"])))
+                else:
+                    log_sandbox_probe(probe, None)
             self._record_egress_decisions(sandbox_id, validated, document)
             if "sandboxProbe" in validated:
                 _validate_sandbox_probe(validated["sandboxProbe"])
@@ -1234,8 +1271,9 @@ class AcaSandboxGroupDocumentTool:
         self, sandbox_id: str, validated: dict[str, Any], document: dict[str, str]
     ) -> None:
         probe = validated.get("sandboxProbe")
-        target = parse.urlsplit(probe_origin(outbound_probe_url(document["content"]))) if probe else None
-        attempts = 10 if probe else 1
+        outbound_attempted = bool(probe and probe.get("outboundAttempted"))
+        target = parse.urlsplit(probe_origin(outbound_probe_url(document["content"]))) if outbound_attempted else None
+        attempts = 10 if outbound_attempted else 1
         for attempt in range(attempts):
             try:
                 result = subprocess.run(
@@ -1260,7 +1298,12 @@ class AcaSandboxGroupDocumentTool:
                 for key in ("allowed", "denied")
             ):
                 raise UpstreamError("ACA Sandbox egress decisions have an unsupported audit shape")
-            if probe is None:
+            if probe is None or not outbound_attempted:
+                if probe is not None:
+                    probe.update(
+                        acaDecisionCount=len(network["allowed"]) + len(network["denied"]),
+                        acaDeniedCount=0,
+                    )
                 break
             matching_denials = [
                 entry for entry in network["denied"]
