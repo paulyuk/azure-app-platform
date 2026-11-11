@@ -23,7 +23,7 @@ test("installed payload opens and materializes templates without checkout depend
     await execute("git", ["init", "--quiet", workspace]);
     const manifest = JSON.parse(await readFile(join(payload, ".github/plugin/plugin.json"), "utf8"));
     assert.equal(manifest.name, "azure-app-platform");
-    assert.equal(manifest.extensions, ".");
+    assert.deepEqual(manifest.extensions, { "com.github.copilot": { logo: "assets/run-ready-spot.svg" } });
     const packageJson = JSON.parse(await readFile(join(payload, "package.json"), "utf8"));
     assert.equal(packageJson.name, manifest.name);
     assert.equal(packageJson.version, manifest.version);
@@ -109,7 +109,7 @@ test("installed payload opens and materializes templates without checkout depend
           return resolved;
         },
       });
-      await import(base + "extension.mjs");
+      await import(base + "com.github.copilot/extensions/azure-app-platform/extension.mjs");
       checkpoint("provider imported");
       const { renderOcticon } = await import(base + "studio-icons.mjs");
       assert.match(renderOcticon("gear"), /data-octicon="gear"/);
