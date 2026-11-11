@@ -28,6 +28,12 @@ test("extension startup and readiness probes avoid redundant CLI and gateway ove
   );
   assert.match(extensionSource, /const inFlightLocalReadiness = new Map\(\);/);
   assert.match(extensionSource, /inFlightLocalReadiness\.delete\(root\);/);
+  assert.match(extensionSource,
+    /const pending = \(async \(\) => \{[\s\S]*?const inputCapabilities = await readAppInputCapabilities\(root, \{ agentConfiguration \}\);/);
+  assert.match(extensionSource, /readBuildRuntime\(root, inputCapabilities\)/);
+  assert.match(extensionSource, /hasDocumentTool: Boolean\(inputCapabilities\.documentInput\)/);
+  assert.match(extensionSource, /\.\.\.inputCapabilities,/);
+  assert.doesNotMatch(extensionSource, /documentInput: buildRuntime \?/);
   assert.match(extensionSource, /now - cachedPrerequisiteTimestamp < 300_000/);
   assert.match(
     extensionSource,

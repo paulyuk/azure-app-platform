@@ -311,6 +311,24 @@ test("repository discovery classifies candidates from evidence and skips secrets
   });
 });
 
+test("sandbox discovery recognizes actual YAML policies without a phantom app-config project", async () => {
+  await withFixture({
+    "azure-app.yaml": "capabilities:\n  sandbox:\n    path: tools/calculator\n",
+    "tools/calculator/pyproject.toml": '[project]\nname = "calculator"\nversion = "0.1.0"\n',
+    "tools/calculator/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
+    "config/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
+  }, async root => {
+    const discovery = await discoverRepository(root);
+    const sandboxes = discovery.candidates.filter(candidate => candidate.tierId === "sandbox");
+    assert.equal(sandboxes.length, 1);
+    assert.equal(sandboxes[0].projectPath, "tools/calculator");
+    assert.ok(sandboxes[0].evidence.some(item => item.path === "tools/calculator/egress-policy.yaml" && item.rule === "sandbox-boundary"));
+    await rm(join(root, "azure-app.yaml"));
+    const inferred = (await discoverRepository(root)).candidates.filter(candidate => candidate.tierId === "sandbox");
+    assert.deepEqual(inferred.map(candidate => candidate.projectPath), ["tools/calculator"]);
+  });
+});
+
 test("browser snapshots and runtime output cannot create phantom components or disconnect the request flow", async () => {
   await withFixture(GENERIC_APP, async (root) => {
     const before = await traceApp({ root });
@@ -989,6 +1007,10 @@ test("sandbox & gateway minimal materializer creates a headless agent + sandbox 
     assert.equal(await readFile(join(root, "src", "tools", "document-validation", "main.py"), "utf8").then(() => true), true);
     const egressConfig = JSON.parse(await readFile(join(root, "config", "egress-allowlist.json"), "utf8"));
     assert.deepEqual(egressConfig.allowedFqdns, []);
+    assert.match(
+      await readFile(join(root, "config", "egress-policy.yaml"), "utf8"),
+      /^defaultAction: Deny\ntrafficInspection: Full\nrules: \[\]$/m,
+    );
     assert.match(
       await readFile(join(root, "src", "tools", "document-validation", "egress-policy.md"), "utf8"),
       /api\.lender\.example\.com/,

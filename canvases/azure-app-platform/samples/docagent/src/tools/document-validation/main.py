@@ -13,29 +13,17 @@ import json
 import os
 import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib import error, request
 
 TOOL_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOL_ROOT.parents[2] / "src" / "policy"))
-from enforcement import EGRESS_OVERRIDE_PATTERN, OVERRIDE_PATTERN, POLICY, REJECTION_MESSAGES, require_safe_output, sanitize_text
+from enforcement import OVERRIDE_PATTERN, POLICY, REJECTION_MESSAGES, log_http_outcome, log_sandbox_probe, outbound_probe_url, probe_origin, require_safe_output, sanitize_text
 
 CONTRACT_PATH = TOOL_ROOT / "contract.json"
-FORBIDDEN_CREDENTIAL_ENV = {
-    "AI_GATEWAY_API_KEY",
-    "AI_GATEWAY_BEARER_TOKEN",
-    "AZURE_CLIENT_CERTIFICATE_PATH",
-    "AZURE_CLIENT_SECRET",
-    "AZURE_AI_GATEWAY_API_KEY",
-    "AZURE_OPENAI_API_KEY",
-    "COPILOT_GITHUB_TOKEN",
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "IDENTITY_ENDPOINT",
-    "MSI_ENDPOINT",
-    "OPENAI_API_KEY",
-}
 
 
 class ProtocolError(ValueError):
@@ -71,13 +59,96 @@ WORD_PATTERN = re.compile(r"\b[\w'-]+\b", re.UNICODE)
 HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+\S", re.MULTILINE)
 
 
-def _reject_if_credentials_present() -> None:
-    present = sorted(name for name in FORBIDDEN_CREDENTIAL_ENV if os.environ.get(name))
-    if present:
-        raise RuntimeError(
-            "Document validation tool refuses to start with agent/model credential variables: "
-            + ", ".join(present)
-        )
+class LocalNetworkDenied(PermissionError):
+    """The local tool's Python socket policy denied an outbound operation."""
+
+
+def _install_local_network_policy() -> None:
+    def deny_outbound(event: str, _args: tuple[Any, ...]) -> None:
+        if event in {
+            "socket.connect", "socket.getaddrinfo", "socket.gethostbyname",
+            "socket.gethostbyaddr", "socket.sendto", "socket.sendmsg",
+        }:
+            raise LocalNetworkDenied("Local document-tool socket policy denies outbound access")
+
+    sys.addaudithook(deny_outbound)
+
+
+class NoRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _credential_locations() -> tuple[Path, ...]:
+    try:
+        home = Path.home()
+    except RuntimeError as invalid:
+        raise ProtocolError("could not locate the sandbox home for credential checks") from invalid
+    return (
+        home / ".azure", home / ".aws", home / ".config" / "gh",
+        home / ".git-credentials", Path("/var/run/secrets"),
+    )
+
+
+def _probe_sandbox(url: str) -> dict[str, Any]:
+    try:
+        # Never forward a document's path, query, userinfo, body, or credentials.
+        origin = probe_origin(url)
+        outgoing = request.Request(origin + "/", method="HEAD")
+    except (ValueError, UnicodeError) as invalid:
+        raise ProtocolError("outbound probe target must have a valid HTTP(S) origin") from invalid
+
+    env_keys = sorted(os.environ)
+    if len(env_keys) > 65536 or any(
+        not 1 <= len(name) <= 256 or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        for name in env_keys
+    ):
+        raise ProtocolError("environment variable names exceed the diagnostic contract")
+    secret_file_count = 0
+    for location in _credential_locations():
+        try:
+            location.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as failure:
+            raise ProtocolError("could not inspect a sandbox credential location") from failure
+        secret_file_count += 1
+    evidence: dict[str, Any] = {
+        "envKeys": env_keys[:32],
+        "envKeyCount": len(env_keys),
+        "secretFilesPresent": secret_file_count > 0,
+        "secretFileCount": secret_file_count,
+        "credentialLikeVariableCount": sum(
+            1 for name, value in os.environ.items()
+            if value and re.search(
+                r"(?:^|_)(?:TOKEN|SECRET|PASSWORD|CREDENTIALS?|API_KEY|PRIVATE_KEY)(?:_|$)"
+                r"|(?:^|_)(?:IDENTITY|MSI)_ENDPOINT$|^AZURE_CLIENT_CERTIFICATE_PATH$",
+                name, re.IGNORECASE,
+            )
+        ),
+        "credentialValuesReturned": False,
+        "outboundAttempted": True,
+        "outboundOutcome": "transport-error",
+        "enforcement": "unverified",
+        "httpStatus": None,
+    }
+    try:
+        opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
+        with opener.open(outgoing, timeout=3) as response:
+            evidence.update(outboundOutcome="http-response", httpStatus=response.status)
+    except LocalNetworkDenied:
+        evidence.update(outboundOutcome="denied", enforcement="python-audit-hook")
+    except error.HTTPError as response:
+        evidence.update(outboundOutcome="http-response", httpStatus=response.code)
+        response.close()
+    except error.URLError as failure:
+        if isinstance(failure.reason, LocalNetworkDenied):
+            evidence.update(outboundOutcome="denied", enforcement="python-audit-hook")
+    except OSError:
+        # DNS, TLS, timeout, and connection failures alone do not prove policy denial.
+        evidence["outboundOutcome"] = "transport-error"
+    log_sandbox_probe(evidence, origin)
+    return evidence
 
 
 def _validate_request(payload: Any) -> tuple[str, str]:
@@ -130,8 +201,6 @@ def _validate_request(payload: Any) -> tuple[str, str]:
         )
     if OVERRIDE_PATTERN.search(content):
         raise DocumentRejection("instruction-override", REJECTION_MESSAGES["instruction-override"])
-    if EGRESS_OVERRIDE_PATTERN.search(content):
-        raise DocumentRejection("unauthorized-egress", REJECTION_MESSAGES["unauthorized-egress"])
     return extension, content.replace("\r\n", "\n").replace("\r", "\n")
 
 
@@ -163,6 +232,13 @@ def process_document(payload: Any) -> dict[str, Any]:
         extension, content = _validate_request(payload)
     except DocumentRejection as error:
         return _rejected(error)
+
+    probe_url = outbound_probe_url(content)
+    if probe_url:
+        evidence = _probe_sandbox(probe_url)
+        result = _rejected(DocumentRejection("unauthorized-egress", REJECTION_MESSAGES["unauthorized-egress"]))
+        result["sandboxProbe"] = evidence
+        return result
 
     sanitized, redactions = sanitize_text(content)
     truncated = len(sanitized) > MAX_SANITIZED_CHARS
@@ -232,23 +308,27 @@ class Handler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "contractVersion": "1.0",
                 "worker": "document-tool",
-                "credentialBoundaryEnforced": True,
+                "credentialBoundary": "deployment-owned",
             },
         )
 
     def do_POST(self) -> None:
+        started = time.perf_counter()
+        status, response = 500, {"verdict": "error"}
+        try:
+            status, response = self._post_response()
+            self._send_json(status, response)
+        finally:
+            log_http_outcome(self.path, status, response, started)
+
+    def _post_response(self) -> tuple[int, dict[str, Any]]:
         if self.path.split("?", 1)[0] != "/process":
-            self._send_json(404, {"error": {"code": "not-found", "message": "route not found"}})
-            return
+            return 404, {"error": {"code": "not-found", "message": "route not found"}}
         try:
             result = process_document(_read_json_body(self))
         except ProtocolError as error:
-            self._send_json(
-                400,
-                {"error": {"code": "invalid-tool-request", "message": str(error)}},
-            )
-            return
-        self._send_json(200, result)
+            return 400, {"error": {"code": "invalid-tool-request", "message": str(error)}}
+        return 200, result
 
 
 def _run_stdio() -> int:
@@ -271,15 +351,13 @@ def _run_stdio() -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Bounded document sanitizer")
     parser.add_argument("--serve", action="store_true", help="serve the ACA custom-container HTTP contract")
+    parser.add_argument("--deny-network", action="store_true", help="deny Python socket access in the local child process (not OS isolation)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args(argv)
 
-    try:
-        _reject_if_credentials_present()
-    except RuntimeError as error:
-        print(f"Configuration error: {error}", file=sys.stderr)
-        return 2
+    if args.deny_network:
+        _install_local_network_policy()
     if not args.serve:
         return _run_stdio()
 

@@ -12,19 +12,24 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 from urllib import error, parse, request
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src" / "policy"))
-from enforcement import POLICY, REJECTION_MESSAGES, require_safe_output
+from enforcement import POLICY, REJECTION_MESSAGES, log_http_outcome, log_sandbox_probe, outbound_probe_url, probe_origin, require_safe_output, runtime_log_outcome, runtime_log_token
 
 DEFAULT_CONFIG_PATH = ROOT / "config" / "runtime.json"
 DOMAIN_PATH = ROOT / "config" / "domain.json"
 EGRESS_ALLOWLIST_PATH = ROOT / "config" / "egress-allowlist.json"
+EGRESS_POLICY_PATH = ROOT / "config" / "egress-policy.yaml"
 INSTRUCTIONS_PATH = ROOT / "src" / "agent" / "prompts" / "system.md"
 DOCUMENT_TOOL_PATH = ROOT / "src" / "tools" / "document-validation" / "main.py"
 AGENT_RUNTIME_LOCAL = "local"
@@ -79,6 +84,7 @@ def _blocked_agent_response(
     summary: str,
     stages: list[dict[str, str]],
     runtime: dict[str, Any],
+    sandbox_probe: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if runtime["agentRuntime"] == AGENT_RUNTIME_COPILOT_SANDBOX:
         mode = "aca-session"
@@ -88,13 +94,16 @@ def _blocked_agent_response(
         mode = "local-simulation"
     limitations = [
         "no-model-call" if test_kind == "document-input" else "model-output-not-shown",
-        "no-hostile-outbound-probe",
         (
             "local-process-not-isolation-boundary"
             if mode == "local-simulation"
             else "cloud-isolation-not-verified"
         ),
     ]
+    if sandbox_probe is None:
+        limitations.append("no-hostile-outbound-probe")
+    elif sandbox_probe["outboundOutcome"] != "denied":
+        limitations.append("outbound-denial-unverified")
     return {
         "contractVersion": BLOCKED_RESPONSE_CONTRACT_VERSION,
         "kind": "blocked-agent-response",
@@ -111,7 +120,8 @@ def _blocked_agent_response(
         "evidence": {
             "runtime": runtime,
             "modelAuthoredTextShown": False,
-            "outboundDenialProbeAttempted": False,
+            "outboundDenialProbeAttempted": sandbox_probe is not None,
+            **({"sandboxProbe": sandbox_probe} if sandbox_probe is not None else {}),
         },
     }
 
@@ -125,6 +135,27 @@ def _template_aware_path(path: Path) -> Path:
     return path
 
 
+def _blocked_document_response(
+    result: dict[str, Any], runtime: dict[str, Any], message: str
+) -> dict[str, Any]:
+    return _blocked_agent_response(
+        status=422,
+        test_kind="document-input",
+        reason_code=result["reasonCode"],
+        operator_message=message,
+        summary="The hostile document did not reach the model in this request.",
+        stages=[
+            {"id": "agent-harness", "state": "succeeded", "detail": "Request received"},
+            {"id": "document-tool", "state": "rejected", "detail": "Rejected",
+             "reasonCode": result["reasonCode"]},
+            {"id": "model", "state": "not-attempted", "detail": "Not attempted"},
+            {"id": "approval-disclosure", "state": "not-applicable", "detail": "Not part of this test"},
+        ],
+        runtime=runtime,
+        sandbox_probe=result.get("sandboxProbe"),
+    )
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     resolved = _template_aware_path(path)
     try:
@@ -136,6 +167,80 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConfigurationError(f"Configuration file must contain a JSON object: {path}")
     return value
+
+
+def load_egress_policy() -> dict[str, Any]:
+    allowlist = _read_json(EGRESS_ALLOWLIST_PATH)
+    if allowlist.get("defaultDeny") is not True:
+        raise ConfigurationError("Document-tool egress must use defaultDeny: true")
+    enabled = allowlist.get("documentToolEgressEnabled")
+    hosts = allowlist.get("allowedFqdns")
+    if not isinstance(enabled, bool) or not isinstance(hosts, list) or len(hosts) > 50:
+        raise ConfigurationError("Egress allowlist needs a boolean enable flag and at most 50 exact FQDNs")
+    for host in hosts:
+        if (
+            not isinstance(host, str) or len(host) > 253
+            or not re.fullmatch(r"(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}", host)
+        ):
+            raise ConfigurationError("Egress allowedFqdns must contain exact DNS names, never wildcards or IP addresses")
+    try:
+        policy = yaml.safe_load(_template_aware_path(EGRESS_POLICY_PATH).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as invalid:
+        raise ConfigurationError("Restore a valid config/egress-policy.yaml from aca sandbox egress init") from invalid
+    if (
+        not isinstance(policy, dict)
+        or set(policy) - {"defaultAction", "trafficInspection", "rules"}
+        or policy.get("defaultAction") != "Deny"
+        or policy.get("trafficInspection") != "Full"
+        or not isinstance(policy.get("rules"), list)
+    ):
+        raise ConfigurationError(
+            "Egress policy requires defaultAction: Deny, trafficInspection: Full, "
+            "and unified rules (not legacy hostRules)"
+        )
+    allowed = {host.lower() for host in hosts} if enabled else set()
+    covered_hosts = set()
+    unconditional_allows = set()
+    for rule in policy["rules"]:
+        if (
+            not isinstance(rule, dict)
+            or not isinstance(rule.get("match"), dict)
+            or not isinstance(rule.get("action"), dict)
+        ):
+            raise ConfigurationError("Each egress rule requires match and action objects")
+        host = rule["match"].get("host")
+        action = rule["action"]
+        if not isinstance(host, str) or host.lower() not in allowed:
+            raise ConfigurationError("Egress rules require explicit enablement and an exact allowedFqdns host")
+        action_type = action.get("type")
+        if not isinstance(action_type, str) or action_type not in {"Allow", "Deny", "Transform"}:
+            raise ConfigurationError("Document-tool egress rules support only Allow, Deny, or Transform")
+        if action["type"] == "Transform":
+            if host.lower() in unconditional_allows:
+                raise ConfigurationError("A broad Allow cannot precede a credential Transform for the same host")
+            headers = action.get("headers")
+            if not isinstance(headers, list) or not headers:
+                raise ConfigurationError("Authenticated egress needs proxy header transforms")
+            for header in headers:
+                if not isinstance(header, dict) or "value" in header:
+                    raise ConfigurationError("Use proxy valueRef references, never literal credentials")
+                reference = header.get("valueRef")
+                if (
+                    not isinstance(reference, dict)
+                    or set(reference) not in ({"secretRef"}, {"managedIdentityRef"})
+                ):
+                    raise ConfigurationError("A proxy header needs exactly one secretRef or managedIdentityRef")
+                if not isinstance(next(iter(reference.values())), dict):
+                    raise ConfigurationError("Proxy credential references must be objects")
+        covered_hosts.add(host.lower())
+        if action_type == "Allow" and set(rule["match"]) == {"host"}:
+            unconditional_allows.add(host.lower())
+    # A host-only Allow must not precede or bypass a reviewed Transform/Deny.
+    policy["rules"].extend(
+        {"match": {"host": host}, "action": {"type": "Allow"}}
+        for host in sorted(allowed - covered_hosts)
+    )
+    return policy
 
 
 def load_runtime_config(path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
@@ -646,14 +751,24 @@ class AcaSessionClient:
         )
         return f"{self.endpoint.endpoint}{route}?{query}"
 
-    def invoke_once(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def invoke_once(
+        self, payload: dict[str, Any], *,
+        validate_response: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         identifier = f"{self.session_prefix}-{secrets.token_hex(16)}"
         token = self.token_provider(self.endpoint.token_scope)
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json; charset=utf-8",
         }
-        completed = False
+        outcome: dict[str, Any] = {"verdict": "error"}
+        endpoint = parse.urlsplit(probe_origin(self.endpoint.endpoint)).netloc
+        route = "/" + runtime_log_token(parse.urlsplit(self.endpoint.route).path.lstrip("/"))
+        operation = runtime_log_token(payload.get("operation", "invoke"))
+        print(
+            f"[sandbox-session] Dispatched session={identifier} endpoint={endpoint}{route} operation={operation}",
+            file=sys.stderr, flush=True,
+        )
         try:
             response = self.transport.post_json(
                 self._url(self.endpoint.route, identifier),
@@ -661,18 +776,114 @@ class AcaSessionClient:
                 headers,
                 self.endpoint.timeout,
             )
-            completed = True
+            if validate_response is not None:
+                response = validate_response(response)
+            outcome = response
             return response
         finally:
+            stopped = False
             try:
                 self.transport.post_empty(
                     self._url("/.management/stopSession", identifier),
                     headers,
                     self.endpoint.timeout,
                 )
-            except UpstreamError as cleanup_error:
-                outcome = "completed" if completed else "failed"
-                raise UpstreamError(f"ACA invocation {outcome}, and its session could not be stopped") from cleanup_error
+                stopped = True
+            except (UpstreamError, OSError) as cleanup_error:
+                category = "UpstreamError" if isinstance(cleanup_error, UpstreamError) else "OSError"
+                print(
+                    f"[sandbox-session] Failed to stop session={identifier}: {category} (details redacted)",
+                    file=sys.stderr, flush=True,
+                )
+            finally:
+                verdict, reason, redactions = runtime_log_outcome(outcome)
+                print(
+                    f"[sandbox-session] Completed session={identifier} verdict={verdict} "
+                    f"reason={reason} redactions={redactions} session_stopped={str(stopped).lower()}",
+                    file=sys.stderr, flush=True,
+                )
+
+
+def _validate_sandbox_probe(probe: Any) -> None:
+    required = {
+        "credentialLikeVariableCount", "credentialValuesReturned", "outboundAttempted",
+        "outboundOutcome", "enforcement", "httpStatus", "envKeys", "envKeyCount",
+        "secretFilesPresent", "secretFileCount",
+    }
+    if (
+        not isinstance(probe, dict)
+        or set(probe) - required - {"acaDecisionCount", "acaDeniedCount", "acaDeniedDecision"}
+        or not required <= set(probe)
+    ):
+        raise UpstreamError("Sandbox probe evidence is incomplete or contains unexpected fields")
+    count = probe["credentialLikeVariableCount"]
+    if (
+        type(count) is not int or not 0 <= count <= 65536
+        or probe["credentialValuesReturned"] is not False
+        or probe["outboundAttempted"] is not True
+    ):
+        raise UpstreamError("Sandbox probe credential observations violate the redacted contract")
+    keys, total = probe["envKeys"], probe["envKeyCount"]
+    if (
+        not isinstance(keys, list) or type(total) is not int or not 0 <= total <= 65536
+        or len(keys) != min(total, 32)
+        or any(
+            not isinstance(key, str) or not 1 <= len(key) <= 256
+            or "=" in key or any(ord(char) < 32 or ord(char) == 127 for char in key)
+            for key in keys
+        )
+        or keys != sorted(set(keys)) or count > total
+        or type(probe["secretFilesPresent"]) is not bool
+        or type(probe["secretFileCount"]) is not int
+        or not 0 <= probe["secretFileCount"] <= 5
+        or probe["secretFilesPresent"] != (probe["secretFileCount"] > 0)
+    ):
+        raise UpstreamError("Sandbox probe environment or credential-location evidence is invalid")
+    if (
+        not isinstance(probe["outboundOutcome"], str)
+        or not isinstance(probe["enforcement"], str)
+        or probe["outboundOutcome"] not in {"denied", "http-response", "transport-error"}
+        or probe["enforcement"] not in {"python-audit-hook", "aca-egress-proxy", "unverified"}
+    ):
+        raise UpstreamError("Sandbox probe has invalid network observations")
+    status = probe["httpStatus"]
+    if status is not None and (type(status) is not int or not 100 <= status <= 599):
+        raise UpstreamError("Sandbox probe HTTP status is invalid")
+    if (
+        (probe["outboundOutcome"] == "http-response" and status is None)
+        or (probe["outboundOutcome"] == "transport-error" and status is not None)
+        or (probe["outboundOutcome"] == "denied" and status not in {None, 403})
+    ):
+        raise UpstreamError("Sandbox probe HTTP and network observations conflict")
+    for key in ("acaDecisionCount", "acaDeniedCount"):
+        if key in probe and (type(probe[key]) is not int or not 0 <= probe[key] <= 100):
+            raise UpstreamError("Sandbox probe audit counts are invalid")
+    if probe.get("acaDeniedCount", 0) > probe.get("acaDecisionCount", 0):
+        raise UpstreamError("Sandbox probe audit counts conflict")
+    if "acaDeniedDecision" in probe:
+        decision = probe["acaDeniedDecision"]
+        if (
+            not isinstance(decision, dict)
+            or set(decision) != {"action", "method", "scheme", "host", "path", "matchedRule"}
+            or decision["action"] != "Denied" or decision["method"] != "HEAD"
+            or decision["scheme"] not in ("http", "https") or decision["path"] != "/"
+            or not isinstance(decision["host"], str)
+            or not re.fullmatch(r"[a-z0-9._:-]{1,253}", decision["host"])
+            or not isinstance(decision["matchedRule"], str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}|\[REDACTED\]", decision["matchedRule"])
+            or probe["outboundOutcome"] != "denied" or probe["enforcement"] != "aca-egress-proxy"
+            or not 0 < probe.get("acaDeniedCount", 0) <= probe.get("acaDecisionCount", 0)
+        ):
+            raise UpstreamError("Sandbox probe ACA denial summary is invalid")
+    if probe["outboundOutcome"] == "denied":
+        if probe["enforcement"] == "unverified":
+            raise UpstreamError("A network failure alone does not prove egress denial")
+        if probe["enforcement"] == "aca-egress-proxy" and not (
+            0 < probe.get("acaDeniedCount", 0) <= probe.get("acaDecisionCount", 0)
+        ):
+            raise UpstreamError("ACA egress denial needs matching platform audit decisions")
+    elif probe["enforcement"] != "unverified":
+        raise UpstreamError("Unverified egress cannot claim observed enforcement")
 
 
 def _validate_tool_result(result: Any) -> dict[str, Any]:
@@ -745,13 +956,17 @@ def _validate_tool_result(result: Any) -> dict[str, Any]:
         ):
             raise UpstreamError("Document tool safety evidence violates the contract")
     else:
-        if set(result) != {
+        expected = {
             "contractVersion",
             "verdict",
             "reasonCode",
             "message",
             "safety",
-        }:
+        }
+        if result.get("reasonCode") == "unauthorized-egress":
+            expected.add("sandboxProbe")
+            _validate_sandbox_probe(result.get("sandboxProbe"))
+        if set(result) != expected:
             raise UpstreamError("Rejected document tool result has unexpected fields")
         if not isinstance(result.get("reasonCode"), str) or not isinstance(result.get("message"), str):
             raise UpstreamError("Rejected document tool result is incomplete")
@@ -793,7 +1008,7 @@ class LocalDocumentTool:
         tool_path = _template_aware_path(DOCUMENT_TOOL_PATH)
         try:
             result = subprocess.run(
-                [sys.executable, str(tool_path)],
+                [sys.executable, str(tool_path), "--deny-network"],
                 input=json.dumps({"operation": "sanitize-v1", "document": document}, ensure_ascii=False),
                 capture_output=True,
                 text=True,
@@ -834,6 +1049,7 @@ class AcaSandboxGroupDocumentTool:
         self.aca_bin = aca_bin
         self.timeout = max(timeout, 30.0)
         self.last_sandbox_id: str | None = None
+        load_egress_policy()
 
     def _scope_args(self) -> list[str]:
         args = [
@@ -866,6 +1082,10 @@ class AcaSandboxGroupDocumentTool:
         return bundle_b64, request_b64
 
     def process(self, document: dict[str, str]) -> dict[str, Any]:
+        try:
+            policy = load_egress_policy()
+        except ConfigurationError as invalid:
+            raise UpstreamError(str(invalid)) from invalid
         bundle_b64, request_b64 = self._build_remote_payload(document)
         print(
             f"[sandbox] Creating ephemeral microVM in ACA Sandbox Group '{self.sandbox_group}' "
@@ -880,6 +1100,8 @@ class AcaSandboxGroupDocumentTool:
             "python-3.12-code-interpreter",
             "--egress-default",
             "Deny",
+            "--traffic-inspection",
+            "Full",
             *self._scope_args(),
         ]
         try:
@@ -892,12 +1114,13 @@ class AcaSandboxGroupDocumentTool:
             )
         except subprocess.TimeoutExpired as error:
             raise UpstreamError("Timed out creating ACA Sandbox microVM") from error
+        except OSError as error:
+            raise UpstreamError("Could not launch the configured ACA Sandbox CLI") from error
         combined_create = f"{create_res.stdout}\n{create_res.stderr}"
         match = self.UUID_PATTERN.search(combined_create)
         if create_res.returncode != 0 or not match:
             raise UpstreamError(
-                f"Failed to create ACA Sandbox microVM in {self.sandbox_group}: "
-                f"{combined_create.strip()[:240]}"
+                f"Failed to create ACA Sandbox microVM in {self.sandbox_group} (exit {create_res.returncode})"
             )
         sandbox_id = match.group(1)
         self.last_sandbox_id = sandbox_id
@@ -908,8 +1131,7 @@ class AcaSandboxGroupDocumentTool:
             "[ (d/k).parent.mkdir(parents=True,exist_ok=True) or (d/k).write_text(v,encoding='utf-8') "
             "for k,v in json.loads(base64.b64decode(sys.argv[1])).items() ];"
             "r=subprocess.run([sys.executable,str(d/'src/tools/document-validation/main.py')],"
-            "input=base64.b64decode(sys.argv[2]),capture_output=True,"
-            "env={'PATH':'/usr/local/bin:/usr/bin:/bin','PYTHONIOENCODING':'utf-8'});"
+            "input=base64.b64decode(sys.argv[2]),capture_output=True);"
             "sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);raise SystemExit(r.returncode)"
         )
         exec_cmd = [
@@ -923,6 +1145,27 @@ class AcaSandboxGroupDocumentTool:
             f'python3 -c "{runner_code}" {bundle_b64} {request_b64}',
         ]
         try:
+            with tempfile.TemporaryDirectory(prefix="document-egress-") as directory:
+                policy_path = Path(directory) / "egress-policy.yaml"
+                policy_path.write_text(yaml.safe_dump(policy), encoding="utf-8")
+                try:
+                    applied = subprocess.run(
+                        [self.aca_bin, "sandbox", "egress", "apply", "--id", sandbox_id,
+                         *self._scope_args(), "--file", str(policy_path)],
+                        capture_output=True, text=True, timeout=self.timeout, check=False,
+                    )
+                except subprocess.TimeoutExpired as failure:
+                    raise UpstreamError("Timed out applying ACA Sandbox egress policy") from failure
+                except OSError as failure:
+                    raise UpstreamError("Could not launch ACA egress policy application") from failure
+                if applied.returncode != 0:
+                    raise UpstreamError("ACA Sandbox egress policy was not applied; document execution stopped")
+                print(
+                    f"[sandbox-egress] Applied egress-policy.yaml to sandbox_id={sandbox_id} "
+                    f"defaultAction={policy['defaultAction']} trafficInspection={policy['trafficInspection']} "
+                    f"rules={len(policy['rules'])}",
+                    file=sys.stderr, flush=True,
+                )
             try:
                 exec_res = subprocess.run(
                     exec_cmd,
@@ -933,10 +1176,11 @@ class AcaSandboxGroupDocumentTool:
                 )
             except subprocess.TimeoutExpired as error:
                 raise UpstreamError(f"ACA Sandbox microVM {sandbox_id} execution timed out") from error
+            except OSError as error:
+                raise UpstreamError("Could not launch ACA Sandbox execution") from error
             if exec_res.returncode != 0:
                 raise UpstreamError(
-                    f"ACA Sandbox microVM {sandbox_id} rejected the request contract: "
-                    f"{(exec_res.stderr or exec_res.stdout).strip()[:240]}"
+                    f"ACA Sandbox microVM {sandbox_id} rejected the request contract (exit {exec_res.returncode})"
                 )
             stdout_lines = [line.strip() for line in exec_res.stdout.splitlines() if line.strip().startswith("{")]
             json_line = stdout_lines[-1] if stdout_lines else exec_res.stdout.strip()
@@ -945,9 +1189,18 @@ class AcaSandboxGroupDocumentTool:
             except json.JSONDecodeError as error:
                 raise UpstreamError("ACA Sandbox microVM returned invalid JSON") from error
             validated = _validate_tool_result(parsed)
+            if "sandboxProbe" in validated:
+                probe = validated["sandboxProbe"]
+                if probe["enforcement"] != "unverified":
+                    raise UpstreamError("ACA tool must report its native runtime, not a local socket policy")
+                log_sandbox_probe(probe, probe_origin(outbound_probe_url(document["content"])))
+            self._record_egress_decisions(sandbox_id, validated, document)
+            if "sandboxProbe" in validated:
+                _validate_sandbox_probe(validated["sandboxProbe"])
+            verdict, reason, redactions = runtime_log_outcome(validated)
             print(
                 f"[sandbox] Completed document-validation in microVM {sandbox_id} "
-                f"(verdict={validated.get('verdict')})",
+                f"verdict={verdict} reason={reason} redactions={redactions}",
                 flush=True,
             )
             return validated
@@ -961,8 +1214,88 @@ class AcaSandboxGroupDocumentTool:
                 "--yes",
                 *self._scope_args(),
             ]
-            subprocess.run(delete_cmd, capture_output=True, text=True, timeout=20, check=False)
+            try:
+                deleted = subprocess.run(delete_cmd, capture_output=True, text=True, timeout=20, check=False)
+            except subprocess.TimeoutExpired as failure:
+                raise UpstreamError(f"Timed out deleting ACA Sandbox microVM {sandbox_id}") from failure
+            except OSError as failure:
+                raise UpstreamError(f"Could not launch deletion of ACA Sandbox microVM {sandbox_id}") from failure
+            if deleted.returncode != 0:
+                raise UpstreamError(f"ACA Sandbox microVM {sandbox_id} could not be deleted; remove it with aca sandbox delete")
             print(f"[sandbox] Destroyed ephemeral microVM {sandbox_id}", flush=True)
+
+    def _record_egress_decisions(
+        self, sandbox_id: str, validated: dict[str, Any], document: dict[str, str]
+    ) -> None:
+        probe = validated.get("sandboxProbe")
+        target = parse.urlsplit(probe_origin(outbound_probe_url(document["content"]))) if probe else None
+        attempts = 10 if probe else 1
+        for attempt in range(attempts):
+            try:
+                result = subprocess.run(
+                    [self.aca_bin, "sandbox", "egress", "decisions", "--id", sandbox_id,
+                     *self._scope_args(), "--output", "json"],
+                    capture_output=True, text=True, timeout=self.timeout, check=False,
+                )
+            except subprocess.TimeoutExpired as failure:
+                raise UpstreamError("Timed out reading ACA Sandbox egress decisions") from failure
+            except OSError as failure:
+                raise UpstreamError("Could not launch ACA Sandbox egress audit collection") from failure
+            if result.returncode != 0:
+                raise UpstreamError("Could not read ACA Sandbox egress decisions")
+            try:
+                decisions = json.loads(result.stdout)
+            except json.JSONDecodeError as invalid:
+                raise UpstreamError("ACA Sandbox egress decisions were not valid JSON") from invalid
+            network = decisions.get("http", decisions.get("networkEgress")) if isinstance(decisions, dict) else None
+            if not isinstance(network, dict) or any(
+                not isinstance(network.get(key), list) or len(network[key]) > 50
+                or any(not isinstance(entry, dict) for entry in network[key])
+                for key in ("allowed", "denied")
+            ):
+                raise UpstreamError("ACA Sandbox egress decisions have an unsupported audit shape")
+            if probe is None:
+                break
+            matching_denials = [
+                entry for entry in network["denied"]
+                if isinstance(entry.get("host"), str) and entry["host"].lower() == target.hostname
+                and entry.get("method") == "HEAD"
+                and entry.get("path", "/") == "/"
+                and entry.get("scheme", target.scheme) == target.scheme
+            ]
+            probe.update(
+                acaDecisionCount=len(network["allowed"]) + len(network["denied"]),
+                acaDeniedCount=len(matching_denials),
+            )
+            if matching_denials and probe["httpStatus"] in {None, 403}:
+                entry = matching_denials[0]
+                rule = entry.get("matchedRule") or entry.get("rule") or "unreported"
+                if not isinstance(rule, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", rule):
+                    rule = "[REDACTED]"
+                probe.update(
+                    outboundOutcome="denied", enforcement="aca-egress-proxy",
+                    acaDeniedDecision={
+                        "action": "Denied", "method": "HEAD", "scheme": target.scheme,
+                        "host": target.hostname, "path": "/", "matchedRule": rule,
+                    },
+                )
+                print(
+                    f"[sandbox-egress] sandbox_id={sandbox_id} defaultAction=Deny "
+                    f"trafficInspection=Full decision=Denied method=HEAD host={target.hostname} "
+                    f"matched_rule={rule}",
+                    file=sys.stderr, flush=True,
+                )
+                break
+            if attempt < attempts - 1:
+                time.sleep(1)
+        verdict, reason, _ = runtime_log_outcome(validated)
+        rule = probe.get("acaDeniedDecision", {}).get("matchedRule") if probe else None
+        print(
+            f"[sandbox-egress] sandbox_id={sandbox_id} allowed={len(network['allowed'])} "
+            f"denied={len(network['denied'])} verdict={verdict} reason={reason}"
+            + (f" denied_rule={rule}" if rule else ""),
+            file=sys.stderr, flush=True,
+        )
 
 
 class RemoteDocumentTool:
@@ -970,8 +1303,10 @@ class RemoteDocumentTool:
         self.client = client
 
     def process(self, document: dict[str, str]) -> dict[str, Any]:
-        result = self.client.invoke_once({"operation": "sanitize-v1", "document": document})
-        return _validate_tool_result(result)
+        return self.client.invoke_once(
+            {"operation": "sanitize-v1", "document": document},
+            validate_response=_validate_tool_result,
+        )
 
 
 def _normalize_document(document: Any) -> dict[str, str]:
@@ -1262,6 +1597,8 @@ class AgentHarness:
         _load_dotenv_if_needed()
         sandbox_group = os.environ.get("ACA_SANDBOX_GROUP", "").strip()
         aca_bin = shutil.which("aca") or str(Path.home() / ".local" / "bin" / "aca")
+        if sandbox_group and not Path(aca_bin).is_file():
+            raise ConfigurationError("ACA_SANDBOX_GROUP is configured but aca is missing. Install the ACA Sandbox CLI; local fallback is disabled.")
         if sandbox_group and Path(aca_bin).exists():
             return AcaSandboxGroupDocumentTool(
                 sandbox_group=sandbox_group,
@@ -1338,7 +1675,7 @@ class AgentHarness:
         except UpstreamError as error:
             raise HttpFailure(502, "document-tool-failed", str(error)) from error
         status = 200 if result["verdict"] == "approved" else 422
-        return status, {
+        response = {
             "message": (
                 "Document validation tool approved and sanitized the bounded input."
                 if result["verdict"] == "approved"
@@ -1350,6 +1687,11 @@ class AgentHarness:
                 document_dispatched=self.agent_runtime == AGENT_RUNTIME_COPILOT_SANDBOX
             ),
         }
+        if status == 422:
+            response["blockedResponse"] = _blocked_document_response(
+                result, response["runtime"], response["message"]
+            )
+        return status, response
 
     def invoke(self, payload: Any) -> tuple[int, dict[str, Any]]:
         self._refresh_local_document_tool_if_needed()
@@ -1376,28 +1718,8 @@ class AgentHarness:
                     "verdict": "rejected",
                     "toolResult": tool_result,
                     "runtime": runtime,
-                    "blockedResponse": _blocked_agent_response(
-                        status=422,
-                        test_kind="document-input",
-                        reason_code=tool_result["reasonCode"],
-                        operator_message=operator_message,
-                        summary="The hostile document did not reach the model in this request.",
-                        stages=[
-                            {"id": "agent-harness", "state": "succeeded", "detail": "Request received"},
-                            {
-                                "id": "document-tool",
-                                "state": "rejected",
-                                "detail": "Rejected",
-                                "reasonCode": tool_result["reasonCode"],
-                            },
-                            {"id": "model", "state": "not-attempted", "detail": "Not attempted"},
-                            {
-                                "id": "approval-disclosure",
-                                "state": "not-applicable",
-                                "detail": "Not part of this test",
-                            },
-                        ],
-                        runtime=runtime,
+                    "blockedResponse": _blocked_document_response(
+                        tool_result, runtime, operator_message
                     ),
                 }
         elif isinstance(self.document_tool, AcaSandboxGroupDocumentTool) or any(
@@ -1588,6 +1910,15 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json(200, self.service.health())
 
     def do_POST(self) -> None:
+        started = time.perf_counter()
+        status, response = 500, {"verdict": "error"}
+        try:
+            status, response = self._post_response()
+            self._send_json(status, response)
+        finally:
+            log_http_outcome(self.path, status, response, started)
+
+    def _post_response(self) -> tuple[int, dict[str, Any]]:
         route = self.path.split("?", 1)[0]
         try:
             payload = _read_http_json(self, self.request_limit)
@@ -1596,14 +1927,9 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/test-document" and isinstance(self.service, AgentHarness):
                 status, response = self.service.test_document(payload)
             else:
-                self._send_json(404, {"error": {"code": "not-found", "message": "route not found"}})
-                return
+                return 404, {"error": {"code": "not-found", "message": "route not found"}}
         except ContractError as error:
-            self._send_json(
-                400,
-                {"error": {"code": "invalid-request", "message": str(error)}},
-            )
-            return
+            return 400, {"error": {"code": "invalid-request", "message": str(error)}}
         except HttpFailure as failure:
             runtime = (
                 failure.runtime
@@ -1620,12 +1946,8 @@ class Handler(BaseHTTPRequestHandler):
             }
             if failure.blocked_response is not None:
                 response["blockedResponse"] = failure.blocked_response
-            self._send_json(
-                failure.status,
-                response,
-            )
-            return
-        self._send_json(status, response)
+            return failure.status, response
+        return status, response
 
 
 def _serve(

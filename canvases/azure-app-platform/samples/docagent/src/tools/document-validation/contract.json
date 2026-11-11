@@ -180,12 +180,58 @@
             "message": {
               "type": "string"
             },
+            "sandboxProbe": {
+              "$ref": "#/$defs/sandboxProbe"
+            },
             "safety": {
               "$ref": "#/$defs/safety"
             }
-          }
+          },
+          "allOf": [{
+            "if": { "properties": { "reasonCode": { "const": "unauthorized-egress" } } },
+            "then": { "required": ["sandboxProbe"] },
+            "else": { "not": { "required": ["sandboxProbe"] } }
+          }]
         }
       ]
+    },
+    "sandboxProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credentialLikeVariableCount", "credentialValuesReturned", "outboundAttempted",
+        "outboundOutcome", "enforcement", "httpStatus", "envKeys", "envKeyCount",
+        "secretFilesPresent", "secretFileCount"
+      ],
+      "properties": {
+        "credentialLikeVariableCount": { "type": "integer", "minimum": 0, "maximum": 65536 },
+        "credentialValuesReturned": { "const": false },
+        "envKeys": {
+          "type": "array", "maxItems": 32, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^=\\u0000-\\u001f\\u007f]+$" }
+        },
+        "envKeyCount": { "type": "integer", "minimum": 0, "maximum": 65536 },
+        "secretFilesPresent": { "type": "boolean" },
+        "secretFileCount": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "outboundAttempted": { "const": true },
+        "outboundOutcome": { "enum": ["denied", "http-response", "transport-error"] },
+        "enforcement": { "enum": ["python-audit-hook", "aca-egress-proxy", "unverified"] },
+        "httpStatus": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+        "acaDecisionCount": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "acaDeniedCount": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "acaDeniedDecision": {
+          "type": "object", "additionalProperties": false,
+          "required": ["action", "method", "scheme", "host", "path", "matchedRule"],
+          "properties": {
+            "action": { "const": "Denied" },
+            "method": { "const": "HEAD" },
+            "scheme": { "enum": ["http", "https"] },
+            "host": { "type": "string", "pattern": "^[a-z0-9._:-]{1,253}$" },
+            "path": { "const": "/" },
+            "matchedRule": { "type": "string", "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}|\\[REDACTED\\])$" }
+          }
+        }
+      }
     },
     "safety": {
       "type": "object",

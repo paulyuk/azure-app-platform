@@ -141,6 +141,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
     "azure-app.yaml",
     "config/domain.json",
     "config/egress-allowlist.json",
+    "config/egress-policy.yaml",
     "config/runtime.json",
     "config/document-policy.json",
     "scripts/dev-start.sh",

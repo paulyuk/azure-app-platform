@@ -24,6 +24,7 @@ The loan application is a worked scenario, not a required app identity.
     domain.json
     document-policy.json
     egress-allowlist.json
+    egress-policy.yaml
     runtime.json
   src/
     agent/
@@ -70,6 +71,7 @@ The generated POSIX start/stop scripts are made executable.
 | Document validation tool logic | `src/tools/document-validation/main.py.template` |
 | Tool limits and descriptive request/result schemas | `src/tools/document-validation/contract.json` |
 | Mandatory enforcement | `src/policy/enforcement.py` and `config/document-policy.json` |
+| ACA egress policy and approved destinations | `config/egress-policy.yaml.template` and `config/egress-allowlist.json.template` |
 | Runtime defaults and endpoint environment bindings | `config/runtime.json.template` |
 | Capability inventory and component paths | `azure-app.yaml.template` |
 | Setup/run guidance | `README.md.template`, both platform scripts, and the loan demo docs |
@@ -120,6 +122,13 @@ payload. The selected port overrides the default `8088`. Changing the template
 does not migrate existing apps or overwrite their instructions and credentials.
 Studio's Customize and document-test paths also support the older
 `src/sandbox/tool/` layout.
+
+Build puts `src/agent/main.py` first in the **Agent** collection. The
+**Document validation** collection starts with the tool's `main.py` and
+`config/egress-policy.yaml`, followed by its contract and validation policy.
+The YAML is the deployable ACA policy; `egress-policy.md` remains supplementary
+documentation in Files. Generic sandbox blocks expose their own
+`egress-policy.yaml` alongside code, contract, container, and project settings.
 
 Studio allocates unused ports during template-workspace creation, before
 opening the child session or VS Code. It saves `.azure-app-platform/ports.env` using

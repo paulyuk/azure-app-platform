@@ -112,6 +112,7 @@ test("custom declared paths scope read and open away from unrelated apps and lef
     "unrelated/main.py": "agent = Agent()",
     "src/tools/document-validation/main.py": "print('unrelated document tool')",
     "config/document-policy.json": "{}",
+    "config/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
     "config/runtime.json": '{"agentRuntime":"local"}',
   }, async (root) => {
     const state = await readBuildWorkspace(root);
@@ -141,10 +142,16 @@ test("Run source review selects sandbox code, supports root projects, and reject
     "src/sandbox/prequal/main.py": "print('prequal')",
     "src/sandbox/prequal/contract.json": "{}",
     "src/sandbox/prequal/Dockerfile": "FROM python:3.12",
+    "src/sandbox/prequal/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
     "src/sandbox/prequal/egress-policy.md": "Deny outbound access.",
+    "src/sandbox/prequal/README.md": "Calculation tool.",
     "package.json": '{"dependencies":{"next":"1.0"}}',
     "src/app/page.tsx": "export default function Page() { return null; }",
   }, async (root) => {
+    const state = await readBuildWorkspace(root);
+    const sandbox = state.artifacts.filter(item => item.projectPath === "src/sandbox/prequal");
+    assert.deepEqual(sandbox.map(item => item.path.split("/").pop()), ["main.py", "contract.json", "egress-policy.yaml", "Dockerfile"]);
+    assert.equal(sandbox.find(item => item.path.endsWith("egress-policy.yaml")).customizationArea, "policies");
     assert.equal(await resolveProjectSourcePath(root, "src\\sandbox\\prequal"), join(root, "src/sandbox/prequal/main.py"));
     assert.equal(await resolveProjectSourcePath(root, "."), join(root, "src/app/page.tsx"),
       "A root web project must not borrow a nested sandbox's source");
@@ -161,6 +168,27 @@ test("Run source review selects sandbox code, supports root projects, and reject
     await rm(join(root, "package.json"));
     await assert.rejects(resolveProjectSourcePath(root, "."), (error) =>
       error.statusCode === 404 && /No recognized source file/.test(error.message));
+  });
+});
+
+test("prompt-only sandbox Build includes app-level egress configuration without inventing a document tool", async () => {
+  await fixture({
+    "azure-app.yaml": "capabilities:\n  sandbox:\n    path: services/calculator\n",
+    "services/calculator/main.py": "print('calculation')",
+    "services/calculator/Dockerfile": "FROM scratch\n",
+    "config/egress-policy.yaml": "defaultAction: Deny\ntrafficInspection: Full\nrules: []\n",
+    "config/egress-allowlist.json": '{"allowedFqdns":[]}',
+    "unrelated/egress-policy.yaml": "defaultAction: Allow\n",
+  }, async root => {
+    const state = await readBuildWorkspace(root);
+    assert.equal(state.supportsDocuments, false);
+    const policy = state.artifacts.find(item => item.path === "config/egress-policy.yaml");
+    assert.equal(policy.projectPath, "services/calculator");
+    assert.equal(policy.blockCategory, "sandbox");
+    assert.equal(policy.customizationArea, "policies");
+    assert.equal(await resolveBuildArtifactPath(root, policy.id), join(root, policy.path));
+    assert.ok(state.artifacts.some(item => item.path === "config/egress-allowlist.json" && item.projectPath === policy.projectPath));
+    assert.ok(!state.artifacts.some(item => item.path.startsWith("src/tools") || item.path.startsWith("unrelated")));
   });
 });
 

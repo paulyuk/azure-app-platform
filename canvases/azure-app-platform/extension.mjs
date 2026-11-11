@@ -69,7 +69,7 @@ import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readAppInputCapabilities, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 import {
   resolveAgentInvocation,
   invocationBody,
@@ -1160,16 +1160,17 @@ async function localReadiness(root) {
     const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
     const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
     const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
-    const buildRuntime = await readBuildRuntime(root);
+    const inputCapabilities = await readAppInputCapabilities(root, { agentConfiguration });
+    const buildRuntime = await readBuildRuntime(root, inputCapabilities);
     const prerequisites = await detectLocalPrerequisites();
-    const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(buildRuntime) });
+    const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(inputCapabilities.documentInput) });
     return {
       ...gatewayReadiness,
       ready,
       prerequisites,
       starterPrompt,
       agentRuntime: buildRuntime?.agentRuntime ?? null,
-      documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
+      ...inputCapabilities,
       deploymentBlocker: await documentDeploymentBlocker(root),
       mode: previewMode ? "preview" : "full",
       missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,

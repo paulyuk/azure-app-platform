@@ -787,10 +787,10 @@ for (const [name, engine, presentationProfile] of [
         return !row.querySelector(".build-source-preview").hasAttribute("data-clipped") &&
           row.querySelector(".build-preview-expand").hidden;
       });
-      const validationFiles = ["main.py", "contract.json", "Dockerfile", "egress-policy.md"];
+      const validationFiles = ["main.py", "contract.json", "Dockerfile", "egress-policy.yaml"];
       artifacts.push(...validationFiles.map((filename, index) => ({
         id: "validation-" + index, customizationArea: "tools", title: filename,
-        path: "src/tools/document-validation/" + filename,
+        path: filename === "egress-policy.yaml" ? "config/egress-policy.yaml" : "src/tools/document-validation/" + filename,
         projectPath: "src/tools/document-validation", projectName: "Document validation",
         available: true, content: "# Document validation\n",
       })));
@@ -801,12 +801,12 @@ for (const [name, engine, presentationProfile] of [
       const validationInline = await filePages.getByRole("button").allTextContents();
       assert.ok(validationInline.length >= 2 && validationInline.length < validationFiles.length);
       assert.deepEqual(validationInline, validationFiles.slice(0, validationInline.length));
-      assert.equal(validationInline.includes("egress-policy.md"), false,
+      assert.equal(validationInline.includes("egress-policy.yaml"), false,
         "The reported Document validation layout excludes the entire egress filename, not just its clipped suffix");
       await filePicker.click();
       assert.deepEqual(await fileMenu.getByRole("menuitem").allTextContents(), validationFiles.slice(validationInline.length));
-      await fileMenu.getByRole("menuitem", { name: "egress-policy.md", exact: true }).click();
-      assert.equal(await filePages.getByRole("button", { name: "egress-policy.md", exact: true }).count(), 0,
+      await fileMenu.getByRole("menuitem", { name: "egress-policy.yaml", exact: true }).click();
+      assert.equal(await filePages.getByRole("button", { name: "egress-policy.yaml", exact: true }).count(), 0,
         "Selecting Egress does not put a clipped selected filename back into the row");
       assert.ok(await page.locator(".build-block-controls").evaluate(controls =>
         controls.scrollWidth <= controls.clientWidth + 1), "The reported filename row has no horizontal scrolling");

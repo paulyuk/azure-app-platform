@@ -167,7 +167,7 @@ test("Run shares optional document input with invocation and enforcement across 
     const enforceEgress = page.locator("[data-test-egress]");
     assert.ok(await card.getByText("Try a boundary test", { exact: true }).isVisible());
     assert.ok(await card.getByText(
-      "Verify your sandbox blocks prompt overrides and sensitive data leaks before untrusted input reaches the model.",
+      "Stage untrusted input for your app's sandbox. Enforcement needs sandbox execution and evidence, not Canvas pattern highlighting.",
       { exact: true },
     ).isVisible());
     const spacing = await card.evaluate(node => {
@@ -872,11 +872,12 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         .getByRole("button", { name: "Remove document", exact: true }).click();
       await pasteDocument(page, "a".repeat(65530));
       await runBoundaryTest(page, "Test unsafe override");
-      await notice.filter({ hasText: "Created a synthetic document with override text" }).waitFor();
+      await notice.filter({ hasText: "Staged a sandbox prompt with override text" }).waitFor();
       await invoke.click();
       await page.locator('[data-document-assessment][data-state="rejected"]').waitFor();
       await returnToRun(page);
-      assert.match(requests.at(-1).document.content, /^# Synthetic Loan Note/);
+      assert.equal(requests.at(-1).document.content, "a".repeat(65530));
+      assert.match(requests.at(-1).message, /bypass validation/i);
       assert.deepEqual(Object.keys(requests.at(-1).document).sort(), ["content", "name"]);
       await page.locator(".document-attachment[data-document-id]").first()
         .getByRole("button", { name: "Remove document", exact: true }).click();

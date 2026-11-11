@@ -73,7 +73,7 @@ export const PLATFORM_TIERS = Object.freeze([
     preferredCanvases: [],
     scaffold: {
       summary: "Create an ephemeral containerized job with explicit ingress, egress, identity, and deletion behavior.",
-      markers: ["Dockerfile", "egress-policy.md"],
+      markers: ["Dockerfile", "egress-policy.yaml"],
       nextActions: ["Define the isolation boundary", "Build the container image", "Set egress and lifecycle policy"],
     },
   },

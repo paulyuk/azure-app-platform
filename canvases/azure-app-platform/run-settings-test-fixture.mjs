@@ -10,15 +10,16 @@ export async function returnToRun(page) {
   }
 }
 
-export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone" } = {}) {
+export async function createRunSettingsFixture({ preview = false, presentationProfile = "standalone", sandbox = false } = {}) {
   const graph = {
     root: "/fixture/dealer", generatedAt: new Date().toISOString(),
     nodes: [
       { id: "web", tierId: "web", name: "Dealer web", projectPath: "src/web" },
       { id: "agent", tierId: "agent", name: "Deal finder", projectPath: "src/agent" },
       { id: "inventory", tierId: "skills", name: "Inventory search", projectPath: "src/skills/inventory" },
+      ...(sandbox ? [{ id: "sandbox", tierId: "sandbox", name: "Code interpreter", projectPath: "src/interpreter" }] : []),
     ].map((node) => ({ ...node, kind: "project", badges: [], evidence: [] })),
-    edges: [], summary: { projectNodes: 3, operationNodes: 0, edges: 0 },
+    edges: [], summary: { projectNodes: sandbox ? 4 : 3, operationNodes: 0, edges: 0 },
   };
   const gateway = { name: "dealer-gateway", resourceGroup: "demo-rg", subscriptionId: "demo-sub", model: "gpt-5-mini" };
   const editors = [
@@ -32,6 +33,7 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
   const state = {
     app: "running", operation: null, error: "", theme: "light", configured: true, gatewayAvailable: true,
     outputError: false, preferenceError: false, deleteError: false, deleteOutcome: "complete", deleteDelay: null, documentInput: false,
+    sandboxBoundaryTest: null, starterPrompt: "",
     health: "Healthy", editorId: "vscode", commands: [], appName: "Dealer · UI preview", renameError: false,
     lines: ["[agent] Connected to inventory_search", "[web] Ready on http://localhost:3000"],
   };
@@ -90,7 +92,9 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
       else if (path === "/api/local-readiness") result = {
         ready: true, gatewayConfigured: state.configured, model: state.configured ? gateway.model : null,
         activeGateway: state.configured ? gateway : null, mode: state.configured ? "full" : "preview",
-        ...(state.documentInput ? { agentRuntime: "local", documentInput: { extensions: [".txt", ".md"], maxBytes: 65536 } } : {}),
+        ...(state.documentInput ? { agentRuntime: "local", documentInput: typeof state.documentInput === "object"
+          ? state.documentInput : { extensions: [".txt", ".md"], maxBytes: 65536 } } : {}),
+        sandboxBoundaryTest: state.sandboxBoundaryTest, starterPrompt: state.starterPrompt,
       };
       else if (path === "/api/build-workspace") result = { artifacts: [] };
       else if (path === "/api/app-output") {

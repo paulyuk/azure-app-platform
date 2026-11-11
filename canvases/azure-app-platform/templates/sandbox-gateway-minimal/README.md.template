@@ -16,11 +16,16 @@ The default `agentRuntime` is `local`:
 
 - the agent harness is a plain Python local HTTP service in `src/agent/`;
 - the agent uses a direct Gateway HTTP model client in that same folder;
-- `POST /invoke` executes the document validation tool in a fresh **local child
-  process** from `src/tools/document-validation/`. This is a process-boundary
-  simulation, **not isolation**;
-- The child process receives a scrubbed environment without known GitHub,
-  Copilot, or model credential variables.
+- With `ACA_SANDBOX_GROUP` configured and the `aca` CLI installed, document
+  validation runs in a fresh ACA Sandbox microVM. The harness creates it with
+  default-deny egress and Full inspection, applies the reviewed policy, runs
+  the tool, reads probe audit evidence when needed, and deletes the sandbox.
+- Without an ACA group, `POST /invoke` executes the tool in a fresh **local
+  child process** from `src/tools/document-validation/`. A minimal allowlisted
+  environment excludes the host's credential variables, and a Python audit
+  hook denies outbound socket/DNS operations. This is **not OS isolation**.
+- If an ACA group is configured but `aca` is missing, startup fails instead of
+  silently falling back to local processing.
 - Approved sanitized output is sent to the configured AI Gateway. There is no
   fake or echo response. Missing gateway configuration returns HTTP 503.
 
@@ -178,6 +183,22 @@ kind of PII. Neither document content nor model tool arguments can disable them.
 Cloud images run as non-root with read-only application code and policy.
 Operator policy/code changes require review, tests, and rebuilt images.
 
+The egress test is different from the instruction-pattern check. Text only
+selects a runtime probe: the tool inspects its live environment and attempts
+a credential-free `HEAD` to the requested origin. No document path, query,
+userinfo, body, or credentials are sent; redirects are disabled. The
+`unauthorized-egress` rejection includes `sandboxProbe` observations and still
+returns HTTP 422 before model access. ACA proxy denial requires a matching
+platform egress decision. A DNS/TLS/timeout failure or upstream HTTP 403 alone
+is reported as unverified, not as network-policy proof. Credential-like
+variable counts are observations, not exhaustive secret detection.
+`envKeys` lists up to 32 sorted names and `envKeyCount` states the total.
+`secretFilesPresent` and `secretFileCount` check five common credential
+locations without reading their contents. Inspection errors fail explicitly.
+The tool and ACA microVM harness log bounded `[sandbox-env]` and `[sandbox-net]`
+records to stderr. Local child diagnostics are not replayed by the harness.
+Counts and names describe the observed runtime, not a full secret scan.
+
 The JSON contract and policy are configuration inputs read explicitly with
 Python's `json` module. The Python implementation validates fields, types,
 limits, extensions, policy, and tool results. The contract's `$defs` are
@@ -282,7 +303,79 @@ cannot be confirmed, `.dev-run` is preserved, the stop command returns
 nonzero, and the next start aborts instead of overwriting ownership. Follow the
 reported remediation, then rerun the stop command before starting again.
 
-## Optional Copilot SDK and tool sandboxes
+## ACA Sandbox Group document tool
+
+Install the [ACA CLI](https://github.com/microsoft/azure-container-apps/tree/main/aca-cli/preview)
+and provision/select an ACA Sandbox Group first. Its caller needs
+**Container Apps SandboxGroup Data Owner** access. On the local harness,
+configure the group and scope, then use the normal start script:
+
+### macOS/Linux
+
+```bash
+export ACA_SANDBOX_GROUP="<sandbox-group>"
+export ACA_RESOURCE_GROUP="<resource-group>"
+export ACA_REGION="<region>"
+export ACA_SUBSCRIPTION="<subscription-id>"
+./scripts/dev-start.sh --agent-runtime=local
+```
+
+### PowerShell 7
+
+```powershell
+$env:ACA_SANDBOX_GROUP = "<sandbox-group>"
+$env:ACA_RESOURCE_GROUP = "<resource-group>"
+$env:ACA_REGION = "<region>"
+$env:ACA_SUBSCRIPTION = "<subscription-id>"
+.\scripts\dev-start.ps1 --agent-runtime=local
+```
+
+The agent/model stays on the configured harness and gateway; only document
+tool execution moves into a disposable microVM. No host credentials are
+inherited or passed with `--env`, and the remote runner does not scrub the
+microVM environment to manufacture a zero count.
+
+`config/egress-policy.yaml` matches `aca sandbox egress init` /
+`aca sandbox egress schema` from `aca 1.0.0-preview.5`. It uses
+`defaultAction: Deny`, `trafficInspection: Full`, and ordered `rules`;
+that CLI no longer accepts legacy `hostRules`. Exact FQDNs from
+`config/egress-allowlist.json` become rules only when
+`documentToolEgressEnabled` is true. Leave it false for document validation.
+
+The commented `Transform` examples use `valueRef.secretRef` or
+`valueRef.managedIdentityRef`: ACA's Egress Proxy resolves the group secret or
+identity token and injects the header outside the microVM. The sandbox
+receives neither the secret nor direct managed-identity access. Do not inject
+credentials explicitly in environment variables, images, files, or inputs.
+For a reviewed authenticated API integration, scope the Transform by exact
+host/path/method, and do not precede it with a broad Allow.
+
+Before deletion, the harness polls
+`aca sandbox egress decisions --id <sandbox-id> --output json` for the
+probe's host/method. Responses retain bounded decision counts and an
+`acaDeniedDecision` summary containing only the action, method, scheme, host,
+root path, and a safe rule identifier. `[sandbox-egress]` logs the correlated
+denial to stderr. Raw audit entries, headers, and payloads are not returned.
+Missing/unmatched audit evidence is
+explicitly marked `outbound-denial-unverified`. A nonzero credential-like
+count or successful request to an unauthorized origin is a release blocker.
+See [the egress policy notes](src/tools/document-validation/egress-policy.md).
+
+In Canvas, expand the sandbox execution layer for **Outbound probe**,
+**Sandbox env keys**, **ACA matched rule**, and **Verify in code**. Inspect
+`config/egress-policy.yaml`, `src/tools/document-validation/main.py`, and
+`src/agent/main.py` to follow policy application, runtime observations, and
+platform audit correlation.
+
+Every microVM run logs applied policy settings, collected allowed/denied audit
+counts, verdict, reason, and redaction counts. Custom-container pool calls log
+`[sandbox-session]` dispatch and completion after `stopSession`, including
+`session_stopped`. Cleanup failures are logged separately without replacing
+the invocation outcome. Both HTTP handlers emit one timed `[http]` outcome
+per POST; GET readiness stays quiet. No tokens, query strings, document text,
+or raw upstream errors are logged. Local tool calls emit no invocation logs.
+
+## Optional Copilot SDK and custom-container sessions
 
 Follow the first-party Azure Container Apps custom-container session guidance:
 
@@ -352,8 +445,8 @@ process and mocked ACA transports.
 ```bash
 export UV_INDEX_URL="${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}"
 export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
-(cd src/tools/document-validation && uv run tests/test_main.py)
-(cd src/agent && uv run tests/test_runtime.py)
+(cd src/tools/document-validation && uv run pytest -q)
+(cd src/agent && uv run pytest -q)
 ```
 
 ### PowerShell 7
@@ -362,16 +455,18 @@ export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-$UV_INDEX_URL}"
 $env:UV_INDEX_URL = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
 $env:UV_DEFAULT_INDEX = if ($env:UV_DEFAULT_INDEX) { $env:UV_DEFAULT_INDEX } else { $env:UV_INDEX_URL }
 Push-Location src/tools/document-validation
-uv run tests/test_main.py
+uv run pytest -q
 Pop-Location
 Push-Location src/agent
-uv run tests/test_runtime.py
+uv run pytest -q
 Pop-Location
 ```
 
-Cloud isolation remains unverified until both images are deployed to distinct
-ACA session pools and `/health`, `/test-document`, and `/invoke` are exercised
-against those resources.
+Tests exercise the local socket-denial policy and mock the ACA CLI lifecycle,
+policy application, and delayed audit decisions. They do not prove cloud
+isolation. Exercise `/health`, `/test-document`, and `/invoke` against the
+configured ACA Sandbox Group, or deploy both images to distinct pools for the
+optional custom-container mode, before making cloud claims.
 
 Only newly generated apps use the `src/tools/document-validation/` layout.
 Existing generated apps keep their prior paths until they are deliberately

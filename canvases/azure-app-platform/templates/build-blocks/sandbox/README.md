@@ -46,8 +46,19 @@ printf '%s\n' '{"text":"Synthetic sample"}' | docker run --rm -i --network none 
 
 Keep the agent loop, model calls, and gateway credentials outside this tool.
 Configure the actual ACA Sandbox connection, execution timeout, output limit,
-and deny-by-default egress policy before using untrusted input. See
-`egress-policy.md`; changing the document alone does not enforce networking.
+and deny-by-default egress policy before using untrusted input.
+`egress-policy.yaml` defines `defaultAction: Deny`, `trafficInspection: Full`,
+and commented proxy-side `Transform` examples. Apply it to the existing Sandbox
+and inspect the platform decisions, substituting the actual identifiers:
+
+```shell
+aca sandbox egress apply --id <sandbox-id> --group <group> --resource-group <resource-group> --region <region> --file egress-policy.yaml
+aca sandbox egress decisions --id <sandbox-id> --group <group> --resource-group <resource-group> --region <region> --output json
+```
+
+Saving the policy does not apply it. Keep authenticated headers in proxy-side
+`secretRef` or `managedIdentityRef` references, not environment variables or
+mounted files. `egress-policy.md` provides additional guidance.
 Test invalid and oversized inputs, operation failures, and output bounds.
 Do not log raw documents or secrets, provision resources, or deploy as part of
 an AI source adjustment.

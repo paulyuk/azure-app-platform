@@ -45,9 +45,19 @@ for (const template of BUILD_BLOCK_TEMPLATES) {
       assert.match(content, /status_code=501|raise NotImplementedError/);
     }
     if (template.id === "sandbox") {
-      for (const name of ["main.py", "contract.json", "Dockerfile", "egress-policy.md", "pyproject.toml", "README.md"]) {
+      for (const name of ["main.py", "contract.json", "egress-policy.yaml", "Dockerfile", "pyproject.toml"]) {
         assert.ok(result.paths.includes(`${block.projectPath}/${name}`), name + " is available in Build");
       }
+      assert.ok(!result.paths.some(path => path.endsWith(".md")), "Supplementary docs remain in Files, not the Build source collection");
+      const policy = await readFile(join(root, block.projectPath, "egress-policy.yaml"), "utf8");
+      assert.match(policy, /^defaultAction: Deny$/m);
+      assert.match(policy, /^trafficInspection: Full$/m);
+      assert.match(policy, /^rules: \[\]$/m);
+      for (const field of ["Transform", "secretRef", "managedIdentityRef"]) assert.ok(policy.includes(field));
+      const policyArtifact = (await readBuildWorkspace(root)).artifacts.find(item => item.path === `${block.projectPath}/egress-policy.yaml`);
+      assert.equal(policyArtifact.customizationArea, "policies");
+      assert.equal(await resolveBuildArtifactPath(root, policyArtifact.id), join(root, policyArtifact.path));
+      for (const name of ["README.md", "egress-policy.md"]) await access(join(root, block.projectPath, name));
       const contract = JSON.parse(await readFile(join(root, block.projectPath, "contract.json"), "utf8"));
       assert.equal(contract.status, "not_implemented");
       assert.equal(contract.limits.maxInputBytes, 65536);

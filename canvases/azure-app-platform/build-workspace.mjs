@@ -5,8 +5,10 @@ import { discoverRepository, parseUnityManifest, scanRepository } from "./discov
 import { getTierDefinition } from "./tier-definitions.mjs";
 
 const DOCUMENT_ARTIFACTS = [
+  { id: "agent-implementation", blockCategory: "agent", blockTemplateId: "agent-instructions", projectPath: "src/agent", projectName: "Agent", customizationArea: "runtime", title: "Agent runtime & egress audit", path: "src/agent/main.py", description: "Agent harness, sandbox lifecycle, and ACA egress decision auditing.", optional: true },
   { id: "instructions", blockCategory: "agent", blockTemplateId: "agent-instructions", customizationArea: "behavior", projectPath: "src/agent", projectName: "Agent", title: "Agent instructions", path: "src/agent/prompts/system.md", description: "Agent instructions and document-validation workflow." },
   { id: "tool", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool", path: "src/tools/document-validation/main.py", description: "Document validation and redaction." },
+  { id: "egress-policy", blockCategory: "sandbox", blockTemplateId: "sandbox", customizationArea: "policies", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Sandbox egress policy", path: "config/egress-policy.yaml", description: "ACA Sandbox Egress Proxy policy and Transform header rules.", optional: true },
   { id: "contract", blockCategory: "sandbox", customizationArea: "tools", projectPath: "src/tools/document-validation", projectName: "Document validation", title: "Document validation tool contract", path: "src/tools/document-validation/contract.json", description: "Document validation inputs and outputs." },
   { id: "policy", blockCategory: "sandbox", projectPath: "src/tools/document-validation", projectName: "Document validation", customizationArea: "policies", title: "Enforcement policy", path: "config/document-policy.json", description: "Validation limits, redaction, and rejection rules." },
   { id: "runtime", blockCategory: "agent", projectPath: "src/agent", projectName: "Agent", customizationArea: "runtime", title: "Runtime & access", path: "config/runtime.json", description: "Runtime selection and connection settings." },
@@ -15,10 +17,10 @@ const MAX_BYTES = 96 * 1024;
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const CODE_FILE = /\.(?:py|[cm]?[jt]sx?|cs|go|java|rs)$/i;
 const SOURCE_FILES = {
-  agent: ["prompts/system.md", "main.py", "agent.yaml", "runtime.json", "pyproject.toml"],
+  agent: ["main.py", "prompts/system.md", "agent.yaml", "runtime.json", "pyproject.toml"],
   skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json", "pyproject.toml", "requirements.txt"],
   workflows: ["function_app.py", "host.json", "pyproject.toml", "requirements.txt"],
-  sandbox: ["main.py", "contract.json", "Dockerfile", "egress-policy.md", "pyproject.toml", "README.md"],
+  sandbox: ["main.py", "contract.json", "egress-policy.yaml", "Dockerfile", "pyproject.toml"],
   web: ["builder.yaml", "index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
   connectors: ["connector.json", "README.md"],
   sre: ["sre-agent.yaml", "README.md"],
@@ -40,18 +42,19 @@ async function existingPath(root, path, directory = false) {
   return true;
 }
 
-function parseAppScope(content) {
+function parseAppScope(content, allowResourceOnly = false) {
   if (!/^(?:capabilities|components)\s*:/m.test(content)) {
     throw new Error("App inventory must declare capabilities or components before Customize can select source.");
   }
   const components = parseUnityManifest({ path: "azure-app.yaml", content });
   for (const item of components) {
+    if (allowResourceOnly && getTierDefinition(item.tierId) && !item.path) continue;
     if (!getTierDefinition(item.tierId) || !item.path || isAbsolute(item.path) ||
         win32.isAbsolute(item.path) || item.path.split(/[\\/]/).includes("..")) {
       throw new Error("Fix the app inventory: each capability needs a known tier and an app-relative path.");
     }
   }
-  return components.map((item) => item.path.replaceAll("\\", "/").replace(/\/+$/, "") || ".");
+  return components.filter(item => item.path).map((item) => item.path.replaceAll("\\", "/").replace(/\/+$/, "") || ".");
 }
 
 async function appScope(root) {
@@ -64,7 +67,7 @@ function inScope(path, scope) {
     component === "." || path === component || path.startsWith(component + "/"));
 }
 
-async function isDocumentApp(root, scope = undefined) {
+async function hasLegacyDocumentLayout(root, scope = undefined) {
   if (scope === undefined) scope = await appScope(root);
   const directories = ["src/tools/document-validation", "src/sandbox/tool"];
   if (!inScope("src/agent", scope) || !directories.some((directory) => inScope(directory, scope))) return false;
@@ -73,6 +76,137 @@ async function isDocumentApp(root, scope = undefined) {
   }
   return inScope("src/agent", scope) &&
     await existingPath(root, "config/document-policy.json");
+}
+
+async function boundedAppText(root, path, maxBytes = MAX_BYTES) {
+  if (!path || isAbsolute(path) || win32.isAbsolute(path) || path.includes("\\")
+    || path.split("/").some(part => !part || part === "." || part === ".." || part.startsWith("."))) return null;
+  if (!await existingPath(root, path)) return null;
+  if ((await lstat(join(root, path))).size > maxBytes) return null;
+  const file = await artifactPath(root, { path });
+  return readFile(file, "utf8");
+}
+
+function documentContract(contract) {
+  const schemas = [contract?.inputSchema, contract?.input_schema, contract?.parameters, contract];
+  return schemas.some(schema => {
+    const properties = schema?.properties;
+    return properties?.document?.type === "object"
+      || properties?.document?.properties?.content?.type === "string"
+      || properties?.documentText?.type === "string";
+  });
+}
+
+function declaresInputProperties(contract) {
+  return [contract?.inputSchema, contract?.input_schema, contract?.parameters, contract]
+    .some(schema => schema?.properties && Object.keys(schema.properties).length);
+}
+
+async function readSampleDocument(root, value, maxBytes) {
+  if (typeof value === "string") value = { path: value };
+  if (!value || typeof value !== "object") return null;
+  let content = typeof value.content === "string" ? value.content : null;
+  const path = typeof value.path === "string" ? value.path : null;
+  if (path) {
+    if (!/^(?:(?:src\/[^/]+(?:\/[^/]+)?\/)?(?:samples|fixtures|data)\/)[^/]+\.(?:md|txt)$/i.test(path)
+      || /(?:secret|credential|token|password|private|\.env)/i.test(path)) return null;
+    content = await boundedAppText(root, path, maxBytes);
+  }
+  const name = value.name ?? (path ? basename(path) : "sample-document.md");
+  if (typeof name !== "string" || name.length > 200 || /[/\\\x00-\x1f]/.test(name)
+    || !/\.(?:md|txt)$/i.test(name) || !content?.trim()
+    || Buffer.byteLength(content) > maxBytes || content.includes("\0")
+    || /-----BEGIN [^\n]*PRIVATE KEY-----|(?:API[_-]?KEY|TOKEN|PASSWORD|SECRET)\s*[:=]\s*["']?[A-Za-z0-9/+_-]{12,}/i.test(content)) return null;
+  return { name, content };
+}
+
+export async function readAppInputCapabilities(root, {
+  agentConfiguration = "", sandboxConfigured = Boolean(process.env.ACA_SANDBOX_GROUP?.trim()), scan, discovery,
+} = {}) {
+  const manifest = await boundedAppText(root, "azure-app.yaml");
+  const scope = manifest ? parseAppScope(manifest, true) : null;
+  const declaredSandbox = manifest && parseUnityManifest({ path: "azure-app.yaml", content: manifest })
+    .some(component => component.tierId === "sandbox");
+  scan ??= await scanRepository(root);
+  discovery ??= await discoverRepository(root, { scan });
+  const candidates = discovery.candidates.filter(candidate => inScope(candidate.projectPath, scope));
+  const legacy = await hasLegacyDocumentLayout(root, scope);
+  const sandboxAvailable = legacy || declaredSandbox || sandboxConfigured || candidates.some(candidate => candidate.tierId === "sandbox")
+    || /^\s*(?:export\s+)?ACA_SANDBOX_GROUP\s*=\s*["']?[^"'\s#]+/m.test(agentConfiguration);
+  const legacyContractPaths = [];
+  if (legacy) {
+    for (const directory of ["src/tools/document-validation", "src/sandbox/tool"]) {
+      if (inScope(directory, scope) && await existingPath(root, directory, true)) {
+        legacyContractPaths.push(`${directory}/contract.json`);
+        break;
+      }
+    }
+  }
+  const contractPaths = [...new Set([
+    ...legacyContractPaths,
+    ...candidates.filter(candidate => ["agent", "sandbox"].includes(candidate.tierId))
+      .map(candidate => `${candidate.projectPath === "." ? "" : candidate.projectPath + "/"}contract.json`),
+  ])].filter(path => !legacy || !["src/tools/document-validation/contract.json", "src/sandbox/tool/contract.json"].includes(path)
+    || legacyContractPaths.includes(path)).slice(0, 24);
+  let declaredDocuments = false;
+  let legacyContractExcludesDocuments = false;
+  let sampleDocument = null;
+  let maxBytes = 65536;
+  for (const path of ["config/sandbox-boundary-test.json", "config/domain.json", ...contractPaths]) {
+    const text = await boundedAppText(root, path);
+    if (!text) continue;
+    let metadata;
+    try { metadata = JSON.parse(text); } catch { continue; }
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
+    if (contractPaths.includes(path)) {
+      declaredDocuments ||= documentContract(metadata);
+      if (["src/tools/document-validation/contract.json", "src/sandbox/tool/contract.json"].includes(path)
+        && declaresInputProperties(metadata) && !documentContract(metadata)) legacyContractExcludesDocuments = true;
+    }
+    const input = metadata.documentInput;
+    if (input?.accepted === true) declaredDocuments = true;
+    if (Number.isInteger(input?.maxBytes) && input.maxBytes > 0) maxBytes = Math.min(maxBytes, input.maxBytes);
+    sampleDocument ??= await readSampleDocument(root,
+      metadata.sampleDocument ?? metadata.baseDocument ?? input?.sampleDocument ?? input?.baseDocument, maxBytes);
+  }
+  let acceptsDocuments = declaredDocuments || (legacy && !legacyContractExcludesDocuments);
+  if (sampleDocument && Buffer.byteLength(sampleDocument.content) > maxBytes) sampleDocument = null;
+  if (!acceptsDocuments) {
+    for (const candidate of candidates.filter(candidate => candidate.tierId === "agent").slice(0, 8)) {
+      for (const name of ["main.py", "app.py", "server.mjs", "index.mjs", "main.ts", "index.ts"]) {
+        const path = `${candidate.projectPath === "." ? "" : candidate.projectPath + "/"}${name}`;
+        const source = await boundedAppText(root, path);
+        if (source && /(?:(?:@?[\w.]+)\.(?:post|route)\(\s*["']\/invoke["']|(?:path|route)\s*=\s*["']\/invoke["'])/.test(source)
+          && /(?:payload|body|request|data)\s*(?:\.get\(\s*["']document["']|\[\s*["']document["']\s*\]|\.document\b)/.test(source)) {
+          acceptsDocuments = true;
+          break;
+        }
+      }
+      if (acceptsDocuments) break;
+    }
+  }
+  if (acceptsDocuments && !sampleDocument) {
+    const samplePaths = scan.files.map(file => file.path).filter(path =>
+      /(?:^|\/)(?:samples|fixtures|data)\/(?:sample(?:-[\w-]+)?|base-document|starter-document)\.(?:md|txt)$/i.test(path)).sort().slice(0, 8);
+    for (const path of samplePaths) {
+      sampleDocument = await readSampleDocument(root, { path }, maxBytes);
+      if (sampleDocument) break;
+    }
+  }
+  const documentInput = acceptsDocuments ? { extensions: [".txt", ".md"], maxBytes,
+    ...(legacy ? { legacyDocumentTemplate: true } : {}),
+    ...(sampleDocument ? { sampleDocument } : {}) } : null;
+  return {
+    documentInput,
+    sandboxBoundaryTest: sandboxAvailable ? {
+      available: true, mode: documentInput ? "document" : "prompt-or-code",
+      execution: "app-sandbox", requiresInvocation: true,
+    } : null,
+  };
+}
+
+async function isDocumentApp(root, discoveryState = {}) {
+  return Boolean((await readAppInputCapabilities(root, discoveryState)).documentInput);
 }
 
 function sourceArtifact(path, candidate) {
@@ -88,7 +222,7 @@ function sourceArtifact(path, candidate) {
     : file === "contract.json" || file === "agents.config.yaml"
       || (["skills", "workflows"].includes(candidate.tierId) && file === "function_app.py") ? "tools"
       : file === "agent.yaml" || file === "builder.yaml" || file === "embr.yaml" ? "runtime"
-        : file === "egress-policy.md" ? "policies" : undefined;
+        : ["egress-policy.yaml", "egress-allowlist.json"].includes(file) ? "policies" : undefined;
   let title = `${tier?.mapLabel || tier?.name || "Component"} source`;
   let description = "Implementation discovered in this app. Open it in Files or a supported external editor to make changes.";
   if (path.endsWith("/prompts/system.md")) {
@@ -112,8 +246,12 @@ function sourceArtifact(path, candidate) {
     title = isTrigger ? "Trigger implementation" : candidate.tierId === "workflows" ? "Workflow implementation" : "Hosted skill entry point";
   } else if (file === "Dockerfile") {
     title = "Container build";
-  } else if (file === "egress-policy.md") {
-    title = "Egress policy";
+  } else if (file === "egress-policy.yaml") {
+    title = "Sandbox egress policy";
+    description = "ACA Sandbox Egress Proxy policy and Transform header rules.";
+  } else if (file === "egress-allowlist.json") {
+    title = "Sandbox egress allowlist";
+    description = "Explicit outbound enablement and approved destinations.";
   } else if (file === "contract.json") {
     title = "Tool contract";
   } else if (file === "host.json") {
@@ -153,9 +291,9 @@ function candidateSourcePaths(candidate) {
 
 async function buildCatalog(root, discoveryState = {}) {
   const scope = await appScope(root);
-  const supportsDocuments = await isDocumentApp(root, scope);
   const scan = discoveryState.scan ?? await scanRepository(root);
   const discovery = discoveryState.discovery ?? await discoverRepository(root, { scan });
+  const supportsDocuments = await isDocumentApp(root, { scan, discovery });
   const files = new Set(scan.files.map((file) => file.path));
   const selected = new Map();
   for (const candidate of discovery.candidates) {
@@ -183,14 +321,26 @@ async function buildCatalog(root, discoveryState = {}) {
     const path = "config/runtime.json";
     selected.set(path, { ...sourceArtifact(path, agent), title: "Agent runtime configuration" });
   }
-  if (supportsDocuments) {
-    for (const artifact of DOCUMENT_ARTIFACTS) {
-      const actual = await appArtifact(root, artifact);
-      selected.set(actual.path, actual);
+  const sandbox = discovery.candidates.find(candidate => candidate.tierId === "sandbox" && inScope(candidate.projectPath, scope));
+  if (sandbox) {
+    for (const path of ["config/egress-policy.yaml", "config/egress-allowlist.json"]) {
+      if (await existingPath(root, path)) selected.set(path, sourceArtifact(path, sandbox));
     }
   }
+  const documentArtifacts = [];
+  if (supportsDocuments && await hasLegacyDocumentLayout(root, scope)) {
+    for (const { optional, ...artifact } of DOCUMENT_ARTIFACTS) {
+      const actual = await appArtifact(root, artifact);
+      if (optional && !await existingPath(root, actual.path)) continue;
+      selected.delete(actual.path);
+      documentArtifacts.push(actual);
+    }
+  }
+  const projectNames = new Map(documentArtifacts.map(artifact => [artifact.projectPath, artifact.projectName]));
+  const artifacts = [...documentArtifacts, ...selected.values()].map(artifact =>
+    projectNames.has(artifact.projectPath) ? { ...artifact, projectName: projectNames.get(artifact.projectPath) } : artifact);
   return {
-    kind: supportsDocuments ? "document" : "source", supportsDocuments, artifacts: [...selected.values()],
+    kind: supportsDocuments ? "document" : "source", supportsDocuments, artifacts,
     diagnostics: discovery.diagnostics,
   };
 }
@@ -201,7 +351,7 @@ async function buildArtifact(root, id) {
 }
 
 async function appArtifact(root, artifact) {
-  if (!["tool", "contract", "policy"].includes(artifact.id)) return artifact;
+  if (!["tool", "contract", "policy", "egress-policy"].includes(artifact.id)) return artifact;
   const scope = await appScope(root);
   const directories = ["src/tools/document-validation", "src/sandbox/tool"].filter((directory) => inScope(directory, scope));
   // Choose the whole layout, not individual files, so partial migrations fail visibly.
@@ -306,8 +456,9 @@ export async function resolveProjectSourcePath(root, projectPath) {
   throw error;
 }
 
-export async function readBuildRuntime(root) {
-  if (!await isDocumentApp(root)) return null;
+export async function readBuildRuntime(root, capabilities = undefined) {
+  capabilities ??= await readAppInputCapabilities(root);
+  if (!capabilities.documentInput && !capabilities.sandboxBoundaryTest) return null;
   const artifact = await readArtifact(root, DOCUMENT_ARTIFACTS.find((item) => item.id === "runtime"));
   if (!artifact.available) return null;
   const config = JSON.parse(artifact.content);

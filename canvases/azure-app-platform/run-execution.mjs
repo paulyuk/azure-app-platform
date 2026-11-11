@@ -77,7 +77,10 @@ export function getRunExecutionLayers({
   }
   for (const [index, stage] of stages.entries()) {
     const stageLabel = ({
-      "agent-harness": "Agent harness", "document-tool": "Document tool / sandbox",
+      "agent-harness": "Agent harness",
+      "document-tool": blockedResponse?.testKind === "sandbox-boundary" && !docCount
+        ? "Sandbox tool" : "Document tool / sandbox",
+      "sandbox-tool": docCount ? "Sandbox tool / document" : "Sandbox tool",
       model: "Model", "approval-disclosure": "Approval / disclosure",
     })[stage.id] || stage.id;
     const stageState = ({
@@ -107,6 +110,31 @@ export function getRunExecutionLayers({
         },
       ],
     });
+    if (["document-tool", "sandbox-tool"].includes(stage.id) && blockedResponse?.evidence?.sandboxProbe) {
+      const probe = blockedResponse.evidence.sandboxProbe;
+      const observed = probe.outboundOutcome === "denied"
+        && ["python-audit-hook", "aca-egress-proxy"].includes(probe.enforcement);
+      const decision = probe.acaDeniedDecision;
+      const outbound = observed ? "Denial observed · " + probe.enforcement
+        + (decision ? " (HEAD " + decision.scheme + "://" + decision.host + "/ -> Denied)" : "")
+        : "Attempted · denial unverified (" + probe.outboundOutcome + ")";
+      const keys = Array.isArray(probe.envKeys) ? probe.envKeys.join(", ") || "(none)" : "not reported";
+      const keyLimit = probe.envKeyCount > probe.envKeys?.length
+        ? " (first " + probe.envKeys.length + " of " + probe.envKeyCount + ")" : "";
+      const mounts = Number.isInteger(probe.secretFileCount)
+        ? probe.secretFileCount + " credential locations present (of 5 checked)"
+        : probe.secretFilesPresent === false ? "No credential locations present"
+          : probe.secretFilesPresent === true ? "Credential locations present" : "Credential locations not checked";
+      layers.at(-1).metadata.push(
+        { label: "Outbound probe", value: outbound },
+        ...(decision ? [{ label: "ACA matched rule", value: decision.matchedRule }] : []),
+        { label: "Sandbox env keys", value: probe.credentialLikeVariableCount
+          + " credential-like vars · keys: " + keys + keyLimit + " · " + mounts },
+        { label: "Credential values", value: "Not returned · " + probe.credentialLikeVariableCount + " matching variables observed" },
+        { label: "Verify in code", value: "config/egress-policy.yaml · src/tools/document-validation/main.py · src/agent/main.py" },
+        { label: "Cloud isolation", value: "Not verified by this limited probe" },
+      );
+    }
   }
   for (const [index, tool] of (stages.length ? [] : tools).entries()) {
     const toolState = tool.status === "Failed" ? "failed"
