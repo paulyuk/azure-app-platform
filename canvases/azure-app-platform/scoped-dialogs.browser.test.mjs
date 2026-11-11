@@ -66,7 +66,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.getByRole("combobox", { name: "Event triggers", exact: true }).selectOption("loan.document.submitted");
       await prompt.fill("Preserve this unattended event.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
-      await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await page.locator('[data-document-assessment][data-state="approved"]').waitFor({ state: "attached" });
       await returnToRun(page);
       await page.getByLabel("Document attachment", { exact: true }).click();
       await page.getByRole("button", { name: "Edit document", exact: true }).click();

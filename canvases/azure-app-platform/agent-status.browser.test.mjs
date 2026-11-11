@@ -295,11 +295,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await status.innerText(), /not proof of safety/);
       await page.locator("[data-view-execution]").click();
       const raw = page.locator('[data-run-disclosure="raw-response"]');
+      assert.equal(await raw.evaluate(node => node.open), false);
+      await raw.locator("summary").click();
       assert.equal(await raw.evaluate(node => node.open), true);
       assert.match(await raw.innerText(), /response-only/);
       assert.equal(await page.locator('[data-run-disclosure="tool-activity"]').count(), 0);
       assert.match(await page.locator('[data-layer="tool-0"]').innerText(), /inventory_search[\s\S]*Call reported/);
-      await page.locator('[data-document-assessment][data-state="approved"]').waitFor();
+      await page.locator('[data-document-assessment][data-state="approved"]').waitFor({ state: "attached" });
       await returnToRun(page);
       await prompt.focus();
       await prompt.evaluate(node => node.setSelectionRange(6, 12));

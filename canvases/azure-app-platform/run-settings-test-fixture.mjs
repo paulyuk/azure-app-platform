@@ -148,6 +148,12 @@ export async function createRunSettingsFixture({ preview = false, presentationPr
         if (!files[body.projectPath]) throw new Error("Choose a known preview source project.");
         result = { path: files[body.projectPath], canvas: { canvasId: "editor" } };
       } else if (path === "/api/open-entrypoint" || path === "/api/open-source") result = { outcome: "opened" };
+      else if (path === "/api/open-vscode") result = { outcome: "opened-in-vscode", root: body.root, command: "code" };
+      else if (path === "/api/blocked-result-recovery") result = {
+        outcome: "blocked-result-recovery-requested",
+        messageId: "fixture-recovery-message",
+        targetSessionId: "fixture-app-session",
+      };
       else if (path === "/api/app-logs") result = {
         root: graph.root, scope: { serviceId: null, label: "All services", groupedByService: true, description: "Simulated local service logs." },
         catalog: [{ id: "agent", label: "Deal finder", kind: "component", componentId: "agent", tierId: "agent", projectPath: "src/agent", aliases: [] }],

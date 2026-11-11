@@ -172,6 +172,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await complete.locator("script").count(), 0);
       assert.equal(await complete.locator('.run-execution-layer[data-state="active"]').count(), 0);
       assert.equal(await complete.locator(".agent-response").innerText(), "Actual run result");
+      assert.equal(await complete.locator(".agent-response").evaluate(node => getComputedStyle(node).maxHeight), "400px");
       assert.equal(await complete.locator(".run-execution-flyout").count(), 0,
         "Execution layers do not render hover cards or inspection flyouts.");
       const toolLayer = complete.locator('[data-layer="tool-0"]');
@@ -207,15 +208,83 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await toolTrigger.getAttribute("aria-expanded"), "false");
       assert.equal(await toolDetails.isVisible(), false);
       assert.equal(await toolTrigger.evaluate(node => node === document.activeElement), true);
+      const successCard = await complete.evaluate(viewNode => {
+        const card = viewNode.querySelector('.run-result-card[data-state="succeeded"]');
+        const icon = card.querySelector(".run-result-icon");
+        const title = card.querySelector("[data-run-result-heading]");
+        const subtitle = card.querySelector("[data-run-result-subtitle]");
+        const status = card.querySelector("[data-run-result-status]");
+        const callout = card.querySelector(".agent-response");
+        const okLayerMark = viewNode.querySelector('.run-execution-layer[data-state="succeeded"] .run-execution-mark');
+        const okLayer = okLayerMark.closest(".run-execution-layer");
+        const viewTitle = viewNode.querySelector("#run-execution-title");
+        const iconMask = getComputedStyle(icon, "::before").maskImage || getComputedStyle(icon, "::before").webkitMaskImage || "";
+        return {
+          heading: title.textContent,
+          status: status.textContent,
+          iconMask: decodeURIComponent(iconMask),
+          iconColor: getComputedStyle(icon).color,
+          iconBackground: getComputedStyle(icon).backgroundColor,
+          titleColor: getComputedStyle(title).color,
+          subtitleColor: getComputedStyle(subtitle).color,
+          viewTitleColor: getComputedStyle(viewTitle).color,
+          statusColor: getComputedStyle(status).color,
+          iconSize: [icon.getBoundingClientRect().width, icon.getBoundingClientRect().height],
+          glyphSize: [
+            getComputedStyle(icon, "::before").width,
+            getComputedStyle(icon, "::before").height,
+          ],
+          cardBorderColor: getComputedStyle(card).borderTopColor,
+          neutralBorderColor: getComputedStyle(okLayer).borderTopColor,
+          calloutBorderColor: getComputedStyle(callout).borderInlineStartColor || getComputedStyle(callout).borderLeftColor,
+          okColor: getComputedStyle(okLayerMark).color,
+        };
+      });
+      assert.equal(successCard.heading, "Response received · local runtime");
+      assert.equal(successCard.status, "HTTP 200 · local runtime");
+      assert.match(successCard.iconMask, /data-octicon="check"/);
+      assert.deepEqual(successCard.iconSize, [20, 20]);
+      assert.deepEqual(successCard.glyphSize, ["16px", "16px"]);
+      assert.equal(successCard.iconBackground, successCard.okColor);
+      assert.notEqual(successCard.iconColor, successCard.iconBackground);
+      assert.equal(successCard.titleColor, successCard.viewTitleColor);
+      assert.equal(successCard.statusColor, successCard.okColor);
+      assert.equal(successCard.cardBorderColor, successCard.neutralBorderColor);
+      assert.equal(successCard.calloutBorderColor, successCard.neutralBorderColor);
       assert.equal(await complete.locator('[data-run-disclosure="tool-activity"]').count(), 0);
-      assert.equal(await complete.locator('[data-run-disclosure="raw-response"]').evaluate(node => node.open), true);
+      const submittedDisclosure = complete.locator('[data-run-disclosure="submitted-input"]');
+      const rawDisclosure = complete.locator('[data-run-disclosure="raw-response"]');
+      assert.equal(await submittedDisclosure.evaluate(node => node.open), false);
+      assert.equal(await rawDisclosure.evaluate(node => node.open), false);
+      await submittedDisclosure.locator("summary").click();
+      assert.match(await complete.locator('[data-run-disclosure="submitted-input"]').innerText(), /Check inventory\./);
+      await submittedDisclosure.locator("summary").click();
+      assert.deepEqual(await complete.evaluate(viewNode => {
+        const submitted = viewNode.querySelector('[data-run-disclosure="submitted-input"]');
+        const raw = viewNode.querySelector('[data-run-disclosure="raw-response"]');
+        const submittedRect = submitted.getBoundingClientRect();
+        const rawRect = raw.getBoundingClientRect();
+        return {
+          display: getComputedStyle(submitted.parentElement).display,
+          verticallyStacked: submittedRect.bottom <= rawRect.top,
+          sameLeftEdge: Math.abs(submittedRect.left - rawRect.left) <= 1,
+          sameWidth: Math.abs(submittedRect.width - rawRect.width) <= 1,
+        };
+      }), {
+        display: "grid",
+        verticallyStacked: true,
+        sameLeftEdge: true,
+        sameWidth: true,
+      });
       assert.match(await complete.locator('[data-layer="tool-0"]').innerText(), /inventory_search[\s\S]*Completed/);
       await complete.getByRole("heading", { name: "Run complete" }).hover();
-      assert.match(await complete.locator('[data-run-disclosure="raw-response"]').innerText(), /Actual run result/);
       const rawSummary = complete.locator('[data-run-disclosure="raw-response"] summary');
       await rawSummary.focus();
       await page.waitForResponse(response => response.url().includes("/api/app-output"));
       assert.equal(await rawSummary.evaluate(node => node === document.activeElement), true);
+      await page.keyboard.press("Enter");
+      assert.equal(await rawDisclosure.evaluate(node => node.open), true);
+      assert.match(await rawDisclosure.innerText(), /Actual run result/);
       await page.keyboard.press("Tab");
       assert.equal(await complete.locator('[data-run-disclosure="raw-response"] pre')
         .evaluate(node => node === document.activeElement), true, "Evidence is reachable with the keyboard.");

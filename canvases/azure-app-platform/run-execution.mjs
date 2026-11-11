@@ -360,10 +360,10 @@ export const RUN_EXECUTION_CSS = `
 .run-execution-layer[data-state="succeeded"] .run-execution-mark { color:var(--studio-ok); border-color:color-mix(in srgb,var(--studio-ok) 65%,var(--studio-line)); background:var(--studio-raised); }
 .run-execution-layer[data-state="succeeded"] .run-execution-state { color:var(--studio-ok); border-color:var(--studio-line); background:var(--studio-raised); }
 .run-execution-layer[data-state="unverified"] .run-execution-state { color:var(--studio-warn); border-color:color-mix(in srgb,var(--studio-warn) 45%,var(--studio-line)); background:color-mix(in srgb,var(--studio-warn) 8%,var(--studio-raised)); }
-.run-execution-layer:is([data-state="failed"],[data-state="blocked"]) { border-color:var(--studio-danger); }
+.run-execution-layer:is([data-state="failed"],[data-state="blocked"]) { border-color:color-mix(in srgb,var(--studio-danger) 45%,var(--studio-line)); }
 .run-execution-layer:is([data-state="failed"],[data-state="blocked"]) :is(.run-execution-mark,.run-execution-state) { color:var(--studio-danger); }
 .run-execution-layer:is([data-state="failed"],[data-state="blocked"]) .run-execution-mark { border-color:var(--studio-danger); background:color-mix(in srgb,var(--studio-danger) 20%,var(--studio-raised)); }
-.run-execution-layer:is([data-state="failed"],[data-state="blocked"]) { background:color-mix(in srgb,var(--studio-danger) 7%,var(--studio-panel)); box-shadow:inset 3px 0 0 var(--studio-danger); }
+.run-execution-layer:is([data-state="failed"],[data-state="blocked"]) { background:color-mix(in srgb,var(--studio-danger) 4%,var(--studio-panel)); }
 .run-execution-trail { display:none; position:absolute; pointer-events:none; inset:0; width:100%; height:100%; overflow:visible; }
 .run-execution-layer[data-state="active"] .run-execution-trail { display:block; }
 .run-execution-trail rect { fill:none; stroke:var(--studio-accent); stroke-width:2; stroke-linecap:round; stroke-dasharray:12 88; filter:drop-shadow(0 0 3px var(--studio-accent)); animation:run-layer-clockwise 2.4s linear infinite; }

@@ -55,6 +55,7 @@ import { EDITOR_CHOICES, readEditorSettings, writeEditorSettings } from "./edito
 import { openWorkspaceInEditor } from "./editor-launcher.mjs";
 import { openBuildFileCanvas } from "./build-file-canvas.mjs";
 import { BUILD_BLOCK_TEMPLATES, createdBuildBlock, requestBuildAdjustment } from "./build-blocks.mjs";
+import { requestBlockedResultRecovery } from "./blocked-result-recovery.mjs";
 import { materializeBuildBlock } from "./template-materializer.mjs";
 import { deriveRuntimeState, readProcessRegistry } from "./runtime-state.mjs";
 import { allowsActiveLifecycle, cancelStartupProcess } from "./startup-cancellation.mjs";
@@ -2020,6 +2021,23 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         const targetSessionId = await ensureAppSession(root, workspaceRoot);
         sendJson(response, 202, await requestBuildAdjustment({ session, root, id: input.id, instructions: input.instructions, targetSessionId }));
       }
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/blocked-result-recovery") {
+      const input = await readJsonBody(request, 256 * 1024);
+      const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) {
+        throw new Error("Blocked-result recovery root is not an authorized app workspace.");
+      }
+      const targetSessionId = await ensureAppSession(root, workspaceRoot);
+      sendJson(response, 202, await requestBlockedResultRecovery({
+        session,
+        root,
+        targetSessionId,
+        blockedResponse: input.blockedResponse,
+        submission: input.submission,
+        findings: input.findings,
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/build-workspace") {

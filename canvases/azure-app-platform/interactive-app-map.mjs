@@ -2751,15 +2751,36 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       executionView.update(executionSnapshot());
     }
 
-    function renderDocumentAssessment(container) {
+    function currentDocumentAssessmentState() {
+      if (documentTesting || invokingAgent) return "pending";
+      return documentAssessment?.state || "";
+    }
+
+    function documentAssessmentDisclosureLabel() {
+      const state = currentDocumentAssessmentState();
+      if (state === "approved") {
+        const redactionCount = Object.values(documentAssessment?.redactions || {})
+          .reduce((total, count) => total + Number(count || 0), 0);
+        return "Submitted input · Policy passed · " + redactionCount
+          + (redactionCount === 1 ? " redaction" : " redactions");
+      }
+      if (state === "rejected") return "Submitted input · Document rejected";
+      if (state === "pending") return "Submitted input · Checking document...";
+      if (state) return "Submitted input · Policy not verified";
+      return "Submitted input";
+    }
+
+    function renderDocumentAssessment(container, { embedded = false } = {}) {
       if (!documentAssessment && !documentTesting && !(invokingAgent && agentDocuments.length > 0)) return;
-      const section = document.createElement("details");
+      const section = document.createElement(embedded ? "section" : "details");
       section.className = "document-assessment";
+      if (embedded) section.classList.add("document-assessment-inline");
       section.dataset.documentAssessment = "true";
-      const state = documentTesting || invokingAgent ? "pending" : documentAssessment.state;
+      const state = currentDocumentAssessmentState();
       section.dataset.state = state;
-      section.open = state === "approved" || state === "rejected" || Boolean(documentTesting);
-      const summary = document.createElement("summary");
+      if (!embedded) section.open = state === "approved" || state === "rejected" || Boolean(documentTesting);
+      const summary = document.createElement(embedded ? "div" : "summary");
+      if (embedded) summary.className = "document-assessment-heading";
       const summaryLabel = state === "approved" ? "Document policy checks passed"
         : state === "rejected" ? "Document rejected by policy"
         : state === "pending" ? "Checking document..."
@@ -2771,13 +2792,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       badge.dataset.state = state === "approved" ? "succeeded" : state === "rejected" ? "failed" : "unknown";
       section.append(summary);
       if (state === "approved") {
-        appendText(section, "p", "Sanitized text passed pre-model checks. Identity, income, creditworthiness, and loan approval are not verified.");
+        appendText(section, "p", "Sanitized text passed pre-model checks.");
         const labels = { email: "Email", phone: "Phone", ssn: "SSN", paymentCard: "Payment card" };
         appendText(section, "small", "Redacted: " + Object.entries(documentAssessment.redactions)
           .map(([key, count]) => (labels[key] || key) + " " + count).join(" · "));
         if (documentAssessment.truncated) appendText(section, "p", "Truncated to output limit.");
         const text = appendText(section, "pre", documentAssessment.sanitizedText, "command-output sanitized-document");
         text.dataset.approvedDocument = "true";
+        appendText(
+          section,
+          "p",
+          "Identity, income, creditworthiness, and loan approval are not verified.",
+          "document-assessment-limit",
+        );
       } else if (state === "rejected") {
         appendText(section, "p", "Not approved for agent processing. " + documentAssessment.reason);
       } else if (state !== "pending") {
@@ -3673,6 +3700,148 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       ].join("\\n");
     }
 
+    const BLOCKED_DOCUMENT_INFRACTION_RULES = [
+      {
+        label: "Instruction hierarchy override",
+        pattern: /ignore\\s+(?:all\\s+|any\\s+)?(?:previous|prior)\\s+instructions?/giu,
+      },
+      {
+        label: "Redaction bypass request",
+        pattern: /(?:disable|bypass|skip)\\s+(?:the\\s+)?redaction/giu,
+      },
+      {
+        label: "Forced decision manipulation",
+        pattern: /approve\\b[^.!?\\n]{0,120}?(?:unconditionally(?:\\s+at\\s+0(?:\\.0+)?%\\s*APR)?|at\\s+0(?:\\.0+)?%\\s*APR)/giu,
+      },
+      {
+        label: "Sensitive data disclosure",
+        pattern: /(?:return|reveal|include|expose)\\b[^.!?\\n]{0,160}?(?:unredacted|raw)\\b[^.!?\\n]{0,100}?(?:SSN|social\\s+security|payment\\s+card|card\\s+numbers?)(?:[^.!?\\n]{0,80}(?:\\/?card\\s+data|payment\\s+card|card\\s+numbers?))?/giu,
+      },
+      {
+        label: "Unauthorized outbound target",
+        pattern: /(?:GET|POST|PUT|PATCH|DELETE)?\\s*https?:\\/\\/[^\\s<>"')]+/giu,
+      },
+      {
+        label: "Credential or PII exfiltration",
+        pattern: /(?:include|send|upload|forward|exfiltrat(?:e|ion))\\b[^.\\n]{0,220}?(?:API[_ -]?KEY|TOKEN|IDENTITY_ENDPOINT|credential|SSN|social\\s+security|card\\s+data|payment\\s+card)/giu,
+      },
+    ];
+
+    function blockedDocumentInfractions(submission) {
+      const documents = Array.isArray(submission?.documents) && submission.documents.length
+        ? submission.documents
+        : (submission?.document ? [submission.document] : []);
+      return documents.map((document) => {
+        const content = String(document?.content || "").replace(/\\r\\n?/g, "\\n");
+        const findings = [];
+        for (const rule of BLOCKED_DOCUMENT_INFRACTION_RULES) {
+          rule.pattern.lastIndex = 0;
+          let match = rule.pattern.exec(content);
+          while (match) {
+            const lineStart = content.lastIndexOf("\\n", match.index - 1) + 1;
+            const lineEndIndex = content.indexOf("\\n", match.index);
+            const lineEnd = lineEndIndex === -1 ? content.length : lineEndIndex;
+            findings.push({
+              label: rule.label,
+              lineNumber: content.slice(0, lineStart).split("\\n").length,
+              line: content.slice(lineStart, lineEnd),
+              startColumn: match.index - lineStart,
+              endColumn: match.index - lineStart + match[0].length,
+              sourceIndex: match.index,
+            });
+            match = rule.pattern.exec(content);
+          }
+        }
+        findings.sort((left, right) => left.sourceIndex - right.sourceIndex
+          || left.startColumn - right.startColumn
+          || left.label.localeCompare(right.label));
+        return {
+          name: document?.name || "Submitted document",
+          findings,
+        };
+      }).filter((document) => document.findings.length);
+    }
+
+    function renderBlockedDocumentInfractions(card, response, submission) {
+      if (response.testKind !== "document-input") return;
+      const documents = blockedDocumentInfractions(submission);
+      if (!documents.length) return;
+      for (const documentEvidence of documents) {
+        const section = appendText(card, "section", "", "blocked-document-review");
+        section.setAttribute("aria-label", "Document infractions in " + documentEvidence.name);
+        const heading = appendText(section, "header", "", "blocked-document-heading");
+        const identity = appendText(heading, "div", "", "blocked-document-identity");
+        appendText(identity, "span", "Flagged document", "blocked-document-eyebrow");
+        appendText(identity, "strong", documentEvidence.name, "blocked-document-name");
+        appendText(
+          heading,
+          "span",
+          documentEvidence.findings.length + (documentEvidence.findings.length === 1 ? " infraction" : " infractions"),
+          "blocked-document-count",
+        );
+        const list = appendText(section, "ol", "", "blocked-infraction-list");
+        list.setAttribute("aria-label", "Detected infractions");
+        documentEvidence.findings.forEach((finding, index) => {
+          const item = appendText(list, "li", "", "blocked-infraction");
+          appendText(item, "span", String(index + 1).padStart(2, "0"), "blocked-infraction-number")
+            .setAttribute("aria-hidden", "true");
+          const window = appendText(item, "div", "", "blocked-infraction-window");
+          const meta = appendText(window, "div", "", "blocked-infraction-meta");
+          appendText(meta, "strong", finding.label);
+          appendText(meta, "span", "Line " + finding.lineNumber);
+          const code = appendText(window, "pre", "", "blocked-infraction-code");
+          code.setAttribute("aria-label", finding.label + ", line " + finding.lineNumber);
+          const source = document.createElement("code");
+          appendText(source, "span", String(finding.lineNumber), "blocked-infraction-line-number");
+          const text = appendText(source, "span", "", "blocked-infraction-source");
+          text.append(document.createTextNode(finding.line.slice(0, finding.startColumn)));
+          appendText(text, "mark", finding.line.slice(finding.startColumn, finding.endColumn));
+          text.append(document.createTextNode(finding.line.slice(finding.endColumn)));
+          code.append(source);
+        });
+      }
+    }
+
+    function blockedRecoveryFindings(response, submission) {
+      if (response.testKind !== "document-input") return [];
+      return blockedDocumentInfractions(submission).flatMap((documentEvidence) =>
+        documentEvidence.findings.map((finding) => ({
+          documentName: documentEvidence.name,
+          label: finding.label,
+          lineNumber: finding.lineNumber,
+          sourceLine: finding.line,
+          matchedText: finding.line.slice(finding.startColumn, finding.endColumn),
+        })));
+    }
+
+    function blockedCopilotLabel(response) {
+      if (response.testKind === "document-input") return "Fix document with Copilot";
+      if (response.testKind === "agent-output-policy") return "Review response policy with Copilot";
+      return "Troubleshoot with Copilot";
+    }
+
+    function formatBlockedFindings(response, findings) {
+      const lines = [
+        "Blocked run findings",
+        "HTTP " + response.upstreamHttpStatus + " · " + blockedModeLabel(response.mode),
+        "Reason: " + response.reasonCode,
+        "Summary: " + response.summary,
+      ];
+      if (!findings.length) return lines.join("\\n");
+      let currentDocument = "";
+      findings.forEach((finding, index) => {
+        if (finding.documentName !== currentDocument) {
+          currentDocument = finding.documentName;
+          lines.push("", "Document: " + currentDocument);
+        }
+        lines.push(
+          String(index + 1).padStart(2, "0") + ". " + finding.label + " · Line " + finding.lineNumber,
+          finding.sourceLine,
+        );
+      });
+      return lines.join("\\n");
+    }
+
     function renderBlockedAgentResponse(container, response) {
       const card = appendText(container, "article", "", "blocked-agent-card");
       card.dataset.blockedResponse = "true";
@@ -3691,6 +3860,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         "blocked-agent-status",
       );
       appendText(card, "p", response.operatorMessage, "blocked-agent-callout");
+      renderBlockedDocumentInfractions(card, response, agentBlockedSubmission);
       appendText(card, "strong", response.summary, "blocked-agent-summary");
       appendText(card, "p", blockedLimitations(response).join(" "), "blocked-agent-limit");
       const disclosures = appendText(card, "div", "", "blocked-agent-disclosures");
@@ -3703,6 +3873,105 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const limits = appendText(disclosures, "details", "", "blocked-agent-disclosure");
       appendText(limits, "summary", "Limits");
       appendList(limits, blockedLimitations(response), "No limits were reported.");
+      const actions = appendText(card, "footer", "", "blocked-agent-actions");
+      const feedback = appendText(actions, "span", "", "blocked-agent-action-feedback");
+      feedback.setAttribute("role", "status");
+      feedback.setAttribute("aria-live", "polite");
+      const findings = blockedRecoveryFindings(response, agentBlockedSubmission);
+      function setActionFeedback(message, state = "") {
+        feedback.textContent = message;
+        if (state) feedback.dataset.state = state;
+        else feedback.removeAttribute("data-state");
+      }
+      let startingCopilot = false;
+      let copilotRequested = false;
+      const fixWithCopilot = buttons.create({
+        appearance: "primary",
+        icon: buttons.icon(ICONS.agent),
+        children: blockedCopilotLabel(response),
+        onClick: async () => {
+          if (startingCopilot || copilotRequested) return;
+          startingCopilot = true;
+          setActionFeedback("");
+          buttons.update(fixWithCopilot, { disabled: true, children: "Starting Copilot…" });
+          try {
+            await apiRequest("/api/blocked-result-recovery", {
+              method: "POST",
+              body: JSON.stringify({
+                root: MODEL.root,
+                blockedResponse: response,
+                submission: {
+                  message: agentBlockedSubmission?.message || "",
+                  documents: Array.isArray(agentBlockedSubmission?.documents)
+                    ? agentBlockedSubmission.documents.map((document) => ({
+                      name: document.name,
+                      content: document.content,
+                    }))
+                    : [],
+                },
+                findings,
+              }),
+            });
+            copilotRequested = true;
+            setActionFeedback("Sent to Copilot in your app session. Review its changes before running again.");
+            buttons.update(fixWithCopilot, { disabled: true, children: "Sent to Copilot" });
+          } catch (cause) {
+            setActionFeedback("Could not start Copilot recovery: " + cause.message, "error");
+          } finally {
+            startingCopilot = false;
+            if (!copilotRequested && fixWithCopilot.isConnected) {
+              buttons.update(fixWithCopilot, { disabled: false, children: blockedCopilotLabel(response) });
+            }
+          }
+        },
+      });
+      fixWithCopilot.dataset.blockedFixCopilot = "true";
+      buttons.append(actions, fixWithCopilot);
+      let openingVsCode = false;
+      const editInVsCode = buttons.create({
+        appearance: "secondary",
+        icon: buttons.icon(VSCODE_ICON_MARKUP),
+        children: "Edit in VS Code",
+        onClick: async () => {
+          if (openingVsCode) return;
+          openingVsCode = true;
+          setActionFeedback("");
+          buttons.update(editInVsCode, { disabled: true, children: "Opening…" });
+          try {
+            await apiRequest("/api/open-vscode", {
+              method: "POST",
+              body: JSON.stringify({ root: MODEL.root }),
+            });
+            setActionFeedback("Opened this app in VS Code.");
+          } catch (cause) {
+            setActionFeedback("Could not open VS Code: " + cause.message, "error");
+          } finally {
+            openingVsCode = false;
+            if (editInVsCode.isConnected) {
+              buttons.update(editInVsCode, { disabled: false, children: "Edit in VS Code" });
+            }
+          }
+        },
+      });
+      editInVsCode.dataset.blockedEditVsCode = "true";
+      buttons.append(actions, editInVsCode);
+      const copyFindings = buttons.create({
+        appearance: "subtle",
+        size: "small",
+        children: "Copy findings",
+        onClick: async () => {
+          try {
+            if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
+            await navigator.clipboard.writeText(formatBlockedFindings(response, findings));
+            setActionFeedback("Findings copied.");
+          } catch (cause) {
+            setActionFeedback("Could not copy findings: " + cause.message, "error");
+          }
+        },
+      });
+      copyFindings.dataset.blockedCopyFindings = "true";
+      buttons.append(actions, copyFindings);
+      actions.append(feedback);
     }
 
     async function executeAgentInvocation(promptInput, explicitDocument = undefined) {
@@ -3837,34 +4106,94 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     function renderExecutionResults(container) {
-      let response = container.querySelector(".agent-response");
-      if (!response) {
+      let card = container.querySelector(".run-result-card");
+      if (!card) {
         appendText(container, "h3", "Autonomous run result");
-        response = appendText(container, "div", "", "agent-response");
+        card = appendText(container, "article", "", "run-result-card");
+        card.dataset.runResultCard = "true";
+        const header = appendText(card, "header", "", "blocked-agent-header run-result-header");
+        const identity = appendText(header, "div", "", "blocked-agent-identity");
+        const icon = appendText(identity, "span", "", "blocked-agent-icon run-result-icon");
+        icon.setAttribute("aria-hidden", "true");
+        const title = appendText(identity, "div", "", "blocked-agent-title run-result-title");
+        const heading = appendText(title, "strong", "");
+        heading.dataset.runResultHeading = "true";
+        const subtitle = appendText(title, "span", "");
+        subtitle.dataset.runResultSubtitle = "true";
+        const status = appendText(header, "span", "", "blocked-agent-status run-result-status");
+        status.dataset.runResultStatus = "true";
+        const response = appendText(card, "div", "", "agent-response");
         response.setAttribute("role", "region");
         response.setAttribute("aria-label", "Agent response");
         response.tabIndex = 0;
-        const evidence = appendText(container, "div", "");
+        const meta = appendText(card, "div", "", "run-result-meta");
+        const summary = appendText(meta, "strong", "", "blocked-agent-summary run-result-summary");
+        summary.dataset.runResultSummary = "true";
+        const note = appendText(meta, "p", "", "blocked-agent-limit run-result-note");
+        note.dataset.runResultNote = "true";
+        const evidence = appendText(card, "div", "", "blocked-agent-disclosures run-result-disclosures");
         evidence.dataset.runEvidence = "true";
       }
+      card.dataset.state = agentRequestState;
+      const isSucceeded = agentRequestState === "succeeded";
+      const header = card.querySelector(".run-result-header");
+      const meta = card.querySelector(".run-result-meta");
+      if (header) header.hidden = !isSucceeded;
+      if (meta) meta.hidden = !isSucceeded;
+      if (isSucceeded) {
+        const runtimeLabel = operationalState.readiness?.agentRuntime === "aca" ? "ACA session" : "local runtime";
+        const heading = card.querySelector("[data-run-result-heading]");
+        const subtitle = card.querySelector("[data-run-result-subtitle]");
+        const status = card.querySelector("[data-run-result-status]");
+        const summary = card.querySelector("[data-run-result-summary]");
+        const note = card.querySelector("[data-run-result-note]");
+        if (heading) heading.textContent = "Response received · " + runtimeLabel;
+        if (subtitle) {
+          subtitle.textContent = documentAssessment?.state === "approved"
+            ? "Sanitized document passed policy checks before agent response"
+            : "Agent response and reported execution evidence";
+        }
+        if (status) status.textContent = "HTTP 200 · " + runtimeLabel;
+        if (summary) {
+          summary.textContent = documentAssessment?.state === "approved"
+            ? "Sanitized input passed pre-model checks and the agent returned a response."
+            : "The agent completed the request and returned a response.";
+        }
+        if (note) {
+          note.textContent = agentToolActivity.length
+            ? (agentToolActivity.length + (agentToolActivity.length === 1 ? " tool call was" : " tool calls were") +
+              " reported in the response summary. Inspect submitted input and raw response data below.")
+            : "No tool calls were reported in the response summary. Inspect submitted input and raw response data below.";
+        }
+      }
+      const response = card.querySelector(".agent-response");
       renderResponse(response);
-      const evidence = container.querySelector("[data-run-evidence]");
+      const evidence = card.querySelector("[data-run-evidence]");
       const fingerprint = JSON.stringify({
         state: agentRequestState, assessment: documentAssessment, documentTesting, invokingAgent,
         tools: agentToolActivity, raw: agentRawResponse, documentResultText,
+        submission: isSucceeded ? agentBlockedSubmission : null,
       });
       if (evidence.dataset.fingerprint === fingerprint) return;
       clearElement(evidence);
       evidence.dataset.fingerprint = fingerprint;
-      if (agentRequestState !== "blocked") renderDocumentAssessment(evidence);
+      if (isSucceeded && agentBlockedSubmission) {
+        const submitted = appendText(evidence, "details", "", "blocked-agent-disclosure");
+        submitted.dataset.runDisclosure = "submitted-input";
+        const assessmentState = currentDocumentAssessmentState();
+        submitted.open = Boolean(assessmentState && assessmentState !== "approved");
+        appendText(submitted, "summary", documentAssessmentDisclosureLabel());
+        renderDocumentAssessment(submitted, { embedded: true });
+        appendText(submitted, "pre", formatSubmittedInputEvidence(agentBlockedSubmission), "blocked-agent-evidence");
+      } else if (agentRequestState !== "blocked") {
+        renderDocumentAssessment(evidence);
+      }
       if (agentRawResponse) {
-        const raw = document.createElement("details");
+        const raw = appendText(evidence, "details", "", "blocked-agent-disclosure");
         raw.dataset.runDisclosure = "raw-response";
-        raw.open = true;
         appendText(raw, "summary", "Raw agent response");
-        const output = appendText(raw, "pre", agentRawResponse, "command-output");
+        const output = appendText(raw, "pre", agentRawResponse, "command-output blocked-agent-evidence");
         output.tabIndex = 0;
-        evidence.append(raw);
       }
     }
 

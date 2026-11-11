@@ -163,7 +163,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       release();
       await page.locator('.agent-response[data-state="succeeded"]').waitFor();
       assert.equal(await execution.locator(".run-execution-result").isVisible(), true);
-      const expectedResponse = "Actual fixture response\n".repeat(80);
+      const expectedResponse = "Actual fixture response\n".repeat(80).trimEnd();
       assert.equal(await result.textContent(), expectedResponse);
       assert.equal(await result.locator("svg,ol,button").count(), 0);
       assert.equal(await result.locator(".ct-spinner").count(), 0);
@@ -240,6 +240,13 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await failedExecution.locator('[data-layer="execution"]').getAttribute("data-state"), "not-run");
       await result.locator(".agent-result-title").filter({ hasText: "The task was not sent" }).waitFor();
       assert.match(await result.innerText(), /Startup failed: synthetic prerequisite error/);
+      const startupFailureIcon = await result.locator(".agent-result-error-icon").evaluate(icon => ({
+        color: getComputedStyle(icon).color,
+        background: getComputedStyle(icon).backgroundColor,
+        border: getComputedStyle(icon).borderTopColor,
+      }));
+      assert.equal(startupFailureIcon.background, startupFailureIcon.border);
+      assert.notEqual(startupFailureIcon.color, startupFailureIcon.background);
       assert.equal(requests.length, 0);
       await geometry("startup-failed");
       failStartup = false;
