@@ -1,6 +1,6 @@
 {
   "name": "azure-app-platform",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "type": "module",
   "main": "extension.mjs",
   "private": true,
