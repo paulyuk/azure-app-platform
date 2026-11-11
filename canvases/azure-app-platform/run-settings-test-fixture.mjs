@@ -6,7 +6,7 @@ import { getTierDefinition } from "./tier-definitions.mjs";
 export async function returnToRun(page) {
   const execution = page.getByRole("region", { name: "Run execution", exact: true });
   if (await execution.isVisible()) {
-    await execution.getByRole("button", { name: "Back to Run", exact: true }).click();
+    await execution.getByRole("button", { name: "Back to input", exact: true }).click();
   }
 }
 

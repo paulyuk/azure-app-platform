@@ -96,7 +96,9 @@ const appStates = new Map();
 const appOutput = new Map();
 const activeGateways = new Map();
 const gatewayWriteQueues = new Map();
+const inFlightLocalReadiness = new Map();
 let cachedDefaultInfraPromise = null;
+let cachedDefaultInfraNegativeUntil = 0;
 let session;
 const transientAppStates = new Set(["starting", "stopping", "configuring", "provisioning", "deploying"]);
 const pendingAppMutations = new Set();
@@ -662,18 +664,20 @@ let cachedPrerequisiteTimestamp = 0;
 
 async function detectLocalPrerequisites({ force = false } = {}) {
   const now = Date.now();
-  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 30_000) {
+  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 300_000) {
     return cachedPrerequisitePromise;
   }
   cachedPrerequisiteTimestamp = now;
   cachedPrerequisitePromise = (async () => {
-    const [uvRes, azRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
+    const [uvRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
       runCommand("uv", ["--version"], { timeout: 5_000 }),
-      runCommand("az", ["--version"], { timeout: 8_000 }),
       runCommand("aca", ["--version"], { timeout: 5_000 }),
       runCommand("az", ["account", "show", "--query", "{id:id,name:name}", "-o", "json"], { timeout: 8_000 }),
       runCommand("az", ["aigateway", "version", "-o", "json"], { timeout: 8_000 }),
     ]);
+    const azRes = azAccountRes?.ok || azAigatewayRes?.ok
+      ? { ok: true, stdout: "" }
+      : await runCommand("az", ["--version"], { timeout: 8_000 });
     let azSignedIn = false;
     let subscriptionName = "";
     let subscriptionId = "";
@@ -690,7 +694,7 @@ async function detectLocalPrerequisites({ force = false } = {}) {
       }
     }
     const uvInstalled = Boolean(uvRes?.ok);
-    const azInstalled = Boolean(azRes?.ok);
+    const azInstalled = Boolean(azAccountRes?.ok || azAigatewayRes?.ok || azRes?.ok);
     const acaInstalled = Boolean(acaRes?.ok);
     const aigatewayInstalled = Boolean(azAigatewayRes?.ok);
     const missingTools = [];
@@ -873,7 +877,7 @@ async function fetchGatewayApiKey(gateway) {
 async function probeGatewayModelResponses(endpoint, apiKey, model) {
   if (!endpoint || !apiKey || !model) return false;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), 6_000);
   timeout.unref?.();
   try {
     const response = await fetch(`${endpoint.replace(/\/+$/, "")}/default/models/openai/v1/responses`, {
@@ -885,7 +889,7 @@ async function probeGatewayModelResponses(endpoint, apiKey, model) {
       body: JSON.stringify({
         model,
         input: "Reply with exactly one word: ok",
-        max_output_tokens: 512,
+        max_output_tokens: 16,
         stream: false,
       }),
       signal: controller.signal,
@@ -924,8 +928,14 @@ async function probeSandboxGroupDataPlane(sandboxGroup) {
 }
 
 async function discoverDefaultCanvasInfra() {
-  if (cachedDefaultInfraPromise) return cachedDefaultInfraPromise;
-  cachedDefaultInfraPromise = (async () => {
+  if (
+    cachedDefaultInfraPromise
+    && (cachedDefaultInfraNegativeUntil === 0 || Date.now() < cachedDefaultInfraNegativeUntil)
+  ) {
+    return cachedDefaultInfraPromise;
+  }
+  cachedDefaultInfraNegativeUntil = 0;
+  const discoveryPromise = (async () => {
     try {
       const options = await discoverGatewayOptions(azureBootstrapRunner, null);
       const preferredOrder = [...options.gateways].sort((a, b) => {
@@ -938,15 +948,11 @@ async function discoverDefaultCanvasInfra() {
       let model = "";
       let apiKey = "";
       for (const candidate of preferredOrder) {
-        let models = [];
-        try {
-          models = await discoverGatewayModels(azureBootstrapRunner, candidate);
-        } catch {
-          models = [];
-        }
-        if (!models.length) continue;
-        const candidateKey = await fetchGatewayApiKey(candidate);
-        if (!candidateKey) continue;
+        const [models, candidateKey] = await Promise.all([
+          discoverGatewayModels(azureBootstrapRunner, candidate).catch(() => []),
+          fetchGatewayApiKey(candidate),
+        ]);
+        if (!models.length || !candidateKey) continue;
         const preferred = selectPreferredModelId(models);
         const orderedModels = [
           preferred,
@@ -994,8 +1000,11 @@ async function discoverDefaultCanvasInfra() {
       return null;
     }
   })();
-  const resolved = await cachedDefaultInfraPromise;
-  if (!resolved) cachedDefaultInfraPromise = null;
+  cachedDefaultInfraPromise = discoveryPromise;
+  const resolved = await discoveryPromise;
+  if (cachedDefaultInfraPromise === discoveryPromise) {
+    cachedDefaultInfraNegativeUntil = resolved ? 0 : Date.now() + 45_000;
+  }
   return resolved;
 }
 
@@ -1109,66 +1118,86 @@ async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
 }
 
 async function localReadiness(root) {
+  const existing = inFlightLocalReadiness.get(root);
+  if (existing) return existing;
+  const pending = (async () => {
+    let agentConfiguration = "";
+    try {
+      agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    let activeGateway = await loadActiveGateway(root, { refresh: true });
+    const isConfiguring = appStates.get(root)?.state === "configuring";
+    let gatewayReadiness = evaluateGatewayReadiness(
+      agentConfiguration,
+      activeGateway,
+      isConfiguring,
+    );
+    if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
+      const bootstrappedEnv = await ensureDefaultInfraConnected(root);
+      if (bootstrappedEnv) {
+        agentConfiguration = bootstrappedEnv;
+        activeGateway = await loadActiveGateway(root, { refresh: true });
+        if (appStates.get(root)?.state === "failed" && appStates.get(root)?.operation === "configuring") {
+          appStates.delete(root);
+        }
+        gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
+      }
+    } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
+      const infra = await discoverDefaultCanvasInfra();
+      if (infra?.sandboxGroup?.name && activeGateway) {
+        const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
+        await persistActiveGateway(root, updatedActive);
+        if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
+          agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
+          await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
+        }
+        gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
+      }
+    }
+    const runtime = await readAppRuntimeProfile(root);
+    const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
+    const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
+    const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
+    const buildRuntime = await readBuildRuntime(root);
+    const prerequisites = await detectLocalPrerequisites();
+    const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(buildRuntime) });
+    return {
+      ...gatewayReadiness,
+      ready,
+      prerequisites,
+      starterPrompt,
+      agentRuntime: buildRuntime?.agentRuntime ?? null,
+      documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
+      deploymentBlocker: await documentDeploymentBlocker(root),
+      mode: previewMode ? "preview" : "full",
+      missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
+      guidance: previewMode
+        ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
+        : gatewayReadiness.guidance,
+    };
+  })();
+  inFlightLocalReadiness.set(root, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inFlightLocalReadiness.get(root) === pending) {
+      inFlightLocalReadiness.delete(root);
+    }
+  }
+}
+
+async function hasGatewayConfiguration(root) {
   let agentConfiguration = "";
   try {
     agentConfiguration = await readFile(`${root}/src/agent/.env`, "utf8");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  let activeGateway = await loadActiveGateway(root, { refresh: true });
+  const activeGateway = await loadActiveGateway(root);
   const isConfiguring = appStates.get(root)?.state === "configuring";
-  let gatewayReadiness = evaluateGatewayReadiness(
-    agentConfiguration,
-    activeGateway,
-    isConfiguring,
-  );
-  if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
-    const bootstrappedEnv = await ensureDefaultInfraConnected(root);
-    if (bootstrappedEnv) {
-      agentConfiguration = bootstrappedEnv;
-      activeGateway = await loadActiveGateway(root, { refresh: true });
-      if (appStates.get(root)?.state === "failed" && appStates.get(root)?.operation === "configuring") {
-        appStates.delete(root);
-      }
-      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
-    }
-  } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
-    const infra = await discoverDefaultCanvasInfra();
-    if (infra?.sandboxGroup?.name && activeGateway) {
-      const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
-      await persistActiveGateway(root, updatedActive);
-      if (!agentConfiguration.includes("ACA_SANDBOX_GROUP=")) {
-        agentConfiguration = `${agentConfiguration.trimEnd()}\nACA_SANDBOX_GROUP=${infra.sandboxGroup.name}\nACA_RESOURCE_GROUP=${infra.sandboxGroup.resourceGroup}\nACA_REGION=${infra.sandboxGroup.location || "eastus2"}\nACA_SUBSCRIPTION=${infra.sandboxGroup.subscriptionId || activeGateway.subscriptionId}\n`;
-        await writeFile(`${root}/src/agent/.env`, agentConfiguration, { encoding: "utf8", mode: 0o600 });
-      }
-      gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
-    }
-  }
-  const runtime = await readAppRuntimeProfile(root);
-  const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
-  const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim();
-  const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
-  const buildRuntime = await readBuildRuntime(root);
-  const prerequisites = await detectLocalPrerequisites();
-  const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(buildRuntime) });
-  return {
-    ...gatewayReadiness,
-    ready,
-    prerequisites,
-    starterPrompt,
-    agentRuntime: buildRuntime?.agentRuntime ?? null,
-    documentInput: buildRuntime ? { extensions: [".txt", ".md"], maxBytes: 65536 } : null,
-    deploymentBlocker: await documentDeploymentBlocker(root),
-    mode: previewMode ? "preview" : "full",
-    missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
-    guidance: previewMode
-      ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
-      : gatewayReadiness.guidance,
-  };
-}
-
-async function hasGatewayConfiguration(root) {
-  return (await localReadiness(root)).gatewayConfigured;
+  return evaluateGatewayReadiness(agentConfiguration, activeGateway, isConfiguring).gatewayConfigured;
 }
 
 async function currentAppState(root) {
@@ -1667,6 +1696,8 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (url.searchParams.get("refresh") === "true") {
         cachedPrerequisitePromise = null;
         cachedDefaultInfraPromise = null;
+        cachedDefaultInfraNegativeUntil = 0;
+        inFlightLocalReadiness.delete(root);
       }
       sendJson(response, 200, await localReadiness(root));
       return;
@@ -1676,6 +1707,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Gateway root is not an authorized app workspace.");
       if (url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true") {
         cachedDefaultInfraPromise = null;
+        cachedDefaultInfraNegativeUntil = 0;
       }
       const reqAbort = new AbortController();
       const abortFromRequest = () => reqAbort.abort();
@@ -2253,6 +2285,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               cachedPrerequisitePromise = null;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               if (exitCode === 0 && input.operation === "install-prereq-aca") {
                 const verify = await runCommand("aca", ["--version"], { timeout: 5_000 });
                 if (!verify.ok) {
@@ -2296,6 +2329,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               const newGroup = {
                 name: groupName,
                 resourceGroup,
@@ -2345,6 +2379,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               await ensureDefaultInfraConnected(root);
             },
           },
@@ -2406,6 +2441,7 @@ if ($firstModelId) {
             onComplete: async ({ exitCode }) => {
               if (exitCode !== 0) return;
               cachedDefaultInfraPromise = null;
+              cachedDefaultInfraNegativeUntil = 0;
               await ensureDefaultInfraConnected(root);
             },
           },
@@ -2479,6 +2515,7 @@ if ($firstModelId) {
         appOutput.delete(root);
         activeGateways.delete(root);
         gatewayWriteQueues.delete(root);
+        inFlightLocalReadiness.delete(root);
       }
       sendJson(response, result.outcome === "failed" ? 500 : 200, result);
       return;

@@ -14,6 +14,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
     skip: !engine && "Install src/web dependencies to run browser coverage.",
   }, async () => {
     const fixture = await createRunSettingsFixture();
+    fixture.state.documentInput = true;
     fixture.state.app = "stopped";
     let available = false, release, onRequest, fail = false, calls = 0;
     const errors = [];
@@ -56,6 +57,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).count(), 0,
         "The prompt-entry screen is not visible in the execution view.");
       assert.equal(await page.getByRole("navigation", { name: "App workspaces", exact: true }).isVisible(), true);
+      assert.equal(await view.locator(".run-execution-actions").getByRole("button", { name: "View logs" }).count(), 0);
       await runtime.locator("text=Starting services and waiting for the agent endpoint.").waitFor();
       assert.equal(await page.locator(".agent-tester").getByText("Autonomous run result").count(), 0);
       assert.equal(await page.locator(".agent-tester .agent-response, .agent-tester [data-run-evidence]").count(), 0);
@@ -95,7 +97,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
         animation.play();
         return offsets;
       }), [-25, -50], "The trail advances clockwise around the rectangle, not back and forth.");
-      await view.getByRole("button", { name: "Back to Run", exact: true }).focus();
+      await view.getByRole("button", { name: "Back to input", exact: true }).focus();
       await page.keyboard.press("Shift+Tab");
       assert.equal(await view.evaluate(node => node.contains(document.activeElement)), false,
         "Keyboard focus is not trapped in the execution view.");
@@ -116,7 +118,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.emulateMedia({ reducedMotion: "no-preference" });
       await page.setViewportSize({ width: 620, height: 800 });
       const history = page.getByRole("navigation", { name: "Workspace history", exact: true });
-      await view.getByRole("button", { name: "Back to Run", exact: true }).click();
+      await view.getByRole("button", { name: "Back to input", exact: true }).click();
       await page.locator("[data-view-execution]").waitFor();
       assert.equal(await page.locator("[data-view-execution]").evaluate(node => node === document.activeElement), true);
       assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "Check inventory.");
@@ -288,17 +290,34 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.keyboard.press("Tab");
       assert.equal(await complete.locator('[data-run-disclosure="raw-response"] pre')
         .evaluate(node => node === document.activeElement), true, "Evidence is reachable with the keyboard.");
-      await complete.getByRole("button", { name: "Back to Run" }).click();
+      await complete.getByRole("button", { name: "Back to input" }).click();
       assert.equal(await page.getByText("Autonomous run result", { exact: true }).isVisible(), false);
       assert.equal(await page.locator(".agent-response").isVisible(), false);
-      assert.equal(await page.locator(".agent-tester [data-run-disclosure]").count(), 0);
+      assert.equal(await page.locator('.agent-tester [data-run-disclosure="raw-response"],'
+        + '.agent-tester [data-run-disclosure="submitted-input"]').count(), 0);
       assert.match(await page.locator(".agent-status-brief").innerText(), /Select View execution/);
+      const inputHeaderActions = page.locator(".agent-tester .event-runner-header .agent-input-header-actions");
+      assert.equal(await inputHeaderActions.locator("[data-clear-input]").count(), 1);
+      assert.equal(await inputHeaderActions.locator("[data-view-execution]").count(), 1);
+      await page.locator("[data-event-preset-select]").selectOption("loan.document.submitted");
+      await page.waitForFunction(() => !document.querySelector('[aria-label="Agent message"]')?.dataset.typing);
+      assert.notEqual(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "");
+      assert.equal(await page.locator("[data-event-preset-select]").inputValue(), "loan.document.submitted");
+      assert.equal(await page.locator(".document-attachment[data-document-id]").count(), 1);
+      await page.locator("[data-clear-input]").click();
+      assert.equal(await page.getByRole("textbox", { name: "Agent message", exact: true }).inputValue(), "");
+      assert.equal(await page.locator("[data-event-preset-select]").inputValue(), "");
+      assert.equal(await page.locator(".document-attachment[data-document-id]").count(), 0);
+      assert.equal(await page.locator("[data-view-execution]").count(), 1,
+        "Clearing draft input preserves the latest execution history.");
+      assert.equal(await page.locator("[data-clear-input]").isDisabled(), true);
       await page.locator("[data-view-execution]").click();
       assert.equal(await complete.locator('[data-run-disclosure="raw-response"]').evaluate(node => node.open), true);
       assert.equal(calls, 1, "Result review does not invoke again.");
-      await complete.getByRole("button", { name: "Back to Run" }).click();
+      await complete.getByRole("button", { name: "Back to input" }).click();
       fail = true;
       const requestStarted = new Promise(resolve => { onRequest = resolve; });
+      await page.getByRole("textbox", { name: "Agent message", exact: true }).fill("Retry inventory.");
       await page.getByRole("button", { name: "Invoke agent", exact: true }).click();
       await requestStarted;
       await execution.locator("text=Active").waitFor();
@@ -309,7 +328,9 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await failed.locator('[data-layer="execution"]').getAttribute("data-state"), "failed");
       assert.match(await failed.innerText(), /Backend execution may still be running/);
       assert.match(await failed.innerText(), /Synthetic request failure/);
-      await failed.getByRole("button", { name: "View logs" }).click();
+      assert.equal(await failed.locator(".run-execution-actions").getByRole("button", { name: "View logs" }).count(), 0);
+      await page.locator("#run-diagnostics-toggle").click();
+      await page.locator('[data-run-tab="output"]').click();
       await page.waitForFunction(() => document.activeElement?.getAttribute("data-run-tab") === "output");
       assert.equal(await page.locator('[data-run-tab="output"]').getAttribute("aria-selected"), "true");
       assert.equal(await page.locator('[data-run-tab="output"]').evaluate(node => node === document.activeElement), true);

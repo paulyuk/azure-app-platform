@@ -142,7 +142,7 @@ export function getRunExecutionLayers({
 }
 
 export function createRunExecutionView({
-  container, buttons, backIcon, checkIcon = "", alertIcon = "", icons = {}, getLayers, renderResults, onLogs, onReturn,
+  container, buttons, backIcon, checkIcon = "", alertIcon = "", icons = {}, getLayers, renderResults, onReturn,
 }) {
   let view, heading, summary, list, result, latest, resultSignature, previousState;
   const layers = new Map();
@@ -279,10 +279,7 @@ export function createRunExecutionView({
       const actions = append(view, "div", "", "run-execution-actions");
       const actionContent = append(actions, "div", "", "run-execution-actions-inner");
       buttons.append(actionContent, buttons.create({
-        children: "Back to Run", appearance: "subtle", icon: buttons.icon(backIcon), onClick: onReturn,
-      }));
-      buttons.append(actionContent, buttons.create({
-        children: "View logs", appearance: "secondary", onClick: onLogs,
+        children: "Back to input", appearance: "subtle", icon: buttons.icon(backIcon), onClick: onReturn,
       }));
       const body = append(view, "div", "", "run-execution-body");
       const content = append(body, "div", "", "run-execution-content");

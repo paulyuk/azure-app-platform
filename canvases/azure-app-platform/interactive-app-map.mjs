@@ -1195,7 +1195,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       checkIcon: ICONS.check, alertIcon: ICONS.alert, icons: ICONS,
       getLayers: (${getRunExecutionLayers.toString()}),
       renderResults: renderExecutionResults,
-      onLogs: () => runWorkspace.openDiagnostics("output"),
       onReturn: returnToRun,
     });
     const executionSnapshot = () => {
@@ -2715,6 +2714,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const tester = details.querySelector(".agent-tester");
       if (!tester) return;
       const busy = invokingAgent || documentTesting || documentLoading;
+      const clearInput = tester.querySelector("[data-clear-input]");
+      if (clearInput) {
+        const promptValue = agentPromptTyping ? agentPromptTyping.currentValue : agentPromptDraft;
+        const hasInput = Boolean(promptValue.trim() || selectedEventPresetId || agentDocuments.length
+          || documentPasteOpen || documentPasteDraft || documentError || documentTestNotice);
+        buttons.setDisabled(clearInput, busy || !hasInput);
+      }
       const canRun = canInvokeOrStartAgent();
       const supportsDocuments = Boolean(operationalState.readiness?.documentInput);
       for (const input of tester.querySelectorAll("textarea, input")) input.disabled = busy;
@@ -4204,7 +4210,48 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         entrypoint.ready && normalized(entrypoint.name) === "agent");
       const canRun = canInvokeOrStartAgent();
       const prompt = document.createElement("textarea");
-      appendText(tester, "strong", "Autonomous event / task payload");
+      const header = appendText(tester, "div", "", "event-runner-header");
+      const title = appendText(header, "div", "", "event-runner-title");
+      appendText(title, "strong", "Autonomous event / task payload");
+      const headerActions = appendText(header, "div", "", "agent-input-header-actions");
+      const clearInput = buttons.create({
+        children: "Clear input",
+        appearance: "subtle",
+        size: "small",
+        onClick: () => {
+          cancelAgentPromptTyping();
+          documentReadVersion += 1;
+          agentPromptTouched = true;
+          agentPromptDraft = "";
+          selectedEventPresetId = "";
+          agentDocuments = [];
+          documentError = "";
+          documentLoading = false;
+          documentPasteOpen = false;
+          documentEditMode = false;
+          documentEditId = null;
+          documentPasteDraft = "";
+          clearDocumentTestNotice();
+          clearDocumentAssessment();
+          renderManagePanel();
+          details.querySelector('.agent-tester textarea[aria-label="Agent message"]')
+            ?.focus({ preventScroll: true });
+        },
+      });
+      clearInput.dataset.clearInput = "true";
+      buttons.append(headerActions, clearInput);
+      if (agentRequestState !== "idle") {
+        const view = buttons.create({
+          children: "View execution",
+          appearance: "secondary",
+          size: "small",
+          icon: buttons.icon(ICONS["arrow-right"]),
+          iconPosition: "after",
+          onClick: renderExecutionPanel,
+        });
+        view.dataset.viewExecution = "true";
+        buttons.append(headerActions, view);
+      }
       renderEventPresetChips(tester, prompt);
       renderDocumentTest(tester);
       prompt.maxLength = 2000;
@@ -4229,6 +4276,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         } else if (documentTestNoticeKind === "both") {
           setDocumentTestNotice(SAMPLE_DOCUMENT_NOTICE, "document");
         }
+        const clear = tester.querySelector("[data-clear-input]");
+        if (clear) {
+          const busy = invokingAgent || documentTesting || documentLoading;
+          const hasInput = Boolean(agentPromptDraft.trim() || selectedEventPresetId || agentDocuments.length
+            || documentPasteOpen || documentPasteDraft || documentError || documentTestNotice);
+          buttons.setDisabled(clear, busy || !hasInput);
+        }
       });
       executionView.update(executionSnapshot());
       const actions = document.createElement("div");
@@ -4243,11 +4297,6 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       syncDocumentTestNotice(tester);
       renderDocumentInput(tester, dispatchActions);
       tester.append(actions);
-      if (agentRequestState !== "idle") {
-        const view = actionButton("View execution", renderExecutionPanel);
-        view.dataset.viewExecution = "true";
-        buttons.append(actions, view);
-      }
       container.append(tester);
       syncAgentInputControls();
     }

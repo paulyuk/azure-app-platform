@@ -55,9 +55,10 @@ summary accordion, and each layer opens inline as an accordion to inspect
 runtime, harness, policy, or MCP tool details. Startup and request states follow
 actual readiness and HTTP boundaries. Model and tool steps are not streamed:
 tool reports and policy stages appear when returned, and an unconfirmed tool
-call stays **Unverified**. **Back to Run** returns to the prompt without
-cancelling execution. Use **View execution** or workspace history to revisit the
-latest run, and **View logs** to inspect output alongside it.
+call stays **Unverified**. **Back to input** returns to the prompt without
+cancelling execution. Use **Clear input** to reset the task payload without
+discarding the latest run. **View execution** in the input header or workspace
+history revisits that run, while the **Output** tab exposes its logs.
 
 ### 3. Run canvas tests (maintainers)
 

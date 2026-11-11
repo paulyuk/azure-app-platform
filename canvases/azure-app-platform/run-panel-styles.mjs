@@ -219,6 +219,7 @@ body[data-workspace="build"] #workspace-diagnostics[data-diagnostics="closed"] {
 #details[data-mode="manage"] .document-paste[hidden] { display:none; }
 #details[data-mode="manage"] .event-runner-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
 #details[data-mode="manage"] .event-runner-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+#details[data-mode="manage"] .agent-input-header-actions { display:inline-flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap; }
 #details[data-mode="manage"] .event-preset-bar { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:2px 0 4px; }
 #details[data-mode="manage"] .event-preset-label { font-size:11px; font-weight:600; color:var(--studio-muted); margin-right:2px; }
 #details[data-mode="manage"] select.event-preset-select { width:auto; flex:0 1 260px; max-width:100%; height:28px; min-height:28px; padding:2px 8px; border-radius:6px; font:600 11px/1.3 var(--font-mono, ui-monospace, monospace); background:var(--studio-panel); border:1px solid var(--studio-line); color:var(--studio-ink); }
