@@ -65,6 +65,7 @@ import { assessDocumentResult } from "./document-assessment.mjs";
 import { readAgentHttpResponse } from "./agent-http-response.mjs";
 import { recordAppOpened } from "./app-recency.mjs";
 import { normalizeSandboxGroupCreateRequest } from "./sandbox-group-config.mjs";
+import { readLocalConnectionState } from "./connection-state.mjs";
 import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
@@ -154,7 +155,7 @@ function formatLogSourceLabel(prefix, entryName) {
 }
 
 function formatOutputLine(sourceLabel, line) {
-  if (/^\[(?:sandbox|gateway|agent|startup|shutdown|gateway-setup|provision|deploy)\]/i.test(line)) {
+  if (/^\[(?:sandbox(?:-[a-z0-9-]+)?|gateway|agent|http|startup|shutdown|gateway-setup|provision|deploy)\]/i.test(line)) {
     return line;
   }
   return `[${sourceLabel}] ${line}`;
@@ -164,7 +165,13 @@ async function readRuntimeOutput(root) {
   const run = appOutput.get(root);
   const lines = [];
   async function readLogs(directory, prefix = "") {
-    const entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    let entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    if (!prefix && entries.some((entry) => entry.name === "agent.log")) {
+      entries = [
+        ...entries.filter((entry) => entry.name !== "agent.log"),
+        ...entries.filter((entry) => entry.name === "agent.log"),
+      ];
+    }
     const logEntries = prefix === "azure-app-platform/"
       ? entries.filter((entry) => entry.isFile() && entry.name.endsWith(".log")).slice(-2)
       : entries;
@@ -184,13 +191,6 @@ async function readRuntimeOutput(root) {
     }
   }
   try {
-    if (run?.state !== "stopping") {
-      await readLogs(`${root}/.dev-run`);
-    }
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  try {
     await readLogs(commandLogDirectory(root), "azure-app-platform/");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -203,6 +203,13 @@ async function readRuntimeOutput(root) {
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
+  }
+  try {
+    if (run?.state !== "stopping") {
+      await readLogs(`${root}/.dev-run`);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
   }
   lines.push(...(run?.lines ?? []));
   return lines.slice(-400).map(redactActivityText);
@@ -1369,11 +1376,24 @@ async function resolveGatewayConfigCommand(root) {
 
 async function syncGatewayConfigScript(root, workspaceRoot) {
   const sourceName = process.platform === "win32" ? "configure-ai-gateway.ps1" : "configure-ai-gateway.sh";
-  const sourcePath = `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`;
   const targetPath = `${root}/infra-ai-gateway/scripts/${sourceName}`;
-  await access(sourcePath);
-  await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
-  await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
+  const candidateSources = [
+    fileURLToPath(new URL(`./templates/sandbox-gateway-minimal/infra-ai-gateway/scripts/${sourceName}`, import.meta.url)),
+    `${workspaceRoot}/infra-ai-gateway/scripts/${sourceName}`,
+  ];
+  for (const sourcePath of candidateSources) {
+    try {
+      await access(sourcePath);
+      await mkdir(`${root}/infra-ai-gateway/scripts`, { recursive: true });
+      if (sourcePath !== targetPath) {
+        await writeFile(targetPath, await readFile(sourcePath, "utf8"), "utf8");
+      }
+      return;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  await access(targetPath);
 }
 
 async function startAppCommand(root, command, args, state, options = {}) {
@@ -1424,7 +1444,8 @@ async function startAppCommand(root, command, args, state, options = {}) {
     child = spawn(resolvedCommand.command, resolvedCommand.args, {
       cwd: options.cwd ?? root,
       env: commandEnvironment,
-      detached: true,
+      detached: process.platform !== "win32",
+      windowsHide: true,
       stdio: ["ignore", logHandle.fd, logHandle.fd],
     });
   } catch (error) {
@@ -1701,6 +1722,15 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         inFlightLocalReadiness.delete(root);
       }
       sendJson(response, 200, await localReadiness(root));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/connection-state") {
+      const root = await resolveAuthorizedRoot(url.searchParams.get("root"), workspaceRoot, authorizedRoots);
+      if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Connection root is not an authorized app workspace.");
+      sendJson(response, 200, await readLocalConnectionState(root, {
+        activeGateway: await loadActiveGateway(root, { refresh: true }),
+        configuring: appStates.get(root)?.state === "configuring",
+      }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/gateway-options") {

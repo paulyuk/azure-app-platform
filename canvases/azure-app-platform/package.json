@@ -1,6 +1,6 @@
 {
   "name": "azure-app-platform",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "type": "module",
   "main": "extension.mjs",
   "private": true,
@@ -11,6 +11,10 @@
     "vendor:icons": "node scripts/prepare-octicons.mjs",
     "vendor:toolkit": "node scripts/prepare-toolkit-assets.mjs",
     "check:toolkit": "node scripts/prepare-toolkit-assets.mjs --check"
+  },
+  "devDependencies": {
+    "@primer/octicons": "19.41.0",
+    "prismjs": "1.30.0"
   },
   "keywords": [
     "azure-app-platform",

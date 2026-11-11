@@ -508,8 +508,9 @@ export async function requestAppWorkspace({
   const request = normalizeWorkspaceRequest(input);
   if (request.openInEditor) request.editorId ??= (await readEditorSettings()).editorId;
   const branchResult = await commandRunner("git", ["-C", workspaceRoot, "branch", "--show-current"]);
-  const baseBranch = branchResult.stdout?.trim();
-  if (!branchResult.ok || !baseBranch) {
+  const baseBranch = branchResult.ok ? branchResult.stdout?.trim() || null : null;
+  const nonGitWorkspace = !branchResult.ok && /not a git repository/i.test(branchResult.stderr || branchResult.error || "");
+  if ((!branchResult.ok || !baseBranch) && !(nonGitWorkspace && request.starterKind === "template")) {
     throw new Error(`Could not determine the current branch: ${branchResult.stderr || branchResult.error || "unknown error"}`);
   }
   if (request.mode === "extend" && request.sourceProjectPath) {
@@ -625,18 +626,27 @@ async function createTemplateWorkspace({
   onProgress?.("Creating app workspace...");
   const destination = await mkdtemp(join(dirname(workspaceRoot), `${appSlug(request.appName)}-`));
   const branch = `${appSlug(request.appName)}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-  const worktree = await commandRunner("git", [
-    "-C",
-    workspaceRoot,
-    "worktree",
-    "add",
-    "--no-checkout",
-    "-b",
-    branch,
-    destination,
-    baseBranch,
-  ]);
+  const worktree = baseBranch
+    ? await commandRunner("git", [
+        "-C",
+        workspaceRoot,
+        "worktree",
+        "add",
+        "--no-checkout",
+        "-b",
+        branch,
+        destination,
+        baseBranch,
+      ])
+    : await commandRunner("git", [
+        "-C",
+        destination,
+        "init",
+        "-b",
+        branch,
+      ]);
   if (!worktree.ok) {
+    await rm(destination, { recursive: true, force: true });
     throw new Error(`Could not create the app worktree: ${worktree.stderr || worktree.error || "unknown error"}`);
   }
   try {
@@ -662,6 +672,9 @@ async function createTemplateWorkspace({
     const portSettings = await pickAvailablePorts(destination, identity.runtime?.entrypoints ?? [], async () => {
       const listed = await commandRunner("git", ["-C", workspaceRoot, "worktree", "list", "--porcelain"]);
       if (!listed.ok) {
+        if (/not a git repository/i.test(listed.stderr || listed.error || "")) {
+          return reservedPortsForApps([workspaceRoot], destination);
+        }
         throw new Error(`Could not inspect existing app port assignments: ${listed.stderr || listed.error || "unknown error"}`);
       }
       return reservedPortsForApps([workspaceRoot, ...parseWorktrees(listed.stdout).map((tree) => tree.path)], destination);
@@ -722,8 +735,12 @@ async function createTemplateWorkspace({
       editorWarning,
     };
   } catch (error) {
-    await commandRunner("git", ["-C", workspaceRoot, "worktree", "remove", "--force", destination]);
-    await commandRunner("git", ["-C", workspaceRoot, "branch", "-D", branch]);
+    if (baseBranch) {
+      await commandRunner("git", ["-C", workspaceRoot, "worktree", "remove", "--force", destination]);
+      await commandRunner("git", ["-C", workspaceRoot, "branch", "-D", branch]);
+    } else {
+      await rm(destination, { recursive: true, force: true });
+    }
     throw error;
   }
 }
