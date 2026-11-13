@@ -2,7 +2,7 @@
   "name": "azure-app-platform",
   "metadata": {
     "description": "GitHub Copilot App canvas for Azure App Platform: build, assemble, trace, and operate multi-tier agentic applications centered on ACA Sandboxes.",
-    "version": "0.5.4"
+    "version": "0.5.5"
   },
   "owner": {
     "name": "Cloud Foundation",
@@ -13,7 +13,7 @@
       "name": "azure-app-platform",
       "source": "canvases/azure-app-platform",
       "description": "Azure App Platform inventories, traces, and operates multi-tier agentic applications centered on ACA Sandboxes.",
-      "version": "0.5.4"
+      "version": "0.5.5"
     }
   ]
 }
