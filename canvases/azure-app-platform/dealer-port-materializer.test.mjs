@@ -290,6 +290,7 @@ test("POSIX launcher wires allocated ports through every Dealer process", async 
   await writeFile(join(root, "src", "agent", ".env"), [
     "AZURE_AI_GATEWAY_ENDPOINT=https://gateway.example",
     "AZURE_AI_GATEWAY_API_KEY=test-key",
+    "AZURE_AI_GATEWAY_MINI_MODEL=gpt-5-mini",
     "",
   ].join("\n"));
 
@@ -405,6 +406,9 @@ exec node "$SCRIPT_DIR/server.mjs" "$port"
       assert.match(settings.Values.AzureWebJobsStorage, new RegExp(`QueueEndpoint=http://127\\.0\\.0\\.1:${queuePort}/`));
       assert.match(settings.Values.AzureWebJobsStorage, new RegExp(`TableEndpoint=http://127\\.0\\.0\\.1:${tablePort}/`));
       assert.notEqual(settings.Values.AzureWebJobsStorage, "UseDevelopmentStorage=true");
+      assert.equal(settings.Values.OPENAI_BASE_URL, "https://gateway.example/default/models/openai/v1/");
+      assert.equal(settings.Values.OPENAI_CUSTOM_HEADERS, "Api-Key: test-key");
+      assert.equal(settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL, "gpt-5-mini");
     }
   } finally {
     await execFileAsync(join(root, "scripts", "dev-stop.sh"), [], { cwd: root, env });

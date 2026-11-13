@@ -291,10 +291,15 @@ if ((SKIP_SKILLS == 0)); then
   agent_env="$REPO_ROOT/src/agent/.env"
   gateway_endpoint=""
   gateway_key=""
+  gateway_model=""
   if [[ -f "$agent_env" ]]; then
     gateway_endpoint="$(sed -n 's/^[[:space:]]*AZURE_AI_GATEWAY_ENDPOINT[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$agent_env" | head -n 1)"
     gateway_endpoint="${gateway_endpoint%/}"
     gateway_key="$(sed -n 's/^[[:space:]]*AZURE_AI_GATEWAY_API_KEY[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$agent_env" | head -n 1)"
+    for model_key in AZURE_AI_GATEWAY_MINI_MODEL AZURE_AI_GATEWAY_MODEL AI_GATEWAY_MODEL OPENAI_MODEL; do
+      gateway_model="$(sed -n "s/^[[:space:]]*${model_key}[[:space:]]*=[[:space:]]*\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}[[:space:]]*\$/\\1/p" "$agent_env" | head -n 1)"
+      [[ -n "$gateway_model" ]] && break
+    done
   fi
 
   for i in "${!skill_names[@]}"; do
@@ -312,7 +317,7 @@ if ((SKIP_SKILLS == 0)); then
     fi
 
     if ! SETTINGS_PATH="$settings" SETTINGS_EXAMPLE="$example" \
-      GATEWAY_ENDPOINT="$gateway_endpoint" GATEWAY_KEY="$gateway_key" \
+      GATEWAY_ENDPOINT="$gateway_endpoint" GATEWAY_KEY="$gateway_key" GATEWAY_MODEL="$gateway_model" \
       AZURITE_CONNECTION_STRING="$AZURITE_CONNECTION_STRING" node <<'NODE'
 const fs = require("node:fs");
 const path = process.env.SETTINGS_PATH;
@@ -327,6 +332,29 @@ if (fs.existsSync(path)) {
 const settings = JSON.parse(source);
 settings.Values ||= {};
 settings.Values.AzureWebJobsStorage = process.env.AZURITE_CONNECTION_STRING;
+if (settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER !== "foundry") {
+  if (process.env.GATEWAY_ENDPOINT && (
+    !settings.Values.OPENAI_BASE_URL
+    || settings.Values.OPENAI_BASE_URL.includes("<AZURE_AI_GATEWAY_ENDPOINT>")
+    || settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER === "openai"
+  )) {
+    settings.Values.OPENAI_BASE_URL = `${process.env.GATEWAY_ENDPOINT}/default/models/openai/v1/`;
+  }
+  if (process.env.GATEWAY_KEY && (
+    !settings.Values.OPENAI_CUSTOM_HEADERS
+    || settings.Values.OPENAI_CUSTOM_HEADERS.includes("<AZURE_AI_GATEWAY_API_KEY>")
+    || settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER === "openai"
+  )) {
+    settings.Values.OPENAI_CUSTOM_HEADERS = `Api-Key: ${process.env.GATEWAY_KEY}`;
+  }
+  if (process.env.GATEWAY_MODEL && (
+    !settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL
+    || settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL.includes("<")
+    || settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER === "openai"
+  )) {
+    settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL = process.env.GATEWAY_MODEL;
+  }
+}
 fs.writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
 NODE
     then

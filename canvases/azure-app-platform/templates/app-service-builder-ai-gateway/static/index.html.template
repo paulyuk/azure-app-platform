@@ -45,7 +45,8 @@
           <button
             class="prompt-card"
             type="button"
-            data-prompt="Explain how App Service Builder and Azure AI Gateway work together in three bullets."
+            data-prompt="Summarize this document, highlight key risks, and list recommended next steps."
+            data-attach-sample="true"
           >
             <span class="prompt-icon" aria-hidden="true">
               <svg viewBox="0 0 20 20" focusable="false">
@@ -53,8 +54,8 @@
               </svg>
             </span>
             <span>
-              <strong>How it works</strong>
-              <small>App Service Builder and AI Gateway</small>
+              <strong>Summarize sample doc</strong>
+              <small>Extract key risks and next steps</small>
             </span>
           </button>
           <button
@@ -109,6 +110,62 @@
         </div>
 
         <form id="chat-form" class="composer" novalidate>
+          <div class="doc-toolbar" aria-label="Document context">
+            <input
+              id="document-file-input"
+              type="file"
+              accept=".txt,.md,.markdown,.json,.csv,.log,.py,.ts,.js,.yaml,.yml,.html,.xml"
+              hidden
+            />
+            <div class="doc-toolbar-actions">
+              <button
+                id="upload-doc-button"
+                class="button doc-button"
+                data-appearance="subtle"
+                type="button"
+              >
+                Upload file
+              </button>
+              <button
+                id="sample-doc-button"
+                class="button doc-button"
+                data-appearance="subtle"
+                type="button"
+              >
+                Use sample doc
+              </button>
+              <button
+                id="paste-doc-button"
+                class="button doc-button"
+                data-appearance="subtle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="document-paste-panel"
+              >
+                Paste text
+              </button>
+            </div>
+            <div id="document-chip" class="doc-chip" hidden>
+              <span id="document-chip-name" class="doc-chip-name"></span>
+              <button
+                id="remove-doc-button"
+                class="doc-chip-remove"
+                type="button"
+                aria-label="Remove attached document"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <div id="document-paste-panel" class="doc-paste-panel" hidden>
+            <label class="sr-only" for="document-paste-input">Document text</label>
+            <textarea
+              id="document-paste-input"
+              rows="3"
+              maxlength="12000"
+              placeholder="Paste document text here to ground your questions…"
+            ></textarea>
+          </div>
           <div class="composer-row">
             <label class="sr-only" for="prompt-input">Message the agent</label>
             <textarea

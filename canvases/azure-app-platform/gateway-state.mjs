@@ -308,6 +308,8 @@ export async function discoverGatewayModels(commandRunner, gateway) {
   let restSucceeded = false;
   for (const resourceType of resourceTypes) {
     const modelsUri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/${resourceType}/${segments[2]}/workspaces/default/models?api-version=2025-09-01-preview`;
+    const aliasesUri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/${resourceType}/${segments[2]}/workspaces/default/aliases?api-version=2025-09-01-preview`;
+    const aliasPromise = commandRunner("az", ["rest", "--method", "get", "--uri", aliasesUri, "-o", "json"]).catch(() => null);
     const items = [];
     const seen = new Set();
     let next = modelsUri;
@@ -350,8 +352,7 @@ export async function discoverGatewayModels(commandRunner, gateway) {
           kind: "model",
         }));
       }
-      const aliasesUri = `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/${resourceType}/${segments[2]}/workspaces/default/aliases?api-version=2025-09-01-preview`;
-      const aliasResult = await commandRunner("az", ["rest", "--method", "get", "--uri", aliasesUri, "-o", "json"]);
+      const aliasResult = await aliasPromise;
       if (aliasResult?.ok && aliasResult.stdout) {
         try {
           const aliasPayload = JSON.parse(aliasResult.stdout);

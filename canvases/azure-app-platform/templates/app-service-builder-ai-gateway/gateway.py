@@ -14,7 +14,8 @@ from config import SampleConfig
 
 AGENT_NAME = "app-service-builder-agent"
 AGENT_INSTRUCTIONS = (
-    "You are a concise Azure App Service Builder and Azure AI Gateway sample assistant. "
+    "You are a concise Azure App Service Builder and Azure AI Gateway document assistant. "
+    "When the user attaches or pastes a document, ground your summary, extraction, or answer in that document and cite key details clearly. "
     "Answer the user's question directly and keep responses practical."
 )
 REQUEST_TIMEOUT_SECONDS = 30.0

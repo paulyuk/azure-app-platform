@@ -1093,7 +1093,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     const sandboxBoundary = (${createSandboxBoundaryTools.toString()})();
     const hasDealershipSkill = MODEL.nodes.some((node) => /inventory|trade-in|rate-sheet|deal-doc/i.test(node.name));
     let agentPromptDraft = hasDealershipSkill
-      ? "Find a family SUV under $38,000 and estimate my monthly payment"
+      ? "Find me an EV under $40,000 with at least 250 miles of range"
       : hasSandboxNode
         ? "Process document"
         : "Summarize how you can help and run a sample check";
@@ -1613,7 +1613,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       headerRuntimeAction.title = actionLabel;
       syncRuntimePlacement();
       buttons.update(openAppAction, { hidden: !runtimeEntrypoints.some(entry =>
-        entry.ready && normalized(entry.name) === "web") });
+        entry.ready && (entry.kind === "web" || normalized(entry.name) === "web" || normalized(entry.name).startsWith("web-"))) });
       updateAgentStatusBrief();
     }
 
@@ -1637,8 +1637,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       }
     }
 
+    function isWebRuntimeEntry(entry) {
+      if (!entry) return false;
+      const name = normalized(entry.name);
+      return entry.kind === "web" || name === "web" || name.startsWith("web-");
+    }
+
     function hasWebEntrypoint() {
-      return hasWebNode || runtimeEntrypoints.some((entry) => normalized(entry.name) === "web");
+      return hasWebNode || runtimeEntrypoints.some((entry) => isWebRuntimeEntry(entry));
     }
 
     function hasAgentEntrypoint() {
@@ -1649,7 +1655,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const { app, readiness } = operationalState;
       const webPresent = hasWebEntrypoint();
       const agentPresent = hasAgentEntrypoint();
-      const webEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "web");
+      const webEntries = runtimeEntrypoints.filter((entry) => isWebRuntimeEntry(entry));
+      const readyWebEntries = webEntries.filter((entry) => entry.ready);
+      const webEntry = readyWebEntries[0] || webEntries[0] || runtimeEntrypoints.find((entry) => normalized(entry.name) === "web");
       const agentEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "agent");
       const status = getAgentStatus({
         ...operationalState,
@@ -1664,21 +1672,25 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const prerequisites = readiness?.prerequisites?.missingTools || [];
       const busy = Boolean(lifecycleOperation) || invokingAgent || documentTesting || documentLoading;
       const actions = [];
-      if (webPresent && !agentPresent && webEntry?.ready) {
-        actions.push({
-          key: "open-web-app",
-          label: "Open web app",
-          onClick: async () => {
-            try {
-              await apiRequest("/api/open-entrypoint", {
-                method: "POST",
-                body: JSON.stringify({ root: MODEL.root, port: webEntry.port }),
-              });
-            } catch (error) {
-              setStatus(error.message, true);
-            }
-          },
-        });
+      if (webPresent && readyWebEntries.length > 0) {
+        for (const targetWebEntry of readyWebEntries) {
+          const single = readyWebEntries.length === 1;
+          const cleanName = String(targetWebEntry.name || "web").replace(/^web[-_]?/i, "").trim();
+          actions.push({
+            key: single ? "open-web-app" : "open-web-app-" + targetWebEntry.port,
+            label: single || !cleanName ? "Open web app" : "Open " + cleanName + " web app",
+            onClick: async () => {
+              try {
+                await apiRequest("/api/open-entrypoint", {
+                  method: "POST",
+                  body: JSON.stringify({ root: MODEL.root, port: targetWebEntry.port }),
+                });
+              } catch (error) {
+                setStatus(error.message, true);
+              }
+            },
+          });
+        }
       } else if (webPresent && !agentPresent && app?.state === "stopped" && readiness?.ready) {
         actions.push({
           key: "build-run-web-app",
@@ -2551,9 +2563,14 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
 
     function entrypointForNode(node) {
       const names = [node.name, node.projectPath.split("/").pop()].map(normalized).filter(Boolean);
+      const specificMatch = runtimeEntrypoints.find((entrypoint) => {
+        const candidate = normalized(entrypoint.name);
+        return names.some((name) => candidate === "web-" + name || candidate === name || candidate.includes(name));
+      });
+      if (specificMatch) return specificMatch;
       return runtimeEntrypoints.find((entrypoint) => {
         const candidate = normalized(entrypoint.name);
-        if (node.tierId === "web" && candidate === "web") return true;
+        if (node.tierId === "web" && isWebRuntimeEntry(entrypoint)) return true;
         if (node.tierId === "agent" && candidate === "agent") return true;
         return names.some((name) => candidate.includes(name) || name.includes(candidate));
       });
@@ -5419,7 +5436,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       buttons.append(actions, actionButton("Open tier studio", () => openTierStudio(tier)));
       const entrypoint = entrypointForNode(node);
       if (entrypoint?.ready) {
-        buttons.append(actions, actionButton("Open local endpoint", async () => {
+        buttons.append(actions, actionButton(node.tierId === "web" ? "Open web app" : "Open local endpoint", async () => {
           try {
             await apiRequest("/api/open-entrypoint", {
               method: "POST",
@@ -5767,7 +5784,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     });
     document.querySelector("#logs-app").addEventListener("click", () => renderLogsPanel());
     document.querySelector("#header-open-app").addEventListener("click", async () => {
-      const web = runtimeEntrypoints.find(entry => entry.ready && normalized(entry.name) === "web");
+      const web = runtimeEntrypoints.find(entry => entry.ready && isWebRuntimeEntry(entry));
       if (!web) {
         setStatus("No ready web entrypoint is available. Start the app before opening it.", true);
         return;

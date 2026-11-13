@@ -376,10 +376,21 @@ if (-not $SkipSkills) {
     $agentEnvFile = Join-Path $RepoRoot 'src\agent\.env'
     $gatewayEndpoint = $null
     $gatewayKey = $null
+    $gatewayModel = $null
     if (Test-Path $agentEnvFile) {
-        foreach ($line in Get-Content $agentEnvFile) {
+        $envLines = Get-Content $agentEnvFile
+        foreach ($line in $envLines) {
             if ($line -match '^\s*AZURE_AI_GATEWAY_ENDPOINT\s*=\s*"?([^"]+)"?\s*$') { $gatewayEndpoint = $Matches[1].TrimEnd('/') }
             if ($line -match '^\s*AZURE_AI_GATEWAY_API_KEY\s*=\s*"?([^"]+)"?\s*$') { $gatewayKey = $Matches[1] }
+        }
+        foreach ($modelKey in @('AZURE_AI_GATEWAY_MINI_MODEL', 'AZURE_AI_GATEWAY_MODEL', 'AI_GATEWAY_MODEL', 'OPENAI_MODEL')) {
+            foreach ($line in $envLines) {
+                if ($line -match "^\s*$modelKey\s*=\s*`"?([^`"]+)`"?\s*$") {
+                    $gatewayModel = $Matches[1].Trim()
+                    break
+                }
+            }
+            if ($gatewayModel) { break }
         }
     }
 
@@ -409,6 +420,17 @@ if (-not $SkipSkills) {
                 $settings.Values.AzureWebJobsStorage = $storageConnectionString
             } else {
                 $settings.Values | Add-Member -NotePropertyName AzureWebJobsStorage -NotePropertyValue $storageConnectionString
+            }
+            if ($settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER -ne 'foundry') {
+                if ($gatewayEndpoint -and (-not $settings.Values.OPENAI_BASE_URL -or $settings.Values.OPENAI_BASE_URL -like '*<AZURE_AI_GATEWAY_ENDPOINT>*' -or $settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER -eq 'openai')) {
+                    $settings.Values | Add-Member -NotePropertyName OPENAI_BASE_URL -NotePropertyValue "$gatewayEndpoint/default/models/openai/v1/" -Force
+                }
+                if ($gatewayKey -and (-not $settings.Values.OPENAI_CUSTOM_HEADERS -or $settings.Values.OPENAI_CUSTOM_HEADERS -like '*<AZURE_AI_GATEWAY_API_KEY>*' -or $settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER -eq 'openai')) {
+                    $settings.Values | Add-Member -NotePropertyName OPENAI_CUSTOM_HEADERS -NotePropertyValue "Api-Key: $gatewayKey" -Force
+                }
+                if ($gatewayModel -and (-not $settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL -or $settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL -like '*<*' -or $settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER -eq 'openai')) {
+                    $settings.Values | Add-Member -NotePropertyName AZURE_FUNCTIONS_AGENTS_MODEL -NotePropertyValue $gatewayModel -Force
+                }
             }
             $settings | ConvertTo-Json -Depth 20 | Set-Content -Path $localSettings -Encoding utf8
         } catch {

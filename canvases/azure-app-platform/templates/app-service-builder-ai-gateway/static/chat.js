@@ -7,10 +7,21 @@ const sendButton = document.querySelector("#send-button");
 const stopButton = document.querySelector("#stop-button");
 const clearButton = document.querySelector("#clear-button");
 const promptButtons = Array.from(document.querySelectorAll("[data-prompt]"));
+const fileInput = document.querySelector("#document-file-input");
+const uploadDocButton = document.querySelector("#upload-doc-button");
+const sampleDocButton = document.querySelector("#sample-doc-button");
+const pasteDocButton = document.querySelector("#paste-doc-button");
+const documentChip = document.querySelector("#document-chip");
+const documentChipName = document.querySelector("#document-chip-name");
+const removeDocButton = document.querySelector("#remove-doc-button");
+const documentPastePanel = document.querySelector("#document-paste-panel");
+const documentPasteInput = document.querySelector("#document-paste-input");
 
 const idleHint = "Enter to send · Shift + Enter for a new line";
 const maxMessages = 12;
+const maxDocumentChars = 12000;
 let messages = [];
+let attachedDocument = null;
 let activeController = null;
 
 function hasMessages() {
@@ -34,11 +45,65 @@ function setBusy(isBusy) {
   input.disabled = isBusy;
   sendButton.disabled = isBusy;
   stopButton.hidden = !isBusy;
+  if (uploadDocButton) uploadDocButton.disabled = isBusy;
+  if (sampleDocButton) sampleDocButton.disabled = isBusy;
+  if (pasteDocButton) pasteDocButton.disabled = isBusy;
+  if (removeDocButton) removeDocButton.disabled = isBusy;
+  if (documentPasteInput) documentPasteInput.disabled = isBusy;
   transcript.setAttribute("aria-busy", String(isBusy));
   promptButtons.forEach((button) => {
     button.disabled = isBusy;
   });
   updateClearButton();
+}
+
+function setAttachedDocument(doc) {
+  if (!doc || !doc.content || !doc.content.trim()) {
+    attachedDocument = null;
+    if (documentChip) documentChip.hidden = true;
+    if (documentChipName) documentChipName.textContent = "";
+    return;
+  }
+  const trimmed = doc.content.trim().slice(0, maxDocumentChars);
+  const name = (doc.name || "document.txt").trim().slice(0, 120) || "document.txt";
+  attachedDocument = { name, content: trimmed };
+  if (documentChipName) {
+    documentChipName.textContent = `${name} (${trimmed.length.toLocaleString()} chars)`;
+  }
+  if (documentChip) {
+    documentChip.hidden = false;
+  }
+}
+
+async function ensureSampleDocumentAttached() {
+  if (attachedDocument) {
+    return attachedDocument;
+  }
+  try {
+    const response = await fetch("/api/sample-document");
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload && typeof payload.content === "string" && payload.content.trim()) {
+        setAttachedDocument({
+          name: typeof payload.name === "string" ? payload.name : "sample-document.md",
+          content: payload.content,
+        });
+        return attachedDocument;
+      }
+    }
+  } catch {
+    // Fall back to inline sample below if endpoint is unreachable
+  }
+  setAttachedDocument({
+    name: "sample-document.md",
+    content:
+      "# Service Architecture & Launch Checklist\n\n" +
+      "- **Service**: Northwind Customer Portal (`northwind-portal-prod`)\n" +
+      "- **Frontend**: Azure App Service Builder (`builder.yaml`, Python 3.12 + FastAPI)\n" +
+      "- **Model Governance**: Azure AI Gateway (`gw-northwind-prod`)\n" +
+      "- **Open Risk**: Regional failover alias `chat-fallback` is not yet bound in `eastus2`.\n",
+  });
+  return attachedDocument;
 }
 
 function appendInlineContent(parent, text) {
@@ -236,7 +301,15 @@ function parseEventBlock(block) {
 }
 
 async function submitPrompt(prompt) {
-  appendMessage("user", prompt);
+  if (documentPastePanel && !documentPastePanel.hidden && documentPasteInput) {
+    const pasted = documentPasteInput.value.trim();
+    if (pasted) {
+      setAttachedDocument({ name: "pasted-document.txt", content: pasted });
+    }
+  }
+  const activeDoc = attachedDocument;
+  const userDisplay = activeDoc ? `[Attached: ${activeDoc.name}]\n${prompt}` : prompt;
+  appendMessage("user", userDisplay);
   messages.push({ role: "user", content: prompt });
   messages = messages.slice(-maxMessages);
   const assistantBody = appendMessage("assistant", "Thinking…");
@@ -249,12 +322,15 @@ async function submitPrompt(prompt) {
   let buffer = "";
 
   try {
+    const requestPayload = activeDoc
+      ? { messages, document: activeDoc }
+      : { messages };
     const response = await fetch("/api/chat/stream", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(requestPayload),
       signal: activeController.signal,
     });
 
@@ -346,11 +422,84 @@ input.addEventListener("keydown", (event) => {
 });
 
 promptButtons.forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
+    if (button.dataset.attachSample === "true" && !attachedDocument) {
+      await ensureSampleDocumentAttached();
+    }
     input.value = button.dataset.prompt || "";
     form.requestSubmit();
   });
 });
+
+if (uploadDocButton && fileInput) {
+  uploadDocButton.addEventListener("click", () => {
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.text();
+      setAttachedDocument({ name: file.name, content });
+      if (documentPastePanel) {
+        documentPastePanel.hidden = true;
+        pasteDocButton?.setAttribute("aria-expanded", "false");
+      }
+      setStatus(`Attached ${file.name}. Ask a question or click Send.`);
+      if (!input.value.trim()) {
+        input.value = "Summarize this document, highlight key risks, and list recommended next steps.";
+      }
+    } catch {
+      setStatus("Could not read that file. Try a plain-text or Markdown document.", "danger");
+    } finally {
+      fileInput.value = "";
+    }
+  });
+}
+
+if (sampleDocButton) {
+  sampleDocButton.addEventListener("click", async () => {
+    const doc = await ensureSampleDocumentAttached();
+    if (doc) {
+      setStatus(`Attached ${doc.name}. Ask a question or click Send.`);
+      if (!input.value.trim()) {
+        input.value = "Summarize this document, highlight key risks, and list recommended next steps.";
+      }
+      input.focus();
+    }
+  });
+}
+
+if (pasteDocButton && documentPastePanel && documentPasteInput) {
+  pasteDocButton.addEventListener("click", () => {
+    const nextHidden = !documentPastePanel.hidden;
+    documentPastePanel.hidden = nextHidden;
+    pasteDocButton.setAttribute("aria-expanded", String(!nextHidden));
+    if (!nextHidden) {
+      documentPasteInput.focus();
+    }
+  });
+  documentPasteInput.addEventListener("input", () => {
+    const text = documentPasteInput.value.trim();
+    if (text) {
+      setAttachedDocument({ name: "pasted-document.txt", content: text });
+    } else if (attachedDocument?.name === "pasted-document.txt") {
+      setAttachedDocument(null);
+    }
+  });
+}
+
+if (removeDocButton) {
+  removeDocButton.addEventListener("click", () => {
+    setAttachedDocument(null);
+    if (documentPasteInput) documentPasteInput.value = "";
+    if (documentPastePanel) {
+      documentPastePanel.hidden = true;
+      pasteDocButton?.setAttribute("aria-expanded", "false");
+    }
+    setStatus(idleHint);
+  });
+}
 
 stopButton.addEventListener("click", () => {
   activeController?.abort();
@@ -384,8 +533,8 @@ function mapErrorCode(status, code) {
   if (status === 403 || code === "same_origin_required") {
     return "Requests must originate from this app.";
   }
-  if (status === 413 || code === "payload_too_large" || code === "messages_too_long") {
-    return "The conversation is too large. Clear it and try a shorter prompt.";
+  if (status === 413 || code === "payload_too_large" || code === "messages_too_long" || code === "document_too_long") {
+    return "The conversation or attached document is too large. Try a shorter document or clear the chat.";
   }
   if (code === "upstream_unavailable") {
     return "The model connection is unavailable. Check your gateway settings and try again.";

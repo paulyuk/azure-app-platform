@@ -213,6 +213,33 @@ def test_chat_stream_validates_payload_and_streams_sse() -> None:
         assert "event: done\ndata: {}\n\n" in response.text
         assert service.calls == [[{"role": "user", "content": "Explain the gateway"}]]
 
+        sample_doc = client.get("/api/sample-document")
+        assert sample_doc.status_code == 200
+        assert "Northwind Customer Portal" in sample_doc.json()["content"]
+
+        with_doc = client.post(
+            "/api/chat/stream",
+            headers={"Origin": config.origin},
+            json={
+                "messages": [{"role": "user", "content": "Summarize key risks"}],
+                "document": {"name": "notes.md", "content": "Risk: regional failover missing."},
+            },
+        )
+        assert with_doc.status_code == 200
+        assert "Attached document (notes.md):" in service.calls[-1][0]["content"]
+        assert "Risk: regional failover missing." in service.calls[-1][0]["content"]
+
+        invoked = client.post(
+            "/invoke",
+            json={
+                "prompt": "Summarize key risks",
+                "document": {"name": "notes.md", "content": "Risk: regional failover missing."},
+            },
+        )
+        assert invoked.status_code == 200
+        assert invoked.json()["status"] == "ok"
+        assert invoked.json()["response"] == "Azure AI Gateway"
+
 
 def test_chat_stream_reports_upstream_errors_in_sse() -> None:
     config = make_config()
