@@ -59,6 +59,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.getByRole("navigation", { name: "App workspaces", exact: true }).isVisible(), true);
       assert.equal(await view.locator(".run-execution-actions").getByRole("button", { name: "View logs" }).count(), 0);
       await runtime.locator("text=Starting services and waiting for the agent endpoint.").waitFor();
+      await page.locator("[data-invocation-stage]").filter({ hasText: "Waiting for agent endpoint" }).waitFor();
       assert.equal(await page.locator(".agent-tester").getByText("Autonomous run result").count(), 0);
       assert.equal(await page.locator(".agent-tester .agent-response, .agent-tester [data-run-evidence]").count(), 0);
       assert.equal(await runtime.getAttribute("data-state"), "active");
@@ -69,6 +70,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       available = true;
       fixture.state.app = "running";
       await execution.locator("text=Active").waitFor();
+      await page.locator("[data-invocation-stage]").filter({ hasText: "Waiting for response" }).waitFor();
       assert.equal(await runtime.getAttribute("data-state"), "succeeded");
       assert.equal(await runtime.locator('.run-execution-mark svg[data-octicon="check"]').count(), 1);
       assert.deepEqual(await runtime.evaluate(node => {
@@ -329,7 +331,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await failed.innerText(), /Backend execution may still be running/);
       assert.match(await failed.innerText(), /Synthetic request failure/);
       assert.equal(await failed.locator(".run-execution-actions").getByRole("button", { name: "View logs" }).count(), 0);
-      await page.locator("#run-diagnostics-toggle").click();
+      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
       await page.locator('[data-run-tab="output"]').click();
       await page.waitForFunction(() => document.activeElement?.getAttribute("data-run-tab") === "output");
       assert.equal(await page.locator('[data-run-tab="output"]').getAttribute("aria-selected"), "true");

@@ -250,7 +250,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.locator('.agent-response[data-state="failed"]').waitFor();
       assert.match(await page.locator(".agent-response").innerText(), /Simulated agent failure/);
       assert.equal(await badge.count(), 0, "Invocation errors stay in their result, not global diagnostics.");
-      assert.equal(await dock.isVisible(), false);
+      assert.equal(await dock.isVisible(), true, "A valid invocation opens Output alongside its failure result.");
       assert.equal(fixture.mutations.filter(item => item.path === "/api/app-command").length, 0);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); await fixture.close(); }
@@ -482,7 +482,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.match(await page.locator(".agent-response").innerText(), /Simulated task failure/);
       assert.equal(await status.getAttribute("role"), "status");
       assert.ok(await status.evaluate(node => node.classList.contains("visually-hidden")));
-      assert.equal(await logs.getAttribute("aria-expanded"), "false");
+      assert.equal(await logs.getAttribute("aria-expanded"), "true", "The invocation opens Output.");
       assert.equal(await logs.locator(".logs-warning-badge").count(), 0);
       await returnToRun(page);
       await page.locator("#map-app").click();

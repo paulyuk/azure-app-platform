@@ -71,6 +71,15 @@ call stays **Unverified**. **Back to input** returns to the prompt without
 cancelling execution. Use **Clear input** to reset the task payload without
 discarding the latest run. **View execution** in the input header or workspace
 history revisits that run, while the **Output** tab exposes its logs.
+Starting a valid invocation opens **Output** alongside execution. Collapse it
+to keep the current request stage and recognized error and warning line counts
+visible; expand it again for details. Counts cover only the latest loaded
+shared, bounded log tail, may include other activity, and are not unique
+issues or a complete invocation trace. They recognize explicit severity
+labels, tracebacks, and certain HTTP error statuses, so other problems may be
+missed. Output is grouped by source, not a timeline. Filter by observed prefix
+or severity, or pause the displayed lines while polling and counts continue.
+The **New output** cue indicates changes without claiming an exact line count.
 
 **Connect** shows this app's saved gateway, model, and sandbox selection from
 local configuration before refreshing Azure resources in the background. An
