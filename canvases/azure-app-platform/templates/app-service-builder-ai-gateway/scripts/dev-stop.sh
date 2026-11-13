@@ -1,42 +1,31 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -u
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUN_DIR="$ROOT/.dev-run"
 PID_DIR="$ROOT/.dev-pids"
 
-source "$ROOT/scripts/load-ports.sh"
-load_app_ports "$ROOT"
-
 kill_tree() {
-  local target_pid="$1"
-  if [ -z "$target_pid" ]; then
-    return 0
-  fi
-  local children=""
-  children="$(pgrep -P "$target_pid" 2>/dev/null || true)"
-  for child in $children; do
-    kill_tree "$child"
-  done
-  kill "$target_pid" >/dev/null 2>&1 || true
+  local pid="$1" child
+  kill -0 "$pid" 2>/dev/null || return 0
+  while read -r child; do
+    [[ -n "$child" ]] && kill_tree "$child"
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+  kill "$pid" 2>/dev/null || true
 }
 
-if [ -d "$PID_DIR" ]; then
+if [[ -f "$RUN_DIR/processes.posix.tsv" ]]; then
+  while IFS=$'\t' read -r _name _port pid _rest; do
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill_tree "$pid"
+  done <"$RUN_DIR/processes.posix.tsv"
+fi
+
+if [[ -d "$PID_DIR" ]]; then
   for pid_file in "$PID_DIR"/*.pid; do
-    [ -e "$pid_file" ] || continue
+    [[ -e "$pid_file" ]] || continue
     pid="$(cat "$pid_file" 2>/dev/null || true)"
-    if [ -n "$pid" ]; then
-      kill_tree "$pid"
-    fi
-    rm -f "$pid_file"
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill_tree "$pid"
   done
 fi
 
-for port in "$WEB_PORT" "$AGENT_PORT" 7071 7072 7073 7074; do
-  [ -n "$port" ] || continue
-  if command -v lsof >/dev/null 2>&1; then
-    pids="$(lsof -ti tcp:"$port" 2>/dev/null || true)"
-    for pid in $pids; do
-      kill "$pid" >/dev/null 2>&1 || true
-    done
-  fi
-done
+rm -rf "$RUN_DIR" "$PID_DIR" "$ROOT/.dev-logs"
