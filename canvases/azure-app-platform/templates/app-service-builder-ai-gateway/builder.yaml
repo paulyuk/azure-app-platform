@@ -1,0 +1,14 @@
+apiVersion: 0.1
+components:
+  - name: agent
+    role: web
+    platform: python
+    platformVersion: "3.14"
+    rootDirectory: .
+    path: /
+    build:
+      install: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+    run:
+      start: python -m uvicorn app:create_app --factory --host 0.0.0.0 --port 8080 --no-access-log --log-level warning
+      port: 8080
+    healthCheckPath: /health

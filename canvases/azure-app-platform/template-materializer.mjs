@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE, APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
 import { BUILD_BLOCK_TEMPLATES } from "./build-blocks.mjs";
 import { parseUnityManifest } from "./discovery.mjs";
@@ -13,10 +13,12 @@ import { getTierDefinition } from "./tier-definitions.mjs";
 const execFileAsync = promisify(execFile);
 const EMPTY_TEMPLATE_ID = "builtin-empty-starter-v1";
 const SANDBOX_GATEWAY_TEMPLATE_ID = "builtin-sandbox-gateway-minimal-v1";
+const APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID = "builtin-app-service-builder-ai-gateway-v1";
 const APP_SERVICE_BUILDER_TEMPLATE_ID = "builtin-app-service-builder-vite-v1";
 const TEMPLATE_ROOTS = {
   [EMPTY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/empty-starter-app", import.meta.url)),
   [SANDBOX_GATEWAY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/sandbox-gateway-minimal", import.meta.url)),
+  [APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/app-service-builder-ai-gateway", import.meta.url)),
   [APP_SERVICE_BUILDER_TEMPLATE_ID]: fileURLToPath(new URL("./templates/app-service-builder-vite", import.meta.url)),
 };
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/;
@@ -163,6 +165,7 @@ async function replaceTokens(root, tokens) {
 async function materializeLocalTemplate(plan, destination) {
   const templateId = plan.sourcePlan?.templateId ?? EMPTY_TEMPLATE_ID;
   const isSandboxGateway = templateId === SANDBOX_GATEWAY_TEMPLATE_ID;
+  const isAppServiceBuilderAiGateway = templateId === APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID;
   const isAppServiceBuilder = templateId === APP_SERVICE_BUILDER_TEMPLATE_ID;
   const templateRoot = TEMPLATE_ROOTS[templateId] ?? TEMPLATE_ROOTS[EMPTY_TEMPLATE_ID];
   const appName = requireText(plan.appName, "app name", APP_NAME_PATTERN, 80);
@@ -189,6 +192,7 @@ async function materializeLocalTemplate(plan, destination) {
       "__APP_SLUG__": appName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
       "__PURPOSE_JSON__": JSON.stringify(purpose).slice(1, -1),
       "__PURPOSE__": purpose,
+      "__USER_INTENT__": purpose,
       "__PURPOSE_HTML_JSON__": JSON.stringify(escapeHtml(purpose)),
       "__AGENT_INSTRUCTIONS__": agentInstructions,
     };
@@ -200,7 +204,7 @@ async function materializeLocalTemplate(plan, destination) {
         253,
       );
       tokens["__EGRESS_ALLOW_DOMAIN__"] = egressAllowDomain;
-    } else if (!isAppServiceBuilder) {
+    } else if (!isAppServiceBuilder && !isAppServiceBuilderAiGateway) {
       const hostedSkillName = requireText(
         plan.templateInputs?.hostedSkillName ?? "starter-skill",
         "Hosted Skill name",
@@ -215,6 +219,8 @@ async function materializeLocalTemplate(plan, destination) {
     await replaceTokens(staging, tokens);
     if (isSandboxGateway) {
       requiredFiles = [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths];
+    } else if (isAppServiceBuilderAiGateway) {
+      requiredFiles = [...APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE.requiredPaths];
     } else if (isAppServiceBuilder) {
       requiredFiles = [...APP_SERVICE_BUILDER_TEMPLATE.requiredPaths];
     }

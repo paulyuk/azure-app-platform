@@ -982,6 +982,7 @@ test("source catalog parses worktrees and excludes internal projects", async () 
     assert.deepEqual(catalog.templates.map((template) => template.id), [
       "builtin-sandbox-gateway-minimal-v1",
       "builtin-app-service-builder-vite-v1",
+      "builtin-app-service-builder-ai-gateway-v1",
       "builtin-empty-starter-v1",
     ]);
   });
@@ -1684,7 +1685,7 @@ test("guided renderer exposes create, assemble, and reopen journeys", () => {
     assert.equal(html.includes('const apiToken = "test-token"'), true);
     assert.match(html, /commandResult\.outcome === "already-running"/);
     assert.match(html, /commandResult\.outcome === "operation-in-progress"/);
-    assert.match(html, /dealer-sample-"\s*:\s*\(template\.id === "builtin-sandbox-gateway-minimal-v1"\s*\?\s*"sandbox-starter-"\s*:\s*\(template\.id === "builtin-app-service-builder-vite-v1"\s*\?\s*"builder-vite-"\s*:\s*"app-"\)\)/);
+    assert.match(html, /dealer-sample-"\s*:\s*\(template\.id === "builtin-sandbox-gateway-minimal-v1"\s*\?\s*"sandbox-starter-"\s*:\s*\(template\.id === "builtin-app-service-builder-vite-v1"\s*\?\s*"builder-vite-"\s*:\s*\(template\.id === "builtin-app-service-builder-ai-gateway-v1"\s*\?\s*"builder-ai-gateway-"\s*:\s*"app-"\)\)\)/);
     assert.match(html, /Help car dealers search inventory, evaluate deals, and send offers to buyers\./);
 });
 

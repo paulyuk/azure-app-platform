@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PID_DIR="$ROOT/.dev-pids"
+LOG_DIR="$ROOT/.dev-logs"
+mkdir -p "$PID_DIR" "$LOG_DIR"
+
+source "$ROOT/scripts/load-ports.sh"
+load_app_ports "$ROOT"
+
+"$ROOT/scripts/dev-stop.sh" >/dev/null 2>&1 || true
+mkdir -p "$PID_DIR" "$LOG_DIR"
+
+export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-${UV_INDEX_URL:-https://packagefeedproxy.microsoft.io/pypi/simple/}}"
+export UV_INDEX_URL="$UV_DEFAULT_INDEX"
+
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ROOT/.env"
+  set +a
+elif [ -f "$ROOT/src/agent/.env" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ROOT/src/agent/.env"
+  set +a
+fi
+
+if [ -d "$ROOT/src/skills" ] && command -v func >/dev/null 2>&1; then
+  if command -v azurite >/dev/null 2>&1 && ! lsof -iTCP:10000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    azurite --silent --inMemoryPersistence --skipApiVersionCheck --disableTelemetry \
+      >"$LOG_DIR/azurite.log" 2>&1 &
+    echo $! >"$PID_DIR/azurite.pid"
+  fi
+  skill_port=7071
+  for skill_dir in "$ROOT"/src/skills/*; do
+    if [ -d "$skill_dir" ] && [ -f "$skill_dir/host.json" ]; then
+      skill_name="$(basename "$skill_dir")"
+      (
+        cd "$skill_dir"
+        uv run func start --port "$skill_port" >"$LOG_DIR/skill-$skill_name.log" 2>&1
+      ) &
+      echo $! >"$PID_DIR/skill-$skill_name.pid"
+      skill_port=$((skill_port + 1))
+    fi
+  done
+fi
+
+if [ -f "$ROOT/src/agent/main.py" ]; then
+  echo "Starting backend agent on http://127.0.0.1:$AGENT_PORT ..."
+  (
+    cd "$ROOT/src/agent"
+    PORT="$AGENT_PORT" AGENT_PORT="$AGENT_PORT" uv run main.py >"$LOG_DIR/agent.log" 2>&1
+  ) &
+  echo $! >"$PID_DIR/agent.pid"
+  for _ in $(seq 1 40); do
+    if curl -fsS "http://127.0.0.1:$AGENT_PORT/healthz" >/dev/null 2>&1 || curl -fsS "http://127.0.0.1:$AGENT_PORT/api/runtime" >/dev/null 2>&1; then
+      echo "Backend agent ready on http://127.0.0.1:$AGENT_PORT"
+      break
+    fi
+    sleep 0.5
+  done
+fi
+
+echo "Starting __APP_NAME__ (App Service Builder + AI Gateway) on http://127.0.0.1:$WEB_PORT ..."
+(
+  cd "$ROOT"
+  uv run python -m uvicorn app:create_app --factory --host 127.0.0.1 --port "$WEB_PORT" --no-access-log --log-level warning >"$LOG_DIR/web.log" 2>&1
+) &
+echo $! >"$PID_DIR/web.pid"
+
+for _ in $(seq 1 40); do
+  if curl -fsS "http://127.0.0.1:$WEB_PORT/health" >/dev/null 2>&1 || curl -fsS "http://127.0.0.1:$WEB_PORT" >/dev/null 2>&1; then
+    echo "App Service Builder AI Gateway app ready on http://127.0.0.1:$WEB_PORT"
+    exit 0
+  fi
+  sleep 0.5
+done
+
+echo "App Service Builder AI Gateway app did not become ready on port $WEB_PORT. Recent log output:" >&2
+tail -n 40 "$LOG_DIR/web.log" >&2 || true
+exit 1

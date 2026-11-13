@@ -1,0 +1,6 @@
+{
+  "appName": "__APP_NAME__",
+  "purpose": "__PURPOSE_JSON__",
+  "builderManifest": "builder.yaml",
+  "agentInstructions": "__AGENT_INSTRUCTIONS_JSON__"
+}

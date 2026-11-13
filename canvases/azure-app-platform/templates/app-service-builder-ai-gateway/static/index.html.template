@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__APP_NAME__ · App Service Builder + AI Gateway</title>
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem("asb-ai-gw-theme");
+          if (saved === "light" || saved === "dark") {
+            document.documentElement.dataset.theme = saved;
+          }
+        } catch {
+          // Ignore storage restrictions and fall back to system theme.
+        }
+      })();
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+    </style>
+    <link rel="stylesheet" href="/static/site.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero-top">
+          <p class="eyebrow">Azure App Service Builder · Azure AI Gateway · Microsoft Agent Framework</p>
+          <button id="theme-toggle" class="ghost-button" type="button" aria-pressed="false">
+            Light theme
+          </button>
+        </div>
+        <h1>__APP_NAME__</h1>
+        <p class="lede">
+          __PURPOSE__
+        </p>
+      </header>
+
+      <section class="panel" aria-label="Chat workspace">
+        <div class="toolbar">
+          <div class="chips" aria-label="Example prompts">
+            <button class="chip" type="button" data-prompt="Explain how App Service Builder and Azure AI Gateway work together in three bullets.">
+              How this works
+            </button>
+            <button class="chip" type="button" data-prompt="Write a deployment checklist for a Python agent using managed identity.">
+              Managed identity checklist
+            </button>
+            <button class="chip" type="button" data-prompt="Give me a concise troubleshooting plan when a model gateway call times out.">
+              Gateway troubleshooting
+            </button>
+          </div>
+          <button id="clear-button" class="ghost-button" type="button">Clear</button>
+        </div>
+
+        <div id="transcript" class="transcript" role="log" aria-live="polite" aria-relevant="additions text">
+          <div id="empty-state" class="empty-state">
+            Ask a question or pick one of the starter prompts above.
+          </div>
+        </div>
+
+        <form id="chat-form" class="composer" novalidate>
+          <label class="sr-only" for="prompt-input">Message</label>
+          <textarea
+            id="prompt-input"
+            name="prompt"
+            rows="3"
+            maxlength="4000"
+            placeholder="Ask the agent anything about your app, architecture, or next step..."
+            required
+          ></textarea>
+          <div class="composer-actions">
+            <p id="status-text" class="status" role="status" aria-live="polite">
+              Ready.
+            </p>
+            <div class="buttons">
+              <button id="stop-button" class="ghost-button" type="button" hidden>Stop</button>
+              <button id="send-button" class="primary-button" type="submit">Send</button>
+            </div>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/chat.js" defer></script>
+  </body>
+</html>

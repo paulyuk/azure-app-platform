@@ -25,6 +25,19 @@ export const CREATE_GUIDANCE = {
     flow: ["Materialize the default Fluent 2 Vite starter", "Optionally run agent customization from your instructions", "Build static assets into dist", "Deploy explicitly through App Service Builder when ready"],
     files: [["src/main.ts", "Greeting and displayed description"], ["index.html", "Minimal page structure"], ["builder.yaml", "Static hosting deployment contract"], ["static.test.mjs", "Static-site smoke tests"]],
   },
+  webGateway: {
+    introduction: "A Python FastAPI and Microsoft Agent Framework chat app on App Service Builder with governed model routing through AI Gateway.",
+    caution: "Live AI replies require a configured AI Gateway endpoint and credentials; local UI and /health run without them.",
+    worksFirst: "Start the FastAPI web app and chat UI locally; /health reports gateway readiness.",
+    run: "Connect an AI Gateway in Run mode or configure .env to enable live streaming chat responses.",
+    later: "Deploy the web app through App Service Builder (builder.yaml) once your gateway and instructions are ready.",
+    boundaries: "FastAPI serves both the chat UI and /api/chat/stream on one App Service Builder web entrypoint. Model calls route through Azure AI Gateway using the OpenAI Responses API.",
+    included: [["Web & Agent app", "FastAPI + Microsoft Agent Framework streaming chat app with builder.yaml."], ["AI Gateway configuration", "Governed model routing via Azure AI Gateway."]],
+    excluded: "No ACA sandbox pool, Hosted Skill, or pre-provisioned cloud gateway.",
+    editing: "Saved as the system prompt in config/domain.json and used by the Agent Framework chat endpoint.",
+    flow: ["Browser UI posts to /api/chat/stream", "FastAPI agent streams responses via AI Gateway", "Deploy with App Service Builder (builder.yaml)"],
+    files: [["app.py", "FastAPI + Agent Framework streaming chat server"], ["gateway.py", "AI Gateway client and credential setup"], ["builder.yaml", "App Service Builder deployment contract"], ["config/domain.json", "Editable app purpose and agent instructions"]],
+  },
   basic: {
     introduction: "An empty app blueprint with four optional components; the included scaffold uses a mock agent and an unimplemented tool.",
     caution: "The agent is a mock; the included backend tool is unimplemented.",
@@ -55,6 +68,7 @@ export const CREATE_GUIDANCE = {
 
 export function createTemplateKind(template) {
   if (template.id === "builtin-sandbox-gateway-minimal-v1") return "sandbox";
+  if (template.id === "builtin-app-service-builder-ai-gateway-v1") return "webGateway";
   if (template.id === "builtin-app-service-builder-vite-v1") return "web";
   if (template.id === "builtin-empty-starter-v1") return "basic";
   if (template.kind === "sample") return "sample";
@@ -162,7 +176,7 @@ export function mountCreateFlow({ root, toolkit, buttons, current, guidanceFor, 
     }) }));
   }
   function blueprintEdges(kind) {
-    return kind === "basic" ? [] : kind === "sandbox" ? [[0, 1], [0, 2]] : kind === "web" ? [[0, 1]] : [[0, 1], [1, 2], [1, 3], [1, 4]];
+    return kind === "basic" ? [] : kind === "sandbox" ? [[0, 1], [0, 2]] : (kind === "web" || kind === "webGateway") ? [[0, 1]] : [[0, 1], [1, 2], [1, 3], [1, 4]];
   }
   function diagram(source, stage, kind) {
     const svg = source.cloneNode(true), ns = "http://www.w3.org/2000/svg";
@@ -239,12 +253,13 @@ export function mountCreateFlow({ root, toolkit, buttons, current, guidanceFor, 
     svg.replaceChildren(); svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     for (const [fromIndex, toIndex] of blueprintEdges(kind)) {
       const from = boxes[fromIndex], to = boxes[toIndex], fy = from.y + from.h / 2, ty = to.y + to.h / 2;
-      const d = from.y === to.y ? `M${from.x + from.w} ${fy}H${to.x}` : kind === "web" ?
+      const isTwoBox = kind === "web" || kind === "webGateway";
+      const d = from.y === to.y ? `M${from.x + from.w} ${fy}H${to.x}` : isTwoBox ?
         `M${from.x + from.w / 2} ${from.y + from.h}V${to.y}` : `M${from.x + from.w} ${fy}H${width - 8}V${ty}H${to.x + to.w}`;
       svg.append(make("path", { d, fill: "none", stroke: "var(--studio-muted)", "stroke-width": 1.4, ...(kind === "web" ? { "stroke-dasharray": "4 3" } : {}) }));
       if (kind !== "sample") {
-        const x = kind === "web" ? to.x + to.w / 2 : to.x + to.w, y = kind === "web" ? to.y : ty;
-        svg.append(make("path", { d: kind === "web" ? `M${x - 3} ${y - 5}L${x} ${y}L${x + 3} ${y - 5}` : `M${x + 5} ${y - 3}L${x} ${y}L${x + 5} ${y + 3}`, fill: "none", stroke: "var(--studio-muted)", "stroke-width": 1.4 }));
+        const x = isTwoBox ? to.x + to.w / 2 : to.x + to.w, y = isTwoBox ? to.y : ty;
+        svg.append(make("path", { d: isTwoBox ? `M${x - 3} ${y - 5}L${x} ${y}L${x + 3} ${y - 5}` : `M${x + 5} ${y - 3}L${x} ${y}L${x + 5} ${y + 3}`, fill: "none", stroke: "var(--studio-muted)", "stroke-width": 1.4 }));
       }
     }
     for (const { node, x, y, w, h, lines } of boxes) {
