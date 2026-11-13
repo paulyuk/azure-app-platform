@@ -1,13 +1,9 @@
 /// <reference types="vite/client" />
 
-const greeting = document.querySelector<HTMLHeadingElement>('#greeting');
+const greeting = document.querySelector<HTMLElement>('#greeting');
 if (greeting) {
   // VITE_* values are public build-time data. textContent avoids interpreting HTML.
   greeting.textContent = import.meta.env.VITE_SAMPLE_GREETING || greeting.textContent;
 }
 
-const purpose = document.querySelector<HTMLParagraphElement>('#purpose');
-if (purpose) {
-  purpose.textContent = "__PURPOSE_JSON__";
-}
 

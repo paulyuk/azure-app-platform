@@ -1204,7 +1204,13 @@ test("app service builder vite template plan and materializer create a static we
     }, { destination: root });
     assert.match(await readFile(join(root, "builder.yaml"), "utf8"), /role:\s*static/);
     assert.match(await readFile(join(root, "public", "health"), "utf8"), /^OK/);
-    assert.match(await readFile(join(root, "src", "main.ts"), "utf8"), /VITE_SAMPLE_GREETING/);
+    const indexHtml = await readFile(join(root, "index.html"), "utf8");
+    assert.match(indexHtml, /<strong id="greeting">Hello from Vite\.<\/strong>/);
+    assert.doesNotMatch(indexHtml, /<h1 id="greeting">/);
+    assert.doesNotMatch(indexHtml, /Static frontend deployed with App Service Builder/);
+    const mainTs = await readFile(join(root, "src", "main.ts"), "utf8");
+    assert.match(mainTs, /VITE_SAMPLE_GREETING/);
+    assert.doesNotMatch(mainTs, /#purpose|Static frontend deployed with App Service Builder/);
     assert.match(await readFile(join(root, "README.md"), "utf8"), /Open App Service Builder canvas/);
   });
 });

@@ -58,8 +58,8 @@ test('built static site serves its root, assets, and health check', { timeout: 1
   assert.match(root.headers.get('content-type'), /text\/html/);
   const html = await root.text();
   assert.match(html, /<html[^>]+data-style="copilot"[^>]+data-theme="light"/);
-  assert.match(html, /<h1 id="greeting">[^<]+<\/h1>/);
-  assert.match(html, /<p id="purpose">[^<]+<\/p>/);
+  assert.match(html, /<strong id="greeting">Hello from Vite\.<\/strong>/);
+  assert.doesNotMatch(html, /id="purpose"/);
   assert.match(html, /class="starter-workspace"/);
   assert.match(html, /class="site-window"/);
   assert.match(html, /class="code-window"/);

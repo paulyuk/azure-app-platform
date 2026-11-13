@@ -1347,8 +1347,6 @@
             </div>
             <div class="ready-copy">
               <p class="eyebrow">Vite starter</p>
-              <h1 id="greeting">__APP_NAME__</h1>
-              <p id="purpose">__PURPOSE__</p>
             </div>
           </article>
 
@@ -1370,7 +1368,7 @@
                     </span>
                     App Service Builder
                   </div>
-                  <strong>Hello from Vite.</strong>
+                  <strong id="greeting">Hello from Vite.</strong>
                   <span>Your static app is ready.</span>
                   <div class="mini-pills">
                     <span>Vite</span>
