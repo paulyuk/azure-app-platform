@@ -28,24 +28,45 @@ test("extension startup and readiness probes avoid redundant CLI and gateway ove
   );
   assert.match(extensionSource, /const inFlightLocalReadiness = new Map\(\);/);
   assert.match(extensionSource, /inFlightLocalReadiness\.delete\(root\);/);
-  assert.match(extensionSource,
-    /const pending = \(async \(\) => \{[\s\S]*?const inputCapabilities = await readAppInputCapabilities\(root, \{ agentConfiguration \}\);/);
+  assert.match(extensionSource, /const pending = \(async \(\) => \{[\s\S]*?readAppInputCapabilities\(root, \{ agentConfiguration \}\)/);
   assert.match(extensionSource, /readBuildRuntime\(root, inputCapabilities\)/);
   assert.match(extensionSource, /hasDocumentTool: Boolean\(inputCapabilities\.documentInput\)/);
   assert.match(extensionSource, /\.\.\.inputCapabilities,/);
   assert.doesNotMatch(extensionSource, /documentInput: buildRuntime \?/);
-  assert.match(extensionSource, /now - cachedPrerequisiteTimestamp < 300_000/);
+  assert.match(extensionSource, /now - cachedPrerequisiteTimestamp >= 300_000/);
   assert.match(
     extensionSource,
     /const azRes = azAccountRes\?\.ok \|\| azAigatewayRes\?\.ok\s*\?\s*\{\s*ok:\s*true,\s*stdout:\s*""\s*\}\s*:\s*await runCommand\("az",\s*\["--version"\]/,
   );
-  assert.match(extensionSource, /setTimeout\(\(\) => controller\.abort\(\), 6_000\)/);
+  assert.match(extensionSource, /setTimeout\(\(\) => controller\.abort\(\), 3_500\)/);
   assert.match(extensionSource, /max_output_tokens:\s*16/);
   assert.match(
     extensionSource,
     /const \[models, candidateKey\] = await Promise\.all\(\[\s*discoverGatewayModels\(azureBootstrapRunner, candidate\)\.catch\(\(\) => \[\]\),\s*fetchGatewayApiKey\(candidate\),\s*\]\);/,
   );
   assert.match(extensionSource, /cachedDefaultInfraNegativeUntil = resolved \? 0 : Date\.now\(\) \+ 45_000;/);
+  assert.match(extensionSource, /async function inspectAppInfraNeeds\(root\)/);
+  assert.match(
+    extensionSource,
+    /const prerequisitesPromise = infraNeeds\.needsGateway \|\| infraNeeds\.needsSandbox \|\| infraNeeds\.needsPython\s*\?\s*detectLocalPrerequisites\(\{ needsSandbox: infraNeeds\.needsSandbox \}\)\s*:\s*Promise\.resolve\(\{\s*ready:\s*true,\s*items:\s*\[\],\s*missingTools:\s*\[\]\s*\}\);/,
+  );
+  assert.match(
+    extensionSource,
+    /const infra = await discoverDefaultCanvasInfra\(\{ needsSandbox: resolvedNeeds\.needsSandbox \}\);/,
+  );
+  assert.match(
+    extensionSource,
+    /function isPidAlive\(pid\)\s*\{[\s\S]*?process\.kill\(pid,\s*0\);/,
+  );
+  assert.match(
+    extensionSource,
+    /if \(readyEntrypoints\.every\(\(entrypoint\) => registryOwnedPorts\.has\(entrypoint\.port\)\)\)/,
+  );
+  const gatewayStateSource = await readFile(new URL("./gateway-state.mjs", import.meta.url), "utf8");
+  assert.match(
+    gatewayStateSource,
+    /const aliasPromise = commandRunner\("az", \["rest", "--method", "get", "--uri", aliasesUri, "-o", "json"\]\)\.catch\(\(\) => null\);/,
+  );
 });
 
 test("owned listening ports with failed HTTP health are not ready", () => {

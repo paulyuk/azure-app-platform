@@ -16,9 +16,21 @@ from config import SampleConfig, load_config
 from gateway import AgentStreamProvider, GatewayAgentService
 
 STATIC_DIR = Path(__file__).with_name("static")
+SAMPLES_DIR = Path(__file__).with_name("samples")
+SAMPLE_DOCUMENT_PATH = SAMPLES_DIR / "sample-document.md"
+DEFAULT_SAMPLE_DOCUMENT = (
+    "# Service Architecture & Launch Checklist\n\n"
+    "- **Service**: Northwind Customer Portal (`northwind-portal-prod`)\n"
+    "- **Frontend**: Azure App Service Builder (`builder.yaml`, Python 3.12 + FastAPI)\n"
+    "- **Model Governance**: Azure AI Gateway (`gw-northwind-prod`)\n"
+    "- **Open Risk**: Regional failover alias `chat-fallback` is not yet bound in `eastus2`.\n"
+    "- **Action Item**: Verify content safety policy and complete load test before 2026-05-10.\n"
+)
 MAX_BODY_BYTES = 16 * 1024
 MAX_MESSAGES = 12
 MAX_TOTAL_CHARS = 8_000
+MAX_DOCUMENT_CHARS = 12_000
+MAX_DOCUMENT_NAME_CHARS = 120
 MAX_CONCURRENT_STREAMS = 4
 ALLOWED_ROLES = frozenset({"user", "assistant"})
 
@@ -92,6 +104,89 @@ def create_app(
             media_type="text/javascript; charset=utf-8",
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.get("/api/sample-document")
+    async def sample_document() -> JSONResponse:
+        content = DEFAULT_SAMPLE_DOCUMENT
+        name = "sample-document.md"
+        if SAMPLE_DOCUMENT_PATH.is_file():
+            content = SAMPLE_DOCUMENT_PATH.read_text(encoding="utf-8")
+            name = SAMPLE_DOCUMENT_PATH.name
+        return JSONResponse(
+            {"name": name, "content": content},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.post("/invoke")
+    async def invoke(request: Request) -> JSONResponse:
+        if not media_type_is_json(request.headers.get("content-type", "")):
+            return error_response(415, "unsupported_media_type")
+        try:
+            raw_body = await read_limited_body(request, MAX_BODY_BYTES)
+        except BodyLimitError as exc:
+            return error_response(exc.status_code, exc.code)
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return error_response(400, "invalid_json")
+        if not isinstance(payload, dict):
+            return error_response(400, "invalid_payload")
+
+        prompt = str(payload.get("prompt") or payload.get("message") or "").strip()
+        raw_doc = payload.get("document")
+        if isinstance(raw_doc, str) and raw_doc.strip():
+            raw_doc = {
+                "name": str(payload.get("documentName") or "document.txt"),
+                "content": raw_doc,
+            }
+        if not prompt and raw_doc:
+            prompt = "Summarize this document, highlight key risks, and list recommended next steps."
+        if not prompt:
+            return error_response(400, "empty_message")
+
+        try:
+            messages = validate_messages(
+                {
+                    "messages": [{"role": "user", "content": prompt[:MAX_TOTAL_CHARS]}],
+                    **({"document": raw_doc} if raw_doc is not None else {}),
+                }
+            )
+        except ValueError as exc:
+            return error_response(400, str(exc))
+
+        try:
+            await asyncio.wait_for(semaphore.acquire(), timeout=0.05)
+        except TimeoutError:
+            return error_response(429, "sample_busy")
+
+        try:
+            chunks: list[str] = []
+            async for delta in service.stream_text(messages):
+                chunks.append(delta)
+            reply_text = "".join(chunks).strip()
+            return JSONResponse(
+                {
+                    "status": "ok",
+                    "response": reply_text,
+                    "gateway": resolved_config.gateway_host,
+                    "model": resolved_config.model,
+                    "document": (
+                        {"name": raw_doc.get("name", "document.txt"), "chars": len(raw_doc.get("content", ""))}
+                        if isinstance(raw_doc, dict)
+                        else None
+                    ),
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+        except Exception as exc:
+            err_msg = str(exc).strip() or "The gateway request did not complete."
+            return JSONResponse(
+                {"status": "error", "error": "upstream_unavailable", "message": err_msg},
+                status_code=502,
+                headers={"Cache-Control": "no-store"},
+            )
+        finally:
+            semaphore.release()
 
     @app.post("/api/chat/stream")
     async def chat_stream(request: Request) -> Response:
@@ -237,12 +332,34 @@ async def read_limited_body(request: Request, limit: int) -> bytes:
     return bytes(chunks)
 
 
+def validate_document(raw_doc: Any) -> dict[str, str] | None:
+    if raw_doc is None:
+        return None
+    if not isinstance(raw_doc, dict) or not (set(raw_doc.keys()) <= {"name", "content"}):
+        raise ValueError("invalid_document")
+    content = raw_doc.get("content")
+    if not isinstance(content, str):
+        raise ValueError("invalid_document")
+    stripped_content = content.strip()
+    if not stripped_content:
+        raise ValueError("empty_document")
+    if len(stripped_content) > MAX_DOCUMENT_CHARS:
+        raise ValueError("document_too_long")
+    raw_name = raw_doc.get("name")
+    name = str(raw_name).strip() if isinstance(raw_name, str) and raw_name.strip() else "document.txt"
+    if len(name) > MAX_DOCUMENT_NAME_CHARS:
+        name = name[:MAX_DOCUMENT_NAME_CHARS]
+    return {"name": name, "content": stripped_content}
+
+
 def validate_messages(payload: Any) -> list[dict[str, str]]:
-    if not isinstance(payload, dict) or set(payload.keys()) != {"messages"}:
+    if not isinstance(payload, dict) or "messages" not in payload or not (set(payload.keys()) <= {"messages", "document"}):
         raise ValueError("invalid_payload")
     raw_messages = payload["messages"]
     if not isinstance(raw_messages, list) or not (1 <= len(raw_messages) <= MAX_MESSAGES):
         raise ValueError("invalid_messages")
+
+    document = validate_document(payload.get("document"))
 
     normalized: list[dict[str, str]] = []
     total_chars = 0
@@ -260,6 +377,19 @@ def validate_messages(payload: Any) -> list[dict[str, str]]:
         if total_chars > MAX_TOTAL_CHARS:
             raise ValueError("messages_too_long")
         normalized.append({"role": role, "content": stripped})
+
+    if document is not None:
+        doc_block = (
+            f"Attached document ({document['name']}):\n"
+            f"---\n{document['content']}\n---\n\n"
+        )
+        for index in range(len(normalized) - 1, -1, -1):
+            if normalized[index]["role"] == "user":
+                normalized[index] = {
+                    "role": "user",
+                    "content": f"{doc_block}User request: {normalized[index]['content']}",
+                }
+                break
     return normalized
 
 

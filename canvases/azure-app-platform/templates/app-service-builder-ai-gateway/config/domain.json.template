@@ -1,6 +1,12 @@
 {
   "appName": "__APP_NAME__",
   "purpose": "__PURPOSE_JSON__",
+  "starterPrompt": "Summarize the attached document, highlight key risks, and list recommended next steps.",
   "builderManifest": "builder.yaml",
-  "agentInstructions": "__AGENT_INSTRUCTIONS_JSON__"
+  "agentInstructions": "__AGENT_INSTRUCTIONS_JSON__",
+  "documentInput": {
+    "accepted": true,
+    "maxBytes": 12000,
+    "sampleDocument": "samples/sample-document.md"
+  }
 }

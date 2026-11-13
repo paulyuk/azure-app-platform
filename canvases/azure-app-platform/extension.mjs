@@ -313,6 +313,48 @@ async function detectDynamicBackendEntrypoints(root, settings = {}) {
   const dynamic = [];
   let hasAgent = false;
   try {
+    let hasRootWeb = false;
+    for (const marker of ["package.json", "builder.yaml", "embr.yaml", "index.html"]) {
+      try {
+        await access(`${root}/src/web/${marker}`);
+        hasRootWeb = true;
+        break;
+      } catch {}
+    }
+    if (hasRootWeb) {
+      dynamic.push({
+        name: "web",
+        port: Number(settings.WEB_PORT) || 3000,
+        kind: "web",
+        expected: true,
+      });
+    }
+    const webDirs = await readdir(`${root}/src/web`, { withFileTypes: true });
+    const reservedWebDirs = new Set(["src", "public", "node_modules", "dist", "build", "static", "assets", "components", "tests", "__pycache__"]);
+    let webIndex = hasRootWeb ? 1 : 0;
+    const baseWebPort = Number(settings.WEB_PORT) || 3000;
+    for (const entry of webDirs) {
+      if (!entry.isDirectory() || reservedWebDirs.has(entry.name) || entry.name.startsWith(".")) continue;
+      let isWebApp = false;
+      for (const marker of ["index.html", "package.json", "builder.yaml", "embr.yaml", "app.py"]) {
+        try {
+          await access(`${root}/src/web/${entry.name}/${marker}`);
+          isWebApp = true;
+          break;
+        } catch {}
+      }
+      if (isWebApp) {
+        dynamic.push({
+          name: webIndex === 0 && !hasRootWeb ? "web" : `web-${entry.name}`,
+          port: baseWebPort + webIndex,
+          kind: "web",
+          expected: webIndex === 0 && !hasRootWeb,
+        });
+        webIndex += 1;
+      }
+    }
+  } catch {}
+  try {
     await access(`${root}/src/agent/main.py`);
     hasAgent = true;
   } catch {
@@ -547,10 +589,31 @@ async function inspectWindowsEntrypointOwnership(entrypoints, registry) {
   };
 }
 
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function inspectEntrypointOwnership(root, entrypoints, registry = []) {
-  if (process.platform === "win32") return inspectWindowsEntrypointOwnership(entrypoints, registry);
   const readyEntrypoints = entrypoints.filter((entrypoint) => entrypoint.ready);
   if (readyEntrypoints.length === 0) return { available: true, ownedPorts: new Set() };
+  const registryOwnedPorts = new Set(
+    registry
+      .filter((entry) => Number.isInteger(entry?.port) && isPidAlive(entry?.pid))
+      .map((entry) => entry.port),
+  );
+  if (readyEntrypoints.every((entrypoint) => registryOwnedPorts.has(entrypoint.port))) {
+    return {
+      available: true,
+      ownedPorts: new Set(readyEntrypoints.map((entrypoint) => entrypoint.port)),
+    };
+  }
+  if (process.platform === "win32") return inspectWindowsEntrypointOwnership(entrypoints, registry);
 
   const listeners = await runCommand("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"]);
   if (!listeners.ok) return { available: false, ownedPorts: new Set() };
@@ -784,168 +847,227 @@ function azureBootstrapRunner(command, args) {
 
 let cachedPrerequisitePromise = null;
 let cachedPrerequisiteTimestamp = 0;
+let cachedAcaPrereqPromise = null;
+let cachedAcaPrereqTimestamp = 0;
 
-async function detectLocalPrerequisites({ force = false } = {}) {
+function detectAcaPrerequisite({ force = false } = {}) {
   const now = Date.now();
-  if (!force && cachedPrerequisitePromise && now - cachedPrerequisiteTimestamp < 300_000) {
-    return cachedPrerequisitePromise;
+  if (!force && cachedAcaPrereqPromise && now - cachedAcaPrereqTimestamp < 300_000) {
+    return cachedAcaPrereqPromise;
   }
-  cachedPrerequisiteTimestamp = now;
-  cachedPrerequisitePromise = (async () => {
-    const [uvRes, acaRes, azAccountRes, azAigatewayRes] = await Promise.all([
-      runCommand("uv", ["--version"], { timeout: 5_000 }),
-      runCommand("aca", ["--version"], { timeout: 5_000 }),
-      runCommand("az", ["account", "show", "--query", "{id:id,name:name}", "-o", "json"], { timeout: 8_000 }),
-      runCommand("az", ["aigateway", "version", "-o", "json"], { timeout: 8_000 }),
-    ]);
-    const azRes = azAccountRes?.ok || azAigatewayRes?.ok
-      ? { ok: true, stdout: "" }
-      : await runCommand("az", ["--version"], { timeout: 8_000 });
-    let azSignedIn = false;
-    let subscriptionName = "";
-    let subscriptionId = "";
-    if (azAccountRes?.ok && azAccountRes.stdout) {
-      try {
-        const account = JSON.parse(azAccountRes.stdout);
-        if (account?.id) {
-          azSignedIn = true;
-          subscriptionId = String(account.id);
-          subscriptionName = String(account.name || account.id);
-        }
-      } catch {
-        // Ignore parse error
-      }
-    }
-    const uvInstalled = Boolean(uvRes?.ok);
-    const azInstalled = Boolean(azAccountRes?.ok || azAigatewayRes?.ok || azRes?.ok);
-    const acaInstalled = Boolean(acaRes?.ok);
-    const aigatewayInstalled = Boolean(azAigatewayRes?.ok);
-    const missingTools = [];
-    if (!uvInstalled) {
-      missingTools.push({
-        id: "uv",
-        label: "uv (Python runner)",
-        actionLabel: "Install uv",
-        actionOperation: "install-prereq-uv",
-        command: process.platform === "win32"
-          ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
-          : "curl -LsSf https://astral.sh/uv/install.sh | sh",
-      });
-    }
-    if (!azInstalled) {
-      missingTools.push({
-        id: "az",
-        label: "Azure CLI (az)",
-        command: process.platform === "win32"
-          ? "winget install -e --id Microsoft.AzureCLI"
-          : "brew install azure-cli",
-      });
-    } else if (!azSignedIn) {
-      missingTools.push({
-        id: "az-login",
-        label: "Azure CLI sign-in",
-        actionLabel: "Sign in to Azure",
-        actionOperation: "az-login",
-        command: "az login",
-      });
-    }
-    if (azInstalled && !aigatewayInstalled) {
-      missingTools.push({
-        id: "aigateway",
-        label: "Azure CLI aigateway extension",
-        actionLabel: "Install aigateway CLI",
-        actionOperation: "install-prereq-aigateway",
-        command: "az extension add --name aigateway --upgrade",
-      });
-    }
-    if (!acaInstalled) {
-      missingTools.push({
-        id: "aca",
-        label: "ACA Sandbox CLI (aca)",
-        actionLabel: "Install aca CLI",
-        actionOperation: "install-prereq-aca",
-        command: process.platform === "win32"
-          ? "irm https://aka.ms/aca-cli-install-ps | iex"
-          : ACA_INSTALL_POSIX,
-      });
-    }
-    const uvVersion = uvRes?.ok ? String(uvRes.stdout || "").trim().split("\n")[0] : "";
-    const azVersion = azRes?.ok ? String(azRes.stdout || "").trim().split("\n")[0] : "";
-    const acaVersion = acaRes?.ok ? String(acaRes.stdout || "").trim().split("\n")[0] : "";
-    let aigatewayVersion = "";
-    if (azAigatewayRes?.ok && azAigatewayRes.stdout) {
-      try {
-        const parsed = JSON.parse(azAigatewayRes.stdout);
-        aigatewayVersion = parsed?.version || parsed?.cliVersion || "installed";
-      } catch {
-        aigatewayVersion = String(azAigatewayRes.stdout).trim().split("\n")[0] || "installed";
-      }
-    }
-    const items = [
-      {
-        id: "uv",
-        label: "uv (Python runner)",
-        ready: uvInstalled,
-        detail: uvInstalled ? (uvVersion || "Installed") : "Required to run Python agent and sandbox tools",
-        actionLabel: uvInstalled ? "" : "Install uv",
-        actionOperation: uvInstalled ? "" : "install-prereq-uv",
-        command: process.platform === "win32"
-          ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
-          : "curl -LsSf https://astral.sh/uv/install.sh | sh",
-      },
-      {
-        id: "az",
-        label: "Azure CLI (az)",
-        ready: azInstalled && azSignedIn,
-        detail: !azInstalled
-          ? "Required for Azure discovery and authentication"
-          : azSignedIn
-            ? `Signed in · ${subscriptionName}`
-            : "Installed (sign-in required)",
-        actionLabel: !azInstalled ? "" : azSignedIn ? "" : "Sign in to Azure",
-        actionOperation: !azInstalled ? "" : azSignedIn ? "" : "az-login",
-        command: !azInstalled
-          ? (process.platform === "win32" ? "winget install -e --id Microsoft.AzureCLI" : "brew install azure-cli")
-          : "az login",
-      },
-      {
-        id: "aigateway",
-        label: "AI Gateway CLI (az aigateway)",
-        ready: azInstalled && aigatewayInstalled,
-        detail: aigatewayInstalled ? `Extension ${aigatewayVersion}` : "Required for AI Gateway & model discovery",
-        actionLabel: azInstalled && !aigatewayInstalled ? "Install aigateway CLI" : "",
-        actionOperation: azInstalled && !aigatewayInstalled ? "install-prereq-aigateway" : "",
-        command: "az extension add --name aigateway --upgrade",
-      },
-      {
-        id: "aca",
-        label: "ACA Sandbox CLI (aca)",
-        ready: acaInstalled,
-        detail: acaInstalled ? (acaVersion || "Installed") : "Required for isolated hypervisor microVM sandboxes",
-        actionLabel: acaInstalled ? "" : "Install aca CLI",
-        actionOperation: acaInstalled ? "" : "install-prereq-aca",
-        command: process.platform === "win32"
-          ? "irm https://aka.ms/aca-cli-install-ps | iex"
-          : ACA_INSTALL_POSIX,
-      },
-    ];
-    return {
-      ready: missingTools.length === 0,
-      uvInstalled,
-      azInstalled,
-      azSignedIn,
-      subscriptionId,
-      subscriptionName,
-      aigatewayInstalled,
-      acaInstalled,
-      items,
-      missingTools,
-    };
-  })();
-  return cachedPrerequisitePromise;
+  cachedAcaPrereqTimestamp = now;
+  cachedAcaPrereqPromise = runCommand("aca", ["--version"], { timeout: 5_000 });
+  return cachedAcaPrereqPromise;
 }
 
+async function detectLocalPrerequisites({ force = false, needsSandbox = true } = {}) {
+  const now = Date.now();
+  if (force || !cachedPrerequisitePromise || now - cachedPrerequisiteTimestamp >= 300_000) {
+    cachedPrerequisiteTimestamp = now;
+    cachedPrerequisitePromise = (async () => {
+      const [uvRes, azAccountRes, azAigatewayRes] = await Promise.all([
+        runCommand("uv", ["--version"], { timeout: 5_000 }),
+        runCommand("az", ["account", "show", "--query", "{id:id,name:name}", "-o", "json"], { timeout: 8_000 }),
+        runCommand("az", ["aigateway", "version", "-o", "json"], { timeout: 8_000 }),
+      ]);
+      const azRes = azAccountRes?.ok || azAigatewayRes?.ok
+        ? { ok: true, stdout: "" }
+        : await runCommand("az", ["--version"], { timeout: 8_000 });
+      let azSignedIn = false;
+      let subscriptionName = "";
+      let subscriptionId = "";
+      if (azAccountRes?.ok && azAccountRes.stdout) {
+        try {
+          const account = JSON.parse(azAccountRes.stdout);
+          if (account?.id) {
+            azSignedIn = true;
+            subscriptionId = String(account.id);
+            subscriptionName = String(account.name || account.id);
+          }
+        } catch {
+          // Ignore parse error
+        }
+      }
+      const uvInstalled = Boolean(uvRes?.ok);
+      const azInstalled = Boolean(azAccountRes?.ok || azAigatewayRes?.ok || azRes?.ok);
+      const aigatewayInstalled = Boolean(azAigatewayRes?.ok);
+      const missingTools = [];
+      if (!uvInstalled) {
+        missingTools.push({
+          id: "uv",
+          label: "uv (Python runner)",
+          actionLabel: "Install uv",
+          actionOperation: "install-prereq-uv",
+          command: process.platform === "win32"
+            ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+            : "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        });
+      }
+      if (!azInstalled) {
+        missingTools.push({
+          id: "az",
+          label: "Azure CLI (az)",
+          command: process.platform === "win32"
+            ? "winget install -e --id Microsoft.AzureCLI"
+            : "brew install azure-cli",
+        });
+      } else if (!azSignedIn) {
+        missingTools.push({
+          id: "az-login",
+          label: "Azure CLI sign-in",
+          actionLabel: "Sign in to Azure",
+          actionOperation: "az-login",
+          command: "az login",
+        });
+      }
+      if (azInstalled && !aigatewayInstalled) {
+        missingTools.push({
+          id: "aigateway",
+          label: "Azure CLI aigateway extension",
+          actionLabel: "Install aigateway CLI",
+          actionOperation: "install-prereq-aigateway",
+          command: "az extension add --name aigateway --upgrade",
+        });
+      }
+      const uvVersion = uvRes?.ok ? String(uvRes.stdout || "").trim().split("\n")[0] : "";
+      const azVersion = azRes?.ok ? String(azRes.stdout || "").trim().split("\n")[0] : "";
+      let aigatewayVersion = "";
+      if (azAigatewayRes?.ok && azAigatewayRes.stdout) {
+        try {
+          const parsed = JSON.parse(azAigatewayRes.stdout);
+          aigatewayVersion = parsed?.version || parsed?.cliVersion || "installed";
+        } catch {
+          aigatewayVersion = String(azAigatewayRes.stdout).trim().split("\n")[0] || "installed";
+        }
+      }
+      const items = [
+        {
+          id: "uv",
+          label: "uv (Python runner)",
+          ready: uvInstalled,
+          detail: uvInstalled ? (uvVersion || "Installed") : "Required to run Python agent and sandbox tools",
+          actionLabel: uvInstalled ? "" : "Install uv",
+          actionOperation: uvInstalled ? "" : "install-prereq-uv",
+          command: process.platform === "win32"
+            ? "powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+            : "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        },
+        {
+          id: "az",
+          label: "Azure CLI (az)",
+          ready: azInstalled && azSignedIn,
+          detail: !azInstalled
+            ? "Required for Azure discovery and authentication"
+            : azSignedIn
+              ? `Signed in · ${subscriptionName}`
+              : "Installed (sign-in required)",
+          actionLabel: !azInstalled ? "" : azSignedIn ? "" : "Sign in to Azure",
+          actionOperation: !azInstalled ? "" : azSignedIn ? "" : "az-login",
+          command: !azInstalled
+            ? (process.platform === "win32" ? "winget install -e --id Microsoft.AzureCLI" : "brew install azure-cli")
+            : "az login",
+        },
+        {
+          id: "aigateway",
+          label: "AI Gateway CLI (az aigateway)",
+          ready: azInstalled && aigatewayInstalled,
+          detail: aigatewayInstalled ? `Extension ${aigatewayVersion}` : "Required for AI Gateway & model discovery",
+          actionLabel: azInstalled && !aigatewayInstalled ? "Install aigateway CLI" : "",
+          actionOperation: azInstalled && !aigatewayInstalled ? "install-prereq-aigateway" : "",
+          command: "az extension add --name aigateway --upgrade",
+        },
+      ];
+      return {
+        uvInstalled,
+        azInstalled,
+        azSignedIn,
+        subscriptionId,
+        subscriptionName,
+        aigatewayInstalled,
+        azVersion,
+        items,
+        missingTools,
+      };
+    })();
+  }
+  const [base, acaRes] = await Promise.all([
+    cachedPrerequisitePromise,
+    needsSandbox !== false ? detectAcaPrerequisite({ force }) : Promise.resolve(null),
+  ]);
+  if (needsSandbox === false) {
+    return {
+      ready: base.missingTools.length === 0,
+      ...base,
+      acaInstalled: true,
+    };
+  }
+  const acaInstalled = Boolean(acaRes?.ok);
+  const acaVersion = acaRes?.ok ? String(acaRes.stdout || "").trim().split("\n")[0] : "";
+  const acaItem = {
+    id: "aca",
+    label: "ACA Sandbox CLI (aca)",
+    ready: acaInstalled,
+    detail: acaInstalled ? (acaVersion || "Installed") : "Required for isolated hypervisor microVM sandboxes",
+    actionLabel: acaInstalled ? "" : "Install aca CLI",
+    actionOperation: acaInstalled ? "" : "install-prereq-aca",
+    command: process.platform === "win32"
+      ? "irm https://aka.ms/aca-cli-install-ps | iex"
+      : ACA_INSTALL_POSIX,
+  };
+  const missingTools = acaInstalled
+    ? base.missingTools
+    : [
+        ...base.missingTools,
+        {
+          id: "aca",
+          label: "ACA Sandbox CLI (aca)",
+          actionLabel: "Install aca CLI",
+          actionOperation: "install-prereq-aca",
+          command: acaItem.command,
+        },
+      ];
+  return {
+    ...base,
+    ready: missingTools.length === 0,
+    acaInstalled,
+    items: [...base.items, acaItem],
+    missingTools,
+  };
+}
+
+const cachedGatewayApiKeys = new Map();
+
 async function fetchGatewayApiKey(gateway) {
+  if (!gateway?.subscriptionId || !gateway?.resourceGroup || !gateway?.name) return "";
+  const cacheKey = `${gateway.subscriptionId}/${gateway.resourceGroup}/${gateway.name}`.toLowerCase();
+  const cached = cachedGatewayApiKeys.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.apiKey;
+  }
+  const segments = [gateway.subscriptionId, gateway.resourceGroup, gateway.name].map(encodeURIComponent);
+  const restSecrets = await azureBootstrapRunner("az", [
+    "rest",
+    "--method",
+    "post",
+    "--uri",
+    `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/service/${segments[2]}/workspaces/default/subscriptions/master/listSecrets?api-version=2024-05-01`,
+    "-o",
+    "json",
+  ]);
+  if (restSecrets?.ok && restSecrets.stdout) {
+    try {
+      const parsed = JSON.parse(restSecrets.stdout);
+      const key = (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim())
+        || (typeof parsed?.secondaryKey === "string" && parsed.secondaryKey.trim())
+        || "";
+      if (key) {
+        cachedGatewayApiKeys.set(cacheKey, { apiKey: key, expiresAt: Date.now() + DEFAULT_INFRA_CACHE_TTL_MS });
+        return key;
+      }
+    } catch {
+      // Fall back to az aigateway cli
+    }
+  }
   const cliSecrets = await azureBootstrapRunner("az", [
     "aigateway",
     "api-key",
@@ -964,31 +1086,12 @@ async function fetchGatewayApiKey(gateway) {
   if (cliSecrets?.ok && cliSecrets.stdout) {
     try {
       const parsed = JSON.parse(cliSecrets.stdout);
-      if (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim()) {
-        return parsed.primaryKey.trim();
-      }
-      if (typeof parsed?.secondaryKey === "string" && parsed.secondaryKey.trim()) {
-        return parsed.secondaryKey.trim();
-      }
-    } catch {
-      // Fall back to az rest
-    }
-  }
-  const segments = [gateway.subscriptionId, gateway.resourceGroup, gateway.name].map(encodeURIComponent);
-  const restSecrets = await azureBootstrapRunner("az", [
-    "rest",
-    "--method",
-    "post",
-    "--uri",
-    `https://management.azure.com/subscriptions/${segments[0]}/resourceGroups/${segments[1]}/providers/Microsoft.ApiManagement/service/${segments[2]}/workspaces/default/subscriptions/master/listSecrets?api-version=2024-05-01`,
-    "-o",
-    "json",
-  ]);
-  if (restSecrets?.ok && restSecrets.stdout) {
-    try {
-      const parsed = JSON.parse(restSecrets.stdout);
-      if (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim()) {
-        return parsed.primaryKey.trim();
+      const key = (typeof parsed?.primaryKey === "string" && parsed.primaryKey.trim())
+        || (typeof parsed?.secondaryKey === "string" && parsed.secondaryKey.trim())
+        || "";
+      if (key) {
+        cachedGatewayApiKeys.set(cacheKey, { apiKey: key, expiresAt: Date.now() + DEFAULT_INFRA_CACHE_TTL_MS });
+        return key;
       }
     } catch {
       // Ignore
@@ -1000,7 +1103,7 @@ async function fetchGatewayApiKey(gateway) {
 async function probeGatewayModelResponses(endpoint, apiKey, model) {
   if (!endpoint || !apiKey || !model) return false;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6_000);
+  const timeout = setTimeout(() => controller.abort(), 3_500);
   timeout.unref?.();
   try {
     const response = await fetch(`${endpoint.replace(/\/+$/, "")}/default/models/openai/v1/responses`, {
@@ -1050,16 +1153,160 @@ async function probeSandboxGroupDataPlane(sandboxGroup) {
   return Boolean(listResult?.ok);
 }
 
-async function discoverDefaultCanvasInfra() {
+const DEFAULT_INFRA_CACHE_TTL_MS = 3_600_000;
+
+function defaultInfraCachePath() {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  if (!home) return "";
+  return `${home}/.copilot/azure-app-platform/default-infra.json`;
+}
+
+async function readDefaultInfraDiskCache() {
+  const path = defaultInfraCachePath();
+  if (!path) return null;
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8"));
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!Number.isFinite(parsed.updatedAt) || Date.now() - parsed.updatedAt > DEFAULT_INFRA_CACHE_TTL_MS) {
+      return null;
+    }
+    const gw = parsed.gateway;
+    if (!gw?.name || !gw?.resourceGroup || !gw?.subscriptionId || !gw?.endpoint || !gw?.model) {
+      return null;
+    }
+    return {
+      gateway: gw,
+      sandboxGroup: parsed.sandboxGroup ?? null,
+      sandboxChecked: Boolean(parsed.sandboxChecked),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function writeDefaultInfraDiskCache(entry) {
+  const path = defaultInfraCachePath();
+  if (!path || !entry?.gateway) return;
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(
+      path,
+      `${JSON.stringify({
+        gateway: entry.gateway,
+        sandboxGroup: entry.sandboxGroup ?? null,
+        sandboxChecked: Boolean(entry.sandboxChecked),
+        updatedAt: Date.now(),
+      }, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
+  } catch {}
+}
+
+async function discoverDefaultSandboxGroup(subscriptionId) {
+  const acaConfig = await readAcaCliDefaultConfig();
+  const { sandboxGroups, suggested } = await discoverSandboxGroups(
+    azureBootstrapRunner,
+    subscriptionId,
+    acaConfig,
+    { includeAll: true, fallbackAllSubscriptions: true },
+  );
+  const orderedGroups = [
+    suggested,
+    ...sandboxGroups.filter((item) => item?.name !== suggested?.name || item?.resourceGroup !== suggested?.resourceGroup),
+  ].filter(Boolean);
+  const batch = orderedGroups.slice(0, 3);
+  const probeResults = await Promise.all(batch.map((candidateGroup) => probeSandboxGroupDataPlane(candidateGroup)));
+  const hitIndex = probeResults.findIndex(Boolean);
+  if (hitIndex !== -1) return batch[hitIndex];
+  for (const candidateGroup of orderedGroups.slice(3)) {
+    if (await probeSandboxGroupDataPlane(candidateGroup)) {
+      return candidateGroup;
+    }
+  }
+  return null;
+}
+
+async function probeCandidateGateway(candidate) {
+  const [models, candidateKey] = await Promise.all([
+    discoverGatewayModels(azureBootstrapRunner, candidate).catch(() => []),
+    fetchGatewayApiKey(candidate),
+  ]);
+  if (!models.length || !candidateKey) return null;
+  const preferred = selectPreferredModelId(models);
+  const orderedModels = [
+    preferred,
+    ...models.map((item) => item.id).filter((id) => id !== preferred),
+  ].filter(Boolean);
+  const initialModels = orderedModels.slice(0, 3);
+  const initialChecks = await Promise.all(
+    initialModels.map((candidateModel) => probeGatewayModelResponses(candidate.endpoint, candidateKey, candidateModel)),
+  );
+  const matchedInitialIndex = initialChecks.findIndex(Boolean);
+  if (matchedInitialIndex !== -1) {
+    return {
+      gateway: candidate,
+      model: initialModels[matchedInitialIndex],
+      apiKey: candidateKey,
+    };
+  }
+  for (const candidateModel of orderedModels.slice(3)) {
+    if (await probeGatewayModelResponses(candidate.endpoint, candidateKey, candidateModel)) {
+      return {
+        gateway: candidate,
+        model: candidateModel,
+        apiKey: candidateKey,
+      };
+    }
+  }
+  return null;
+}
+
+async function discoverDefaultCanvasInfra({ needsSandbox = true } = {}) {
   if (
     cachedDefaultInfraPromise
     && (cachedDefaultInfraNegativeUntil === 0 || Date.now() < cachedDefaultInfraNegativeUntil)
   ) {
-    return cachedDefaultInfraPromise;
+    const existing = await cachedDefaultInfraPromise;
+    if (existing && needsSandbox !== false && !existing.sandboxChecked) {
+      const validatedSandboxGroup = await discoverDefaultSandboxGroup(existing.gateway.subscriptionId);
+      existing.sandboxGroup = validatedSandboxGroup ?? null;
+      existing.gateway = {
+        ...existing.gateway,
+        sandboxGroup: validatedSandboxGroup ?? undefined,
+      };
+      existing.sandboxChecked = true;
+      await writeDefaultInfraDiskCache(existing);
+    }
+    return existing;
   }
   cachedDefaultInfraNegativeUntil = 0;
   const discoveryPromise = (async () => {
     try {
+      const diskCached = await readDefaultInfraDiskCache();
+      if (diskCached?.gateway) {
+        const cachedKey = await fetchGatewayApiKey(diskCached.gateway);
+        if (cachedKey) {
+          let validatedSandboxGroup = diskCached.sandboxGroup ?? null;
+          let sandboxChecked = diskCached.sandboxChecked;
+          if (needsSandbox !== false && !sandboxChecked) {
+            validatedSandboxGroup = await discoverDefaultSandboxGroup(diskCached.gateway.subscriptionId);
+            sandboxChecked = true;
+          }
+          const resolvedFromDisk = {
+            gateway: {
+              ...diskCached.gateway,
+              sandboxGroup: validatedSandboxGroup ?? undefined,
+            },
+            apiKey: cachedKey,
+            sandboxGroup: validatedSandboxGroup ?? null,
+            sandboxChecked,
+          };
+          if (sandboxChecked !== diskCached.sandboxChecked) {
+            await writeDefaultInfraDiskCache(resolvedFromDisk);
+          }
+          return resolvedFromDisk;
+        }
+      }
       const options = await discoverGatewayOptions(azureBootstrapRunner, null);
       const preferredOrder = [...options.gateways].sort((a, b) => {
         const aQuickstart = a.name.startsWith("aigw-quickstart-") ? 1 : 0;
@@ -1070,47 +1317,31 @@ async function discoverDefaultCanvasInfra() {
       let gateway = null;
       let model = "";
       let apiKey = "";
-      for (const candidate of preferredOrder) {
-        const [models, candidateKey] = await Promise.all([
-          discoverGatewayModels(azureBootstrapRunner, candidate).catch(() => []),
-          fetchGatewayApiKey(candidate),
-        ]);
-        if (!models.length || !candidateKey) continue;
-        const preferred = selectPreferredModelId(models);
-        const orderedModels = [
-          preferred,
-          ...models.map((item) => item.id).filter((id) => id !== preferred),
-        ].filter(Boolean);
-        for (const candidateModel of orderedModels) {
-          if (await probeGatewayModelResponses(candidate.endpoint, candidateKey, candidateModel)) {
-            gateway = candidate;
-            model = candidateModel;
-            apiKey = candidateKey;
+      const initialGateways = preferredOrder.slice(0, 3);
+      const initialGatewayResults = await Promise.all(
+        initialGateways.map((candidate) => probeCandidateGateway(candidate)),
+      );
+      const matchedGateway = initialGatewayResults.find(Boolean);
+      if (matchedGateway) {
+        gateway = matchedGateway.gateway;
+        model = matchedGateway.model;
+        apiKey = matchedGateway.apiKey;
+      } else {
+        for (const candidate of preferredOrder.slice(3)) {
+          const fallbackMatch = await probeCandidateGateway(candidate);
+          if (fallbackMatch) {
+            gateway = fallbackMatch.gateway;
+            model = fallbackMatch.model;
+            apiKey = fallbackMatch.apiKey;
             break;
           }
         }
-        if (gateway && model && apiKey) break;
       }
       if (!gateway || !model || !apiKey) return null;
-      const acaConfig = await readAcaCliDefaultConfig();
-      const { sandboxGroups, suggested } = await discoverSandboxGroups(
-        azureBootstrapRunner,
-        gateway.subscriptionId,
-        acaConfig,
-        { includeAll: true, fallbackAllSubscriptions: true },
-      );
-      let validatedSandboxGroup = null;
-      const orderedGroups = [
-        suggested,
-        ...sandboxGroups.filter((item) => item?.name !== suggested?.name || item?.resourceGroup !== suggested?.resourceGroup),
-      ].filter(Boolean);
-      for (const candidateGroup of orderedGroups) {
-        if (await probeSandboxGroupDataPlane(candidateGroup)) {
-          validatedSandboxGroup = candidateGroup;
-          break;
-        }
-      }
-      return {
+      const validatedSandboxGroup = needsSandbox !== false
+        ? await discoverDefaultSandboxGroup(gateway.subscriptionId)
+        : null;
+      const result = {
         gateway: {
           ...gateway,
           model,
@@ -1118,7 +1349,10 @@ async function discoverDefaultCanvasInfra() {
         },
         apiKey,
         sandboxGroup: validatedSandboxGroup ?? null,
+        sandboxChecked: needsSandbox !== false,
       };
+      await writeDefaultInfraDiskCache(result);
+      return result;
     } catch {
       return null;
     }
@@ -1181,6 +1415,46 @@ async function readAppEnvConfiguration(root) {
   return "";
 }
 
+async function syncHostedSkillGatewaySettings(root, envContent) {
+  const parsed = parseEnvVariables(envContent);
+  const endpoint = String(parsed.AZURE_AI_GATEWAY_ENDPOINT || parsed.AI_GATEWAY_BASE_URL || "").trim().replace(/\/default\/models\/openai\/v1\/?$/, "").replace(/\/+$/, "");
+  const apiKey = String(parsed.AZURE_AI_GATEWAY_API_KEY || parsed.AI_GATEWAY_API_KEY || "").trim();
+  const model = String(
+    parsed.AZURE_AI_GATEWAY_MINI_MODEL
+    || parsed.AZURE_AI_GATEWAY_MODEL
+    || parsed.AI_GATEWAY_MODEL
+    || parsed.OPENAI_MODEL
+    || "",
+  ).trim();
+  if (!endpoint && !apiKey && !model) return;
+  let skillEntries = [];
+  try {
+    skillEntries = await readdir(`${root}/src/skills`, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  await Promise.all(skillEntries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+    const settingsPath = `${root}/src/skills/${entry.name}/local.settings.json`;
+    try {
+      const raw = await readFile(settingsPath, "utf8");
+      const settings = JSON.parse(raw);
+      settings.Values ||= {};
+      if (settings.Values.AZURE_FUNCTIONS_AGENTS_PROVIDER !== "foundry") {
+        if (endpoint) {
+          settings.Values.OPENAI_BASE_URL = `${endpoint}/default/models/openai/v1/`;
+        }
+        if (apiKey) {
+          settings.Values.OPENAI_CUSTOM_HEADERS = `Api-Key: ${apiKey}`;
+        }
+        if (model) {
+          settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL = model;
+        }
+      }
+      await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    } catch {}
+  }));
+}
+
 async function writeAppEnvConfiguration(root, envContent) {
   let wrote = false;
   try {
@@ -1200,25 +1474,59 @@ async function writeAppEnvConfiguration(root, envContent) {
     await writeFile(`${root}/.env`, envContent, { encoding: "utf8", mode: 0o600 });
     wrote = true;
   }
+  await syncHostedSkillGatewaySettings(root, envContent);
   return wrote;
 }
 
-async function ensureDefaultInfraConnected(root) {
-  let hasTarget = false;
-  for (const candidate of [`${root}/src/agent`, `${root}/builder.yaml`, `${root}/embr.yaml`]) {
+async function inspectAppInfraNeeds(root) {
+  let needsGateway = false;
+  let needsSandbox = false;
+  let needsPython = false;
+  for (const candidate of [`${root}/src/agent`, `${root}/gateway.py`, `${root}/infra-ai-gateway`]) {
     try {
       await access(candidate);
-      hasTarget = true;
+      needsGateway = true;
       break;
     } catch {}
   }
-  if (!hasTarget) return null;
-  const infra = await discoverDefaultCanvasInfra();
+  for (const candidate of [`${root}/src/tools`, `${root}/src/sandbox`, `${root}/config/egress-policy.yaml`]) {
+    try {
+      await access(candidate);
+      needsSandbox = true;
+      break;
+    } catch {}
+  }
+  for (const candidate of [`${root}/pyproject.toml`, `${root}/src/agent/pyproject.toml`]) {
+    try {
+      await access(candidate);
+      needsPython = true;
+      break;
+    } catch {}
+  }
+  try {
+    const manifest = await readFile(`${root}/azure-app.yaml`, "utf8");
+    if (/^\s*-\s*id:\s*(?:gateway|agent)\b/m.test(manifest)) needsGateway = true;
+    if (/^\s*-\s*id:\s*sandbox\b/m.test(manifest)) needsSandbox = true;
+    if (/^\s*-\s*id:\s*(?:agent|skills|sandbox|workflows)\b/m.test(manifest)) needsPython = true;
+  } catch {}
+  return {
+    needsGateway,
+    needsSandbox,
+    needsPython: needsPython || needsGateway || needsSandbox,
+  };
+}
+
+async function ensureDefaultInfraConnected(root, infraNeeds) {
+  const resolvedNeeds = infraNeeds ?? await inspectAppInfraNeeds(root);
+  if (!resolvedNeeds.needsGateway && !resolvedNeeds.needsSandbox) return null;
+  const infra = await discoverDefaultCanvasInfra({ needsSandbox: resolvedNeeds.needsSandbox });
   if (!infra?.gateway || !infra?.apiKey) return null;
   const configurationId = randomUUID();
   const now = new Date().toISOString();
+  const sandboxGroup = resolvedNeeds.needsSandbox ? infra.sandboxGroup : null;
   const active = {
     ...infra.gateway,
+    sandboxGroup: sandboxGroup ?? undefined,
     selectedAt: now,
     configuredAt: now,
     configurationStatus: "ready",
@@ -1226,7 +1534,7 @@ async function ensureDefaultInfraConnected(root) {
     lastExitCode: 0,
     lastSignal: null,
   };
-  const envContent = buildAgentEnvFileContent(active, infra.apiKey, infra.sandboxGroup);
+  const envContent = buildAgentEnvFileContent(active, infra.apiKey, sandboxGroup);
   await writeAppEnvConfiguration(root, envContent);
   await persistActiveGateway(root, active);
   return envContent;
@@ -1235,16 +1543,24 @@ async function ensureDefaultInfraConnected(root) {
 async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
   let purpose = "";
   let instructions = "";
+  let explicitStarterPrompt = "";
   try {
     const appJson = JSON.parse(await readFile(`${root}/.azure-app-platform/app.json`, "utf8"));
+    if (typeof appJson.starterPrompt === "string" && appJson.starterPrompt.trim()) {
+      explicitStarterPrompt = appJson.starterPrompt.trim();
+    }
     if (typeof appJson.purpose === "string") purpose = appJson.purpose.trim();
   } catch {}
-  if (!purpose) {
+  if (!purpose || !explicitStarterPrompt) {
     try {
       const domainJson = JSON.parse(await readFile(`${root}/config/domain.json`, "utf8"));
-      if (typeof domainJson.purpose === "string") purpose = domainJson.purpose.trim();
+      if (!explicitStarterPrompt && typeof domainJson.starterPrompt === "string" && domainJson.starterPrompt.trim()) {
+        explicitStarterPrompt = domainJson.starterPrompt.trim();
+      }
+      if (!purpose && typeof domainJson.purpose === "string") purpose = domainJson.purpose.trim();
     } catch {}
   }
+  if (explicitStarterPrompt) return explicitStarterPrompt;
   try {
     const rawSystem = await readFile(`${root}/src/agent/prompts/system.md`, "utf8");
     const beforeSection = rawSystem.split(/^##\s+/m)[0] || "";
@@ -1258,8 +1574,8 @@ async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
     .replace(/^help users accomplish(?: this application purpose)?:\s*/i, "")
     .trim();
 
-  if (/\b(dealership|car[- ]buying|trade[- ]in|vehicle inventory|family suv)\b/i.test(normalizedText)) {
-    return "Find a family SUV under $38,000 and estimate my monthly payment";
+  if (/\b(dealership|car[- ]buying|car dealers?|search inventory|evaluate deals|trade[- ]in|vehicle inventory|family suv)\b/i.test(normalizedText)) {
+    return "Find me an EV under $40,000 with at least 250 miles of range";
   }
   if (hasDocumentTool || /\b(validate documents|process.*document|untrusted document|document validation|redact.*pii)\b/i.test(normalizedText)) {
     const isDefaultDocPrompt = !normalizedText ||
@@ -1274,13 +1590,14 @@ async function deriveStarterPrompt(root, { hasDocumentTool = false } = {}) {
   if (/\b(claim|claims|policyholder)\b/i.test(normalizedText)) {
     return "Review the latest claim and summarize required next steps";
   }
-  if (normalizedText && !/^assist users with governed tools and models\.?$/i.test(normalizedText)) {
+  if (
+    normalizedText &&
+    !/^assist users with governed tools and models\.?$/i.test(normalizedText) &&
+    !/^(?:help|assist)\s+/i.test(normalizedText)
+  ) {
     const firstSentence = normalizedText.split(/(?<=[.!?])\s+/)[0].replace(/[.!?]+$/, "").trim();
-    const stripped = firstSentence
-      .replace(/^(?:help|assist)\s+(?:users|customers|the user|people)\s+(?:to\s+|with\s+)?/i, "")
-      .trim();
-    if (stripped.length >= 6 && stripped.length <= 140) {
-      return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+    if (firstSentence.length >= 6 && firstSentence.length <= 140) {
+      return firstSentence.charAt(0).toUpperCase() + firstSentence.slice(1);
     }
   }
   return "Summarize how you can help and run a sample check";
@@ -1290,6 +1607,13 @@ async function localReadiness(root) {
   const existing = inFlightLocalReadiness.get(root);
   if (existing) return existing;
   const pending = (async () => {
+    const [runtime, infraNeeds] = await Promise.all([
+      readAppRuntimeProfile(root),
+      inspectAppInfraNeeds(root),
+    ]);
+    const prerequisitesPromise = infraNeeds.needsGateway || infraNeeds.needsSandbox || infraNeeds.needsPython
+      ? detectLocalPrerequisites({ needsSandbox: infraNeeds.needsSandbox })
+      : Promise.resolve({ ready: true, items: [], missingTools: [] });
     let agentConfiguration = await readAppEnvConfiguration(root);
     let activeGateway = await loadActiveGateway(root, { refresh: true });
     const isConfiguring = appStates.get(root)?.state === "configuring";
@@ -1298,8 +1622,8 @@ async function localReadiness(root) {
       activeGateway,
       isConfiguring,
     );
-    if (!gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
-      const bootstrappedEnv = await ensureDefaultInfraConnected(root);
+    if ((infraNeeds.needsGateway || infraNeeds.needsSandbox) && !gatewayReadiness.gatewayConfigured && !isConfiguring && (!activeGateway || activeGateway.configurationStatus !== "configuring")) {
+      const bootstrappedEnv = await ensureDefaultInfraConnected(root, infraNeeds);
       if (bootstrappedEnv) {
         agentConfiguration = bootstrappedEnv;
         activeGateway = await loadActiveGateway(root, { refresh: true });
@@ -1308,7 +1632,7 @@ async function localReadiness(root) {
         }
         gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, activeGateway, false);
       }
-    } else if (gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
+    } else if (infraNeeds.needsSandbox && gatewayReadiness.gatewayConfigured && !gatewayReadiness.sandboxGroup && !(activeGateway && "sandboxGroup" in activeGateway && !activeGateway.sandboxGroup)) {
       const infra = await discoverDefaultCanvasInfra();
       if (infra?.sandboxGroup?.name && activeGateway) {
         const updatedActive = { ...activeGateway, sandboxGroup: infra.sandboxGroup };
@@ -1320,14 +1644,18 @@ async function localReadiness(root) {
         gatewayReadiness = evaluateGatewayReadiness(agentConfiguration, updatedActive, false);
       }
     }
-    const runtime = await readAppRuntimeProfile(root);
     const previewMode = runtime?.requiresGatewayForFullStart === true && !gatewayReadiness.gatewayConfigured;
     const canStartFromProfile = typeof runtime?.start === "string" && runtime.start.trim() && runtime?.requiresGatewayForFullStart !== true;
     const ready = gatewayReadiness.gatewayConfigured || Boolean(canStartFromProfile);
-    const inputCapabilities = await readAppInputCapabilities(root, { agentConfiguration });
-    const buildRuntime = await readBuildRuntime(root, inputCapabilities);
-    const prerequisites = await detectLocalPrerequisites();
-    const starterPrompt = await deriveStarterPrompt(root, { hasDocumentTool: Boolean(inputCapabilities.documentInput) });
+    const [inputCapabilities, prerequisites, deploymentBlocker] = await Promise.all([
+      readAppInputCapabilities(root, { agentConfiguration }),
+      prerequisitesPromise,
+      documentDeploymentBlocker(root),
+    ]);
+    const [buildRuntime, starterPrompt] = await Promise.all([
+      readBuildRuntime(root, inputCapabilities),
+      deriveStarterPrompt(root, { hasDocumentTool: Boolean(inputCapabilities.documentInput) }),
+    ]);
     return {
       ...gatewayReadiness,
       ready,
@@ -1335,12 +1663,14 @@ async function localReadiness(root) {
       starterPrompt,
       agentRuntime: buildRuntime?.agentRuntime ?? null,
       ...inputCapabilities,
-      deploymentBlocker: await documentDeploymentBlocker(root),
+      deploymentBlocker,
       mode: previewMode ? "preview" : "full",
       missing: gatewayReadiness.gatewayConfigured || canStartFromProfile ? [] : gatewayReadiness.missing,
       guidance: previewMode
         ? "The app can start in local preview mode. Connect an AI Gateway to enable the complete agent workflow."
-        : gatewayReadiness.guidance,
+        : !infraNeeds.needsGateway && !infraNeeds.needsSandbox && canStartFromProfile
+          ? "Local web configuration is ready. Run the local app."
+          : gatewayReadiness.guidance,
     };
   })();
   inFlightLocalReadiness.set(root, pending);
@@ -2090,27 +2420,35 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       response.once("close", () => {
         if (!response.writableEnded) reqAbort.abort();
       });
-      const active = await loadActiveGateway(root, { refresh: true });
+      const [active, infraNeeds] = await Promise.all([
+        loadActiveGateway(root, { refresh: true }),
+        inspectAppInfraNeeds(root),
+      ]);
       const runner = trackedAzureRunner(root, { signal: reqAbort.signal, timeout: 12_000 });
       const options = await discoverGatewayOptions(
         runner, active, url.searchParams.get("subscriptionId"), { signal: reqAbort.signal },
       );
-      const configuredSandboxGroup = active?.sandboxGroup
-        ? {
-            ...active.sandboxGroup,
-            subscriptionId: active.sandboxGroup.subscriptionId || active.subscriptionId || "",
-          }
-        : await readAcaCliDefaultConfig();
       const requestedSandboxSub = url.searchParams.get("sandboxSubscriptionId") || "";
+      const includeSandboxes = Boolean(infraNeeds.needsSandbox || requestedSandboxSub || active?.sandboxGroup?.name);
+      const configuredSandboxGroup = includeSandboxes
+        ? (active?.sandboxGroup
+          ? {
+              ...active.sandboxGroup,
+              subscriptionId: active.sandboxGroup.subscriptionId || active.subscriptionId || "",
+            }
+          : await readAcaCliDefaultConfig())
+        : null;
       const initialSandboxSub = requestedSandboxSub || "*";
       const [modelOptions, sandboxDiscovery] = await Promise.all([
         loadGatewayModelOptions(runner, options, {
           name: url.searchParams.get("gatewayName"), resourceGroup: url.searchParams.get("resourceGroup"),
         }),
-        discoverSandboxGroups(runner, initialSandboxSub, configuredSandboxGroup, {
-          includeAll: true,
-          fallbackAllSubscriptions: true,
-        }),
+        includeSandboxes
+          ? discoverSandboxGroups(runner, initialSandboxSub, configuredSandboxGroup, {
+              includeAll: true,
+              fallbackAllSubscriptions: true,
+            })
+          : Promise.resolve({ sandboxGroups: [], suggested: null, subscriptionId: "" }),
       ]);
       if (reqAbort.signal.aborted || response.writableEnded) return;
       const targetGroup = configuredSandboxGroup?.name
@@ -2359,8 +2697,10 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         onProgress,
       });
       if (result.worktreePath) {
-        authorizedRoots.add(await realpath(result.worktreePath));
+        const realWorktreePath = await realpath(result.worktreePath);
+        authorizedRoots.add(realWorktreePath);
         await savePersistedAuthorizedRoots(workspaceRoot, authorizedRoots);
+        void localReadiness(realWorktreePath).catch(() => {});
       }
       if (workspaceProgressStream) response.end(JSON.stringify({ type: "result", result }) + "\n");
       else sendJson(response, 202, result);
@@ -2993,6 +3333,9 @@ if ($firstModelId) {
         throw new Error("App Map root is not an authorized app workspace.");
       }
       if (url.pathname === "/app-map") {
+        if (url.searchParams.get("root")) {
+          void localReadiness(root).catch(() => {});
+        }
         response.setHeader("Content-Type", "text/html; charset=utf-8");
         response.end(renderWorkspaceLoadingHtml(root, apiToken, {
           ...await readStudioPreferences(), presentationProfile,
