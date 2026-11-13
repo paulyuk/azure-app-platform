@@ -1247,7 +1247,7 @@ test("sandbox & gateway minimal materializer creates a headless agent + sandbox 
 
 test("empty template materializer creates a runnable editable starter", async () => {
   await withFixture({ "unrelated.txt": "__APP_NAME__" }, async (root) => {
-    await materializeTemplate({
+    const generated = await materializeTemplate({
       appName: "Claims helper",
       purpose: "Help users understand a claim",
       templateInputs: {
@@ -1259,6 +1259,10 @@ test("empty template materializer creates a runnable editable starter", async ()
     const skillFiles = await readdir(join(root, "src", "skills", "claim-lookup"));
     assert.equal(skillFiles.includes("function_app.py"), true);
     assert.match(await readFile(join(root, "src", "agent", "prompts", "system.md"), "utf8"), /use only registered tools/i);
+    const agentProject = await readFile(join(root, "src", "agent", "pyproject.toml"), "utf8");
+    assert.match(agentProject, /name = "claims-helper-agent"/);
+    assert.match(agentProject, /requires-python = ">=3\.11"/);
+    assert.ok(generated.requiredFiles.includes("src/agent/pyproject.toml"));
     const posixStart = await readFile(join(root, "scripts", "dev-start.sh"), "utf8");
     assert.match(posixStart, /packagefeedproxy\.microsoft\.io/);
     assert.match(posixStart, /uv run main\.py/);

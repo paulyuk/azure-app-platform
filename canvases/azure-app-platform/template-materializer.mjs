@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { APP_SERVICE_BUILDER_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
 import { BUILD_BLOCK_TEMPLATES } from "./build-blocks.mjs";
 import { parseUnityManifest } from "./discovery.mjs";
@@ -174,6 +174,7 @@ async function materializeLocalTemplate(plan, destination) {
     2_000,
   );
   const staging = await mkdtemp(join(tmpdir(), "app-platform-empty-"));
+  let requiredFiles;
   try {
     const templateEntries = await readdir(templateRoot);
     await Promise.all(templateEntries.map((entry) =>
@@ -208,13 +209,16 @@ async function materializeLocalTemplate(plan, destination) {
       );
       await rename(join(staging, "src", "skills", "__SKILL__"), join(staging, "src", "skills", hostedSkillName));
       tokens["__SKILL_NAME__"] = hostedSkillName;
+      requiredFiles = EMPTY_TEMPLATE.requiredPaths.map((path) =>
+        path.replaceAll("<hosted-skill>", hostedSkillName));
     }
     await replaceTokens(staging, tokens);
     if (isSandboxGateway) {
-      await Promise.all(SANDBOX_GATEWAY_TEMPLATE.requiredPaths.map((path) => access(join(staging, path))));
+      requiredFiles = [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths];
     } else if (isAppServiceBuilder) {
-      await Promise.all(APP_SERVICE_BUILDER_TEMPLATE.requiredPaths.map((path) => access(join(staging, path))));
+      requiredFiles = [...APP_SERVICE_BUILDER_TEMPLATE.requiredPaths];
     }
+    await Promise.all(requiredFiles.map((path) => access(join(staging, path))));
     const renderedEntries = await readdir(staging);
     await Promise.all(renderedEntries.map((entry) =>
       cp(join(staging, entry), join(destination, entry), { recursive: true, force: true })));
@@ -228,11 +232,7 @@ async function materializeLocalTemplate(plan, destination) {
   return {
     kind: "empty-template",
     destination,
-    requiredFiles: isSandboxGateway
-      ? [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths]
-      : (isAppServiceBuilder
-          ? [...APP_SERVICE_BUILDER_TEMPLATE.requiredPaths]
-          : ["README.md", "azure-app.yaml", "scripts/dev-start.sh", "scripts/dev-stop.sh"]),
+    requiredFiles,
   };
 }
 
