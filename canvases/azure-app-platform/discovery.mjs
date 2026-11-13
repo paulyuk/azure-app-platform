@@ -8,6 +8,8 @@ import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 
 const EXCLUDED_DIRECTORIES = new Set([
   ".git",
+  ".dev-logs",
+  ".dev-pids",
   ".dev-run",
   ".next",
   ".nuxt",
@@ -113,6 +115,7 @@ function shouldReadFile(file) {
   if (
     EXCLUDED_FILES.has(file.name)
     || file.name.endsWith(".lock")
+    || file.name.endsWith(".tmp")
     || /\.(?:test|spec)\.[^.]+$/i.test(file.name)
   ) {
     return false;
@@ -134,6 +137,9 @@ export async function scanRepository(root, { maxDepth = 10, maxFiles = 20_000 } 
     try {
       handle = await opendir(directory);
     } catch (error) {
+      if (depth > 0 && error?.code === "ENOENT") {
+        return;
+      }
       diagnostics.push({
         code: "directory-unreadable",
         path: toPosix(relative(resolvedRoot, directory)) || ".",
@@ -151,6 +157,7 @@ export async function scanRepository(root, { maxDepth = 10, maxFiles = 20_000 } 
       if (entry.isDirectory()) {
         if (
           !EXCLUDED_DIRECTORIES.has(entry.name)
+          && !entry.name.endsWith(".lock")
           && resolve(absolutePath) !== SELF_DIRECTORY
           && relativeDirectory !== "canvases/azure-app-platform"
           && relativeDirectory !== ".github/extensions/azure-app-platform"
@@ -168,6 +175,9 @@ export async function scanRepository(root, { maxDepth = 10, maxFiles = 20_000 } 
             readable: metadata.size <= MAX_FILE_BYTES,
           });
         } catch (error) {
+          if (error?.code === "ENOENT") {
+            continue;
+          }
           diagnostics.push({
             code: "file-unreadable",
             path: toPosix(relative(resolvedRoot, absolutePath)),
@@ -208,6 +218,9 @@ export async function loadRepositoryFiles(scan, { maxTotalBytes = MAX_TOTAL_READ
       loaded.push({ ...file, content: await readFile(file.absolutePath, "utf8") });
       totalBytes += file.size;
     } catch (error) {
+      if (error?.code === "ENOENT") {
+        continue;
+      }
       scan.diagnostics.push({
         code: "file-unreadable",
         path: file.path,

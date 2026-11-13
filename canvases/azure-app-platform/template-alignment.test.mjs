@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
 import { summarizeAgentResult } from "./agent-result.mjs";
-import { SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { scanRepository, loadRepositoryFiles } from "./discovery.mjs";
+import { APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 
 async function allFiles(root) {
@@ -95,3 +96,51 @@ test("agent tool results use the same document validation tool label", () => {
   const result = summarizeAgentResult({ message: "Summary", toolResult: { verdict: "approved" } });
   assert.equal(result.tools[0].name, "Document validation tool");
 });
+
+test("scanRepository skips .lock directories and .tmp files under .azure-app-platform without warnings", async () => {
+  const root = await mkdtemp(join(tmpdir(), "unity-lock-scan-"));
+  try {
+    const metaDir = join(root, ".azure-app-platform");
+    const lockDir = join(metaDir, "gateway-config.lock");
+    await mkdir(lockDir, { recursive: true });
+    await writeFile(join(lockDir, "pid"), "12345", "utf8");
+    await writeFile(join(metaDir, "active-gateway.json.12345.tmp"), "{}", "utf8");
+    await writeFile(join(metaDir, "active-gateway.json"), '{"name":"gw"}', "utf8");
+
+    const scan = await scanRepository(root);
+    assert.deepEqual(scan.diagnostics, []);
+    assert.deepEqual(scan.files.map((f) => f.path), [".azure-app-platform/active-gateway.json"]);
+    const loaded = await loadRepositoryFiles(scan);
+    assert.equal(loaded.length, 1);
+    assert.deepEqual(scan.diagnostics, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("App Service Builder AI Gateway template lifecycle scripts use .dev-run and Import-AppPorts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "unity-builder-aigw-"));
+  try {
+    await materializeTemplate({
+      appName: "Builder Gateway Demo",
+      purpose: "Governed document helper",
+      sourcePlan: { kind: "empty-template", templateId: APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE.id },
+    }, { destination: root });
+
+    const devStartSh = await readFile(join(root, "scripts/dev-start.sh"), "utf8");
+    const devStopSh = await readFile(join(root, "scripts/dev-stop.sh"), "utf8");
+    const devStartPs1 = await readFile(join(root, "scripts/dev-start.ps1"), "utf8");
+    const devStopPs1 = await readFile(join(root, "scripts/dev-stop.ps1"), "utf8");
+
+    assert.match(devStartSh, /RUN_DIR="\$ROOT\/\.dev-run"/);
+    assert.match(devStartSh, /processes\.posix\.tsv/);
+    assert.match(devStopSh, /processes\.posix\.tsv/);
+    assert.doesNotMatch(devStopSh, /lsof -ti tcp:/);
+    assert.match(devStartPs1, /Import-AppPorts \$Root/);
+    assert.match(devStartPs1, /processes\.json/);
+    assert.match(devStopPs1, /processes\.json/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
