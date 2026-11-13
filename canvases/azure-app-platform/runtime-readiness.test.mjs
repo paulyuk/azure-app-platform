@@ -1,7 +1,57 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { parseEnvVariables, writeAppEnvConfiguration } from "./app-env-configuration.mjs";
 import { deriveRuntimeState } from "./runtime-state.mjs";
+
+test("app env writes sync gateway settings to hosted skills", async () => {
+  const root = await mkdtemp(join(tmpdir(), "azure-app-platform-env-"));
+  try {
+    const skillRoot = join(root, "src", "skills", "inventory-search");
+    await mkdir(join(root, "src", "agent"), { recursive: true });
+    await mkdir(skillRoot, { recursive: true });
+    await writeFile(join(skillRoot, "local.settings.json"), JSON.stringify({
+      IsEncrypted: false,
+      Values: {
+        AzureWebJobsStorage: "UseDevelopmentStorage=true",
+        AZURE_FUNCTIONS_AGENTS_PROVIDER: "openai",
+      },
+    }));
+    const envContent = [
+      "# Generated gateway settings",
+      "export AZURE_AI_GATEWAY_ENDPOINT = 'https://gateway.example.test/'",
+      "AZURE_AI_GATEWAY_API_KEY=\"test-key\"",
+      "AZURE_AI_GATEWAY_MINI_MODEL = gpt-test-mini",
+      "",
+    ].join("\n");
+
+    assert.equal(await writeAppEnvConfiguration(root, envContent), true);
+    assert.equal(await readFile(join(root, "src", "agent", ".env"), "utf8"), envContent);
+    const settings = JSON.parse(await readFile(join(skillRoot, "local.settings.json"), "utf8"));
+    assert.equal(settings.Values.OPENAI_BASE_URL, "https://gateway.example.test/default/models/openai/v1/");
+    assert.equal(settings.Values.OPENAI_CUSTOM_HEADERS, "Api-Key: test-key");
+    assert.equal(settings.Values.AZURE_FUNCTIONS_AGENTS_MODEL, "gpt-test-mini");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("env parsing ignores comments and invalid input while accepting exports and quoted values", () => {
+  assert.deepEqual(parseEnvVariables(null), {});
+  assert.deepEqual(parseEnvVariables(`
+    # comment
+    export VALID_NAME = " trimmed value "
+    SINGLE_QUOTED='single'
+    UNQUOTED=value with spaces
+    1INVALID=ignored
+  `), {
+    VALID_NAME: "trimmed value",
+    SINGLE_QUOTED: "single",
+    UNQUOTED: "value with spaces",
+  });
+});
 
 test("a running web process cannot mask missing expected agent and skill endpoints", () => {
   const registry = [{ name: "web", port: 3000, pid: 1 }];
