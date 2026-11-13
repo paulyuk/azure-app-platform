@@ -4,6 +4,10 @@ __USER_INTENT__
 
 A minimal Python chat agent built with [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) and FastAPI, packaged for [Azure App Service Builder](https://aka.ms/embr) (`builder.yaml`) and connected to [Azure AI Gateway](https://ai.gateway.azure.com).
 
+## Experience and theme
+
+The browser UI uses accessible native controls with Fluent semantic tokens. App Service Builder controls the `data-style` and `data-theme` attributes, so the starter supports the Copilot, warm, modern, editorial, and minimal presets without an in-page theme switcher.
+
 ## Architecture
 
 ```text

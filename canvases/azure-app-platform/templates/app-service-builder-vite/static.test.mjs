@@ -57,8 +57,17 @@ test('built static site serves its root, assets, and health check', { timeout: 1
   assert.equal(root.status, 200);
   assert.match(root.headers.get('content-type'), /text\/html/);
   const html = await root.text();
-  assert.match(html, /<h1>App Service Builder \/ vite-static<\/h1>/);
-  assert.match(html, /<p id="greeting"><\/p>/);
+  assert.match(html, /<html[^>]+data-style="copilot"[^>]+data-theme="light"/);
+  assert.match(html, /<h1 id="greeting">[^<]+<\/h1>/);
+  assert.match(html, /<p id="purpose">[^<]+<\/p>/);
+  assert.match(html, /class="starter-workspace"/);
+  assert.match(html, /class="site-window"/);
+  assert.match(html, /class="code-window"/);
+  assert.match(html, /height: 100dvh/);
+  assert.match(html, /--colorNeutralBackground1/);
+  assert.doesNotMatch(html, /class="app-bar"/);
+  assert.doesNotMatch(html, /npm run dev/);
+  assert.doesNotMatch(html, /href="\/health"/);
   assert.doesNotMatch(html, /\/src\/|node_modules/);
 
   const assets = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => match[1]);

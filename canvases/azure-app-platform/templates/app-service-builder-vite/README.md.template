@@ -4,6 +4,10 @@ __PURPOSE__
 
 Built from the [Azure-Samples/app-service-builder-vite](https://github.com/Azure-Samples/app-service-builder-vite) reference pattern and deployed as static assets with [App Service Builder](https://builder.appservice.azure.com/) (`microsoft/azure-app-service-builder`).
 
+## Experience and theme
+
+The starter uses accessible native HTML with Fluent semantic tokens. App Service Builder controls the `data-style` and `data-theme` attributes, so the page supports the Copilot, warm, modern, editorial, and minimal presets without adding a component runtime.
+
 ## Static deployment contract (`builder.yaml`)
 
 `builder.yaml` sits at the repository root:

@@ -79,21 +79,36 @@ def test_index_and_health_include_security_headers() -> None:
     with TestClient(create_app(config, agent_service=service)) as client:
         page = client.get("/")
         assert page.status_code == 200
-        assert "Azure App Service Builder" in page.text
-        assert "Light theme" in page.text
+        assert "App Service Builder" in page.text
+        assert 'class="app-bar"' not in page.text
+        assert 'data-style="copilot"' in page.text
+        assert 'data-theme="light"' in page.text
+        assert 'class="composer-row"' in page.text
+        assert 'rows="1"' in page.text
+        assert 'id="theme-toggle"' not in page.text
         assert "default-src 'none'" in page.headers["content-security-policy"]
-        assert "script-src 'self' 'sha256-" in page.headers["content-security-policy"]
+        assert "script-src 'self';" in page.headers["content-security-policy"]
+        assert "style-src 'self' 'sha256-" in page.headers["content-security-policy"]
         assert page.headers["x-frame-options"] == "DENY"
 
         stylesheet = client.get("/static/site.css")
         assert stylesheet.status_code == 200
-        assert 'prefers-color-scheme: light' in stylesheet.text
-        assert ':root[data-theme="light"]' in stylesheet.text
+        assert "--colorNeutralBackground1" in stylesheet.text
+        assert '[data-style="warm"]' in stylesheet.text
+        assert '[data-style="modern"]' in stylesheet.text
+        assert '[data-style="editorial"]' in stylesheet.text
+        assert '[data-style="minimal"]' in stylesheet.text
+        assert "height: 100dvh" in stylesheet.text
+        assert "position: sticky" in stylesheet.text
+        assert "scroll-snap-type: x proximity" in stylesheet.text
 
         script = client.get("/static/chat.js")
         assert script.status_code == 200
-        assert 'matchMedia("(prefers-color-scheme: light)")' in script.text
-        assert "asb-ai-gw-theme" in script.text
+        assert "renderMarkdown" in script.text
+        assert "createTextNode" in script.text
+        assert "The model connection is unavailable." in script.text
+        assert "payload.message" not in script.text
+        assert "localStorage" not in script.text
 
         health = client.get("/health")
         assert health.status_code == 200

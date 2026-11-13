@@ -1,21 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-style="copilot" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>__APP_NAME__ · App Service Builder + AI Gateway</title>
-    <script>
-      (() => {
-        try {
-          const saved = localStorage.getItem("asb-ai-gw-theme");
-          if (saved === "light" || saved === "dark") {
-            document.documentElement.dataset.theme = saved;
-          }
-        } catch {
-          // Ignore storage restrictions and fall back to system theme.
-        }
-      })();
-    </script>
+    <meta name="color-scheme" content="light dark" />
+    <title>__APP_NAME__ · App Service Builder</title>
     <style>
       html,
       body {
@@ -26,61 +15,136 @@
     <link rel="stylesheet" href="/static/site.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="hero">
-        <div class="hero-top">
-          <p class="eyebrow">Azure App Service Builder · Azure AI Gateway · Microsoft Agent Framework</p>
-          <button id="theme-toggle" class="ghost-button" type="button" aria-pressed="false">
-            Light theme
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="app-title">
+        <h1 id="app-title">__APP_NAME__</h1>
+        <p>__PURPOSE__</p>
+      </section>
+
+      <section class="workspace" aria-labelledby="workspace-title">
+        <header class="workspace-header">
+          <div>
+            <h2 id="workspace-title">Agent workspace</h2>
+            <p>Ask a question through your governed model connection.</p>
+          </div>
+          <button
+            id="clear-button"
+            class="button"
+            data-appearance="subtle"
+            type="button"
+            disabled
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+              <path d="M5.5 6.5h9M8 6.5V5.25h4V6.5M7 8.5v6M10 8.5v6M13 8.5v6M6.5 6.5l.5 9.25h6l.5-9.25" />
+            </svg>
+            Clear
+          </button>
+        </header>
+
+        <div class="prompt-grid" aria-label="Suggested prompts">
+          <button
+            class="prompt-card"
+            type="button"
+            data-prompt="Explain how App Service Builder and Azure AI Gateway work together in three bullets."
+          >
+            <span class="prompt-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" focusable="false">
+                <path d="M4.5 5.5h11v9h-11zM7 8h6M7 11h4" />
+              </svg>
+            </span>
+            <span>
+              <strong>How it works</strong>
+              <small>App Service Builder and AI Gateway</small>
+            </span>
+          </button>
+          <button
+            class="prompt-card"
+            type="button"
+            data-prompt="Write a deployment checklist for a Python agent using managed identity."
+          >
+            <span class="prompt-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" focusable="false">
+                <path d="M6 4.5h8v11H6zM8 7.5h4M8 10h4M8 12.5h2.5" />
+              </svg>
+            </span>
+            <span>
+              <strong>Deployment checklist</strong>
+              <small>Python and managed identity</small>
+            </span>
+          </button>
+          <button
+            class="prompt-card"
+            type="button"
+            data-prompt="Give me a concise troubleshooting plan when a model gateway call times out."
+          >
+            <span class="prompt-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" focusable="false">
+                <path d="M10 4.25a5.75 5.75 0 1 0 5.75 5.75M10 7v3.25l2.25 1.25M13.75 4.25h2v2" />
+              </svg>
+            </span>
+            <span>
+              <strong>Troubleshoot a timeout</strong>
+              <small>Gateway diagnostics and recovery</small>
+            </span>
           </button>
         </div>
-        <h1>__APP_NAME__</h1>
-        <p class="lede">
-          __PURPOSE__
-        </p>
-      </header>
 
-      <section class="panel" aria-label="Chat workspace">
-        <div class="toolbar">
-          <div class="chips" aria-label="Example prompts">
-            <button class="chip" type="button" data-prompt="Explain how App Service Builder and Azure AI Gateway work together in three bullets.">
-              How this works
-            </button>
-            <button class="chip" type="button" data-prompt="Write a deployment checklist for a Python agent using managed identity.">
-              Managed identity checklist
-            </button>
-            <button class="chip" type="button" data-prompt="Give me a concise troubleshooting plan when a model gateway call times out.">
-              Gateway troubleshooting
-            </button>
-          </div>
-          <button id="clear-button" class="ghost-button" type="button">Clear</button>
-        </div>
-
-        <div id="transcript" class="transcript" role="log" aria-live="polite" aria-relevant="additions text">
+        <div
+          id="transcript"
+          class="transcript"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-busy="false"
+        >
           <div id="empty-state" class="empty-state">
-            Ask a question or pick one of the starter prompts above.
+            <span class="empty-state-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M7.5 6.5h9a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-5l-3.5 2v-2H7.5a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3zM8 10h8M8 13h5" />
+              </svg>
+            </span>
+            <h3>Ask the agent</h3>
+            <p>Choose a suggestion or write your own question.</p>
           </div>
         </div>
 
         <form id="chat-form" class="composer" novalidate>
-          <label class="sr-only" for="prompt-input">Message</label>
-          <textarea
-            id="prompt-input"
-            name="prompt"
-            rows="3"
-            maxlength="4000"
-            placeholder="Ask the agent anything about your app, architecture, or next step..."
-            required
-          ></textarea>
-          <div class="composer-actions">
-            <p id="status-text" class="status" role="status" aria-live="polite">
-              Ready.
-            </p>
-            <div class="buttons">
-              <button id="stop-button" class="ghost-button" type="button" hidden>Stop</button>
-              <button id="send-button" class="primary-button" type="submit">Send</button>
+          <div class="composer-row">
+            <label class="sr-only" for="prompt-input">Message the agent</label>
+            <textarea
+              id="prompt-input"
+              name="prompt"
+              rows="1"
+              maxlength="4000"
+              placeholder="Message the agent"
+              required
+            ></textarea>
+            <div class="button-row">
+              <button
+                id="stop-button"
+                class="button"
+                data-appearance="secondary"
+                type="button"
+                hidden
+              >
+                Stop
+              </button>
+              <button
+                id="send-button"
+                class="button"
+                data-appearance="primary"
+                type="submit"
+              >
+                Send
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                  <path d="m4.5 10 10-5-2.75 10-2-3-3.25 1.25L7.75 10z" />
+                </svg>
+              </button>
             </div>
           </div>
+          <p id="status-text" class="status" role="status" aria-live="polite">
+            Enter to send · Shift + Enter for a new line
+          </p>
         </form>
       </section>
     </main>
