@@ -226,6 +226,41 @@ function addCrossTierEdges(nodes, files, edges, seen, unresolved) {
         );
       }
     }
+
+    for (const sandbox of sandboxNodes) {
+      const sandboxName = sandbox.projectPath === "." ? null : sandbox.name;
+      if (!sandboxName) {
+        continue;
+      }
+      const reference = structuredNameReference(owned, sandboxName);
+      if (!reference) {
+        continue;
+      }
+      const gateways = resolveTargets(agent, gatewayNodes);
+      if (gateways.length > 0) {
+        for (const gateway of gateways) {
+          addEdge(
+            edges,
+            seen,
+            gateway.id,
+            sandbox.id,
+            "sandbox-tool-call",
+            sourceEvidence(reference.file.path, reference.found.line, "sandbox-reference", reference.found.match[0]),
+            "high",
+          );
+        }
+      } else {
+        addEdge(
+          edges,
+          seen,
+          agent.id,
+          sandbox.id,
+          "isolated-job",
+          sourceEvidence(reference.file.path, reference.found.line, "sandbox-reference", reference.found.match[0]),
+          "high",
+        );
+      }
+    }
     const toolReference = owned.map((file) => ({
       file,
       found: firstMatch(file, /FoundryToolbox|MCPStreamableHTTPTool|\/runtime\/webhooks\/mcp/),

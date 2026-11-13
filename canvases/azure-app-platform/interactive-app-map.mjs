@@ -107,6 +107,7 @@ export function buildActionCenterModel(appMap) {
   const hasAgent = tierIds.has("agent");
   const hasGateway = tierIds.has("gateway");
   const hasSkills = tierIds.has("skills");
+  const hasSandbox = tierIds.has("sandbox");
   const hasWeb = tierIds.has("web");
   const runtimeNodes = appMap.nodes.filter((node) =>
     node.kind === "project" && RUNTIME_TIERS.has(node.tierId));
@@ -150,8 +151,10 @@ export function buildActionCenterModel(appMap) {
       id: "add-skill",
       priority: "recommended",
       stage: "build",
-      title: "Give the agent a real capability",
-      detail: "No callable Hosted Skill was found. Add one bounded business action so the agent can do more than generate text.",
+      title: hasSandbox ? "Scale to 2+ brains or Hosted Skills" : "Give the agent a real capability",
+      detail: hasSandbox
+        ? "Your sandboxed tool and model calls already route behind AI Gateway. Add a Hosted Skill or second agent to share that governed tool boundary."
+        : "No callable Hosted Skill was found. Add one bounded business action so the agent can do more than generate text.",
       action: { kind: "add-tier", tierId: "skills", label: "Add a capability" },
     });
   }
@@ -334,10 +337,12 @@ function flowEdgePresentation(edge, nodeTiers) {
   const pair = `${nodeTiers.get(edge.from)}:${nodeTiers.get(edge.to)}`;
   const known = {
     "web:agent": { label: "Request", step: 1 },
-    "agent:gateway": { label: "Model request", step: 2 },
+    "agent:gateway": { label: "Model & tool calls", step: 2 },
     "agent:skills": { label: "Tool call", step: 2 },
     "agent:workflows": { label: "Workflow", step: 2 },
-    "agent:sandbox": { label: "Sandbox task", step: 2 },
+    "agent:sandbox": { label: "Sandboxed tool (egress proxy)", step: 2 },
+    "gateway:sandbox": { label: "Governed sandbox tool", step: 3 },
+    "gateway:skills": { label: "Governed skill call", step: 3 },
     "skills:connectors": { label: "System call", step: 3 },
     "skills:data": { label: "Data access", step: 3 },
     "workflows:connectors": { label: "System call", step: 3 },

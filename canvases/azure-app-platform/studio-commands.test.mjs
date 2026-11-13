@@ -981,6 +981,7 @@ test("source catalog parses worktrees and excludes internal projects", async () 
     assert.equal(catalog.roots[0].repository, "https://example.test/org/app.git");
     assert.deepEqual(catalog.templates.map((template) => template.id), [
       "builtin-sandbox-gateway-minimal-v1",
+      "builtin-sandboxes-minimal-v1",
       "builtin-app-service-builder-vite-v1",
       "builtin-app-service-builder-ai-gateway-v1",
       "builtin-empty-starter-v1",

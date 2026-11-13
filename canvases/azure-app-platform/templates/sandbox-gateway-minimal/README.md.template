@@ -2,10 +2,22 @@
 
 __PURPOSE__
 
-This headless Unity starter implements a bounded document-processing flow with
-an AI Gateway seam. The generic implementation labels are **agent**, **agent
-harness**, **document validation tool**, and **model**. For a worked industry
-scenario, see the [loan application demo](docs/demos/loan-application/README.md)
+This headless starter implements the **Sandboxes + AI Gateway Minimal Pattern**
+(*protecting the hands from multiple brains*). The generic implementation
+labels are **agent**, **agent harness**, **AI Gateway**, **document validation
+tool**, and **model**:
+
+- **Why Sandboxes + Egress Proxy**: If you only ever have a single agent calling
+  sandboxed tools (**Sandboxes Minimal**), **ACA Sandboxes** and its built-in
+  **Sandboxes egress proxy** (`--egress-default Deny`) are sufficient to isolate
+  untrusted code and block outbound exfiltration.
+- **Why AI Gateway in front of tools and models**: We start with 1 agent, but
+  place **all tool calls (including calls to the sandboxed tool)** and model
+  calls behind **AI Gateway** so that as soon as a 2nd agent or Hosted Skill
+  ("multiple brains") calls the same sandboxed tool ("the hands"), inbound
+  caller auth, rate limits, and audit are already governed in one place.
+
+For a worked industry scenario, see the [loan application demo](docs/demos/loan-application/README.md)
 and its [implementation walkthrough](docs/demos/loan-application/HOW-IT-WORKS.md).
 The generated app also includes a
 [portable fictional loan document](examples/loan-application.txt).

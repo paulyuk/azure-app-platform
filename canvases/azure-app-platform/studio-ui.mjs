@@ -789,11 +789,17 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
       }
 
       function templateCapabilityPills(template) {
+        if (template.id === "builtin-sandboxes-minimal-v1") {
+          return '<div class="badges">' +
+            '<span class="badge hosted-agent">Agent · 1 Brain</span>' +
+            '<span class="badge sandbox">Tools · ACA Sandboxes + Egress Proxy</span>' +
+            '</div>';
+        }
         if (template.id === "builtin-sandbox-gateway-minimal-v1") {
           return '<div class="badges">' +
-            '<span class="badge hosted-agent">Agent · Any Compute</span>' +
-            '<span class="badge sandbox">Tools · ACA Sandboxes</span>' +
+            '<span class="badge hosted-agent">Agent · 1 → 2+ Brains</span>' +
             '<span class="badge gateway">Gateway · AI Gateway</span>' +
+            '<span class="badge sandbox">Tools · ACA Sandboxes</span>' +
             '</div>';
         }
         if (template.id === "builtin-app-service-builder-ai-gateway-v1") {
@@ -832,33 +838,74 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
 
       function renderTemplatePreviewCard(template) {
         if (!template) return "";
+        if (template.id === "builtin-sandboxes-minimal-v1") {
+          return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+            '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+            '<small>2 capabilities · 1 brain calling sandboxed tools (Sandboxes egress proxy)</small></div>' +
+            templateCapabilityPills(template) + '</div>' +
+            '<div class="template-preview-diagram">' +
+            '<svg viewBox="0 0 560 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: 1 Agent calls Tools in ACA Sandboxes protected by the Sandboxes egress proxy">' +
+              '<rect x="12" y="18" width="176" height="84" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+              '<text x="24" y="41" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e3a8a">Agent (1 Brain)</text>' +
+              '<text x="24" y="59" font-family="sans-serif" font-size="10" font-weight="600" fill="#334155">Any Compute</text>' +
+              '<text x="24" y="76" font-family="sans-serif" font-size="9" fill="#475569">Local · ACA · Functions · Foundry</text>' +
+              '<text x="24" y="91" font-family="sans-serif" font-size="8.5" fill="#64748b">Single caller · No raw tools on host</text>' +
+              '<line x1="188" y1="60" x2="232" y2="60" stroke="#2563eb" stroke-width="1.5"/>' +
+              '<polygon points="232,60 224,56 224,64" fill="#2563eb"/>' +
+              '<rect x="234" y="10" width="314" height="100" rx="10" fill="#f5f7ff" stroke="#a5b4fc" stroke-width="1.5"/>' +
+              '<text x="248" y="32" font-family="sans-serif" font-size="11" font-weight="700" fill="#312e81">Tools (Hands) · ACA Sandboxes</text>' +
+              '<text x="248" y="49" font-family="sans-serif" font-size="9.5" fill="#475569">Ephemeral isolated container/microVM · Zero host secrets</text>' +
+              '<rect x="248" y="60" width="286" height="38" rx="7" fill="#eef2ff" stroke="#6366f1" stroke-width="1.2"/>' +
+              '<text x="260" y="77" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#312e81">Sandboxes Egress Proxy (--egress-default Deny)</text>' +
+              '<text x="260" y="91" font-family="sans-serif" font-size="8.5" fill="#4338ca">Blocks unauthorized outbound calls · Explicit allowlist only</text>' +
+            '</svg></div>' +
+            '<ul class="template-preview-bullets">' +
+              '<li><strong>1 Brain, Sandboxed Hands:</strong> When a single agent calls sandboxed tools, you do not need a gateway in front of the tool yet.</li>' +
+              '<li><strong>Sandboxes Egress Proxy Safety:</strong> <strong>ACA Sandboxes</strong> isolates execution and enforces <code>--egress-default Deny</code> + an explicit outbound allowlist through the built-in <strong>Sandboxes egress proxy</strong>.</li>' +
+              '<li><strong>Upgrade Path to 2+ Brains:</strong> When a second agent or Hosted Skill needs to call the same sandboxed tool, add <strong>AI Gateway</strong> in front of your tools to protect the hands from multiple brains.</li>' +
+            '</ul></div>';
+        }
         if (template.id === "builtin-sandbox-gateway-minimal-v1") {
           return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
             '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
-            '<small>3 capabilities · Brain &amp; Hands isolation pattern</small></div>' +
+            '<small>3 capabilities · Protecting the hands from multiple brains (1 → 2+ agents &amp; skills)</small></div>' +
             templateCapabilityPills(template) + '</div>' +
             '<div class="template-preview-diagram">' +
-            '<svg viewBox="0 0 560 132" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Agent on any compute connects to Tools in ACA Sandboxes and Models through AI Gateway">' +
-              '<rect x="8" y="24" width="166" height="84" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
-              '<text x="20" y="47" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e3a8a">Agent (Brain)</text>' +
-              '<text x="20" y="65" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">Any Compute</text>' +
-              '<text x="20" y="82" font-family="sans-serif" font-size="9.5" fill="#475569">Local · ACA · Functions · Foundry</text>' +
-              '<text x="20" y="97" font-family="sans-serif" font-size="9" fill="#64748b">Orchestrates work · No raw tools</text>' +
-              '<line x1="174" y1="46" x2="218" y2="34" stroke="#94a3b8" stroke-width="1.4"/>' +
-              '<polygon points="218,34 210,32 213,39" fill="#94a3b8"/>' +
-              '<line x1="174" y1="86" x2="218" y2="98" stroke="#94a3b8" stroke-width="1.4"/>' +
-              '<polygon points="218,98 213,93 210,100" fill="#94a3b8"/>' +
-              '<rect x="220" y="6" width="332" height="54" rx="10" fill="#f5f7ff" stroke="#a5b4fc" stroke-width="1.25"/>' +
-              '<text x="234" y="26" font-family="sans-serif" font-size="11" font-weight="700" fill="#312e81">Tools (Hands) · ACA Sandboxes</text>' +
-              '<text x="234" y="42" font-family="sans-serif" font-size="9.5" fill="#475569">Untrusted document &amp; code execution · Default-deny egress · Zero secrets</text>' +
-              '<rect x="220" y="72" width="332" height="54" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
-              '<text x="234" y="92" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e293b">Gateway · AI Gateway</text>' +
-              '<text x="234" y="108" font-family="sans-serif" font-size="9.5" fill="#475569">Governed model aliases (gpt-latest) · Token budgets · Central auth</text>' +
+            '<svg viewBox="0 0 560 132" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: 1 to 2+ Agents route all tool and model calls through AI Gateway to ACA Sandboxes (with Sandboxes egress proxy) and Models">' +
+              '<rect x="6" y="10" width="144" height="58" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.25"/>' +
+              '<text x="16" y="29" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#1e3a8a">Agent (Brain 1)</text>' +
+              '<text x="16" y="44" font-family="sans-serif" font-size="9.5" font-weight="600" fill="#334155">Any Compute</text>' +
+              '<text x="16" y="58" font-family="sans-serif" font-size="8.5" fill="#64748b">Local · ACA · Functions · Foundry</text>' +
+              '<rect x="6" y="76" width="144" height="46" rx="9" fill="#f8fafc" stroke="#93c5fd" stroke-width="1.25" stroke-dasharray="4 3"/>' +
+              '<text x="16" y="95" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#1d4ed8">+ 2nd Agent / Skill</text>' +
+              '<text x="16" y="110" font-family="sans-serif" font-size="8.5" fill="#64748b">Ready for 2+ brains</text>' +
+              '<line x1="150" y1="39" x2="180" y2="56" stroke="#2563eb" stroke-width="1.4"/>' +
+              '<polygon points="180,56 172,54 175,60" fill="#2563eb"/>' +
+              '<line x1="150" y1="99" x2="180" y2="78" stroke="#60a5fa" stroke-width="1.3" stroke-dasharray="3 2"/>' +
+              '<polygon points="180,78 175,72 172,78" fill="#60a5fa"/>' +
+              '<rect x="182" y="20" width="138" height="92" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>' +
+              '<text x="194" y="42" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#1e3a8a">AI Gateway</text>' +
+              '<text x="194" y="57" font-family="sans-serif" font-size="9" font-weight="600" fill="#1d4ed8">Protects Hands &amp; Models</text>' +
+              '<text x="194" y="73" font-family="sans-serif" font-size="8.5" fill="#475569">All tool &amp; model calls</text>' +
+              '<text x="194" y="87" font-family="sans-serif" font-size="8.5" fill="#475569">Caller auth · Rate limits</text>' +
+              '<text x="194" y="101" font-family="sans-serif" font-size="8.5" fill="#475569">Aliases (gpt-latest) · Audit</text>' +
+              '<line x1="320" y1="48" x2="350" y2="35" stroke="#2563eb" stroke-width="1.4"/>' +
+              '<polygon points="350,35 342,34 345,40" fill="#2563eb"/>' +
+              '<line x1="320" y1="84" x2="350" y2="97" stroke="#2563eb" stroke-width="1.4"/>' +
+              '<polygon points="350,97 345,92 342,98" fill="#2563eb"/>' +
+              '<rect x="352" y="6" width="200" height="56" rx="10" fill="#f5f7ff" stroke="#a5b4fc" stroke-width="1.25"/>' +
+              '<text x="364" y="25" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#312e81">Tools (Hands) · ACA Sandboxes</text>' +
+              '<text x="364" y="40" font-family="sans-serif" font-size="8.5" fill="#475569">Isolated execution · Zero host secrets</text>' +
+              '<text x="364" y="53" font-family="sans-serif" font-size="8.5" font-weight="600" fill="#4338ca">Sandboxes egress proxy (default-deny)</text>' +
+              '<rect x="352" y="70" width="200" height="56" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+              '<text x="364" y="90" font-family="sans-serif" font-size="10.5" font-weight="700" fill="#1e293b">Remote Models</text>' +
+              '<text x="364" y="105" font-family="sans-serif" font-size="8.5" fill="#475569">Azure OpenAI / Foundry endpoints</text>' +
+              '<text x="364" y="118" font-family="sans-serif" font-size="8.5" fill="#64748b">Shared across all agents &amp; skills</text>' +
             '</svg></div>' +
             '<ul class="template-preview-bullets">' +
-              '<li><strong>Agent on Any Compute:</strong> Run the agent locally, in Azure Container Apps, Azure Functions, or Foundry Hosted Agents without changing tool boundaries.</li>' +
-              '<li><strong>Tools on ACA Sandboxes:</strong> Untrusted document parsing and code run inside ephemeral sandboxes with <code>--egress-default Deny</code> and zero host secrets.</li>' +
-              '<li><strong>AI Gateway Governance:</strong> Model calls route through governed aliases (<code>gpt-latest</code>) with centralized credentials, rate limits, and token telemetry.</li>' +
+              '<li><strong>1 Brain Only? (Sandboxes Minimal):</strong> When a single agent calls sandboxed tools, <strong>ACA Sandboxes</strong> + the <strong>Sandboxes egress proxy</strong> (<code>--egress-default Deny</code>) keep execution and outbound traffic safe on their own.</li>' +
+              '<li><strong>Protecting the Hands from Multiple Brains:</strong> Start with 1 agent, but route <strong>all tool calls (including sandboxed tools)</strong> and model calls behind <strong>AI Gateway</strong> so you are ready when a 2nd agent or Hosted Skill calls the same sandboxed tool.</li>' +
+              '<li><strong>Defense in Depth:</strong> <strong>AI Gateway</strong> governs inbound caller auth, rate limits, and model aliases (<code>gpt-latest</code>) across brains; <strong>ACA Sandboxes egress proxy</strong> locks down what the tool can reach outbound.</li>' +
             '</ul></div>';
         }
         if (template.id === "builtin-app-service-builder-ai-gateway-v1") {
@@ -1097,6 +1144,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         disposeView();
         const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
         const isSample = selectedTemplate?.kind === "sample";
+        const isSandboxesMinimal = draft.templateRootId === "builtin-sandboxes-minimal-v1";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilderAiGateway = draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
         const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
@@ -1105,7 +1153,9 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           : (draft.templateInputs.agentInstructions || draft.purpose ||
               (isSample
                 ? DEALER_SAMPLE_PURPOSE
-                : "Help users validate documents and answer questions using governed tools and models."));
+                : (isSandboxesMinimal
+                    ? "Help users validate documents using sandboxed tools."
+                    : "Help users validate documents and answer questions using governed tools and models.")));
         const instructionsField = isSample
           ? '<label class="field">What this sample does<textarea id="agent-instructions" maxlength="2000">' +
             escape(instructionsValue) + '</textarea></label>'
@@ -1120,7 +1170,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const namingHelp = isAppServiceBuilder
           ? "Custom instructions are used to suggest a name. Without them, the generated builder-vite name is kept."
           : "AI will suggest a name from these instructions. You can rename it in review.";
-        const secondField = (!isSandboxGateway && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample)
+        const secondField = (!isSandboxGateway && !isSandboxesMinimal && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample)
           ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
           : "";
@@ -1157,7 +1207,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             }
             draft.templateInputs.agentInstructions = instructions;
             draft.purpose = instructions ? instructions.slice(0, 500) : "";
-            if (!isSandboxGateway && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample) {
+            if (!isSandboxGateway && !isSandboxesMinimal && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
                 error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.", "skill-name");
@@ -1393,13 +1443,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           ? sources.roots.flatMap((root) => root.implementations.map((implementation) => ({ root, implementation })))
               .find((item) => item.implementation.id === sourceId)
           : null;
+        const isSandboxesMinimal = draft.journey === "new" && draft.templateRootId === "builtin-sandboxes-minimal-v1";
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilderAiGateway = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
+        const isSandboxPattern = isSandboxGateway || isSandboxesMinimal;
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const isSample = templates().find((item) => item.id === draft.templateRootId)?.kind === "sample";
         const badgeByTier = {
           web: { label: "App Service Builder", className: "embr" },
-          agent: isSandboxGateway
+          agent: isSandboxPattern
             ? { label: "Any Compute", className: "hosted-agent" }
             : (isSample ? { label: "Foundry Hosted Agent", className: "hosted-agent" } : { label: "Any Compute", className: "hosted-agent" }),
           gateway: { label: "AI Gateway", className: "gateway" },
@@ -1408,24 +1460,26 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           workflows: { label: "Durable Functions", className: "durable" },
         };
         const badge = badgeByTier[tierId] || null;
-        const displayTierName = isSandboxGateway && tierId === "sandbox" ? "Tools" : tier.name;
+        const displayTierName = isSandboxPattern && tierId === "sandbox" ? "Tools" : tier.name;
         const detail = selected
           ? selected.root.name + " · " + selected.implementation.projectPath
-          : (isSandboxGateway && tierId === "agent"
-              ? "Orchestrates the workflow on any compute (local, ACA, Functions, or Foundry) without running untrusted tools in-process"
-              : (isSandboxGateway && tierId === "sandbox"
-                  ? "Runs untrusted document validation and code in isolated sandboxes with default-deny egress and zero secrets"
-                  : (isSandboxGateway && tierId === "gateway"
-                      ? "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials"
-                      : (isAppServiceBuilderAiGateway && tierId === "web"
-                          ? "Python FastAPI + Microsoft Agent Framework streaming chat app with root builder.yaml and /health endpoint"
-                          : (isAppServiceBuilderAiGateway && tierId === "gateway"
-                              ? "Governed OpenAI Responses API model routing, central auth, and token telemetry via AI Gateway"
-                              : (isAppServiceBuilder && tierId === "web"
-                                  ? "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint"
-                                  : (isSample
-                                      ? tier.role
-                                      : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))))))));
+          : (isSandboxesMinimal && tierId === "agent"
+              ? "Orchestrates the workflow on any compute without running untrusted tools in-process"
+              : (isSandboxPattern && tierId === "sandbox"
+                  ? "Runs untrusted document validation and code in isolated ACA Sandboxes with configured egress controls"
+                  : (isSandboxGateway && tierId === "agent"
+                      ? "Orchestrates the workflow on any compute (local, ACA, Functions, or Foundry) without running untrusted tools in-process"
+                      : (isSandboxGateway && tierId === "gateway"
+                          ? "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials"
+                          : (isAppServiceBuilderAiGateway && tierId === "web"
+                              ? "Python FastAPI + Microsoft Agent Framework streaming chat app with root builder.yaml and /health endpoint"
+                              : (isAppServiceBuilderAiGateway && tierId === "gateway"
+                                  ? "Governed OpenAI Responses API model routing, central auth, and token telemetry via AI Gateway"
+                                  : (isAppServiceBuilder && tierId === "web"
+                                      ? "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint"
+                                      : (isSample
+                                          ? tier.role
+                                          : (tierId === "skills" ? "One empty Hosted Skill" : tier.role)))))))));
         return '<div class="review-row"><div class="capability-head"><strong>' + escape(displayTierName) + '</strong>' +
           (badge ? '<span class="badge ' + escape(badge.className) + '">' + escape(badge.label) + '</span>' : '') +
           '</div><small>' + escape(detail) +
@@ -1436,6 +1490,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         notices.dispose();
         const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
+        const isSandboxesMinimal = draft.journey === "new" && draft.templateRootId === "builtin-sandboxes-minimal-v1";
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilderAiGateway = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
@@ -1443,16 +1498,18 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const starter = draft.journey === "assemble"
           ? "Assembled from selected source projects"
           : selectedTemplate?.name;
-        const reviewTiers = isSandboxGateway
-          ? ["agent", "sandbox", "gateway"]
-          : (isAppServiceBuilderAiGateway
+        const reviewTiers = isSandboxesMinimal
+          ? ["agent", "sandbox"]
+          : isSandboxGateway
+            ? ["agent", "sandbox", "gateway"]
+            : isAppServiceBuilderAiGateway
               ? ["web", "gateway"]
-              : (isAppServiceBuilder ? ["web"] : draft.tierIds));
+              : isAppServiceBuilder ? ["web"] : draft.tierIds;
         const createButtonLabel = draft.journey === "assemble"
           ? "Create assembled app"
           : (selectedTemplate?.kind === "sample"
               ? "Create runnable sample"
-              : ((isSandboxGateway || isAppServiceBuilderAiGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app"));
+              : ((isSandboxGateway || isSandboxesMinimal || isAppServiceBuilderAiGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app"));
         buttons.replace(app, topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong></p>' +
           (draft.purpose ? '<p>' + escape(draft.purpose) + '</p>' : '') +

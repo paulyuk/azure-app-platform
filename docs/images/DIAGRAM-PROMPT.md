@@ -35,12 +35,13 @@ place. When in doubt, delete it.
 
 ---
 
-## The four tiers
+## The pattern tiers
 
 | File | Tier | Adds |
 | --- | --- | --- |
-| `sandbox-gateway-minimal-building-blocks.svg` | Minimal Building Blocks | — (the core) |
-| `sandbox-gateway-hosted-skills.svg` | Minimal + Hosted Skills | Azure Functions agents runtime hosts the loop |
+| `sandboxes-minimal.svg` | Sandboxes Minimal (1 Brain) | 1 Agent calling sandboxed tools protected by ACA Sandboxes + Sandboxes egress proxy |
+| `sandbox-gateway-minimal-building-blocks.svg` | Sandboxes + AI Gateway Minimal (1 → 2+ Brains) | AI Gateway in front of all tools (including sandboxed tools) and models to protect the hands from multiple brains |
+| `sandbox-gateway-hosted-skills.svg` | Minimal + Hosted Skills | Azure Functions Hosted Skills behind AI Gateway |
 | `sandbox-gateway-durable-hitl.svg` | Minimal + Durability & HITL | Durable Task Scheduler |
 | `sandbox-gateway-sre-evals.svg` | Minimal + SRE & Evals | Continuous Evals, SRE band |
 | `sandbox-gateway-full-architecture.svg` | Complete Architecture | all three |
@@ -60,19 +61,23 @@ Three labelled columns, left to right:
    headless.
 2. **Host Compute (Interchangeable)** — `Agent` with a muted neutral badge
    reading `FHA / ACA / App Service / Functions`, plus an `Agentic Control Flow` soft
-   box with exactly three bullets:
-   - Prompts model via AI Gateway
-   - Receives tool call requests
-   - Offloads code to an ACA Sandbox
-3. **Tool isolation** — `★ ACA Sandboxes` with scoped tool execution,
-   default-deny egress, and result contract/policy checks. Document processing
-   is an example, not the name of the layer. Do not show a local-process fallback.
+   box. In `sandbox-gateway-minimal-building-blocks.svg`, also show the dashed
+   `+ 2nd Agent / Hosted Skill` ("start with 1, scale to 2+ brains") feeding into
+   `AI Gateway`.
+3. **The Hands (Sandboxed Tool Behind Gateway)** — `★ ACA Sandboxes` with scoped
+   tool execution, `Sandboxes egress proxy · default deny`, and result
+   contract/policy checks. In `sandboxes-minimal.svg` (1 brain), the single
+   Agent calls `★ ACA Sandboxes` directly and relies on the Sandboxes egress
+   proxy for safety. In all `sandbox-gateway-*.svg` diagrams, **all tool calls
+   (including calls to sandboxed tools) and model calls route through `AI Gateway`**
+   so the gateway protects the hands from multiple brains.
 
-Below column 3, under the label **Shared model and tool access**:
+Below column 3, under the label **Inbound Governance (Protects Hands from 2+ Brains)**:
 
-4. **AI Gateway** with exactly four chips, in this order:
-   - top row: `Model Routing`, `MCP`
+4. **AI Gateway** with four chips:
+   - top row: `Model Routing`, `MCP & Tools` (or `MCP`)
    - bottom row: `Policies`, `Enforcement`
+   routing governed tool calls to `★ ACA Sandboxes` and governed model calls to `Remote model`.
 
 Full-width bar across the bottom:
 

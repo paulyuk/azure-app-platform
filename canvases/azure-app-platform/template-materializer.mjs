@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE, APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
+import { APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE, APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, SANDBOXES_MINIMAL_TEMPLATE, SANDBOX_GATEWAY_TEMPLATE } from "./source-catalog.mjs";
 import { prepareDealerPortOverrides } from "./dealer-port-materializer.mjs";
 import { BUILD_BLOCK_TEMPLATES } from "./build-blocks.mjs";
 import { parseUnityManifest } from "./discovery.mjs";
@@ -12,11 +12,13 @@ import { getTierDefinition } from "./tier-definitions.mjs";
 
 const execFileAsync = promisify(execFile);
 const EMPTY_TEMPLATE_ID = "builtin-empty-starter-v1";
+const SANDBOXES_MINIMAL_TEMPLATE_ID = "builtin-sandboxes-minimal-v1";
 const SANDBOX_GATEWAY_TEMPLATE_ID = "builtin-sandbox-gateway-minimal-v1";
 const APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID = "builtin-app-service-builder-ai-gateway-v1";
 const APP_SERVICE_BUILDER_TEMPLATE_ID = "builtin-app-service-builder-vite-v1";
 const TEMPLATE_ROOTS = {
   [EMPTY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/empty-starter-app", import.meta.url)),
+  [SANDBOXES_MINIMAL_TEMPLATE_ID]: fileURLToPath(new URL("./templates/sandbox-gateway-minimal", import.meta.url)),
   [SANDBOX_GATEWAY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/sandbox-gateway-minimal", import.meta.url)),
   [APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID]: fileURLToPath(new URL("./templates/app-service-builder-ai-gateway", import.meta.url)),
   [APP_SERVICE_BUILDER_TEMPLATE_ID]: fileURLToPath(new URL("./templates/app-service-builder-vite", import.meta.url)),
@@ -164,7 +166,9 @@ async function replaceTokens(root, tokens) {
 
 async function materializeLocalTemplate(plan, destination) {
   const templateId = plan.sourcePlan?.templateId ?? EMPTY_TEMPLATE_ID;
+  const isSandboxesMinimal = templateId === SANDBOXES_MINIMAL_TEMPLATE_ID;
   const isSandboxGateway = templateId === SANDBOX_GATEWAY_TEMPLATE_ID;
+  const isSandboxTemplate = isSandboxGateway || isSandboxesMinimal;
   const isAppServiceBuilderAiGateway = templateId === APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE_ID;
   const isAppServiceBuilder = templateId === APP_SERVICE_BUILDER_TEMPLATE_ID;
   const templateRoot = TEMPLATE_ROOTS[templateId] ?? TEMPLATE_ROOTS[EMPTY_TEMPLATE_ID];
@@ -196,7 +200,7 @@ async function materializeLocalTemplate(plan, destination) {
       "__PURPOSE_HTML_JSON__": JSON.stringify(escapeHtml(purpose)),
       "__AGENT_INSTRUCTIONS__": agentInstructions,
     };
-    if (isSandboxGateway) {
+    if (isSandboxTemplate) {
       const egressAllowDomain = requireText(
         plan.templateInputs?.egressAllowDomain ?? "api.lender.example.com",
         "egress allow-list domain",
@@ -217,7 +221,30 @@ async function materializeLocalTemplate(plan, destination) {
         path.replaceAll("<hosted-skill>", hostedSkillName));
     }
     await replaceTokens(staging, tokens);
-    if (isSandboxGateway) {
+    if (isSandboxesMinimal) {
+      await rm(join(staging, "infra-ai-gateway"), { recursive: true, force: true });
+      await writeFile(
+        join(staging, "azure-app.yaml"),
+        [
+          `name: ${tokens["__APP_SLUG__"]}`,
+          `purpose: "${tokens["__PURPOSE_JSON__"]}"`,
+          "capabilities:",
+          "  agent:",
+          "    path: src/agent",
+          "    # Default only; scripts and Studio apply .azure-app-platform/ports.env when saved.",
+          "    interface: http://localhost:8088",
+          "    links: [sandbox]",
+          "  sandbox:",
+          "    path: src/tools/document-validation",
+          "    # Default local simulation; config/runtime.json selects optional ACA sessions with Sandboxes egress proxy.",
+          "    interface: subprocess",
+          "    links: [agent]",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      requiredFiles = [...SANDBOXES_MINIMAL_TEMPLATE.requiredPaths];
+    } else if (isSandboxGateway) {
       requiredFiles = [...SANDBOX_GATEWAY_TEMPLATE.requiredPaths];
     } else if (isAppServiceBuilderAiGateway) {
       requiredFiles = [...APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE.requiredPaths];

@@ -97,40 +97,40 @@
   <text class="m sub" x="365" y="347">Dispatch tools to isolation</text>
   <text class="m sub" x="365" y="369">Check results; continue or stop</text>
 
-  <!-- Agent -> ACA Sandboxes -->
-  <path class="flow" d="M480,165 L480,110 L850,110 L850,165" marker-end="url(#arw)"/>
-  <text class="m lbl" x="850" y="128" text-anchor="middle">create → exec → delete</text>
-  <path class="flow" d="M680,250 L640,250" marker-end="url(#arw)"/>
-  <text class="m lbl" x="660" y="280" text-anchor="middle">result</text>
+  <!-- Agent -> AI Gateway (all tool & model calls go through AI Gateway) -->
+  <path class="flow" d="M640,285 L680,485" marker-end="url(#arw)"/>
+  <text class="m lbl" x="645" y="425" text-anchor="end">All tool &amp; model calls</text>
 
-  <!-- Agent -> AI Gateway -->
-  <path class="flow" d="M640,380 L660,380 L660,520 L680,520" marker-end="url(#arw)"/>
-  <text class="m lbl" x="635" y="455" text-anchor="end">Model requests · checked context</text>
+  <!-- AI Gateway -> ACA Sandboxes (sandboxed tool behind AI Gateway) -->
+  <path class="flow" d="M830,455 L830,401" marker-end="url(#arw)"/>
+  <text class="m lbl" x="815" y="432" text-anchor="end">governed tool</text>
+  <path class="flow" d="M870,401 L870,455" marker-end="url(#arw)"/>
+  <text class="m lbl" x="885" y="432">result</text>
 
-  <!-- Column C: ACA Sandboxes -->
-  <text class="m cap" x="680" y="150">Tool isolation</text>
+  <!-- Column C: ACA Sandboxes (behind AI Gateway) -->
+  <text class="m cap" x="680" y="150">The Hands (Sandboxed Tool Behind Gateway)</text>
   <rect class="panel" x="680" y="165" width="340" height="100" rx="16"/>
   <text class="a" x="705" y="198" font-size="17" font-weight="700">★ ACA Sandboxes</text>
   <rect class="pill" x="705" y="215" width="160" height="24" rx="12"/>
   <text class="a" x="785" y="231" font-size="11" font-weight="700" text-anchor="middle">Scoped tool execution</text>
 
   <rect class="egress" x="680" y="283" width="340" height="50" rx="14"/>
-  <text class="am" x="705" y="313" font-size="14" font-weight="700">Default deny · explicit egress policy</text>
+  <text class="am" x="705" y="313" font-size="14" font-weight="700">Sandboxes egress proxy · default deny</text>
 
   <rect class="card" x="680" y="351" width="340" height="50" rx="14"/>
   <text class="t" x="705" y="381" font-size="14" font-weight="650">Check result contract + policy</text>
-  <rect class="addon" x="1060" y="165" width="280" height="125" rx="16"/>
+  <rect class="addon" x="1060" y="165" width="280" height="145" rx="16"/>
   <text class="ig" x="1080" y="198" font-size="17" font-weight="700">+ Hosted Skills</text>
   <text class="m sub" x="1080" y="224">Reusable intelligent functions</text>
-  <text class="m sub" x="1080" y="249">MCP / HTTP endpoints</text>
-  <text class="m sub" x="1080" y="274">Azure Functions</text>
+  <text class="m sub" x="1080" y="249">MCP / HTTP endpoints behind gateway</text>
+  <text class="m sub" x="1080" y="274">Can also call sandboxed tools via gateway</text>
   <path class="flow-dash" d="M1020,490 L1040,490 L1040,245 L1060,245" marker-end="url(#arw-muted)"/>
-  <text class="m lbl" x="1060" y="430">Shared tool access</text>
-  <text class="m" x="1060" y="350" font-size="12">Check skill and sandbox results</text>
-  <text class="m" x="1060" y="372" font-size="12">before downstream use.</text>
+  <text class="m lbl" x="1060" y="430">Governed skill &amp; sandbox access</text>
+  <text class="m" x="1060" y="350" font-size="12">Protects the hands (ACA Sandboxes)</text>
+  <text class="m" x="1060" y="372" font-size="12">from multiple agents &amp; skills.</text>
 
   <!-- Column C (below): AI Gateway -->
-  <text class="m cap" x="680" y="440">Shared model and tool access</text>
+  <text class="m cap" x="680" y="440">Inbound Governance (Protects Hands from 2+ Brains)</text>
   <rect class="gate" x="680" y="455" width="340" height="150" rx="16"/>
   <text class="a" x="705" y="485" font-size="17" font-weight="700">AI Gateway</text>
 

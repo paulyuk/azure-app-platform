@@ -41,14 +41,14 @@ export const PLATFORM_TIERS = Object.freeze([
   {
     id: "gateway",
     name: "Gateway",
-    role: "Governed model and tool ingress",
-    jobToBeDone: "Apply policy, identity, routing, quotas, and observability to model and MCP traffic.",
+    role: "Governed model and tool ingress (protects shared tools & models across 1 to 2+ agents)",
+    jobToBeDone: "Route all model and tool calls—including sandboxed tools and Hosted Skills—through one governed seam for auth, quotas, routing, and audit.",
     expectedInterfaces: ["OpenAI-compatible API", "MCP federation", "Policy telemetry"],
     preferredCanvases: ["ai-gateway-studio"],
     scaffold: {
-      summary: "Provision or bind an API Management AI Gateway and define governed model/tool routes.",
+      summary: "Provision or bind an API Management AI Gateway in front of shared models, sandboxed tools, and MCP endpoints.",
       markers: ["azure.yaml", "infra"],
-      nextActions: ["Select an APIM instance", "Define model routes", "Apply token and identity policies"],
+      nextActions: ["Select an APIM instance", "Define model and tool routes", "Apply token and identity policies"],
     },
   },
   {
@@ -67,14 +67,14 @@ export const PLATFORM_TIERS = Object.freeze([
   {
     id: "sandbox",
     name: "Sandbox",
-    role: "Ephemeral isolated execution",
-    jobToBeDone: "Run sensitive or untrusted computation with constrained identity, network, and lifetime.",
+    role: "Ephemeral isolated execution with Sandboxes egress proxy",
+    jobToBeDone: "Run sensitive or untrusted computation in ACA Sandboxes with default-deny egress proxy protection; put behind AI Gateway when shared by 2+ agents.",
     expectedInterfaces: ["Job API", "Container image", "Egress policy"],
     preferredCanvases: [],
     scaffold: {
-      summary: "Create an ephemeral containerized job with explicit ingress, egress, identity, and deletion behavior.",
+      summary: "Create an ephemeral containerized job with Sandboxes egress proxy policy, explicit ingress, identity, and deletion behavior.",
       markers: ["Dockerfile", "egress-policy.yaml"],
-      nextActions: ["Define the isolation boundary", "Build the container image", "Set egress and lifecycle policy"],
+      nextActions: ["Define the isolation boundary", "Build the container image", "Set egress policy and lifecycle policy"],
     },
   },
   {

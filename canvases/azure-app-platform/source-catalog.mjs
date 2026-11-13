@@ -170,11 +170,73 @@ export const APP_SERVICE_BUILDER_TEMPLATE = Object.freeze({
   },
 });
 
+export const SANDBOXES_MINIMAL_TEMPLATE = Object.freeze({
+  id: "builtin-sandboxes-minimal-v1",
+  kind: "empty",
+  name: "Sandboxes Minimal Starter",
+  description: "1 agent calling sandboxed tools: ACA Sandboxes and the Sandboxes egress proxy keep tool execution and outbound access safe without a gateway.",
+  capabilityIds: ["agent", "sandbox"],
+  customization: ["App purpose", "Agent instructions"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+    startArgs: [],
+    startPowerShellArgs: [],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    startEntrypoints: [
+      { name: "agent", port: 8088 },
+    ],
+    reservedPorts: [8088],
+  },
+  requiredPaths: [
+    "README.md",
+    "azure-app.yaml",
+    "config/domain.json",
+    "config/egress-allowlist.json",
+    "config/runtime.json",
+    "config/document-policy.json",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "scripts/load-ports.sh",
+    "scripts/load-ports.ps1",
+    "src/agent/agent.yaml",
+    "src/agent/main.py",
+    "src/agent/pyproject.toml",
+    "src/agent/Dockerfile",
+    "src/agent/tests/test_runtime.py",
+    "src/agent/prompts/system.md",
+    "src/tools/document-validation/main.py",
+    "src/tools/document-validation/pyproject.toml",
+    "src/tools/document-validation/Dockerfile",
+    "src/tools/document-validation/contract.json",
+    "src/tools/document-validation/tests/test_main.py",
+    "src/tools/document-validation/egress-policy.md",
+    "src/policy/enforcement.py",
+    "docs/demos/loan-application/README.md",
+    "docs/demos/loan-application/HOW-IT-WORKS.md",
+    "examples/loan-application.txt",
+  ],
+  constraints: {
+    hostedSkillCount: 0,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+    sandboxToolBoundary: true,
+  },
+});
+
 export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
   id: "builtin-sandbox-gateway-minimal-v1",
   kind: "empty",
   name: "Sandboxes & AI Gateway Starter",
-  description: "Agent on any compute, untrusted tools isolated in ACA Sandboxes, and governed model routing through AI Gateway.",
+  description: "Start with 1 agent, ready for 2+ agents & skills: all model and sandboxed tool calls route behind AI Gateway, with ACA Sandboxes egress proxy isolation.",
   capabilityIds: ["agent", "sandbox", "gateway"],
   customization: ["App purpose", "Agent instructions"],
   readyToRun: true,
@@ -236,6 +298,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
 
 export const LOCAL_TEMPLATES = Object.freeze([
   SANDBOX_GATEWAY_TEMPLATE,
+  SANDBOXES_MINIMAL_TEMPLATE,
   APP_SERVICE_BUILDER_TEMPLATE,
   APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE,
   EMPTY_TEMPLATE,
@@ -626,6 +689,7 @@ export async function listSourceCatalog({
   }
   const templates = [
     SANDBOX_GATEWAY_TEMPLATE,
+    SANDBOXES_MINIMAL_TEMPLATE,
     APP_SERVICE_BUILDER_TEMPLATE,
     APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE,
     ...sampleRoots.slice(0, 1).map((root) => ({

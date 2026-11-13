@@ -2,9 +2,9 @@ export function mountStudioHome(element, { toolkit, AppList, artwork, onCreate, 
   appHref, onCopyPath, onRename, onDelete, appInventory = null, recentApps = null, recentError = null, recentLoading = false, busy = false }) {
   const { createElement: h, mountCanvasComponent, SectionHeader, Button, SymbolIcon, FilterToolbar, Disclosure, useState } = toolkit;
   const tasks = [
-    { id: "new-app", title: "Create a new app", description: "Start with a template. Make it yours.", illustration: "create", onClick: onCreate },
+    { id: "new-app", title: "Create a new app", description: "Start from a guided template, including Sandboxes Minimal or Sandboxes + AI Gateway.", illustration: "create", onClick: onCreate },
     { id: "open-app", title: "Open an app", description: "Pick up where you left off.", illustration: "open", onClick: onOpen },
-    { id: "assemble-app", title: "Assemble existing projects", description: "Bring your projects and Azure resources together.", illustration: "assemble", onClick: onAssemble },
+    { id: "assemble-app", title: "Assemble existing projects", description: "Combine source projects, ACA Sandboxes, and Azure resources.", illustration: "assemble", onClick: onAssemble },
   ];
   const questions = [
     ["What makes up an app?", "An app can include agents, tools, a web experience, and Azure resources. The App Map shows its components and connections; what is included depends on your template and configuration."],

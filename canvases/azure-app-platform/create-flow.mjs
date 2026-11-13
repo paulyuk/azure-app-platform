@@ -1,4 +1,17 @@
 export const CREATE_GUIDANCE = {
+  sandboxMinimal: {
+    introduction: "An agent uses a sandboxed tool; local execution is a process simulation, not cloud isolation.",
+    caution: "The local tool process is a simulation, not the ACA Sandboxes isolation boundary.",
+    worksFirst: "Run document checks locally without provisioning cloud resources.",
+    run: "The starter runs its agent and tool locally. Configure ACA Sandboxes separately for isolated cloud execution.",
+    later: "Configure an ACA Sandbox Group and egress policy when cloud isolation is needed.",
+    boundaries: "Local subprocess execution is not OS isolation. Creating the starter does not provision ACA Sandboxes or an egress proxy.",
+    included: [["Agent", "Orchestrates document checks on the selected compute."], ["Document validation tool", "Checks supported text and Markdown input; local execution is a process simulation."], ["Sandbox configuration", "Documents the optional ACA Sandbox Group and egress policy setup."]],
+    excluded: "No provisioned ACA Sandbox Group, egress proxy, Hosted Skill, or AI Gateway.",
+    editing: "Used by the configured app agent. This text does not change document checks, supported formats, safety policy, or implement new tools.",
+    flow: ["Validate a supported text document", "Check the bounded tool result", "Configure ACA Sandboxes separately for isolated cloud execution"],
+    files: [["src/agent/prompts/system.md", "Instructions used by the configured app agent"], ["src/tools/document-validation/contract.json", "Supported files, input limits and schemas"], ["config/runtime.json", "Local or separately configured cloud runtime"]],
+  },
   sandbox: {
     introduction: "An agent uses document checks and governed model access; local execution is a process simulation, not cloud isolation.",
     caution: "Local execution is a process simulation, not cloud isolation.",
@@ -67,6 +80,7 @@ export const CREATE_GUIDANCE = {
 };
 
 export function createTemplateKind(template) {
+  if (template.id === "builtin-sandboxes-minimal-v1") return "sandboxMinimal";
   if (template.id === "builtin-sandbox-gateway-minimal-v1") return "sandbox";
   if (template.id === "builtin-app-service-builder-ai-gateway-v1") return "webGateway";
   if (template.id === "builtin-app-service-builder-vite-v1") return "web";

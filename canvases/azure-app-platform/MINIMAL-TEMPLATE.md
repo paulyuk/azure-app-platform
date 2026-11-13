@@ -9,8 +9,22 @@ For concrete finished output, browse the [docagent sample](samples/docagent/READ
 The peer [samples directory](samples/README.md) explains its origin and what
 local state was excluded.
 
-The flow is **message + untrusted document -> agent harness -> document
-validation tool -> checked sanitized result -> model through AI Gateway**.
+This template represents the **Sandboxes + AI Gateway Minimal Pattern**
+(*protecting the hands from multiple brains*):
+
+- **Sandboxes Minimal Pattern (1 brain only)**: When a single agent calls
+  sandboxed tools, **ACA Sandboxes** and the **Sandboxes egress proxy**
+  (`--egress-default Deny` + explicit allowlist) are enough to isolate
+  execution and outbound network access.
+- **Sandboxes + AI Gateway Minimal Pattern (`builtin-sandbox-gateway-minimal-v1`)**:
+  We start with 1 agent, but route **all tool calls (including sandboxed tools)**
+  and model calls behind **AI Gateway** because we plan for **2+ agents or
+  Hosted Skills ("multiple brains")** to call that shared sandboxed tool
+  ("the hands").
+
+The flow is **message + untrusted document -> agent harness -> (via AI Gateway
+seam) -> document validation tool in ACA Sandboxes (with Sandboxes egress proxy)
+-> checked sanitized result -> model through AI Gateway**.
 The loan application is a worked scenario, not a required app identity.
 
 ## Generated app files
