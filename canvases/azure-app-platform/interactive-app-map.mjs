@@ -6,6 +6,7 @@ import { CONNECTION_PANEL_CSS, createConnectionPanel } from "./connection-panel.
 import { selectPreferredModelId } from "./gateway-state.mjs";
 import { AGENT_STATUS_CSS, RUN_PANEL_CONTENT_CSS } from "./run-panel-styles.mjs";
 import { createRunWorkspace } from "./run-workspace.mjs";
+import { createRunOutput, hasNewOutputLines, parseRuntimeOutputLine } from "./run-output.mjs";
 import { createRunExecutionView, getRunExecutionLayers, RUN_EXECUTION_CSS } from "./run-execution.mjs";
 import { getAgentStatus, createAgentStatusComponent } from "./agent-status.mjs";
 import { getAgentResponsePresentation, renderAgentResponse, RUN_ILLUSTRATION_MARKUP } from "./agent-response.mjs";
@@ -1123,11 +1124,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     let documentResultText = "";
     let documentAssessment = null;
     let documentAssessmentEpoch = 0;
-    let latestOutput = "Waiting for command output.";
     let latestCommands = [];
     let agentToolActivity = [];
     let agentRawResponse = "";
     let outputRefreshing = false;
+    let outputEpoch = 0;
+    let clearingOutput = false;
     let operationalRefreshing = false;
     const gatewayDiscovery = (${createDiscoveryTracker.toString()})();
     let gatewayApplying = false;
@@ -1395,12 +1397,17 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       onSourceChange: () => { mapNeedsRefresh = true; },
     });
     window.addEventListener("app-platform-editor-settings-change", (event) => buildPanel.setEditorSettings(event.detail));
+    let runOutput;
     const runWorkspace = (${createRunWorkspace.toString()})({
       container: details,
       diagnosticsContainer,
       toggle: logsTrigger,
-      onTabChange: () => queueMicrotask(() => connections.updateRuntime()),
+      onTabChange: () => {
+        runOutput?.setVisible(runWorkspace.isDiagnosticsOpen() && runWorkspace.selectedTab() === "output");
+        queueMicrotask(() => connections.updateRuntime());
+      },
       onDiagnosticsChange: ({ open, issues }) => {
+        runOutput?.setVisible(open && runWorkspace.selectedTab() === "output");
         queueMicrotask(() => connections.updateRuntime());
         const key = JSON.stringify([open, issues]);
         if (key === logsTriggerKey) return;
@@ -1416,6 +1423,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         });
       },
       buttons,
+      createElement: toolkit.createElement,
+      onShowOutputIssues: () => {
+        runOutput.showIssues();
+        runWorkspace.openDiagnostics("output", { focus: false });
+        runOutput.focus();
+      },
       onClear: container => {
         if (container.contains(agentStatusRoot)) agentStatusRoot.remove();
         if (container.contains(documentTestNoticeRoot)) documentTestNoticeRoot.remove();
@@ -1425,28 +1438,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       renderTry: renderTryApp,
       renderServices: renderRuntimeServices,
       renderEnvironment: renderEnvironmentPanel,
-      renderOutput: (container) => {
-        const actions = appendText(container, "div", "", "run-section-actions");
-        appendText(actions, "h3", "Command output");
-        const actionGroup = appendText(actions, "div", "", "run-section-button-group");
-        const clearBtn = buttons.create({
-          children: "Clear",
-          size: "small",
-          appearance: "secondary",
-          className: "studio-action command-output-clear",
-          onClick: () => clearRunOutput(),
-        });
-        clearBtn.dataset.clearOutput = "true";
-        clearBtn.title = "Clear command output";
-        buttons.append(actionGroup, clearBtn);
-        buttons.append(actionGroup, actionButton("Open all logs", () => renderLogsPanel()));
-        const output = appendText(container, "pre", "", "command-output live-output");
-        output.dataset.runtimeOutput = "true";
-        output.dataset.runScrollKey = "output";
-        output.tabIndex = 0;
-        output.setAttribute("aria-label", "Runtime output");
-        renderFormattedOutput(output, latestOutput);
-      },
+      renderOutput: (container) => runOutput.render(container),
       renderOperations: (container) => {
         const actions = appendText(container, "div", "", "run-section-actions");
         appendText(actions, "p", "Recorded Azure, shell, and HTTP operations. Message bodies and credentials are omitted.");
@@ -1457,6 +1449,19 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         feed.dataset.runScrollKey = "operations";
         renderCommandFeed(feed);
       },
+    });
+    const parseOutputLine = (${parseRuntimeOutputLine.toString()});
+    runOutput = (${createRunOutput.toString()})({
+      buttons,
+      appendText,
+      actionButton,
+      renderFormattedOutput,
+      parseLine: parseOutputLine,
+      hasNewLines: (${hasNewOutputLines.toString()}),
+      onClear: () => clearRunOutput(),
+      onOpenAll: () => renderLogsPanel(),
+      onRetry: () => void refreshRunOutput(),
+      onSummaryChange: summary => runWorkspace.outputSummary(summary),
     });
     let selectedId = null;
     let selectedEdgeId = null;
@@ -4124,6 +4129,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       setStatus("");
       agentRequestState = "invoking";
       agentResponsePhase = "preparing";
+      runOutput.startInvocation();
       agentResponseSlow = false;
       clearTimeout(agentResponseWaitTimer);
       agentRawResponse = "";
@@ -4140,6 +4146,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       const updateResponseNode = (text) => {
         agentResponseText = text;
         executionView.update(executionSnapshot());
+        runWorkspace.invocation({ state: agentRequestState, phase: agentResponsePhase });
         const presentation = getAgentResponsePresentation({
           state: agentRequestState, phase: agentResponsePhase, slow: agentResponseSlow,
         });
@@ -4152,6 +4159,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       if (panelMode === "manage") renderManagePanel();
       else syncAgentInputControls();
       renderExecutionPanel();
+      runWorkspace.openDiagnostics("output", { focus: false });
       try {
         const readyEntry = await ensureAgentReadyForAction((msg) => {
           agentResponsePhase = "starting";
@@ -4750,7 +4758,8 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       let turnIndex = 0;
       lines.forEach((line, index) => {
         const row = document.createElement("span");
-        const isError = isErrorOutputLine(line);
+        const severity = parseOutputLine(line).level;
+        const isError = severity === "error" || isErrorOutputLine(line);
         const tagMatch = line.match(/^\\[([a-z0-9-]+)\\]/i);
         const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
         const phase = ["startup", "shutdown", "gateway-setup", "provision", "deploy"].includes(tag)
@@ -4765,6 +4774,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         }
         row.className = "command-output-line"
           + (isError ? " is-error" : "")
+          + (!isError && severity === "warning" ? " is-warning" : "")
           + (isTurnStart ? " is-turn-start" : "");
         if (isTurnStart && (isNewSandboxTurn || isPostTurnStart)) {
           row.dataset.turnLabel = "Turn " + turnIndex;
@@ -4780,30 +4790,36 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     }
 
     async function clearRunOutput() {
+      if (clearingOutput) return;
+      clearingOutput = true;
+      outputEpoch += 1;
       try {
         await apiRequest("/api/app-output/clear", {
           method: "POST",
           body: JSON.stringify({ root: MODEL.root }),
         });
-        latestOutput = "Command output cleared. Waiting for new output.";
-        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
-        if (output) {
-          renderFormattedOutput(output, latestOutput);
-          output.scrollTop = output.scrollHeight;
-        }
+        runOutput.cleared();
       } catch (error) {
-        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
-        if (output) renderFormattedOutput(output, "Unable to clear output: " + error.message);
+        runOutput.actionFailed("Unable to clear output: " + error.message);
+      } finally {
+        clearingOutput = false;
+        void refreshRunOutput();
       }
     }
 
     async function refreshRunOutput() {
-      if (outputRefreshing) return;
+      if (outputRefreshing || clearingOutput) return;
       outputRefreshing = true;
+      const requestEpoch = outputEpoch;
       try {
         const result = await apiRequest("/api/app-output?root=" + encodeURIComponent(MODEL.root));
-        latestOutput = result.lines.join("\\n") || "No command output yet. Run the app to see startup progress.";
+        if (requestEpoch !== outputEpoch) return;
+        if (!Array.isArray(result.lines) || !result.lines.every(line => typeof line === "string")
+            || (result.commands !== undefined && !Array.isArray(result.commands))) {
+          throw new Error("The runtime returned an invalid output response.");
+        }
         latestCommands = result.commands || [];
+        runOutput.receive(result.lines);
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed"
             && !(record.kind === "http" && record.label === "Invoke agent")).length,
@@ -4811,21 +4827,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
           issue: diagnosticsIssue(),
         });
         renderCommandFeed();
-        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
-        if (output && output.textContent !== latestOutput) {
-          const following = output.scrollHeight - output.scrollTop - output.clientHeight < 40;
-          renderFormattedOutput(output, latestOutput);
-          if (following) output.scrollTop = output.scrollHeight;
-        }
       } catch (error) {
-        const output = diagnosticsContainer.querySelector("[data-runtime-output]");
+        if (requestEpoch !== outputEpoch) return;
+        runOutput.unavailable(error.message);
         runWorkspace.diagnostics({
           failures: latestCommands.filter((record) => record.status === "failed").length,
           operations: latestCommands.length,
           error: error.message,
           issue: diagnosticsIssue(),
         });
-        if (output) renderFormattedOutput(output, "Unable to load output: " + error.message);
       } finally { outputRefreshing = false; }
     }
 

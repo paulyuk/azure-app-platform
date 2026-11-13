@@ -10,6 +10,8 @@ export function createRunWorkspace({
   renderOutput,
   renderOperations,
   buttons,
+  createElement,
+  onShowOutputIssues = () => {},
   onClear = () => {},
 }) {
   const disclosures = new Map();
@@ -24,6 +26,11 @@ export function createRunWorkspace({
   let attention = "";
   let diagnosticsOpen = false;
   let diagnosticsHeight = 240;
+  let diagnosticsHeightCustomized = false;
+  let invocation = { state: "idle", phase: "" };
+  let outputInfo = { status: "loading", errors: 0, warnings: 0, unseen: false };
+  let stageControls;
+  let stageKey = "";
   let drag;
   const listeners = new AbortController();
   const primaryWorkspace = diagnosticsContainer.previousElementSibling;
@@ -50,11 +57,15 @@ export function createRunWorkspace({
     const heightAvailable = Math.max(0, shell.parentElement.getBoundingClientRect().bottom -
       primaryWorkspace.getBoundingClientRect().top);
     const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
-    const chrome = 8;
-    const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55), heightAvailable - chrome - primaryReserve));
+    const stageHeight = shell.querySelector(".run-output-stage")?.offsetHeight || 0;
+    const chrome = 8 + stageHeight;
+    const maximum = Math.max(0, Math.min(560, Math.floor(heightAvailable * .55) - stageHeight, heightAvailable - chrome - primaryReserve));
     const minimum = Math.min(120, maximum);
     const size = Math.round(Math.max(minimum, Math.min(maximum, height)));
-    if (remember) diagnosticsHeight = size;
+    if (remember) {
+      diagnosticsHeight = size;
+      diagnosticsHeightCustomized = true;
+    }
     shell.style.setProperty("--diagnostics-height", size + "px");
     separator.setAttribute("aria-valuemin", String(minimum));
     separator.setAttribute("aria-valuemax", String(maximum));
@@ -72,6 +83,7 @@ export function createRunWorkspace({
     }
     support.hidden = !diagnosticsOpen;
     separator.hidden = !diagnosticsOpen;
+    updateOutputStage();
     renderSelectedPanel();
     shell.dataset.diagnostics = diagnosticsOpen ? "open" : "closed";
     const issues = [
@@ -88,6 +100,12 @@ export function createRunWorkspace({
     diagnosticsOpen = open;
     syncDiagnostics();
     if (open) restoreScrolling();
+  }
+
+  function openDiagnostics(tab = selectedTab, { focus = true } = {}) {
+    if (!diagnosticsOpen && tab !== selectedTab) activateTab(diagnosticsContainer, tab);
+    setDiagnosticsOpen(true);
+    activateTab(diagnosticsContainer, tab, { focus });
   }
 
   function finishResize(event) {
@@ -129,6 +147,55 @@ export function createRunWorkspace({
     node.className = className;
     parent.append(node);
     return node;
+  }
+
+  function invocationStage() {
+    if (invocation.state === "blocked") return "Stopped by policy";
+    if (invocation.state === "failed") return invocation.phase === "waiting" ? "Invocation failed" : "Task not sent";
+    if (invocation.state === "succeeded") return "Response received";
+    return {
+      preparing: "Preparing agent",
+      starting: "Waiting for agent endpoint",
+      endpoint: "Sending task",
+      waiting: "Waiting for response",
+    }[invocation.phase] || "Preparing agent";
+  }
+
+  function updateOutputStage() {
+    if (!stageControls) return;
+    const { stage, stageText, issueButton, updateText, toggleButton } = stageControls;
+    stage.hidden = invocation.state === "idle";
+    if (stage.hidden) return;
+    stage.dataset.state = invocation.state;
+    const name = invocationStage();
+    if (stageText.textContent !== name) stageText.textContent = name;
+    updateText.hidden = !outputInfo.unseen;
+    const key = JSON.stringify([outputInfo.status, outputInfo.errors, outputInfo.warnings, diagnosticsOpen]);
+    if (key === stageKey) return;
+    stageKey = key;
+    const { status, errors, warnings } = outputInfo;
+    const counts = status === "loading" ? "Checking logs"
+      : status === "unavailable" ? "Counts unavailable"
+        : status === "empty" ? "No logs yet" : "";
+    const errorLabel = errors + (errors === 1 ? " error" : " errors");
+    const warningLabel = warnings + (warnings === 1 ? " warning" : " warnings");
+    const description = counts || errors + (errors === 1 ? " error line" : " error lines") + ", "
+      + warnings + (warnings === 1 ? " warning line" : " warning lines") + " recognized in loaded shared output";
+    const children = counts || [
+      createElement("span", { key: "errors", className: "run-output-errors", "data-active": errors > 0 }, errorLabel),
+      createElement("span", { key: "separator", "aria-hidden": true }, " · "),
+      createElement("span", { key: "warnings", className: "run-output-warnings", "data-active": warnings > 0 }, warningLabel),
+    ];
+    buttons.update(issueButton, {
+      children,
+      "aria-expanded": diagnosticsOpen,
+      "aria-label": description + ". Show output details.",
+      title: "Counts are recognized error and warning lines in the loaded shared output, not unique issues or an invocation trace.",
+    });
+    buttons.update(toggleButton, {
+      children: diagnosticsOpen ? "Collapse logs" : "Show logs",
+      "aria-expanded": diagnosticsOpen,
+    });
   }
 
   function outputSummary(state) {
@@ -260,6 +327,42 @@ export function createRunWorkspace({
       const connected = Boolean(readiness?.gatewayConfigured);
 
       const separator = text(shell, "div", "", "run-diagnostics-resizer");
+      const stage = text(shell, "div", "", "run-output-stage");
+      const stageCopy = text(stage, "div", "", "run-output-stage-copy");
+      const stageHeading = text(stageCopy, "div", "", "run-output-stage-heading");
+      text(stageHeading, "strong", "Output");
+      const issueButton = buttons.create({
+        children: "Checking logs",
+        appearance: "subtle",
+        size: "small",
+        "aria-controls": "run-diagnostics",
+        onClick: onShowOutputIssues,
+      });
+      issueButton.dataset.outputIssues = "true";
+      issueButton.dataset.actionKey = "output-issues";
+      buttons.append(stageHeading, issueButton);
+      const updateText = text(stageHeading, "span", "New output", "run-output-new");
+      updateText.dataset.outputNew = "true";
+      const stageText = text(stageCopy, "span", "", "run-output-stage-text");
+      stageText.dataset.invocationStage = "true";
+      stageText.setAttribute("role", "status");
+      const toggleButton = buttons.create({
+        children: "Show logs",
+        appearance: "secondary",
+        size: "small",
+        "aria-controls": "run-diagnostics",
+        onClick: () => {
+          if (diagnosticsOpen) setDiagnosticsOpen(false);
+          else openDiagnostics("output", { focus: false });
+        },
+      });
+      toggleButton.dataset.outputToggle = "true";
+      toggleButton.dataset.actionKey = "output-toggle";
+      buttons.append(stage, toggleButton);
+      stageControls = { stage, stageText, issueButton, updateText, toggleButton };
+      stageKey = "";
+      updateOutputStage();
+
       separator.setAttribute("role", "separator");
       separator.setAttribute("aria-label", "Resize Diagnostics");
       separator.setAttribute("aria-orientation", "horizontal");
@@ -376,10 +479,7 @@ export function createRunWorkspace({
       if (operationsTab) setTabSummary(operationsTab, operationsSummary(), false);
       syncDiagnostics();
     },
-    openDiagnostics(tab = selectedTab) {
-      setDiagnosticsOpen(true);
-      activateTab(diagnosticsContainer, tab, { focus: true });
-    },
+    openDiagnostics,
     toggleDiagnostics() {
       setDiagnosticsOpen(!diagnosticsOpen);
     },
@@ -390,6 +490,19 @@ export function createRunWorkspace({
     },
     selectedTab() {
       return selectedTab;
+    },
+    isDiagnosticsOpen() {
+      return diagnosticsOpen;
+    },
+    invocation(next) {
+      if (invocation.state === "idle" && next.state !== "idle" && !diagnosticsHeightCustomized) diagnosticsHeight = 300;
+      invocation = next;
+      updateOutputStage();
+      sizeDiagnostics();
+    },
+    outputSummary(next) {
+      outputInfo = next;
+      updateOutputStage();
     },
   };
 }

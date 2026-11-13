@@ -143,7 +143,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       await page.setViewportSize({ width: 430, height: 800 });
       assert.equal(await page.locator(".run-execution-actions").getByRole("button", { name: "View logs" }).count(), 0);
       const outputTab = page.locator('[data-run-tab="output"]');
-      await page.locator("#run-diagnostics-toggle").click();
+      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
       await outputTab.click();
       await page.waitForFunction(() => document.activeElement?.getAttribute("data-run-tab") === "output");
       assert.equal(await outputTab.getAttribute("aria-selected"), "true");
@@ -270,7 +270,7 @@ for (const [name, engine] of [["Chromium", chromium], ["WebKit", webkit]]) {
       assert.equal(await page.locator("#diagnostics-status, .run-diagnostics-toolbar").count(), 0);
       assert.equal(await page.locator("#run-diagnostics-toggle .logs-warning-badge").count(), 0,
         "Failed HTTP invocation history must not become a global Operations failure.");
-      await page.locator("#run-diagnostics-toggle").click();
+      assert.equal(await page.locator("#run-diagnostics-toggle").getAttribute("aria-expanded"), "true");
       await page.locator('[data-run-tab="output"]').click();
       await page.locator('[data-run-tab="operations"]').click();
       const record = page.locator('[data-run-disclosure="invocation"]');
