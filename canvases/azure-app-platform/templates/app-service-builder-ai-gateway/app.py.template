@@ -1,0 +1,262 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+import hashlib
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
+
+from config import SampleConfig, load_config
+from gateway import AgentStreamProvider, GatewayAgentService
+
+STATIC_DIR = Path(__file__).with_name("static")
+MAX_BODY_BYTES = 16 * 1024
+MAX_MESSAGES = 12
+MAX_TOTAL_CHARS = 8_000
+MAX_CONCURRENT_STREAMS = 4
+ALLOWED_ROLES = frozenset({"user", "assistant"})
+
+
+class BodyLimitError(Exception):
+    def __init__(self, status_code: int, code: str) -> None:
+        super().__init__(code)
+        self.status_code = status_code
+        self.code = code
+
+
+def create_app(
+    config: SampleConfig | None = None,
+    *,
+    agent_service: AgentStreamProvider | None = None,
+) -> FastAPI:
+    resolved_config = config or load_config()
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    css = (STATIC_DIR / "site.css").read_text(encoding="utf-8")
+    js = (STATIC_DIR / "chat.js").read_text(encoding="utf-8")
+    csp = build_csp(html)
+    service = agent_service or GatewayAgentService(resolved_config)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_STREAMS)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            await service.aclose()
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def apply_security_headers(request: Request, call_next) -> Response:
+        if resolved_config.is_expired() and request.url.path != "/health":
+            response = expired_response(request.url.path)
+        else:
+            response = await call_next(request)
+        for header, value in security_headers(csp).items():
+            response.headers.setdefault(header, value)
+        return response
+
+    @app.get("/health")
+    async def health() -> JSONResponse:
+        return JSONResponse(
+            {
+                "status": "expired" if resolved_config.is_expired() else "ok",
+                "gateway": resolved_config.gateway_host,
+                "model": resolved_config.model,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/")
+    async def index() -> HTMLResponse:
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+    @app.get("/static/site.css")
+    async def stylesheet() -> Response:
+        return Response(
+            css,
+            media_type="text/css; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/static/chat.js")
+    async def script() -> Response:
+        return Response(
+            js,
+            media_type="text/javascript; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.post("/api/chat/stream")
+    async def chat_stream(request: Request) -> Response:
+        origin_headers = request.headers.getlist("origin")
+        request_host = request.headers.get("host", "")
+        if len(origin_headers) != 1 or not resolved_config.allowed_origin(origin_headers[0], request_host):
+            return error_response(403, "same_origin_required")
+        if not media_type_is_json(request.headers.get("content-type", "")):
+            return error_response(415, "unsupported_media_type")
+
+        try:
+            raw_body = await read_limited_body(request, MAX_BODY_BYTES)
+        except BodyLimitError as exc:
+            return error_response(exc.status_code, exc.code)
+
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return error_response(400, "invalid_json")
+
+        try:
+            messages = validate_messages(payload)
+        except ValueError as exc:
+            return error_response(400, str(exc))
+
+        try:
+            await asyncio.wait_for(semaphore.acquire(), timeout=0.01)
+        except TimeoutError:
+            return error_response(429, "sample_busy")
+
+        async def event_stream() -> AsyncIterator[bytes]:
+            try:
+                async for delta in service.stream_text(messages):
+                    yield sse_frame("delta", {"text": delta})
+                yield sse_frame("done", {})
+            except Exception as exc:
+                err_msg = str(exc).strip() or "The gateway request did not complete."
+                yield sse_frame(
+                    "error",
+                    {
+                        "code": "upstream_unavailable",
+                        "message": err_msg,
+                    },
+                )
+            finally:
+                semaphore.release()
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    return app
+
+
+def build_csp(html: str) -> str:
+    style_hash = inline_hash(html, "style")
+    script_hash = inline_hash(html, "script")
+    return "; ".join(
+        [
+            "default-src 'none'",
+            f"script-src 'self' '{script_hash}'",
+            f"style-src 'self' '{style_hash}'",
+            "connect-src 'self'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "frame-ancestors 'none'",
+        ]
+    )
+
+
+def inline_hash(html: str, tag: str) -> str:
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", html, flags=re.DOTALL)
+    if not match:
+        raise ValueError(f"Missing inline <{tag}> block in static/index.html.")
+    digest = hashlib.sha256(match.group(1).encode("utf-8")).digest()
+    import base64
+
+    return f"sha256-{base64.b64encode(digest).decode('ascii')}"
+
+
+def security_headers(csp: str) -> dict[str, str]:
+    return {
+        "Content-Security-Policy": csp,
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+    }
+
+
+def expired_response(path: str) -> Response:
+    if path.startswith("/api/"):
+        return error_response(410, "sample_expired")
+    return PlainTextResponse(
+        "This temporary sample deployment has expired.",
+        status_code=410,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def error_response(status_code: int, code: str) -> JSONResponse:
+    return JSONResponse(
+        {"error": code},
+        status_code=status_code,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def media_type_is_json(content_type: str) -> bool:
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type == "application/json"
+
+
+async def read_limited_body(request: Request, limit: int) -> bytes:
+    header_value = request.headers.get("content-length")
+    if header_value is not None:
+        try:
+            declared = int(header_value)
+        except ValueError as exc:
+            raise BodyLimitError(400, "invalid_content_length") from exc
+        if declared < 0:
+            raise BodyLimitError(400, "invalid_content_length")
+        if declared > limit:
+            raise BodyLimitError(413, "payload_too_large")
+
+    chunks = bytearray()
+    async for chunk in request.stream():
+        chunks.extend(chunk)
+        if len(chunks) > limit:
+            raise BodyLimitError(413, "payload_too_large")
+    return bytes(chunks)
+
+
+def validate_messages(payload: Any) -> list[dict[str, str]]:
+    if not isinstance(payload, dict) or set(payload.keys()) != {"messages"}:
+        raise ValueError("invalid_payload")
+    raw_messages = payload["messages"]
+    if not isinstance(raw_messages, list) or not (1 <= len(raw_messages) <= MAX_MESSAGES):
+        raise ValueError("invalid_messages")
+
+    normalized: list[dict[str, str]] = []
+    total_chars = 0
+    for item in raw_messages:
+        if not isinstance(item, dict) or set(item.keys()) != {"role", "content"}:
+            raise ValueError("invalid_message")
+        role = item["role"]
+        content = item["content"]
+        if role not in ALLOWED_ROLES or not isinstance(content, str):
+            raise ValueError("invalid_message")
+        stripped = content.strip()
+        if not stripped:
+            raise ValueError("empty_message")
+        total_chars += len(stripped)
+        if total_chars > MAX_TOTAL_CHARS:
+            raise ValueError("messages_too_long")
+        normalized.append({"role": role, "content": stripped})
+    return normalized
+
+
+def sse_frame(event: str, data: dict[str, Any]) -> bytes:
+    encoded = json.dumps(data, separators=(",", ":"))
+    return f"event: {event}\ndata: {encoded}\n\n".encode("utf-8")

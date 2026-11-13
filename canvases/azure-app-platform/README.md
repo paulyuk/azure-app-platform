@@ -6,7 +6,7 @@ Azure App Platform is a GitHub Copilot canvas for creating, assembling, and oper
 
 Azure App Platform guides you from a starter architecture or existing codebase to a runnable workspace in an isolated Git worktree:
 
-- **Create a new app** — follow a three-step flow (**Choose a template → Describe app → Review app**) using **Sandboxes & AI Gateway Starter**, **App Service Builder (Vite Starter)**, **Dealership E2E Reference Sample**, or **Empty Starter App**, then materialize an isolated Git worktree.
+- **Create a new app** — follow a three-step flow (**Choose a template → Describe app → Review app**) using **Sandboxes & AI Gateway Starter**, **App Service Builder - Vite Starter**, **App Service Builder - Agent & AI Gateway**, **Dealership E2E Reference Sample**, or **Empty Starter App**, then materialize an isolated Git worktree.
 - **Open an app** — reopen existing app worktrees (or pick from **Recent apps** on Home) to edit components in **Build**, configure **Connect**, test and inspect in **Run** and **Observe** (**App Map** and **Logs**), or **Deploy**.
 - **Assemble existing projects** — map existing source directories and compatible Azure resources into a unified `azure-app.yaml` manifest.
 

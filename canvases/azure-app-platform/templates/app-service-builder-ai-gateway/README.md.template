@@ -1,0 +1,40 @@
+# __APP_NAME__ (App Service Builder + AI Gateway)
+
+__USER_INTENT__
+
+A minimal Python chat agent built with [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) and FastAPI, packaged for [Azure App Service Builder](https://aka.ms/embr) (`builder.yaml`) and connected to [Azure AI Gateway](https://ai.gateway.azure.com).
+
+## Architecture
+
+```text
+Browser UI (/) ──► FastAPI + Agent Framework (/api/chat/stream) ──► Azure AI Gateway (/openai/v1) ──► Model
+```
+
+- `builder.yaml` declares the App Service Builder web service (`port: 8080`, `healthCheckPath: /health`).
+- `app.py` serves the chat UI (`/`) and SSE streaming endpoint (`POST /api/chat/stream`).
+- `config.py` and `gateway.py` configure `OpenAIChatCompletionClient` against Azure AI Gateway using either your local `.env` (`AI_GATEWAY_BASE_URL`, `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL`) or Azure Managed Identity (`AZURE_AI_GATEWAY_HOST`, `AZURE_CLIENT_ID`).
+
+## Local Setup & Run
+
+1. Connect an Azure AI Gateway and model in the **Connect** step (which writes `.env` / `src/agent/.env`), or configure `.env` manually:
+   ```bash
+   AI_GATEWAY_BASE_URL=https://<gateway>.gateway.ai.azure.com/openai/v1
+   AI_GATEWAY_API_KEY=<key>
+   AI_GATEWAY_MODEL=gpt-5-mini
+   ```
+2. Start the app:
+   - macOS / Linux:
+     ```bash
+     ./scripts/dev-start.sh
+     ```
+   - Windows PowerShell:
+     ```powershell
+     .\scripts\dev-start.ps1
+     ```
+3. Open `http://127.0.0.1:8080` in your browser or use the **Open web app** button in Run mode.
+
+## Run Tests
+
+```bash
+uv run pytest -q
+```

@@ -64,10 +64,66 @@ export const EMPTY_TEMPLATE = Object.freeze({
   },
 });
 
+export const APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE = Object.freeze({
+  id: "builtin-app-service-builder-ai-gateway-v1",
+  kind: "empty",
+  name: "App Service Builder - Agent & AI Gateway",
+  description: "Python FastAPI + Microsoft Agent Framework chat app on App Service Builder, connected to AI Gateway.",
+  capabilityIds: ["web", "gateway"],
+  customization: ["App purpose", "Agent instructions"],
+  readyToRun: true,
+  startup: {
+    start: "./scripts/dev-start.sh",
+    fullStart: "./scripts/dev-start.sh",
+    stop: "./scripts/dev-stop.sh",
+    startArgs: [],
+    startPowerShellArgs: [],
+    requiresGatewayForFullStart: false,
+    entrypoints: [
+      { name: "web", port: 8080 },
+    ],
+    startEntrypoints: [
+      { name: "web", port: 8080 },
+    ],
+    reservedPorts: [8080],
+  },
+  requiredPaths: [
+    "README.md",
+    "azure-app.yaml",
+    "builder.yaml",
+    "config/domain.json",
+    "config/runtime.json",
+    "pyproject.toml",
+    "requirements.txt",
+    "config.py",
+    "gateway.py",
+    "app.py",
+    "static/index.html",
+    "static/chat.js",
+    "static/site.css",
+    "tests/test_http.py",
+    "tests/test_model.py",
+    "scripts/dev-start.sh",
+    "scripts/dev-stop.sh",
+    "scripts/dev-start.ps1",
+    "scripts/dev-stop.ps1",
+    "scripts/load-ports.sh",
+    "scripts/load-ports.ps1",
+    "infra-ai-gateway/README.md",
+  ],
+  constraints: {
+    hostedSkillCount: 0,
+    inventDomainTools: false,
+    editableDomainConfiguration: true,
+    wholeAppScriptsRequired: true,
+    appServiceBuilderTarget: true,
+  },
+});
+
 export const APP_SERVICE_BUILDER_TEMPLATE = Object.freeze({
   id: "builtin-app-service-builder-vite-v1",
   kind: "empty",
-  name: "App Service Builder (Vite Starter)",
+  name: "App Service Builder - Vite Starter",
   description: "Web experience on App Service Builder (Vite + TypeScript), ready to expand with Hosted Skills.",
   capabilityIds: ["web"],
   customization: ["App purpose", "Sample greeting"],
@@ -181,6 +237,7 @@ export const SANDBOX_GATEWAY_TEMPLATE = Object.freeze({
 export const LOCAL_TEMPLATES = Object.freeze([
   SANDBOX_GATEWAY_TEMPLATE,
   APP_SERVICE_BUILDER_TEMPLATE,
+  APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE,
   EMPTY_TEMPLATE,
 ]);
 
@@ -570,6 +627,7 @@ export async function listSourceCatalog({
   const templates = [
     SANDBOX_GATEWAY_TEMPLATE,
     APP_SERVICE_BUILDER_TEMPLATE,
+    APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE,
     ...sampleRoots.slice(0, 1).map((root) => ({
       id: root.id,
       kind: "sample",

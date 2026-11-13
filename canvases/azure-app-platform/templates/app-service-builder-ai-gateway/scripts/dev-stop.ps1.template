@@ -1,0 +1,31 @@
+param()
+$ErrorActionPreference = "SilentlyContinue"
+
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$PidDir = Join-Path $Root ".dev-pids"
+
+. (Join-Path $PSScriptRoot "load-ports.ps1")
+$WebPort = if ($env:WEB_PORT) { [int]$env:WEB_PORT } else { 8080 }
+$AgentPort = if ($env:AGENT_PORT) { [int]$env:AGENT_PORT } else { 8088 }
+
+if (Test-Path $PidDir) {
+  Get-ChildItem -Path $PidDir -Filter "*.pid" | ForEach-Object {
+    $procId = Get-Content $_.FullName
+    if ($procId) {
+      & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
+      Stop-Process -Id ([int]$procId) -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+  }
+}
+
+foreach ($port in @($WebPort, $AgentPort, 7071, 7072, 7073, 7074)) {
+  if (-not $port) { continue }
+  $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+  foreach ($conn in $conns) {
+    if ($conn.OwningProcess) {
+      & taskkill.exe /PID $conn.OwningProcess /T /F 2>$null | Out-Null
+      Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+    }
+  }
+}

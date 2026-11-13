@@ -1,0 +1,82 @@
+param()
+$ErrorActionPreference = "Stop"
+
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$PidDir = Join-Path $Root ".dev-pids"
+$LogDir = Join-Path $Root ".dev-logs"
+New-Item -ItemType Directory -Force -Path $PidDir, $LogDir | Out-Null
+
+. (Join-Path $PSScriptRoot "load-ports.ps1")
+$WebPort = if ($env:WEB_PORT) { [int]$env:WEB_PORT } else { 8080 }
+$AgentPort = if ($env:AGENT_PORT) { [int]$env:AGENT_PORT } else { 8088 }
+
+& (Join-Path $PSScriptRoot "dev-stop.ps1") | Out-Null
+New-Item -ItemType Directory -Force -Path $PidDir, $LogDir | Out-Null
+
+if (-not $env:UV_DEFAULT_INDEX) {
+  $env:UV_DEFAULT_INDEX = if ($env:UV_INDEX_URL) { $env:UV_INDEX_URL } else { "https://packagefeedproxy.microsoft.io/pypi/simple/" }
+}
+$env:UV_INDEX_URL = $env:UV_DEFAULT_INDEX
+
+foreach ($envCandidate in @((Join-Path $Root ".env"), (Join-Path $Root "src/agent/.env"))) {
+  if (Test-Path $envCandidate) {
+    foreach ($line in Get-Content $envCandidate) {
+      if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+        $k = $Matches[1]
+        $v = $Matches[2].Trim().Trim('"').Trim("'")
+        if ($v) { [Environment]::SetEnvironmentVariable($k, $v, "Process") }
+      }
+    }
+    break
+  }
+}
+
+$AgentMain = Join-Path $Root "src/agent/main.py"
+if (Test-Path $AgentMain) {
+  Write-Host "Starting backend agent on http://127.0.0.1:$AgentPort ..."
+  $env:PORT = "$AgentPort"
+  $env:AGENT_PORT = "$AgentPort"
+  $agentProc = Start-Process uv `
+    -ArgumentList @("run", "main.py") `
+    -WorkingDirectory (Join-Path $Root "src/agent") `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput (Join-Path $LogDir "agent.log") `
+    -RedirectStandardError (Join-Path $LogDir "agent.err.log") `
+    -PassThru
+  Set-Content -Path (Join-Path $PidDir "agent.pid") -Value $agentProc.Id
+  for ($i = 0; $i -lt 40; $i++) {
+    try {
+      $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$AgentPort/healthz" -UseBasicParsing -TimeoutSec 2
+      if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500) {
+        Write-Host "Backend agent ready on http://127.0.0.1:$AgentPort"
+        break
+      }
+    } catch {}
+    Start-Sleep -Milliseconds 500
+  }
+}
+
+Write-Host "Starting __APP_NAME__ (App Service Builder + AI Gateway) on http://127.0.0.1:$WebPort ..."
+$proc = Start-Process uv `
+  -ArgumentList @("run", "python", "-m", "uvicorn", "app:create_app", "--factory", "--host", "127.0.0.1", "--port", "$WebPort", "--no-access-log", "--log-level", "warning") `
+  -WorkingDirectory $Root `
+  -WindowStyle Hidden `
+  -RedirectStandardOutput (Join-Path $LogDir "web.log") `
+  -RedirectStandardError (Join-Path $LogDir "web.err.log") `
+  -PassThru
+
+Set-Content -Path (Join-Path $PidDir "web.pid") -Value $proc.Id
+
+for ($i = 0; $i -lt 40; $i++) {
+  try {
+    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$WebPort/health" -UseBasicParsing -TimeoutSec 2
+    if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+      Write-Host "App Service Builder AI Gateway app ready on http://127.0.0.1:$WebPort"
+      exit 0
+    }
+  } catch {}
+  Start-Sleep -Milliseconds 500
+}
+
+Write-Error "App Service Builder AI Gateway app did not become ready on port $WebPort."
+exit 1

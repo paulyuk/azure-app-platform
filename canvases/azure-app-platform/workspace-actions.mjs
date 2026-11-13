@@ -5,7 +5,7 @@ import { lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/
 import { setTimeout as delay } from "node:timers/promises";
 
 import { runCommand } from "./discovery.mjs";
-import { APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
+import { APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE, APP_SERVICE_BUILDER_TEMPLATE, EMPTY_TEMPLATE, LOCAL_TEMPLATES, SANDBOX_GATEWAY_TEMPLATE, listSourceCatalog, parseWorktrees, resolveSourcePlan } from "./source-catalog.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { pickAvailablePorts, reservedPortsForApps } from "./local-ports.mjs";
@@ -265,6 +265,11 @@ export function buildWorkspaceKickoff(request) {
       ? [
           "Verify the generated README, loan demo docs, azure-app.yaml, runtime and policy config, agent instructions, and the document validation tool at `src/tools/document-validation`.",
           "Run `./scripts/dev-start.sh --help`. Smoke-test the agent harness with `./scripts/dev-start.sh` and POST /test-document at the ready agent URL. Respect .azure-app-platform/ports.env (8088 is only the default); do not stop unrelated listeners. Use the PowerShell equivalents on Windows. Test /invoke only after configuring AI Gateway, then stop this app with its dev-stop script.",
+        ]
+      : templatePlan.templateId === APP_SERVICE_BUILDER_AI_GATEWAY_TEMPLATE.id
+      ? [
+          "Verify the generated README, builder.yaml, azure-app.yaml, config/domain.json, config.py, gateway.py, app.py, static/index.html, and tests/test_http.py.",
+          "Run `./scripts/dev-start.sh --help`. Smoke-test the local FastAPI web/chat app with `./scripts/dev-start.sh` and check `/health`, then stop it with `./scripts/dev-stop.sh`.",
         ]
       : templatePlan.templateId === APP_SERVICE_BUILDER_TEMPLATE.id
       ? [

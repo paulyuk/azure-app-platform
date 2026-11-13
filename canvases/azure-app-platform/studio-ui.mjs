@@ -610,8 +610,10 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           ? "dealer-sample-"
           : (template.id === "builtin-sandbox-gateway-minimal-v1"
               ? "sandbox-starter-"
-              : (template.id === "builtin-app-service-builder-vite-v1" ? "builder-vite-" : "app-"));
-        if (!draft.appName || /^(dealer-sample|Dealer-sample|sandbox-starter|builder-vite|app)-[a-z0-9]+$/i.test(draft.appName)) {
+              : (template.id === "builtin-app-service-builder-ai-gateway-v1"
+                  ? "builder-ai-gateway-"
+                  : (template.id === "builtin-app-service-builder-vite-v1" ? "builder-vite-" : "app-")));
+        if (!draft.appName || /^(dealer-sample|Dealer-sample|sandbox-starter|builder-ai-gateway|builder-vite|app)-[a-z0-9]+$/i.test(draft.appName)) {
           draft.appName = prefix + crypto.randomUUID().slice(0, 6);
         }
         if (template.kind === "sample" && !draft.purpose) {
@@ -794,6 +796,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             '<span class="badge gateway">Gateway · AI Gateway</span>' +
             '</div>';
         }
+        if (template.id === "builtin-app-service-builder-ai-gateway-v1") {
+          return '<div class="badges">' +
+            '<span class="badge embr">Web &amp; Agent · App Service Builder</span>' +
+            '<span class="badge gateway">Gateway · AI Gateway</span>' +
+            '</div>';
+        }
         if (template.id === "builtin-app-service-builder-vite-v1") {
           return '<div class="badges">' +
             '<span class="badge embr">Web · App Service Builder</span>' +
@@ -851,6 +859,29 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               '<li><strong>Agent on Any Compute:</strong> Run the agent locally, in Azure Container Apps, Azure Functions, or Foundry Hosted Agents without changing tool boundaries.</li>' +
               '<li><strong>Tools on ACA Sandboxes:</strong> Untrusted document parsing and code run inside ephemeral sandboxes with <code>--egress-default Deny</code> and zero host secrets.</li>' +
               '<li><strong>AI Gateway Governance:</strong> Model calls route through governed aliases (<code>gpt-latest</code>) with centralized credentials, rate limits, and token telemetry.</li>' +
+            '</ul></div>';
+        }
+        if (template.id === "builtin-app-service-builder-ai-gateway-v1") {
+          return '<div class="template-preview-card" data-template-preview-card="' + escape(template.id) + '" role="region" aria-label="Template details">' +
+            '<div class="template-preview-head"><div><div class="template-preview-eyebrow">Template details</div><strong>' + escape(template.name) + '</strong>' +
+            '<small>2 capabilities · Python FastAPI + Agent Framework with AI Gateway</small></div>' +
+            templateCapabilityPills(template) + '</div>' +
+            '<div class="template-preview-diagram">' +
+            '<svg viewBox="0 0 560 116" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: Web and Agent experience on App Service Builder connected to AI Gateway">' +
+              '<rect x="16" y="18" width="236" height="80" rx="10" fill="#f0fdfa" stroke="#5eead4" stroke-width="1.25"/>' +
+              '<text x="32" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#0f766e">Web &amp; Agent Experience</text>' +
+              '<text x="32" y="61" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">App Service Builder</text>' +
+              '<text x="32" y="79" font-family="sans-serif" font-size="9.5" fill="#475569">FastAPI + Agent Framework · Streaming chat</text>' +
+              '<line x1="252" y1="58" x2="306" y2="58" stroke="#94a3b8" stroke-width="1.4"/>' +
+              '<polygon points="306,58 298,54 298,62" fill="#94a3b8"/>' +
+              '<rect x="308" y="18" width="236" height="80" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.25"/>' +
+              '<text x="324" y="43" font-family="sans-serif" font-size="11" font-weight="700" fill="#1e293b">Gateway · AI Gateway</text>' +
+              '<text x="324" y="61" font-family="sans-serif" font-size="10.5" font-weight="600" fill="#334155">Governed Model Routing</text>' +
+              '<text x="324" y="79" font-family="sans-serif" font-size="9.5" fill="#475569">OpenAI Responses API · Central auth</text>' +
+            '</svg></div>' +
+            '<ul class="template-preview-bullets">' +
+              '<li><strong>Web &amp; Agent on App Service Builder:</strong> Python FastAPI and Microsoft Agent Framework streaming chat app with root <code>builder.yaml</code>.</li>' +
+              '<li><strong>Governed AI Gateway Routing:</strong> Connects directly to Azure AI Gateway for model routing, central auth, and token governance.</li>' +
             '</ul></div>';
         }
         if (template.id === "builtin-app-service-builder-vite-v1") {
@@ -1067,6 +1098,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
         const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilderAiGateway = draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
         const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const instructionsValue = isAppServiceBuilder
           ? (draft.templateInputs.agentInstructions || draft.purpose || "")
@@ -1088,7 +1120,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const namingHelp = isAppServiceBuilder
           ? "Custom instructions are used to suggest a name. Without them, the generated builder-vite name is kept."
           : "AI will suggest a name from these instructions. You can rename it in review.";
-        const secondField = (!isSandboxGateway && !isAppServiceBuilder && !isSample)
+        const secondField = (!isSandboxGateway && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample)
           ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
           : "";
@@ -1125,7 +1157,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
             }
             draft.templateInputs.agentInstructions = instructions;
             draft.purpose = instructions ? instructions.slice(0, 500) : "";
-            if (!isSandboxGateway && !isAppServiceBuilder && !isSample) {
+            if (!isSandboxGateway && !isAppServiceBuilderAiGateway && !isAppServiceBuilder && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
                 error("Enter a lowercase Hosted Skill name using letters, numbers, or hyphens.", "skill-name");
@@ -1362,6 +1394,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
               .find((item) => item.implementation.id === sourceId)
           : null;
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilderAiGateway = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const isSample = templates().find((item) => item.id === draft.templateRootId)?.kind === "sample";
         const badgeByTier = {
@@ -1384,11 +1417,15 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
                   ? "Runs untrusted document validation and code in isolated sandboxes with default-deny egress and zero secrets"
                   : (isSandboxGateway && tierId === "gateway"
                       ? "Governed model routing (gpt-latest), rate limits, token budgets, and centralized credentials"
-                      : (isAppServiceBuilder && tierId === "web"
-                          ? "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint"
-                          : (isSample
-                              ? tier.role
-                              : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))))));
+                      : (isAppServiceBuilderAiGateway && tierId === "web"
+                          ? "Python FastAPI + Microsoft Agent Framework streaming chat app with root builder.yaml and /health endpoint"
+                          : (isAppServiceBuilderAiGateway && tierId === "gateway"
+                              ? "Governed OpenAI Responses API model routing, central auth, and token telemetry via AI Gateway"
+                              : (isAppServiceBuilder && tierId === "web"
+                                  ? "Vite + TypeScript static frontend with root builder.yaml (output: dist) and /health endpoint"
+                                  : (isSample
+                                      ? tier.role
+                                      : (tierId === "skills" ? "One empty Hosted Skill" : tier.role))))))));
         return '<div class="review-row"><div class="capability-head"><strong>' + escape(displayTierName) + '</strong>' +
           (badge ? '<span class="badge ' + escape(badge.className) + '">' + escape(badge.label) + '</span>' : '') +
           '</div><small>' + escape(detail) +
@@ -1400,6 +1437,7 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         notices.dispose();
         const selectedTemplate = templates().find((item) => item.id === draft.templateRootId);
         const isSandboxGateway = draft.journey === "new" && draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
+        const isAppServiceBuilderAiGateway = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-ai-gateway-v1";
         const isAppServiceBuilder = draft.journey === "new" && draft.templateRootId === "builtin-app-service-builder-vite-v1";
         const total = draft.journey === "new" ? 2 : 4;
         const starter = draft.journey === "assemble"
@@ -1407,12 +1445,14 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           : selectedTemplate?.name;
         const reviewTiers = isSandboxGateway
           ? ["agent", "sandbox", "gateway"]
-          : (isAppServiceBuilder ? ["web"] : draft.tierIds);
+          : (isAppServiceBuilderAiGateway
+              ? ["web", "gateway"]
+              : (isAppServiceBuilder ? ["web"] : draft.tierIds));
         const createButtonLabel = draft.journey === "assemble"
           ? "Create assembled app"
           : (selectedTemplate?.kind === "sample"
               ? "Create runnable sample"
-              : ((isSandboxGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app"));
+              : ((isSandboxGateway || isAppServiceBuilderAiGateway || isAppServiceBuilder) ? "Create starter app" : "Create empty app"));
         buttons.replace(app, topBack("Back") + '<div class="step">Step ' + total + ' of ' + total + '</div><h1>Review app</h1>' +
           '<div class="summary"><section><h3>App</h3><p><strong>' + escape(draft.appName) + '</strong></p>' +
           (draft.purpose ? '<p>' + escape(draft.purpose) + '</p>' : '') +

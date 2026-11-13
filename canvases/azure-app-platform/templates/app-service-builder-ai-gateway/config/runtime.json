@@ -1,0 +1,9 @@
+{
+  "agentRuntime": "local",
+  "gateway": {
+    "baseUrlEnv": "AI_GATEWAY_BASE_URL",
+    "apiKeyEnv": "AI_GATEWAY_API_KEY",
+    "modelEnv": "AI_GATEWAY_MODEL",
+    "defaultModel": "gpt-5.4"
+  }
+}

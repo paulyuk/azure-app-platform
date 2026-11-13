@@ -21,7 +21,7 @@ const SOURCE_FILES = {
   skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json", "pyproject.toml", "requirements.txt"],
   workflows: ["function_app.py", "host.json", "pyproject.toml", "requirements.txt"],
   sandbox: ["main.py", "contract.json", "egress-policy.yaml", "Dockerfile", "pyproject.toml"],
-  web: ["index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "builder.yaml", "package.json"],
+  web: ["index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "app.py", "config.py", "gateway.py", "static/index.html", "static/chat.js", "static/site.css", "builder.yaml", "package.json", "pyproject.toml", "requirements.txt"],
   connectors: ["connector.json", "README.md"],
   sre: ["sre-agent.yaml", "README.md"],
 };
@@ -131,8 +131,8 @@ export async function readAppInputCapabilities(root, {
   discovery ??= await discoverRepository(root, { scan });
   const candidates = discovery.candidates.filter(candidate => inScope(candidate.projectPath, scope));
   const legacy = await hasLegacyDocumentLayout(root, scope);
-  const sandboxAvailable = legacy || declaredSandbox || sandboxConfigured || candidates.some(candidate => candidate.tierId === "sandbox")
-    || /^\s*(?:export\s+)?ACA_SANDBOX_GROUP\s*=\s*["']?[^"'\s#]+/m.test(agentConfiguration);
+  const sandboxAvailable = legacy || declaredSandbox || candidates.some(candidate => candidate.tierId === "sandbox")
+    || (!manifest && (sandboxConfigured || /^\s*(?:export\s+)?ACA_SANDBOX_GROUP\s*=\s*["']?[^"'\s#]+/m.test(agentConfiguration)));
   const legacyContractPaths = [];
   if (legacy) {
     for (const directory of ["src/tools/document-validation", "src/sandbox/tool"]) {

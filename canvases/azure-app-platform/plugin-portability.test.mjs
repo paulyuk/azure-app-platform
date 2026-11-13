@@ -514,7 +514,7 @@ test("installed payload opens and materializes templates without checkout depend
       }
       const { materializeTemplate } = await import(base + "template-materializer.mjs");
       const { LOCAL_TEMPLATES } = await import(base + "source-catalog.mjs");
-      assert.equal(LOCAL_TEMPLATES.length, 3);
+      assert.equal(LOCAL_TEMPLATES.length, 4);
       for (const template of LOCAL_TEMPLATES) {
         checkpoint("materializing " + template.id);
         const destination = join(process.cwd(), template.id);
