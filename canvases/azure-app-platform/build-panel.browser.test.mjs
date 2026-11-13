@@ -335,3 +335,114 @@ test("Build provides explicit empty and discovery-error recovery with workspace 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("Build renders the Fluent Headless style preset gallery for User Experience artifacts and persists selection", {
+  skip: !chromium && "Install src/web dependencies to run browser coverage.",
+}, async () => {
+  const webArtifact = {
+    id: "source-web-index",
+    blockCategory: "web",
+    title: "Web entry HTML · web",
+    path: "src/web/index.html",
+    projectPath: "src/web",
+    projectName: "Web frontend",
+    available: true,
+    stylePreset: "copilot",
+    content: '<!doctype html>\n<html lang="en" data-style="copilot" data-theme="light">\n  <body><h1>Dealership</h1></body>\n</html>\n',
+  };
+  const styleRequests = [];
+  const html = `<!doctype html><style>body { margin:0; } #details { height:100vh; } ${BUILD_PANEL_CSS}</style>
+    <aside id="details" data-mode="build"></aside><script>
+    ${BUILD_SYNTAX_SCRIPT}
+    const panel = (${createBuildPanel.toString()})({ buttons: window.appPlatformButtons, helpIcon: ${JSON.stringify(renderOcticon("info"))}, vsCodeIconMarkup: ${JSON.stringify(VSCODE_ICON_MARKUP)},
+      container: document.querySelector("#details"), root: "/app", isActive: () => true, syntax: buildSyntax,
+      onSourceChange: () => { document.body.dataset.sourceChanged = "true"; },
+      request: async (path, options) => {
+        const response = await fetch(path, options);
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        return body;
+      }
+    });
+    panel.show();
+    </script>`;
+  const server = createServer((_request, response) => {
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.end(withToolkitButtons(html));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/build-workspace") {
+        await route.fulfill({ json: { artifacts: [webArtifact], supportsDocuments: false } });
+      } else if (path === "/api/build-web-style") {
+        const body = route.request().postDataJSON();
+        styleRequests.push(body);
+        webArtifact.stylePreset = body.stylePreset;
+        webArtifact.content = webArtifact.content.replace(/data-style="[^"]+"/, `data-style="${body.stylePreset}"`);
+        await route.fulfill({ json: { artifact: webArtifact } });
+      } else {
+        throw new Error(`Unexpected route ${path}`);
+      }
+    });
+    await installToolkitRoutes(page);
+
+    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    const gallery = page.getByRole("group", { name: "Web style preset", exact: true });
+    await gallery.waitFor();
+    const styleSelect = gallery.getByRole("combobox", { name: "Style preset", exact: true });
+    assert.equal(await styleSelect.locator("option").count(), 5);
+    assert.equal(await styleSelect.inputValue(), "copilot");
+    assert.match(await styleSelect.locator('option[value="copilot"]').textContent(), /Copilot \(default\)/);
+
+    const livePreview = page.locator(".build-style-live-preview");
+    assert.equal(await page.locator('button[data-style-view="source"]').textContent(), "Code");
+    assert.equal(await page.locator('button[data-style-view="preview"]').textContent(), "Preview");
+    assert.equal(await page.locator('button[data-style-view="source"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await page.locator('button[data-style-view="preview"]').getAttribute("aria-pressed"), "false");
+    assert.equal(await page.locator('button[data-style-theme="light"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await livePreview.isHidden(), true);
+    assert.equal(await page.locator(".build-source-preview").isHidden(), false);
+
+    await page.locator('button[data-style-view="preview"]').click();
+    await livePreview.waitFor({ state: "visible" });
+    assert.equal(await page.locator('button[data-style-view="preview"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await livePreview.getAttribute("data-style"), "copilot");
+    assert.equal(await livePreview.getAttribute("data-theme"), "light");
+    assert.equal(await page.locator(".build-source-preview").isHidden(), true);
+
+    await page.locator('button[data-style-theme="dark"]').click();
+    assert.equal(await page.locator('button[data-style-theme="dark"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await livePreview.getAttribute("data-theme"), "dark");
+    assert.match(await livePreview.textContent(), /data-theme="dark"/);
+
+    await styleSelect.selectOption("warm");
+    await page.locator('.build-style-live-preview[data-style="warm"]').waitFor();
+    assert.deepEqual(styleRequests, [
+      { root: "/app", id: "source-web-index", stylePreset: "copilot", colorTheme: "dark" },
+      { root: "/app", id: "source-web-index", stylePreset: "warm", colorTheme: "dark" },
+    ]);
+    assert.equal(await styleSelect.inputValue(), "warm");
+    assert.equal(await livePreview.getAttribute("data-style"), "warm");
+    assert.equal(await livePreview.getAttribute("data-theme"), "dark");
+    assert.match(await livePreview.textContent(), /Warm · Dark/);
+    assert.equal(await page.locator("body").getAttribute("data-source-changed"), "true");
+    assert.equal(await page.locator(".build-handoff-feedback").isHidden(), true);
+
+    await page.locator('button[data-style-view="source"]').click();
+    assert.equal(await page.locator('button[data-style-view="source"]').getAttribute("aria-pressed"), "true");
+    assert.equal(await livePreview.isHidden(), true);
+    assert.equal(await page.locator(".build-source-preview").isHidden(), false);
+    assert.match(await page.locator(".build-highlight").textContent(), /data-style="warm"/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+

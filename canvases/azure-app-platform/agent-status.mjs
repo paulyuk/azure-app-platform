@@ -4,11 +4,13 @@ export function getAgentStatus({
   agentReady = false,
   hasWeb = false,
   webReady = false,
+  webUrl = "",
   hasAgent = true,
   requestState = "idle",
   readinessError = "",
 } = {}) {
   const webOnly = Boolean(hasWeb && !hasAgent);
+  const normalizedWebUrl = typeof webUrl === "string" ? webUrl.trim() : "";
   const runtime = !app ? readinessError ? "Unavailable" : "Checking"
     : ({
       running: readiness?.mode === "preview" ? "Local preview" : "Running locally",
@@ -128,8 +130,9 @@ export function getAgentStatus({
   }
   return {
     state, availabilityState, title, description, runtime, connection,
+    agentLabel: webOnly ? "Local URL" : "Agent",
     agent: webOnly
-      ? (webReady ? "Web app available" : !app ? "Unknown" : "Not running")
+      ? (normalizedWebUrl || (webReady ? "Web app available" : !app ? "Unknown" : "Not running"))
       : (agentReady ? "Endpoint available" : !app ? "Unknown" : "Not ready"),
     runtimeError: app?.error || "",
   };
@@ -137,7 +140,7 @@ export function getAgentStatus({
 
 export function createAgentStatusComponent(toolkit) {
   const h = toolkit.createElement;
-  return function AgentStatus({ state, title, description, runtime, agent, connection, runtimeError,
+  return function AgentStatus({ state, title, description, runtime, agent, agentLabel = "Agent", connection, runtimeError,
     command, errorDetail, prerequisites = [], actions = [], onConnection, connectionIcon }) {
     const tone = ["ready", "succeeded"].includes(state) ? "success"
       : ["runtime-failed", "unavailable"].includes(state) ? "danger"
@@ -168,7 +171,7 @@ export function createAgentStatusComponent(toolkit) {
             disabled: action.disabled, onClick: action.onClick,
           }, action.label))) : null),
       h("dl", { className: "agent-status-facts" },
-        ...[["Runtime", runtime], ["Agent", agent], ["Connection", connection]].map(([label, value]) =>
+        ...[["Runtime", runtime], [agentLabel, agent], ["Connection", connection]].map(([label, value]) =>
           h("div", { key: label }, h("dt", null, label), h("dd", null, h("span", null, value),
             label === "Connection" && onConnection ? h(toolkit.Button, {
               className: "agent-connection-shortcut", appearance: "secondary", size: "small",

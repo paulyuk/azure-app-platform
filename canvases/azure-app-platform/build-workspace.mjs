@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, realpath } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve, win32 } from "node:path";
+import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { discoverRepository, parseUnityManifest, scanRepository } from "./discovery.mjs";
 import { getTierDefinition } from "./tier-definitions.mjs";
 
@@ -21,7 +21,7 @@ const SOURCE_FILES = {
   skills: ["function_app.py", "agents.config.yaml", "contract.json", "host.json", "pyproject.toml", "requirements.txt"],
   workflows: ["function_app.py", "host.json", "pyproject.toml", "requirements.txt"],
   sandbox: ["main.py", "contract.json", "egress-policy.yaml", "Dockerfile", "pyproject.toml"],
-  web: ["builder.yaml", "index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "package.json"],
+  web: ["index.html", "server.mjs", "src/app/page.tsx", "app/page.tsx", "src/main.ts", "src/main.tsx", "builder.yaml", "package.json"],
   connectors: ["connector.json", "README.md"],
   sre: ["sre-agent.yaml", "README.md"],
 };
@@ -240,6 +240,12 @@ function sourceArtifact(path, candidate) {
     description = "Component roles, build toolchain, and output directory for App Service Builder deployment.";
   } else if (file === "index.html") {
     title = "Web entry HTML";
+  } else if (candidate.tierId === "web" && file === "server.mjs") {
+    title = "Web server";
+  } else if (candidate.tierId === "web" && file === "page.tsx") {
+    title = "Web page";
+  } else if (candidate.tierId === "web" && (file === "main.ts" || file === "main.tsx")) {
+    title = "Web client script";
   } else if (file === "agents.config.yaml") {
     title = "Hosted skill configuration";
   } else if (file === "function_app.py") {
@@ -390,11 +396,199 @@ async function artifactPath(root, artifact) {
   return path;
 }
 
+export const WEB_STYLE_PRESETS = Object.freeze(["copilot", "warm", "modern", "editorial", "minimal"]);
+const LEGACY_STYLE_PRESET_MAP = Object.freeze({
+  fluent: "copilot",
+  azure: "modern",
+  industrial: "minimal",
+});
+const STYLABLE_WEB_FILE = /(?:^|\/)(?:index\.html|server\.mjs|page\.tsx)$/i;
+
+function normalizeWebStylePreset(rawPreset) {
+  const normalized = String(rawPreset ?? "").trim().toLowerCase();
+  if (WEB_STYLE_PRESETS.includes(normalized)) return normalized;
+  if (LEGACY_STYLE_PRESET_MAP[normalized]) return LEGACY_STYLE_PRESET_MAP[normalized];
+  return undefined;
+}
+
+function isStylableWebArtifact(artifact) {
+  return artifact?.blockCategory === "web" && STYLABLE_WEB_FILE.test(artifact.path ?? "");
+}
+
+function detectWebStylePreset(content) {
+  if (typeof content !== "string") return undefined;
+  const htmlMatch = content.match(/<html\b[^>]*\bdata-style=["']([a-z0-9_-]+)["']/i);
+  if (htmlMatch) {
+    const resolved = normalizeWebStylePreset(htmlMatch[1]);
+    if (resolved) return resolved;
+  }
+  const stateMatch = content.match(/useState<StylePreset>\(\s*["']([a-z0-9_-]+)["']\s*\)/);
+  if (stateMatch) {
+    const resolved = normalizeWebStylePreset(stateMatch[1]);
+    if (resolved) return resolved;
+  }
+  const attrMatch = content.match(/\bdata-style=["']([a-z0-9_-]+)["']/i);
+  if (attrMatch) {
+    const resolved = normalizeWebStylePreset(attrMatch[1]);
+    if (resolved) return resolved;
+  }
+  return undefined;
+}
+
+const INLINE_WEB_STYLE_TOKENS_CSS = `
+:root,[data-style="copilot"]{--bg:#faf9f8;--bg-elev:#ffffff;--surface-muted:#f3f2f0;--border:#e5e2dc;--text:#141418;--text-muted:#42434d;--text-soft:#686a78;--accent:#464feb;--accent-contrast:#ffffff;--radius-lg:16px;--radius-xl:20px;--shadow-2:0 2px 6px rgba(20,20,24,.05),0 8px 24px rgba(70,79,235,.06);--font-sans:"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;--font-display:"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif}
+[data-style="copilot"][data-theme="dark"]{--bg:#0f1015;--bg-elev:#171922;--surface-muted:#202330;--border:#2d3142;--text:#f5f6fa;--text-muted:#b9bccb;--text-soft:#8b90a3;--accent:#7b83ff;--accent-contrast:#0c0d14}
+[data-style="warm"]{--bg:#f9f5f0;--bg-elev:#fffdfb;--surface-muted:#f1eae1;--border:#e4d9cc;--text:#231b15;--text-muted:#57483d;--text-soft:#7c6a5c;--accent:#c2410c;--accent-contrast:#ffffff;--radius-lg:14px;--radius-xl:18px;--shadow-2:0 2px 8px rgba(35,27,21,.06)}
+[data-style="warm"][data-theme="dark"]{--bg:#16120f;--bg-elev:#211b17;--surface-muted:#2c241e;--border:#3e332b;--text:#f9f3ec;--text-muted:#cbbba9;--text-soft:#9a8978;--accent:#fb923c;--accent-contrast:#1b120b}
+[data-style="modern"]{--bg:#f4f7fb;--bg-elev:#ffffff;--surface-muted:#eaeff7;--border:#d8e1ee;--text:#0f172a;--text-muted:#334155;--text-soft:#64748b;--accent:#0f6cbd;--accent-contrast:#ffffff;--radius-lg:10px;--radius-xl:12px;--shadow-2:0 2px 6px rgba(15,23,42,.06)}
+[data-style="modern"][data-theme="dark"]{--bg:#0b1120;--bg-elev:#111827;--surface-muted:#1e293b;--border:#334155;--text:#f8fafc;--text-muted:#cbd5e1;--text-soft:#94a3b8;--accent:#38bdf8;--accent-contrast:#082f49}
+[data-style="editorial"]{--bg:#f6f2ea;--bg-elev:#fdfbf7;--surface-muted:#efeae0;--border:#ded6c6;--text:#1c1917;--text-muted:#44403c;--text-soft:#78716c;--accent:#9a3412;--accent-contrast:#ffffff;--radius-lg:6px;--radius-xl:8px;--font-display:Georgia,Cambria,"Times New Roman",serif}
+[data-style="editorial"][data-theme="dark"]{--bg:#141210;--bg-elev:#1c1917;--surface-muted:#292524;--border:#3f3a36;--text:#f5f2eb;--text-muted:#d6d0c4;--text-soft:#a8a096;--accent:#f59e0b;--accent-contrast:#1c1406}
+[data-style="minimal"]{--bg:#f4f4f5;--bg-elev:#ffffff;--surface-muted:#e4e4e7;--border:#18181b;--text:#09090b;--text-muted:#27272a;--text-soft:#52525b;--accent:#09090b;--accent-contrast:#ffffff;--radius-lg:4px;--radius-xl:4px;--shadow-2:4px 4px 0 0 #18181b;--font-sans:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;--font-display:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+[data-style="minimal"][data-theme="dark"]{--bg:#09090b;--bg-elev:#121215;--surface-muted:#1f1f23;--border:#f4f4f5;--text:#fafafa;--text-muted:#d4d4d8;--text-soft:#a1a1aa;--accent:#fafafa;--accent-contrast:#09090b;--shadow-2:4px 4px 0 0 #f4f4f5}
+html[data-style],body{background:var(--bg);color:var(--text);font-family:var(--font-sans)}
+html[data-style] main{max-width:720px;margin:0 auto;background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--shadow-2);padding:32px}
+html[data-style] h1,html[data-style] h2,html[data-style] h3{font-family:var(--font-display);color:var(--text)}
+html[data-style] p{color:var(--text-muted)}
+html[data-style] button,html[data-style] main a{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accent-contrast);border:1px solid var(--accent);border-radius:var(--radius-lg);padding:10px 16px;font-weight:600;text-decoration:none;cursor:pointer}
+html[data-style] textarea,html[data-style] input{background:var(--bg-elev);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-lg)}
+html[data-style] pre{background:var(--surface-muted);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-lg)}
+`.trim();
+
+function detectWebColorTheme(content) {
+  if (typeof content !== "string") return undefined;
+  const match = content.match(/\bdata-theme=["'](light|dark)["']/i);
+  return match ? match[1].toLowerCase() : undefined;
+}
+
+export function applyWebStylePreset(content, stylePreset, colorTheme) {
+  const resolvedPreset = normalizeWebStylePreset(stylePreset) ?? "copilot";
+  const resolvedTheme = colorTheme === "dark" ? "dark" : colorTheme === "light" ? "light" : undefined;
+  let updated = content;
+  if (/<header\s+class=["']toolbar["'][\s\S]*?<\/header>\s*/i.test(updated)) {
+    updated = updated.replace(/<header\s+class=["']toolbar["'][\s\S]*?<\/header>\s*/gi, "");
+  }
+  if (/<html\b[^>]*\bdata-style=["'][a-z0-9_-]+["']/i.test(updated)) {
+    updated = updated.replace(
+      /(<html\b[^>]*\bdata-style=["'])([a-z0-9_-]+)(["'])/i,
+      `$1${resolvedPreset}$3`,
+    );
+  } else if (/<html\b/i.test(updated)) {
+    updated = updated.replace(/<html\b/i, `<html data-style="${resolvedPreset}" data-theme="${resolvedTheme ?? "light"}"`);
+  }
+  if (resolvedTheme) {
+    if (/<html\b[^>]*\bdata-theme=["'][a-z0-9_-]+["']/i.test(updated)) {
+      updated = updated.replace(
+        /(<html\b[^>]*\bdata-theme=["'])([a-z0-9_-]+)(["'])/i,
+        `$1${resolvedTheme}$3`,
+      );
+    } else if (/<html\b[^>]*\bdata-style=["'][a-z0-9_-]+["']/i.test(updated)) {
+      updated = updated.replace(
+        /(<html\b[^>]*\bdata-style=["'][a-z0-9_-]+["'])/i,
+        `$1 data-theme="${resolvedTheme}"`,
+      );
+    }
+  }
+  if (/<style>[\s\S]*?<\/style>/i.test(updated) && !/\[data-style=["']copilot["']\]\[data-theme=["']dark["']\]|\[data-theme=["']dark["']\]/i.test(updated)) {
+    updated = updated.replace(
+      /:root,\[data-style=["']copilot["']\][\s\S]*?html\[data-style\]\s+pre\{[^\n}]*\}\n?/i,
+      "",
+    );
+    updated = updated.replace(/<\/style>/i, `\n${INLINE_WEB_STYLE_TOKENS_CSS}\n</style>`);
+  } else if (/<\/head>/i.test(updated) && !/tokens\.css|\[data-style=["']copilot["']\]/i.test(updated)) {
+    updated = updated.replace(/<\/head>/i, `<style>\n${INLINE_WEB_STYLE_TOKENS_CSS}\n</style>\n</head>`);
+  }
+  if (/<body>\s*<h1>/i.test(updated) && !/<main\b/i.test(updated)) {
+    updated = updated
+      .replace(/<body>\s*(<h1>)/i, "<body><main>\n$1")
+      .replace(/(<\/pre>)\s*(<script>)/i, "$1\n</main>$2");
+  }
+  if (/useState<StylePreset>\(\s*["'][a-z0-9_-]+["']\s*\)/.test(updated)) {
+    updated = updated.replace(
+      /(useState<StylePreset>\(\s*["'])([a-z0-9_-]+)(["']\s*\))/,
+      `$1${resolvedPreset}$3`,
+    );
+  } else if (!/<html\b/i.test(updated) && /\bdata-style=["'][a-z0-9_-]+["']/i.test(updated)) {
+    updated = updated.replace(
+      /(\bdata-style=["'])([a-z0-9_-]+)(["'])/i,
+      `$1${resolvedPreset}$3`,
+    );
+  } else if (!/<html\b/i.test(updated) && /<(main|div)\s+className=/.test(updated)) {
+    updated = updated.replace(/<(main|div)\s+className=/, `<$1 data-style="${resolvedPreset}" data-theme="${resolvedTheme ?? "light"}" className=`);
+  }
+  if (resolvedTheme && !/<html\b/i.test(updated)) {
+    if (/\bdata-theme=["'][a-z0-9_-]+["']/i.test(updated)) {
+      updated = updated.replace(
+        /(\bdata-theme=["'])([a-z0-9_-]+)(["'])/i,
+        `$1${resolvedTheme}$3`,
+      );
+    } else if (/\bdata-style=["'][a-z0-9_-]+["']/i.test(updated)) {
+      updated = updated.replace(
+        /(\bdata-style=["'][a-z0-9_-]+["'])/i,
+        `$1 data-theme="${resolvedTheme}"`,
+      );
+    }
+  }
+  if (/<button\b[^>]*\bdata-style-choice=["'][a-z0-9_-]+["'][^>]*>/i.test(updated)) {
+    updated = updated.replace(
+      /<button\b([^>]*\bdata-style-choice=["']([a-z0-9_-]+)["'][^>]*)>/gi,
+      (_match, attrs, choice) => {
+        const cleaned = attrs.replace(/\s+data-selected=["'][^"']*["']/gi, "");
+        return `<button${cleaned}${(normalizeWebStylePreset(choice) ?? choice.toLowerCase()) === resolvedPreset ? ' data-selected="true"' : ""}>`;
+      },
+    );
+  }
+  return updated;
+}
+
+async function syncCompanionStyleFiles(file, stylePreset, colorTheme) {
+  if (/(?:^|[\\/])index\.html$/i.test(file)) {
+    const distIndexHtml = join(dirname(file), "dist", "index.html");
+    try {
+      const distContent = await readFile(distIndexHtml, "utf8");
+      const nextDist = applyWebStylePreset(distContent, stylePreset, colorTheme);
+      if (nextDist !== distContent) {
+        await writeFile(distIndexHtml, nextDist, "utf8");
+      }
+    } catch {
+      // Ignore if no prebuilt dist/index.html exists.
+    }
+  }
+  if (/page\.[jt]sx?$/i.test(file)) {
+    const globalsCss = join(dirname(file), "globals.css");
+    try {
+      const cssContent = await readFile(globalsCss, "utf8");
+      if (!/\[data-style=["']copilot["']\]\[data-theme=["']dark["']\]|\[data-theme=["']dark["']\]/i.test(cssContent)) {
+        const cleanedCss = cssContent.replace(
+          /\n*:root,\[data-style=["']copilot["']\][\s\S]*?\[data-style\]\s+\.shadow-sm\{[^\n}]*\}\s*$/i,
+          "",
+        );
+        await writeFile(globalsCss, `${cleanedCss.trimEnd()}\n\n${TAILWIND_WEB_STYLE_TOKENS_CSS}\n`, "utf8");
+      }
+    } catch {
+      // Ignore if no sibling globals.css exists.
+    }
+  }
+}
+
 async function readArtifact(root, artifact) {
   artifact = await appArtifact(root, artifact);
   try {
     const path = await artifactPath(root, artifact);
-    const content = await readFile(path, "utf8");
+    let content = await readFile(path, "utf8");
+    const detectedStyle = artifact.blockCategory === "web" ? detectWebStylePreset(content) : undefined;
+    const stylePreset = detectedStyle ?? (isStylableWebArtifact(artifact) ? "copilot" : undefined);
+    const colorTheme = artifact.blockCategory === "web" ? (detectWebColorTheme(content) ?? "light") : undefined;
+    if (stylePreset && isStylableWebArtifact(artifact)) {
+      if (!detectedStyle) {
+        const initialized = applyWebStylePreset(content, stylePreset, colorTheme);
+        if (initialized !== content) {
+          content = initialized;
+          await writeFile(path, content, "utf8").catch(() => {});
+        }
+      }
+      await syncCompanionStyleFiles(path, stylePreset, colorTheme);
+    }
     let customizationArea = artifact.customizationArea;
     let focusLine;
     if (customizationArea === "behavior" && CODE_FILE.test(artifact.path)) {
@@ -405,11 +599,59 @@ async function readArtifact(root, artifact) {
       if (instructionLine >= 0) focusLine = instructionLine + 1;
       else customizationArea = undefined;
     }
-    return { ...artifact, customizationArea, focusLine, available: true, content };
+    return {
+      ...artifact,
+      customizationArea,
+      focusLine,
+      ...(stylePreset ? { stylePreset, colorTheme } : {}),
+      available: true,
+      content,
+    };
   } catch (error) {
     if (error.code === "ENOENT") return { ...artifact, available: false, detail: "Expected file is missing from this app. Restore it or review the app configuration." };
     throw error;
   }
+}
+
+export const TAILWIND_WEB_STYLE_TOKENS_CSS = `
+${INLINE_WEB_STYLE_TOKENS_CSS}
+body:has([data-style]),main[data-style]{background:var(--bg);color:var(--text);font-family:var(--font-sans)}
+[data-style] .bg-white{background-color:var(--bg-elev)!important}
+[data-style] .bg-slate-50,[data-style] .bg-slate-100{background-color:var(--surface-muted)!important}
+[data-style] .bg-slate-900,[data-style] .bg-emerald-600{background-color:var(--accent)!important;color:var(--accent-contrast)!important}
+[data-style] .border-slate-100,[data-style] .border-slate-200,[data-style] .border-slate-300{border-color:var(--border)!important}
+[data-style] .text-slate-900,[data-style] .text-slate-800{color:var(--text)!important}
+[data-style] .text-slate-700,[data-style] .text-slate-600{color:var(--text-muted)!important}
+[data-style] .text-slate-500{color:var(--text-soft)!important}
+[data-style] .rounded-2xl{border-radius:var(--radius-xl)!important}
+[data-style] .rounded-xl{border-radius:var(--radius-lg)!important}
+[data-style] .shadow-sm{box-shadow:var(--shadow-2)!important}
+`.trim();
+
+export async function writeBuildWebStyle(root, id, stylePreset, colorTheme) {
+  if (typeof stylePreset !== "string" || !WEB_STYLE_PRESETS.includes(stylePreset)) {
+    const error = new Error("Choose a valid web style preset.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const artifact = await buildArtifact(root, id);
+  if (!artifact || artifact.blockCategory !== "web") {
+    const error = new Error("Choose a User Experience artifact that supports style presets.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const resolved = await appArtifact(root, artifact);
+  const file = await artifactPath(root, resolved);
+  const content = await readFile(file, "utf8");
+  if (!detectWebStylePreset(content) && !isStylableWebArtifact(resolved)) {
+    const error = new Error("This file does not declare a configurable Fluent Headless style preset.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const nextContent = applyWebStylePreset(content, stylePreset, colorTheme);
+  await writeFile(file, nextContent, "utf8");
+  await syncCompanionStyleFiles(file, stylePreset, colorTheme);
+  return { artifact: await readArtifact(root, artifact) };
 }
 
 export async function readBuildWorkspace(root) {

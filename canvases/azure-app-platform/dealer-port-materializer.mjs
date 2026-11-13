@@ -1,6 +1,7 @@
 import { chmod, lstat, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyWebStylePreset, TAILWIND_WEB_STYLE_TOKENS_CSS } from "./build-workspace.mjs";
 
 const ASSET_ROOT = fileURLToPath(new URL("./templates/shared/dealer", import.meta.url));
 const SCRIPT_FILES = [
@@ -146,6 +147,20 @@ export async function prepareDealerPortOverrides(destination) {
     chmod(join(root, "scripts", "dev-start.sh"), 0o755),
     chmod(join(root, "scripts", "dev-stop.sh"), 0o755),
   ]);
+
+  const webPagePath = join(root, "src", "web", "src", "app", "page.tsx");
+  const webPageSource = await readOptionalFile(webPagePath);
+  if (webPageSource) {
+    const styledWebPage = applyWebStylePreset(webPageSource, "copilot", "light");
+    if (styledWebPage !== webPageSource) {
+      await writeFile(webPagePath, styledWebPage, "utf8");
+    }
+  }
+  const globalsCssPath = join(root, "src", "web", "src", "app", "globals.css");
+  const globalsCssSource = await readOptionalFile(globalsCssPath);
+  if (globalsCssSource && !/\[data-style=["']copilot["']\]\[data-theme=["']dark["']\]/i.test(globalsCssSource)) {
+    await writeFile(globalsCssPath, `${globalsCssSource.trimEnd()}\n\n${TAILWIND_WEB_STYLE_TOKENS_CSS}\n`, "utf8");
+  }
 
   return {
     kind: "dealer-port-overrides",

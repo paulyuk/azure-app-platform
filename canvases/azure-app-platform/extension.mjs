@@ -71,7 +71,7 @@ import {
   applyPortSettings, forgetStoppedLaunchers, inspectPortProcesses, makePortStopReview, managedLaunchers,
   pickAvailablePorts, readPortSettings, reservedPortsForApps, stopReviewedPortProcesses,
 } from "./local-ports.mjs";
-import { documentDeploymentBlocker, readAppInputCapabilities, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readAppInputCapabilities, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath, writeBuildWebStyle } from "./build-workspace.mjs";
 import {
   resolveAgentInvocation,
   invocationBody,
@@ -2449,7 +2449,7 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
       sendJson(response, 200, { templates: BUILD_BLOCK_TEMPLATES.map(({ source, entry, ...template }) => template) });
       return;
     }
-    if (request.method === "POST" && ["/api/build-block", "/api/adjust-build-file"].includes(url.pathname)) {
+    if (request.method === "POST" && ["/api/build-block", "/api/adjust-build-file", "/api/build-web-style"].includes(url.pathname)) {
       const input = await readJsonBody(request);
       const root = await resolveAuthorizedRoot(input.root, workspaceRoot, authorizedRoots);
       if (!authorizedRoots.has(root) && root !== workspaceRoot) throw new Error("Build root is not an authorized app workspace.");
@@ -2457,6 +2457,9 @@ async function handleRequest(request, response, instanceId, workspaceRoot, apiTo
         releaseAppMutation = reserveAppMutation(root);
         const block = await materializeBuildBlock({ root, templateId: input.templateId, name: input.name });
         sendJson(response, 201, await createdBuildBlock(root, block.projectPath, block.entry));
+      } else if (url.pathname === "/api/build-web-style") {
+        releaseAppMutation = reserveAppMutation(root);
+        sendJson(response, 200, await writeBuildWebStyle(root, input.id, input.stylePreset, input.colorTheme));
       } else {
         const targetSessionId = await ensureAppSession(root, workspaceRoot);
         sendJson(response, 202, await requestBuildAdjustment({ session, root, id: input.id, instructions: input.instructions, targetSessionId }));

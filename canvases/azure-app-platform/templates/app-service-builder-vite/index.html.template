@@ -1,16 +1,356 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-style="copilot" data-theme="light">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>App Service Builder / vite-static</title>
+    <style>
+      /* Fluent UI Headless design tokens & switchable customer-facing themes */
+      :root, [data-style="copilot"] {
+        --bg: #ffffff;
+        --bg-soft: #faf9f8;
+        --bg-elev: #ffffff;
+        --bg-elev-2: #f5f4f2;
+        --surface-muted: #f3f2f0;
+        --surface-sunken: #ebe9e5;
+        --border: #e5e2dc;
+        --border-strong: #d4d0c8;
+        --border-stronger: #a8a29e;
+        --text: #141418;
+        --text-muted: #42434d;
+        --text-soft: #686a78;
+        --text-faint: #9496a4;
+        --text-on-accent: #ffffff;
+        --accent: #464feb;
+        --accent-strong: #373fd9;
+        --accent-soft: #eef0ff;
+        --accent-contrast: #ffffff;
+        --brand: #464feb;
+        --brand-strong: #373fd9;
+        --brand-soft: #eef0ff;
+        --brand-gradient: linear-gradient(135deg, #464feb 0%, #47cffa 50%, #b47cf8 100%);
+        --success: #0f7b3e;
+        --success-soft: #ebf7ee;
+        --warning: #b56e00;
+        --warning-soft: #fff4dc;
+        --danger: #c62828;
+        --danger-soft: #fdecea;
+        --info: #0f6cbd;
+        --info-soft: #eaf2fb;
+        --shadow-1: 0 1px 3px rgba(20, 20, 24, 0.04);
+        --shadow-2: 0 2px 6px rgba(20, 20, 24, 0.05), 0 8px 24px rgba(70, 79, 235, 0.06);
+        --shadow-3: 0 4px 12px rgba(20, 20, 24, 0.06), 0 16px 32px rgba(70, 79, 235, 0.08);
+        --radius-xs: 6px;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+        --radius-2xl: 24px;
+        --radius-pill: 999px;
+        --font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        --font-display: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --tracking-heading: -0.02em;
+        --tracking-tight: -0.01em;
+      }
+
+      [data-style="warm"] {
+        --bg: #fffdfb;
+        --bg-soft: #f9f5f0;
+        --bg-elev: #fffdfb;
+        --bg-elev-2: #f4ede4;
+        --surface-muted: #f1eae1;
+        --surface-sunken: #e7ddd1;
+        --border: #e4d9cc;
+        --border-strong: #d0c0ae;
+        --border-stronger: #a6927d;
+        --text: #231b15;
+        --text-muted: #57483d;
+        --text-soft: #7c6a5c;
+        --accent: #c2410c;
+        --accent-strong: #9a3412;
+        --accent-soft: #ffedd5;
+        --accent-contrast: #ffffff;
+        --brand: #c2410c;
+        --brand-strong: #9a3412;
+        --brand-soft: #ffedd5;
+        --brand-gradient: linear-gradient(135deg, #c2410c 0%, #ea580c 60%, #f59e0b 100%);
+        --radius-md: 10px;
+        --radius-lg: 14px;
+        --radius-2xl: 20px;
+      }
+
+      [data-style="modern"] {
+        --bg: #ffffff;
+        --bg-soft: #f4f7fb;
+        --bg-elev: #ffffff;
+        --bg-elev-2: #f8fafc;
+        --surface-muted: #eaeff7;
+        --surface-sunken: #dde5f0;
+        --border: #d8e1ee;
+        --border-strong: #cbd5e1;
+        --border-stronger: #94a3b8;
+        --text: #0f172a;
+        --text-muted: #334155;
+        --text-soft: #64748b;
+        --accent: #0f6cbd;
+        --accent-strong: #115ea3;
+        --accent-soft: #e6f2fb;
+        --accent-contrast: #ffffff;
+        --brand: #0f6cbd;
+        --brand-strong: #0c3b5e;
+        --brand-soft: #e6f2fb;
+        --brand-gradient: linear-gradient(135deg, #0f6cbd 0%, #0284c7 60%, #38bdf8 100%);
+        --radius-md: 6px;
+        --radius-lg: 10px;
+        --radius-2xl: 14px;
+      }
+
+      [data-style="editorial"] {
+        --bg: #fdfbf7;
+        --bg-soft: #f6f2ea;
+        --bg-elev: #fdfbf7;
+        --bg-elev-2: #f4efe4;
+        --surface-muted: #efeae0;
+        --surface-sunken: #e5decb;
+        --border: #ded6c6;
+        --border-strong: #cbbba0;
+        --border-stronger: #9c8c74;
+        --text: #1c1917;
+        --text-muted: #44403c;
+        --text-soft: #78716c;
+        --accent: #9a3412;
+        --accent-strong: #7c2d12;
+        --accent-soft: #ffedd5;
+        --accent-contrast: #ffffff;
+        --brand: #9a3412;
+        --brand-strong: #431407;
+        --brand-soft: #ffedd5;
+        --brand-gradient: linear-gradient(135deg, #9a3412 0%, #b45309 100%);
+        --radius-md: 4px;
+        --radius-lg: 6px;
+        --radius-2xl: 8px;
+        --font-display: Georgia, Cambria, 'Times New Roman', Times, serif;
+      }
+
+      [data-style="minimal"] {
+        --bg: #ffffff;
+        --bg-soft: #f4f4f5;
+        --bg-elev: #ffffff;
+        --bg-elev-2: #f4f4f5;
+        --surface-muted: #e4e4e7;
+        --surface-sunken: #d4d4d8;
+        --border: #18181b;
+        --border-strong: #09090b;
+        --border-stronger: #09090b;
+        --text: #09090b;
+        --text-muted: #27272a;
+        --text-soft: #52525b;
+        --accent: #09090b;
+        --accent-strong: #27272a;
+        --accent-soft: #e4e4e7;
+        --accent-contrast: #ffffff;
+        --brand: #09090b;
+        --brand-strong: #000000;
+        --brand-soft: #e4e4e7;
+        --brand-gradient: none;
+        --shadow-1: 2px 2px 0 0 #18181b;
+        --shadow-2: 4px 4px 0 0 #18181b;
+        --shadow-3: 6px 6px 0 0 #18181b;
+        --radius-xs: 0px;
+        --radius-sm: 2px;
+        --radius-md: 2px;
+        --radius-lg: 4px;
+        --radius-xl: 4px;
+        --radius-2xl: 4px;
+        --radius-pill: 4px;
+        --font-sans: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --font-display: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      [data-theme="dark"] {
+        --bg: #12131a;
+        --bg-soft: #0d0e14;
+        --bg-elev: #161722;
+        --bg-elev-2: #1e202e;
+        --surface-muted: #232533;
+        --surface-sunken: #0a0b10;
+        --border: #2e3042;
+        --border-strong: #3e4158;
+        --border-stronger: #575b78;
+        --text: #f5f6fa;
+        --text-muted: #c7c9d9;
+        --text-soft: #8f93ad;
+        --text-faint: #646882;
+        --text-on-accent: #ffffff;
+        --accent: #7b83eb;
+        --accent-strong: #626ae3;
+        --accent-soft: #252849;
+        --accent-contrast: #ffffff;
+        --brand: #7b83eb;
+        --brand-strong: #626ae3;
+        --brand-soft: #252849;
+        --success: #6ee7b7;
+        --success-soft: #133223;
+        --shadow-2: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 28px rgba(0, 0, 0, 0.45);
+      }
+
+      [data-style="warm"][data-theme="dark"] {
+        --bg: #181310;
+        --bg-soft: #120e0c;
+        --bg-elev: #1d1612;
+        --bg-elev-2: #261d18;
+        --surface-muted: #29201a;
+        --border: #3d2f28;
+        --border-strong: #544037;
+        --text: #faf5f0;
+        --text-muted: #d6c7b8;
+        --text-soft: #9e8c7a;
+        --accent: #fb923c;
+        --accent-strong: #f97316;
+        --accent-soft: #3b2110;
+        --accent-contrast: #181310;
+      }
+
+      [data-style="modern"][data-theme="dark"] {
+        --bg: #0b111e;
+        --bg-soft: #070b14;
+        --bg-elev: #111a2e;
+        --bg-elev-2: #17223b;
+        --surface-muted: #1a2640;
+        --border: #263554;
+        --border-strong: #364970;
+        --text: #f1f5f9;
+        --text-muted: #cbd5e1;
+        --text-soft: #94a3b8;
+        --accent: #38bdf8;
+        --accent-strong: #0ea5e9;
+        --accent-soft: #102a45;
+        --accent-contrast: #08101d;
+      }
+
+      [data-style="editorial"][data-theme="dark"] {
+        --bg: #171513;
+        --bg-soft: #12100e;
+        --bg-elev: #1b1815;
+        --bg-elev-2: #24201c;
+        --surface-muted: #2b2723;
+        --border: #3d3731;
+        --border-strong: #524a42;
+        --text: #f5f2eb;
+        --text-muted: #d4cdc3;
+        --text-soft: #9c9488;
+        --accent: #f59e0b;
+        --accent-strong: #d97706;
+        --accent-soft: #382012;
+        --accent-contrast: #171513;
+      }
+
+      [data-style="minimal"][data-theme="dark"] {
+        --bg: #09090b;
+        --bg-soft: #050506;
+        --bg-elev: #121215;
+        --bg-elev-2: #18181b;
+        --surface-muted: #1c1c21;
+        --border: #e4e4e7;
+        --border-strong: #fafafa;
+        --text: #fafafa;
+        --text-muted: #d4d4d8;
+        --text-soft: #a1a1aa;
+        --accent: #fafafa;
+        --accent-strong: #e4e4e7;
+        --accent-soft: #27272a;
+        --accent-contrast: #09090b;
+        --shadow-2: 4px 4px 0 0 #e4e4e7;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg-soft);
+        color: var(--text);
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 1.5;
+        letter-spacing: var(--tracking-tight);
+        -webkit-font-smoothing: antialiased;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px;
+        transition: background-color 180ms ease, color 180ms ease;
+      }
+      main {
+        width: 100%;
+        max-width: 680px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-2xl);
+        box-shadow: var(--shadow-2);
+        padding: 32px;
+        transition: all 180ms ease;
+      }
+      .action-link:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-family: var(--font-display);
+        font-size: 26px;
+        line-height: 1.2;
+        font-weight: 600;
+        letter-spacing: var(--tracking-heading);
+      }
+      #greeting {
+        margin: 0 0 8px;
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      #purpose {
+        margin: 0 0 24px;
+        color: var(--text-muted);
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 12px 16px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .action-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: var(--radius-md);
+        background: var(--accent);
+        color: var(--accent-contrast);
+        font-weight: 600;
+        font-size: 13px;
+        text-decoration: none;
+        transition: background-color 120ms ease;
+      }
+      .action-link:hover {
+        background: var(--accent-strong);
+      }
+    </style>
   </head>
   <body>
     <main>
       <h1>App Service Builder / vite-static</h1>
       <p id="greeting"></p>
       <p id="purpose"></p>
-      <a href="/health">Health check</a>
+      <div class="actions">
+        <a class="action-link" href="/health">Health check</a>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -48,6 +48,44 @@ export const BUILD_PANEL_CONTENT_CSS = `
 :is(#details, #customize-content)[data-mode="build"] .build-icon-settings { mask-image:${octiconMask("gear")}; }
 :is(#details, #customize-content)[data-mode="build"] :is(button,select):disabled { opacity:.65; cursor:not-allowed; }
 :is(#details, #customize-content)[data-mode="build"] .build-handoff-feedback { margin:4px 0 8px; font-size:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-gallery { display:block; padding:6px var(--build-content-gutter); border-bottom:1px solid var(--studio-line); background:var(--studio-bg); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-gallery-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px 10px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-picker { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-gallery-title { font-size:11px; line-height:16px; font-weight:600; color:var(--studio-muted); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-select-wrap { display:inline-flex; align-items:center; gap:6px; min-height:26px; padding:2px 8px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-panel); color:var(--studio-ink); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-select-wrap:focus-within { border-color:var(--studio-accent); box-shadow:0 0 0 1px var(--studio-accent); }
+:is(#details, #customize-content)[data-mode="build"] select.build-style-select { border:0; background:transparent; color:var(--studio-ink); font:600 11px/16px var(--font-sans,system-ui,sans-serif); padding:2px 4px 2px 0; cursor:pointer; outline:none; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-gallery-controls { display:inline-flex; align-items:center; flex-wrap:wrap; gap:6px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-view-toggle, :is(#details, #customize-content)[data-mode="build"] .build-style-theme-toggle { display:inline-flex; padding:2px; border:1px solid var(--studio-line); border-radius:6px; background:var(--studio-panel); gap:2px; }
+:is(#details, #customize-content)[data-mode="build"] button.build-style-view-btn, :is(#details, #customize-content)[data-mode="build"] button.build-style-theme-btn { min-height:22px; padding:2px 8px; border:0; border-radius:4px; background:transparent; color:var(--studio-muted); font-size:11px; font-weight:600; cursor:pointer; }
+:is(#details, #customize-content)[data-mode="build"] button.build-style-view-btn:hover:not([aria-pressed="true"]), :is(#details, #customize-content)[data-mode="build"] button.build-style-theme-btn:hover:not([aria-pressed="true"]) { color:var(--studio-ink); }
+:is(#details, #customize-content)[data-mode="build"] button.build-style-view-btn[aria-pressed="true"], :is(#details, #customize-content)[data-mode="build"] button.build-style-theme-btn[aria-pressed="true"] { background:var(--studio-accent-soft); color:var(--studio-accent); box-shadow:inset 0 0 0 1px var(--studio-accent); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-swatch { flex:none; width:10px; height:10px; border:1px solid color-mix(in srgb,var(--studio-ink) 20%,transparent); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview { --color-background-1:#faf9f8; --color-background-2:#f3f2f0; --color-background-3:#ffffff; --color-foreground-1:#141418; --color-foreground-2:#42434d; --color-foreground-3:#686a78; --color-stroke-1:#e5e2dc; --color-stroke-2:#edeae4; --color-brand-primary:#464feb; --color-brand-gradient:linear-gradient(135deg,#464feb 0%,#47cffa 50%,#b47cf8 100%); --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#eef0ff; --color-status-success-bg:#ebf7ee; --color-status-success-fg:#0f7b3e; --border-radius-md:10px; --border-radius-lg:16px; --border-radius-full:9999px; --font-family-base:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; --font-family-display:var(--font-family-base); --shadow-sm:0 2px 6px rgba(20,20,24,.06),0 8px 24px rgba(70,79,235,.06); display:grid; gap:12px; padding:16px var(--build-content-gutter); background:var(--color-background-1); color:var(--color-foreground-1); font-family:var(--font-family-base); transition:background-color 140ms ease,color 140ms ease; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-theme="dark"] { --color-background-1:#0d0e14; --color-background-2:#232533; --color-background-3:#161722; --color-foreground-1:#f5f6fa; --color-foreground-2:#c7c9d9; --color-foreground-3:#8f93ad; --color-stroke-1:#2e3042; --color-stroke-2:#232533; --color-brand-primary:#7b83eb; --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#252849; --color-status-success-bg:#133223; --color-status-success-fg:#6ee7b7; --shadow-sm:0 4px 16px rgba(0,0,0,.35); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="warm"] { --color-background-1:#f9f5f0; --color-background-2:#f1eae1; --color-background-3:#fffdfb; --color-foreground-1:#231b15; --color-foreground-2:#57483d; --color-foreground-3:#7c6a5c; --color-stroke-1:#e4d9cc; --color-stroke-2:#efe6dc; --color-brand-primary:#c2410c; --color-brand-gradient:linear-gradient(135deg,#c2410c 0%,#ea580c 60%,#f59e0b 100%); --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#ffedd5; --border-radius-md:10px; --border-radius-lg:14px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="warm"][data-theme="dark"] { --color-background-1:#14100d; --color-background-2:#29201a; --color-background-3:#1d1612; --color-foreground-1:#faf5f0; --color-foreground-2:#d6c7b8; --color-foreground-3:#9e8c7a; --color-stroke-1:#3d2f28; --color-stroke-2:#2c221d; --color-brand-primary:#fb923c; --color-brand-foreground-on-primary:#181310; --color-brand-tint:#3b2110; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="modern"] { --color-background-1:#f4f7fb; --color-background-2:#eaeff7; --color-background-3:#ffffff; --color-foreground-1:#0f172a; --color-foreground-2:#334155; --color-foreground-3:#64748b; --color-stroke-1:#d8e1ee; --color-stroke-2:#e5ecf5; --color-brand-primary:#0f6cbd; --color-brand-gradient:linear-gradient(135deg,#0f6cbd 0%,#0284c7 60%,#38bdf8 100%); --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#e6f2fb; --border-radius-md:6px; --border-radius-lg:10px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="modern"][data-theme="dark"] { --color-background-1:#090e1a; --color-background-2:#1a2640; --color-background-3:#111a2e; --color-foreground-1:#f1f5f9; --color-foreground-2:#cbd5e1; --color-foreground-3:#94a3b8; --color-stroke-1:#263554; --color-stroke-2:#1a2640; --color-brand-primary:#38bdf8; --color-brand-foreground-on-primary:#08101d; --color-brand-tint:#102a45; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="editorial"] { --color-background-1:#f6f2ea; --color-background-2:#efeae0; --color-background-3:#fdfbf7; --color-foreground-1:#1c1917; --color-foreground-2:#44403c; --color-foreground-3:#78716c; --color-stroke-1:#ded6c6; --color-stroke-2:#eae3d5; --color-brand-primary:#9a3412; --color-brand-gradient:linear-gradient(135deg,#9a3412 0%,#b45309 100%); --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#ffedd5; --border-radius-md:4px; --border-radius-lg:6px; --font-family-display:Georgia,Cambria,"Times New Roman",serif; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="editorial"][data-theme="dark"] { --color-background-1:#12100e; --color-background-2:#2b2723; --color-background-3:#1b1815; --color-foreground-1:#f5f2eb; --color-foreground-2:#d4cdc3; --color-foreground-3:#9c9488; --color-stroke-1:#3d3731; --color-stroke-2:#2b2723; --color-brand-primary:#f59e0b; --color-brand-foreground-on-primary:#171513; --color-brand-tint:#382012; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="minimal"] { --color-background-1:#f4f4f5; --color-background-2:#e4e4e7; --color-background-3:#ffffff; --color-foreground-1:#09090b; --color-foreground-2:#27272a; --color-foreground-3:#52525b; --color-stroke-1:#18181b; --color-stroke-2:#d4d4d8; --color-brand-primary:#09090b; --color-brand-gradient:none; --color-brand-foreground-on-primary:#ffffff; --color-brand-tint:#e4e4e7; --border-radius-md:2px; --border-radius-lg:4px; --border-radius-full:4px; --font-family-base:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace; --font-family-display:var(--font-family-base); --shadow-sm:2px 2px 0 0 #18181b; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-live-preview[data-style="minimal"][data-theme="dark"] { --color-background-1:#09090b; --color-background-2:#1c1c21; --color-background-3:#121215; --color-foreground-1:#fafafa; --color-foreground-2:#d4d4d8; --color-foreground-3:#a1a1aa; --color-stroke-1:#e4e4e7; --color-stroke-2:#27272a; --color-brand-primary:#fafafa; --color-brand-foreground-on-primary:#09090b; --color-brand-tint:#27272a; --shadow-sm:2px 2px 0 0 #e4e4e7; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-card { display:grid; gap:12px; padding:16px; border:1px solid var(--color-stroke-1); border-radius:var(--border-radius-lg); background:var(--color-background-3); box-shadow:var(--shadow-sm); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--color-stroke-2); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-brand { display:flex; align-items:center; gap:8px; min-width:0; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-mark { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:var(--border-radius-md); background:var(--color-brand-gradient,var(--color-brand-primary)); color:var(--color-brand-foreground-on-primary); font-size:11px; font-weight:700; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-title { margin:0; font-family:var(--font-family-display); font-size:15px; line-height:20px; font-weight:600; color:var(--color-foreground-1); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:var(--border-radius-full); background:var(--color-status-success-bg); color:var(--color-status-success-fg); font-size:11px; font-weight:600; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-subtitle { margin:0; font-size:12px; line-height:18px; color:var(--color-foreground-2); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-tile { display:grid; gap:2px; padding:10px 12px; border:1px solid var(--color-stroke-2); border-radius:var(--border-radius-md); background:var(--color-background-1); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-tile-label { font-size:10px; line-height:14px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--color-foreground-3); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-tile-value { font-family:var(--font-family-display); font-size:13px; line-height:18px; font-weight:600; color:var(--color-foreground-1); }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:4px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-input { flex:1; min-width:160px; padding:6px 10px; border:1px solid var(--color-stroke-1); border-radius:var(--border-radius-md); background:var(--color-background-3); color:var(--color-foreground-2); font-family:var(--font-family-base); font-size:12px; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-cta { padding:6px 12px; border:1px solid var(--color-brand-primary); border-radius:var(--border-radius-md); background:var(--color-brand-primary); color:var(--color-brand-foreground-on-primary); font-family:var(--font-family-base); font-size:12px; font-weight:600; }
+:is(#details, #customize-content)[data-mode="build"] .build-style-preview-chip { padding:5px 10px; border:1px solid var(--color-stroke-1); border-radius:var(--border-radius-md); background:var(--color-brand-tint); color:var(--color-brand-primary); font-family:var(--font-family-base); font-size:11px; font-weight:600; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-source { display:flex; flex-direction:column; flex:1; min-width:0; min-height:180px; margin:0; border:0; border-radius:0; overflow:hidden; background:var(--build-code-bg); cursor:default; }
 :is(#details, #customize-content)[data-mode="build"] .build-file > :not(.build-file-source) { flex-shrink:0; }
 :is(#details, #customize-content)[data-mode="build"] .build-file-source > :not(.build-source-preview) { flex:none; }
@@ -182,6 +220,13 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     { id: "application", tab: "App Configuration" },
     { id: "source", tab: "Source", label: "Source projects" },
   ];
+  const stylePresets = [
+    { id: "copilot", label: "Copilot", default: true, meta: "Indigo flair, soft pill", swatch: "linear-gradient(135deg,#464feb 0%,#47cffa 50%,#b47cf8 100%)", radius: "6px" },
+    { id: "warm", label: "Warm", meta: "Sandstone & terracotta", swatch: "#c2410c", radius: "5px" },
+    { id: "modern", label: "Modern", meta: "Clean slate & cobalt", swatch: "#0f6cbd", radius: "4px" },
+    { id: "editorial", label: "Editorial", meta: "Serif & warm paper", swatch: "#9a3412", radius: "2px" },
+    { id: "minimal", label: "Minimal", meta: "Monochrome & mono", swatch: "#09090b", radius: "1px" },
+  ];
   function artifactCategory(artifact) {
     const category = artifact.blockCategory ?? ({ behavior: "agent", tools: "skills", policies: "sandbox", runtime: "application" })[artifact.customizationArea] ?? artifact.customizationArea ?? "source";
     return category === "sandbox" ? "skills" : category;
@@ -220,6 +265,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   let artifacts = [], supportsDocuments = false, loadVersion = 0, workspace, renderedState, selectedArtifact, contentPanel;
   let adding = false, creating = false, templates, templateError, createdBlock;
   const pendingAdjustments = new Set();
+  const pendingStyleUpdates = new Set();
+  const stylePreviewModes = new Map();
+  const stylePreviewThemes = new Map();
   let addDraft = { templateId: "", name: "", instructions: "" };
   const aiDrafts = new Map();
   let refreshing = false, refreshTimer, panelScroll = 0, explorerScroll = 0, workspaceOpening = false, restoreOnShow = false;
@@ -521,11 +569,17 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
   }
   function updatePreviewEdges() {
     for (const source of container.querySelectorAll(".build-block-files .build-source-preview")) {
+      const expandBtn = source.parentElement?.querySelector(".build-preview-expand");
+      if (!expandBtn) continue;
+      if (source.hidden) {
+        expandBtn.hidden = true;
+        continue;
+      }
       const stacked = source.closest(".build-block-files").dataset.view === "stack";
       const expanded = source.hasAttribute("data-expanded");
       const clipped = stacked && !expanded && source.scrollHeight > source.clientHeight + 1;
       source.toggleAttribute("data-clipped", clipped);
-      source.parentElement.querySelector(".build-preview-expand").hidden = !stacked || (!expanded && !clipped);
+      expandBtn.hidden = !stacked || (!expanded && !clipped);
     }
   }
   function renderPreview(body, artifact) {
@@ -633,6 +687,194 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       ],
     };
   }
+  function extractStylePreviewCopy(artifact) {
+    const content = artifact.content ?? "";
+    const headingMatch = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const cleanHeading = headingMatch?.[1]?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    const titleMatch = content.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const cleanTitle = titleMatch?.[1]?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    const title = cleanHeading || cleanTitle || artifact.projectName || "Web Experience";
+    const subMatch = content.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const cleanSub = subMatch?.[1]?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    const subtitle = cleanSub || `Styled with Fluent UI Headless design tokens (${artifact.path}).`;
+    return { title, subtitle };
+  }
+  function renderStyleLivePreview(body, artifact) {
+    let preview = body.querySelector(".build-style-live-preview");
+    if (!preview) {
+      preview = element("div", undefined, body, "build-style-live-preview");
+      preview.setAttribute("role", "region");
+      preview.setAttribute("aria-label", `${artifact.title} live style preview`);
+    }
+    const activePreset = stylePresets.find((item) => item.id === artifact.stylePreset) ?? stylePresets[0];
+    const activeTheme = stylePreviewThemes.get(artifact.id) ?? "light";
+    preview.dataset.style = activePreset.id;
+    preview.dataset.theme = activeTheme;
+    preview.replaceChildren();
+    const { title, subtitle } = extractStylePreviewCopy(artifact);
+    const card = element("div", undefined, preview, "build-style-preview-card");
+    const top = element("div", undefined, card, "build-style-preview-top");
+    const brand = element("div", undefined, top, "build-style-preview-brand");
+    element("span", "UI", brand, "build-style-preview-mark").setAttribute("aria-hidden", "true");
+    element("h5", title, brand, "build-style-preview-title");
+    element("span", `${activePreset.label} · ${activeTheme === "dark" ? "Dark" : "Light"} (\`data-style="${activePreset.id}"\`)`, top, "build-style-preview-badge");
+    element("p", subtitle, card, "build-style-preview-subtitle");
+    const grid = element("div", undefined, card, "build-style-preview-grid");
+    for (const metric of [
+      { label: "Design system", value: "Fluent UI Headless" },
+      { label: "Active preset", value: `${activePreset.label} (${activePreset.meta})` },
+      { label: "Color mode", value: `${activeTheme === "dark" ? "Dark" : "Light"} (data-theme="${activeTheme}")` },
+    ]) {
+      const tile = element("div", undefined, grid, "build-style-preview-tile");
+      element("span", metric.label, tile, "build-style-preview-tile-label");
+      element("span", metric.value, tile, "build-style-preview-tile-value");
+    }
+    const controls = element("div", undefined, card, "build-style-preview-controls");
+    element("span", "Ask the assistant or search inventory...", controls, "build-style-preview-input");
+    element("span", "Primary action", controls, "build-style-preview-cta");
+    element("span", "Token chip", controls, "build-style-preview-chip");
+    return preview;
+  }
+  function syncStyleBodyMode(body, artifact) {
+    if (!artifact.stylePreset) return;
+    const mode = stylePreviewModes.get(artifact.id) ?? "source";
+    const livePreview = renderStyleLivePreview(body, artifact);
+    const sourcePreview = body.querySelector(".build-source-preview");
+    const expandFooter = body.querySelector(".build-preview-expand");
+    const showLive = mode === "preview";
+    livePreview.hidden = !showLive;
+    if (sourcePreview) sourcePreview.hidden = showLive;
+    if (expandFooter) expandFooter.hidden = showLive;
+    updatePreviewEdges();
+  }
+  function renderStyleGallery(row, artifact, body) {
+    if (!artifact.stylePreset) return;
+    if (!stylePreviewModes.has(artifact.id)) stylePreviewModes.set(artifact.id, "source");
+    if (artifact.colorTheme === "dark" || artifact.colorTheme === "light") {
+      stylePreviewThemes.set(artifact.id, artifact.colorTheme);
+    } else if (!stylePreviewThemes.has(artifact.id)) {
+      stylePreviewThemes.set(artifact.id, "light");
+    }
+    const gallery = element("div", undefined, row, "build-style-gallery");
+    gallery.dataset.styleGallery = artifact.id;
+    gallery.setAttribute("role", "group");
+    gallery.setAttribute("aria-label", "Web style preset");
+    const header = element("div", undefined, gallery, "build-style-gallery-header");
+    const picker = element("label", undefined, header, "build-style-picker");
+    element("span", "Style", picker, "build-style-gallery-title");
+    const selectWrap = element("span", undefined, picker, "build-style-select-wrap");
+    const swatch = element("span", undefined, selectWrap, "build-style-swatch");
+    swatch.setAttribute("aria-hidden", "true");
+    const select = element("select", undefined, selectWrap, "build-style-select");
+    select.dataset.styleSelect = artifact.id;
+    select.dataset.focusKey = `style-select-${artifact.id}`;
+    select.setAttribute("aria-label", "Style preset");
+    for (const preset of stylePresets) {
+      const option = element(
+        "option",
+        `${preset.label}${preset.default ? " (default)" : ""} — ${preset.meta}`,
+        select,
+      );
+      option.value = preset.id;
+      option.selected = artifact.stylePreset === preset.id;
+    }
+    const syncSwatch = (presetId) => {
+      const activePreset = stylePresets.find((entry) => entry.id === presetId) ?? stylePresets[0];
+      swatch.style.background = activePreset.swatch;
+      swatch.style.borderRadius = activePreset.radius;
+    };
+    syncSwatch(artifact.stylePreset);
+    const persistWebStyle = async (nextPresetId, nextColorTheme) => {
+      if (pendingStyleUpdates.has(artifact.id)) return;
+      pendingStyleUpdates.add(artifact.id);
+      select.disabled = true;
+      syncSwatch(nextPresetId);
+      clearError(row);
+      try {
+        const result = await request("/api/build-web-style", {
+          method: "POST",
+          body: JSON.stringify({
+            root,
+            id: artifact.id,
+            stylePreset: nextPresetId,
+            colorTheme: nextColorTheme,
+          }),
+        });
+        if (result?.artifact) {
+          Object.assign(artifact, result.artifact);
+        } else {
+          artifact.stylePreset = nextPresetId;
+        }
+        select.value = artifact.stylePreset;
+        syncSwatch(artifact.stylePreset);
+        rememberPreview(body.querySelector(".build-source-preview"));
+        buttons.clear(body);
+        body.replaceChildren();
+        renderPreview(body, artifact);
+        syncStyleBodyMode(body, artifact);
+        handoffFeedback.delete(artifact.id);
+        onSourceChange?.();
+      } catch (cause) {
+        select.value = artifact.stylePreset;
+        syncSwatch(artifact.stylePreset);
+        handoffFeedback.set(artifact.id, {
+          error: true,
+          message: "Could not update web style preset: " + cause.message,
+        });
+      } finally {
+        pendingStyleUpdates.delete(artifact.id);
+        select.disabled = false;
+        if (isActive()) updateEditorControls();
+      }
+    };
+    select.addEventListener("change", () => {
+      const nextPresetId = select.value;
+      if (artifact.stylePreset === nextPresetId) return;
+      void persistWebStyle(nextPresetId, stylePreviewThemes.get(artifact.id) ?? "light");
+    });
+    const headerControls = element("div", undefined, header, "build-style-gallery-controls");
+    const themeToggle = element("div", undefined, headerControls, "build-style-theme-toggle");
+    themeToggle.setAttribute("role", "group");
+    themeToggle.setAttribute("aria-label", "Preview color mode");
+    for (const themeOption of [
+      { id: "light", label: "Light" },
+      { id: "dark", label: "Dark" },
+    ]) {
+      const btn = element("button", themeOption.label, themeToggle, "build-style-theme-btn");
+      btn.type = "button";
+      btn.dataset.styleTheme = themeOption.id;
+      btn.dataset.focusKey = `style-theme-${artifact.id}-${themeOption.id}`;
+      btn.setAttribute("aria-pressed", String((stylePreviewThemes.get(artifact.id) ?? "light") === themeOption.id));
+      btn.addEventListener("click", () => {
+        stylePreviewThemes.set(artifact.id, themeOption.id);
+        for (const node of themeToggle.querySelectorAll("button.build-style-theme-btn")) {
+          node.setAttribute("aria-pressed", String(node.dataset.styleTheme === themeOption.id));
+        }
+        syncStyleBodyMode(body, artifact);
+        void persistWebStyle(artifact.stylePreset, themeOption.id);
+      });
+    }
+    const viewToggle = element("div", undefined, headerControls, "build-style-view-toggle");
+    viewToggle.setAttribute("role", "group");
+    viewToggle.setAttribute("aria-label", "Web artifact view");
+    for (const viewOption of [
+      { id: "source", label: "Code" },
+      { id: "preview", label: "Preview" },
+    ]) {
+      const btn = element("button", viewOption.label, viewToggle, "build-style-view-btn");
+      btn.type = "button";
+      btn.dataset.styleView = viewOption.id;
+      btn.dataset.focusKey = `style-view-${artifact.id}-${viewOption.id}`;
+      btn.setAttribute("aria-pressed", String((stylePreviewModes.get(artifact.id) ?? "source") === viewOption.id));
+      btn.addEventListener("click", () => {
+        stylePreviewModes.set(artifact.id, viewOption.id);
+        for (const node of viewToggle.querySelectorAll("button.build-style-view-btn")) {
+          node.setAttribute("aria-pressed", String(node.dataset.styleView === viewOption.id));
+        }
+        syncStyleBodyMode(body, artifact);
+      });
+    }
+  }
   function renderArtifact(parent, artifact, headingTag = "h4") {
     const row = element("section", undefined, parent, "build-file");
     row.dataset.artifact = artifact.id;
@@ -682,7 +924,10 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     }
     const body = element("div", undefined, row, "build-file-source");
     body.dataset.previewFor = artifact.id;
+    renderStyleGallery(row, artifact, body);
+    row.append(body);
     renderPreview(body, artifact);
+    syncStyleBodyMode(body, artifact);
   }
   function projectGroups(members) {
     const groups = new Map();
@@ -1255,7 +1500,22 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
     list.scrollTop = explorerScroll;
     updateEditorControls();
   }
-  async function show({ refresh = false } = {}) {
+  function selectPreferredTarget({ categoryId, projectPath } = {}) {
+    if (!categoryId && !projectPath) return false;
+    const match = artifacts.find((artifact) =>
+      (!categoryId || artifactCategory(artifact) === categoryId)
+      && (!projectPath || artifact.projectPath === projectPath)
+      && artifact.stylePreset)
+      ?? artifacts.find((artifact) =>
+        (!categoryId || artifactCategory(artifact) === categoryId)
+        && (!projectPath || artifact.projectPath === projectPath));
+    if (!match) return false;
+    adding = false;
+    if (categoryId) collapsedCategories.delete(categoryId);
+    selectedArtifact = match.id;
+    return true;
+  }
+  async function show({ refresh = false, categoryId, projectPath } = {}) {
     clearTimeout(refreshTimer);
     if (restoreOnShow && workspace?.isConnected) {
       const browser = workspace.querySelector(".build-browser");
@@ -1295,6 +1555,9 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
         && areas.some((area) => area.id === artifactCategory(artifact)));
       const signature = JSON.stringify([next, state.supportsDocuments, state.diagnostics]);
       if (refresh && workspace?.isConnected && renderedState === signature) {
+        if (selectPreferredTarget({ categoryId, projectPath })) {
+          renderSelection({ revealSelected: true });
+        }
         updateEditorControls();
         return;
       }
@@ -1302,6 +1565,7 @@ export function createBuildPanel({ container, root, request, isActive, onRun, on
       const focusKey = container.contains(document.activeElement) ? document.activeElement.dataset.focusKey
         : document.activeElement === document.body ? initiatingFocusKey : undefined;
       artifacts = next;
+      selectPreferredTarget({ categoryId, projectPath });
       supportsDocuments = state.supportsDocuments === true;
       renderedState = signature;
       disposeSplitPane?.();

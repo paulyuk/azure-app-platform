@@ -1068,20 +1068,26 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         const isSample = selectedTemplate?.kind === "sample";
         const isSandboxGateway = draft.templateRootId === "builtin-sandbox-gateway-minimal-v1";
         const isAppServiceBuilder = draft.templateRootId === "builtin-app-service-builder-vite-v1";
-        const instructionsValue = draft.templateInputs.agentInstructions || draft.purpose ||
-          (isSample
-            ? DEALER_SAMPLE_PURPOSE
-            : (isAppServiceBuilder
-                ? "Provide a clean Vite TypeScript frontend ready for App Service Builder deployment."
+        const instructionsValue = isAppServiceBuilder
+          ? (draft.templateInputs.agentInstructions || draft.purpose || "")
+          : (draft.templateInputs.agentInstructions || draft.purpose ||
+              (isSample
+                ? DEALER_SAMPLE_PURPOSE
                 : "Help users validate documents and answer questions using governed tools and models."));
         const instructionsField = isSample
           ? '<label class="field">What this sample does<textarea id="agent-instructions" maxlength="2000">' +
             escape(instructionsValue) + '</textarea></label>'
           : (isAppServiceBuilder
-              ? '<label class="field">What should this web app do?<textarea id="agent-instructions" maxlength="2000" placeholder="Describe the web experience and any backend or agent capabilities you plan to connect.">' +
+              ? '<label class="field">Custom instructions (optional)<textarea id="agent-instructions" maxlength="2000" placeholder="Optional: specify a tech stack, theme, or app idea (e.g., &quot;Create a todo app&quot;)">' +
                 escape(instructionsValue) + '</textarea></label>'
               : '<label class="field">App instructions<textarea id="agent-instructions" maxlength="2000" placeholder="Describe what the app does and how the agent should help, without inventing tool results.">' +
                 escape(instructionsValue) + '</textarea></label>');
+        const instructionHelp = isAppServiceBuilder
+          ? "Leave blank to create the default Fluent 2 Vite starter. Add a stack, theme, or app idea to trigger automatic agent customization with the bundled Fluent theme and spot illustration skills."
+          : guidanceFor(selectedTemplate).editing;
+        const namingHelp = isAppServiceBuilder
+          ? "Custom instructions are used to suggest a name. Without them, the generated builder-vite name is kept."
+          : "AI will suggest a name from these instructions. You can rename it in review.";
         const secondField = (!isSandboxGateway && !isAppServiceBuilder && !isSample)
           ? '<label class="field">Empty Hosted Skill name<input id="skill-name" type="text" maxlength="40" value="' +
             escape(draft.templateInputs.hostedSkillName) + '" placeholder="starter-skill"></label>'
@@ -1090,8 +1096,8 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           '<p class="create-configure-context">' + escape(selectedTemplate.name) + '</p>' +
           '<section class="create-form">' +
           instructionsField +
-          '<p class="create-field-help" id="create-instruction-help">' + escape(guidanceFor(selectedTemplate).editing) + '</p>' +
-          '<p class="create-field-help">AI will suggest a name from these instructions. You can rename it in review.</p>' +
+          '<p class="create-field-help" id="create-instruction-help">' + escape(instructionHelp) + '</p>' +
+          '<p class="create-field-help">' + escape(namingHelp) + '</p>' +
           secondField +
           '</section>' +
           '<footer class="create-footer">' +
@@ -1113,12 +1119,12 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
           back: renderDetails,
           next: () => {
             const instructions = document.getElementById("agent-instructions").value.trim();
-            if (!instructions) {
+            if (!instructions && !isAppServiceBuilder) {
               error("Enter instructions for the app.", "agent-instructions");
               return;
             }
             draft.templateInputs.agentInstructions = instructions;
-            draft.purpose = instructions.slice(0, 500);
+            draft.purpose = instructions ? instructions.slice(0, 500) : "";
             if (!isSandboxGateway && !isAppServiceBuilder && !isSample) {
               draft.templateInputs.hostedSkillName = document.getElementById("skill-name").value.trim();
               if (!/^[a-z][a-z0-9-]{0,39}$/.test(draft.templateInputs.hostedSkillName)) {
@@ -1137,15 +1143,22 @@ export function renderStudioHtml(instanceId, apiToken = "", { theme = "light", i
         clearStatus();
         disposeView();
         const template = selectedTemplate(), guidance = guidanceFor(template);
-        const instructions = draft.templateInputs.agentInstructions;
-        let naming = false, nameReady = draft.nameEdited || draft.nameInstructions === instructions;
+        const isAppServiceBuilder = template.id === "builtin-app-service-builder-vite-v1";
+        const instructions = draft.templateInputs.agentInstructions.trim();
+        applyTemplateDefaults(template);
+        let naming = false;
+        let nameReady = draft.nameEdited || (isAppServiceBuilder && !instructions) ||
+          (Boolean(instructions) && draft.nameInstructions === instructions);
+        const instructionsSummary = isAppServiceBuilder && !instructions
+          ? "Default Vite starter (no custom instructions)"
+          : instructions;
         buttons.replace(app, topBack("Back") + createProgress(3) +
           '<section class="create-review create-review-copy" aria-labelledby="create-review-title">' +
           '<h1 id="create-review-title" tabindex="-1">Review app</h1>' +
           '<div id="create-review-status" role="status" aria-live="polite"></div>' +
           '<button data-studio-button="secondary" type="button" id="retry-name" hidden>Retry naming</button>' +
           '<div class="summary"><section><label class="field">App name<input id="app-name" type="text" maxlength="80" value="' +
-          escape(nameReady ? draft.appName : "") + '"></label><h3>App instructions</h3><p>' + escape(instructions) +
+          escape(nameReady ? draft.appName : "") + '"></label><h3>Instructions</h3><p>' + escape(instructionsSummary) +
           '</p></section><section><h3>Starter</h3><p>' + escape(template.name) +
           '</p><p class="create-caution">' + escape(guidance.caution) + '</p>' +
           (template.id === "builtin-empty-starter-v1" ? '<p>Empty Hosted Skill name: <code>' + escape(draft.templateInputs.hostedSkillName) + '</code></p>' : "") +

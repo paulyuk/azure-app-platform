@@ -1379,13 +1379,13 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       isActive: () => panelMode === "build",
       onRun: () => {
         if (panelMode !== "manage") renderManagePanel();
-        const webTarget = details.querySelector(".web-app-runner button") || details.querySelector(".web-app-runner");
+        const statusTarget = details.querySelector(".agent-status-brief button") || details.querySelector(".agent-status-brief");
         const agentTarget = details.querySelector(".agent-tester");
-        (webTarget || agentTarget)?.scrollIntoView({ block: "start" });
+        (agentTarget || statusTarget)?.scrollIntoView({ block: "start" });
         if (details.querySelector('[aria-label="Agent message"]')) {
           details.querySelector('[aria-label="Agent message"]')?.focus();
-        } else if (details.querySelector(".web-app-runner button")) {
-          details.querySelector(".web-app-runner button")?.focus();
+        } else if (details.querySelector(".agent-status-brief button")) {
+          details.querySelector(".agent-status-brief button")?.focus();
         }
       },
       onModel: event => {
@@ -1653,6 +1653,7 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
         agentReady: Boolean(agentEntry?.ready),
         hasWeb: webPresent,
         webReady: Boolean(webEntry?.ready),
+        webUrl: webEntry?.url || "",
         hasAgent: agentPresent,
       });
       const prerequisites = readiness?.prerequisites?.missingTools || [];
@@ -2468,12 +2469,12 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       structureGuidance.focus({ preventScroll: true });
     }
 
-    async function openCustomizeApp() {
-      if (panelMode === "build") return;
+    async function openCustomizeApp({ categoryId, projectPath } = {}) {
+      if (panelMode === "build" && !categoryId && !projectPath) return;
       if (panelMode === "manage") runWorkspace.capture();
       panelMode = "build";
       updateModeHighlight();
-      await buildPanel.show({ refresh: customizeContent.childElementCount > 0 });
+      await buildPanel.show({ refresh: customizeContent.childElementCount > 0, categoryId, projectPath });
       if (panelMode !== "build" || window.appPlatformSettings?.isOpen()) return;
       const target = [...customizeContent.querySelectorAll("[data-focus-key]")]
         .find(node => node.dataset.focusKey === buildFocusKey && !node.disabled && node.checkVisibility());
@@ -4561,81 +4562,9 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
       deploymentSection.append(cloudActions);
     }
 
-    function renderWebAppRunner(container) {
-      const webPresent = hasWebEntrypoint();
-      if (!webPresent) return;
-      const agentPresent = hasAgentEntrypoint();
-      const webEntry = runtimeEntrypoints.find((entry) => normalized(entry.name) === "web");
-      const webNode = MODEL.nodes.find((node) => node.tierId === "web");
-      const appState = operationalState.app?.state;
-      const busy = Boolean(lifecycleOperation) || ACTIVE_LIFECYCLE_STATES.includes(appState);
-      const card = document.createElement("div");
-      card.className = "developer-tool-card web-app-runner";
-      card.dataset.webAppRunner = "true";
-      card.dataset.webReady = String(Boolean(webEntry?.ready));
-      const header = appendText(card, "div", "", "event-runner-header");
-      const title = appendText(header, "div", "", "event-runner-title");
-      appendText(
-        title,
-        "strong",
-        webNode?.name ? "App Service Builder · " + webNode.name : "App Service Builder frontend",
-      );
-      if (webEntry?.url) {
-        appendText(header, "code", webEntry.url);
-      }
-      const description = webEntry?.ready
-        ? agentPresent
-          ? "The App Service Builder frontend is live. Open the web app to use the interactive UI, or test the backend agent and skills below."
-          : "The App Service Builder frontend is built and running locally. Open the web app to interact with its UI."
-        : appState === "starting"
-          ? "Building and starting the App Service Builder frontend and any configured backend services…"
-          : agentPresent
-            ? "Build and start the App Service Builder frontend alongside its backend agent and skills so all entrypoints run together."
-            : "Build and run the App Service Builder frontend locally, then load the interactive web app in your browser.";
-      appendText(card, "p", description);
-      if (runtimeEntrypoints.length > 1) {
-        const summary = runtimeEntrypoints
-          .filter((entry) => entry.expected !== false || entry.ready)
-          .map((entry) => humanize(entry.name) + " (" + (entry.ready ? "ready on :" + entry.port : ":" + entry.port) + ")")
-          .join(" · ");
-        if (summary) appendText(card, "small", "Entrypoints: " + summary);
-      }
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      if (webEntry?.ready) {
-        const openBtn = actionButton("Open web app", async () => {
-          try {
-            await apiRequest("/api/open-entrypoint", {
-              method: "POST",
-              body: JSON.stringify({ root: MODEL.root, port: webEntry.port }),
-            });
-          } catch (error) {
-            setStatus(error.message, true);
-          }
-        }, true);
-        openBtn.dataset.openWebApp = "true";
-        buttons.append(actions, openBtn);
-      } else {
-        const startLabel = appState === "starting" ? "Starting web app…" : "Build & run web app";
-        const startBtn = actionButton(startLabel, () => runAppOperation("run-local"), true);
-        startBtn.dataset.startWebApp = "true";
-        buttons.setDisabled(startBtn, busy || !operationalState.readiness?.ready);
-        buttons.append(actions, startBtn);
-      }
-      if (webNode?.projectPath) {
-        const editBtn = actionButton("Edit frontend files", () => {
-          void openCustomizeApp();
-        });
-        buttons.append(actions, editBtn);
-      }
-      card.append(actions);
-      container.append(card);
-    }
-
     function renderTryApp(container) {
       updateAgentStatusBrief();
       container.append(agentStatusRoot);
-      renderWebAppRunner(container);
       if (hasAgentEntrypoint() || !hasWebEntrypoint()) {
         renderAgentTester(container);
       }
@@ -5468,6 +5397,11 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
             setStatus(error.message, true);
           }
         }, true));
+      }
+      if (node.kind === "project" && node.tierId === "web") {
+        buttons.append(actions, actionButton("Style & preview in Build", () => {
+          void openCustomizeApp({ categoryId: "web", projectPath: node.projectPath });
+        }));
       }
       if (node.kind === "project" && SERVICE_LOG_TIERS.has(node.tierId)) {
         buttons.append(actions, actionButton("View service logs", () => renderLogsPanel(node.id)));

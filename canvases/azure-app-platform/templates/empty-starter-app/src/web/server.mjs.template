@@ -5,15 +5,78 @@ const webPort = Number(process.env.WEB_PORT || 3000);
 const appNameHtml = __APP_NAME_HTML_JSON__;
 const purposeHtml = __PURPOSE_HTML_JSON__;
 const page = `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<html lang="en" data-style="copilot" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${appNameHtml}</title><style>
-body{max-width:720px;margin:64px auto;padding:0 20px;font:16px/1.5 system-ui}
-textarea,button{box-sizing:border-box;width:100%;padding:12px;margin-top:12px}
-pre{white-space:pre-wrap;background:#f6f8fa;padding:16px;border-radius:8px}
-</style></head><body><h1>${appNameHtml}</h1><p>${purposeHtml}</p>
+:root,[data-style="copilot"]{
+  --bg:#ffffff;--bg-soft:#faf9f8;--bg-elev:#ffffff;--surface-muted:#f3f2f0;--surface-sunken:#ebe9e5;
+  --border:#e5e2dc;--border-strong:#d4d0c8;--text:#141418;--text-muted:#42434d;--text-soft:#686a78;
+  --accent:#464feb;--accent-strong:#373fd9;--accent-soft:#eef0ff;--accent-contrast:#ffffff;
+  --brand-gradient:linear-gradient(135deg,#464feb 0%,#47cffa 50%,#b47cf8 100%);
+  --shadow-2:0 2px 6px rgba(20,20,24,0.05),0 8px 24px rgba(70,79,235,0.06);
+  --radius-md:10px;--radius-lg:16px;--radius-2xl:24px;--radius-pill:999px;
+  --font-sans:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+  --font-display:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-style="warm"]{
+  --bg:#fffdfb;--bg-soft:#f9f5f0;--bg-elev:#fffdfb;--surface-muted:#f1eae1;--border:#e4d9cc;--border-strong:#d0c0ae;
+  --text:#231b15;--text-muted:#57483d;--accent:#c2410c;--accent-strong:#9a3412;--accent-soft:#ffedd5;
+  --radius-md:10px;--radius-lg:14px;--radius-2xl:20px;
+}
+[data-style="modern"]{
+  --bg-soft:#f4f7fb;--surface-muted:#eaeff7;--border:#d8e1ee;--border-strong:#cbd5e1;
+  --text:#0f172a;--text-muted:#334155;--accent:#0f6cbd;--accent-strong:#115ea3;--accent-soft:#e6f2fb;
+  --radius-md:6px;--radius-lg:10px;--radius-2xl:14px;
+}
+[data-style="editorial"]{
+  --bg:#fdfbf7;--bg-soft:#f6f2ea;--bg-elev:#fdfbf7;--surface-muted:#efeae0;--border:#ded6c6;--border-strong:#cbbba0;
+  --text:#1c1917;--text-muted:#44403c;--accent:#9a3412;--accent-strong:#7c2d12;--accent-soft:#ffedd5;
+  --radius-md:4px;--radius-lg:6px;--radius-2xl:8px;--font-display:Georgia,Cambria,'Times New Roman',serif;
+}
+[data-style="minimal"]{
+  --bg-soft:#f4f4f5;--surface-muted:#e4e4e7;--border:#18181b;--border-strong:#09090b;
+  --text:#09090b;--text-muted:#27272a;--accent:#09090b;--accent-strong:#27272a;--accent-soft:#e4e4e7;
+  --shadow-2:4px 4px 0 0 #18181b;--radius-md:2px;--radius-lg:4px;--radius-2xl:4px;--radius-pill:4px;
+  --font-sans:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --font-display:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme="dark"]{
+  --bg:#12131a;--bg-soft:#0d0e14;--bg-elev:#161722;--surface-muted:#232533;--border:#2e3042;--border-strong:#3e4158;
+  --text:#f5f6fa;--text-muted:#c7c9d9;--accent:#7b83eb;--accent-strong:#626ae3;--accent-soft:#252849;--accent-contrast:#ffffff;
+  --shadow-2:0 0 0 1px rgba(255,255,255,0.06),0 12px 28px rgba(0,0,0,0.45);
+}
+[data-style="warm"][data-theme="dark"]{
+  --bg:#181310;--bg-soft:#120e0c;--bg-elev:#1d1612;--surface-muted:#29201a;--border:#3d2f28;--border-strong:#544037;
+  --text:#faf5f0;--text-muted:#d6c7b8;--accent:#fb923c;--accent-strong:#f97316;--accent-soft:#3b2110;--accent-contrast:#181310;
+}
+[data-style="modern"][data-theme="dark"]{
+  --bg:#0b111e;--bg-soft:#070b14;--bg-elev:#111a2e;--surface-muted:#1a2640;--border:#263554;--border-strong:#364970;
+  --text:#f1f5f9;--text-muted:#cbd5e1;--accent:#38bdf8;--accent-strong:#0ea5e9;--accent-soft:#102a45;--accent-contrast:#08101d;
+}
+[data-style="editorial"][data-theme="dark"]{
+  --bg:#171513;--bg-soft:#12100e;--bg-elev:#1b1815;--surface-muted:#2b2723;--border:#3d3731;--border-strong:#524a42;
+  --text:#f5f2eb;--text-muted:#d4cdc3;--accent:#f59e0b;--accent-strong:#d97706;--accent-soft:#382012;--accent-contrast:#171513;
+}
+[data-style="minimal"][data-theme="dark"]{
+  --bg:#09090b;--bg-soft:#050506;--bg-elev:#121215;--surface-muted:#1c1c21;--border:#e4e4e7;--border-strong:#fafafa;
+  --text:#fafafa;--text-muted:#d4d4d8;--accent:#fafafa;--accent-strong:#e4e4e7;--accent-soft:#27272a;--accent-contrast:#09090b;
+  --shadow-2:4px 4px 0 0 #e4e4e7;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;padding:48px 20px;background:var(--bg-soft);color:var(--text);font:14px/1.5 var(--font-sans);-webkit-font-smoothing:antialiased}
+main{max-width:720px;margin:0 auto;background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius-2xl);box-shadow:var(--shadow-2);padding:32px}
+h1{margin:0 0 8px;font:600 24px/1.25 var(--font-display);letter-spacing:-0.02em}
+p{margin:0 0 20px;color:var(--text-muted)}
+textarea{width:100%;min-height:96px;padding:12px 14px;margin-top:8px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--bg);color:var(--text);font:inherit;resize:vertical}
+textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+#send{width:100%;padding:10px 16px;margin-top:12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:var(--accent-contrast);font:600 14px/1.4 var(--font-sans);cursor:pointer}
+#send:hover{background:var(--accent-strong)}
+pre{white-space:pre-wrap;background:var(--surface-muted);border:1px solid var(--border);color:var(--text);padding:16px;border-radius:var(--radius-lg);font:12px/1.5 var(--font-mono);margin:16px 0 0}
+</style></head><body><main>
+<h1>${appNameHtml}</h1><p>${purposeHtml}</p>
 <textarea id="message" placeholder="Try the local agent boundary"></textarea>
 <button id="send">Send</button><pre id="result">Ready.</pre>
-<script>
+</main><script>
 send.onclick=async()=>{result.textContent="Working…";const response=await fetch("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:message.value})});result.textContent=JSON.stringify(await response.json(),null,2)}
 </script></body></html>`;
 

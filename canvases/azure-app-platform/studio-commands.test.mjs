@@ -20,6 +20,7 @@ import {
   resolveDiscoveryRoot,
 } from "./discovery.mjs";
 import {
+  DEFAULT_APP_SERVICE_BUILDER_PURPOSE,
   PLATFORM_TIERS,
   activateTier,
   buildImplementationInventory,
@@ -39,11 +40,13 @@ import {
   runDoctor,
 } from "./studio-commands.mjs";
 import {
+  APP_SERVICE_BUILDER_TEMPLATE,
   EMPTY_TEMPLATE,
   listSourceCatalog,
   parseWorktrees,
   resolveSourcePlan,
 } from "./source-catalog.mjs";
+import { CREATE_GUIDANCE } from "./create-flow.mjs";
 import { renderAppMapMarkup, renderStudioHtml } from "./studio-ui.mjs";
 import { materializeTemplate } from "./template-materializer.mjs";
 import { buildWorkspaceKickoff } from "./workspace-actions.mjs";
@@ -569,6 +572,7 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       openInEditor: false,
       editorId: undefined,
     });
+
     assert.throws(() => normalizeWorkspaceRequest({
       appName: "../claims",
       purpose: "Review claims",
@@ -598,6 +602,58 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       purpose: "Review claims",
       tierIds: ["agent"],
     }), /must choose a template/);
+  });
+
+  test("App Service Builder requests accept blank instructions without scheduling customization", () => {
+    for (const input of [
+      {
+        appName: "Builder default",
+        tierIds: ["web"],
+        templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+      },
+      {
+        appName: "Builder explicit default",
+        purpose: DEFAULT_APP_SERVICE_BUILDER_PURPOSE,
+        tierIds: ["web"],
+        templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+        templateInputs: { agentInstructions: DEFAULT_APP_SERVICE_BUILDER_PURPOSE },
+      },
+      {
+        appName: "Builder empty strings",
+        purpose: " ",
+        tierIds: ["web"],
+        templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+        templateInputs: { agentInstructions: "" },
+      },
+    ]) {
+      const request = normalizeWorkspaceRequest(input);
+      assert.equal(request.purpose, DEFAULT_APP_SERVICE_BUILDER_PURPOSE);
+      assert.equal(request.templateInputs.agentInstructions, "");
+      assert.equal(request.templateRootId, APP_SERVICE_BUILDER_TEMPLATE.id);
+    }
+  });
+
+  test("App Service Builder requests preserve actual custom instructions", () => {
+    const explicitInstructions = normalizeWorkspaceRequest({
+      appName: "Todo builder",
+      tierIds: ["web"],
+      templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+      templateInputs: { agentInstructions: "Create a todo app" },
+    });
+    assert.equal(explicitInstructions.purpose, DEFAULT_APP_SERVICE_BUILDER_PURPOSE);
+    assert.equal(explicitInstructions.templateInputs.agentInstructions, "Create a todo app");
+
+    const purposeInstructions = normalizeWorkspaceRequest({
+      appName: "Editorial builder",
+      purpose: "Create a reading list with an editorial theme",
+      tierIds: ["web"],
+      templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+    });
+    assert.equal(purposeInstructions.purpose, "Create a reading list with an editorial theme");
+    assert.equal(
+      purposeInstructions.templateInputs.agentInstructions,
+      "Create a reading list with an editorial theme",
+    );
   });
 
   test("workspace prompt treats user content as data and delegates deterministic template materialization", () => {
@@ -665,6 +721,165 @@ test("workspace requests validate names, purposes, and Unity tiers", () => {
       assert.equal(commands.some(([command, args]) =>
         command === "git" && args.includes("worktree") && args.includes("add") && args.includes("--no-checkout")), true);
       assert.equal(commands.some(([command]) => command === "code"), true);
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
+  });
+
+  test("App Service Builder creation without custom instructions skips the customization pass", async () => {
+    await withFixture({}, async (root) => {
+      const sent = [];
+      const result = await requestAppWorkspace({
+        session: {
+          send: async (message) => { sent.push(message); return "unexpected-message"; },
+          rpc: {
+            sessions: {
+              open: async () => ({ status: "created", sessionId: "builder-default-session" }),
+            },
+          },
+        },
+        workspaceRoot: root,
+        input: {
+          appName: "Builder default",
+          tierIds: ["web"],
+          templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+        },
+        sourceCatalog: { roots: [], templates: [APP_SERVICE_BUILDER_TEMPLATE] },
+        commandRunner: async (_command, args) => args.includes("--show-current")
+          ? { ok: true, stdout: "feature/builder\n", stderr: "" }
+          : { ok: true, stdout: "", stderr: "" },
+      });
+
+      assert.equal(result.outcome, "workspace-created");
+      assert.equal(result.customizationRequested, false);
+      assert.equal(result.customizationMessageId, null);
+      assert.equal(sent.length, 0);
+      assert.match(
+        await readFile(join(result.worktreePath, "builder.yaml"), "utf8"),
+        /role:\s*static/,
+      );
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
+  });
+
+  test("App Service Builder creation runs a silent behind-the-scenes customization task via session.rpc.tasks", async () => {
+    await withFixture({}, async (root) => {
+      const taskCalls = [];
+      const sent = [];
+      const progress = [];
+      const result = await requestAppWorkspace({
+        session: {
+          send: async (message) => { sent.push(message); return "unexpected-chat-message"; },
+          rpc: {
+            sessions: {
+              open: async () => ({ status: "created", sessionId: "builder-custom-session" }),
+            },
+            tasks: {
+              startAgent: async (input) => {
+                taskCalls.push(["start", input]);
+                return { agentId: "builder-customization-task" };
+              },
+              list: async () => ({
+                tasks: [
+                  {
+                    type: "agent",
+                    id: "builder-customization-task",
+                    status: "completed",
+                    resolvedModel: "gpt-5.6-sol",
+                  },
+                ],
+              }),
+              cancel: async (input) => {
+                taskCalls.push(["cancel", input]);
+                return { cancelled: true };
+              },
+              remove: async (input) => {
+                taskCalls.push(["remove", input]);
+                return { removed: true };
+              },
+            },
+          },
+        },
+        workspaceRoot: root,
+        input: {
+          appName: "Warm todo builder",
+          tierIds: ["web"],
+          templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+          templateInputs: {
+            agentInstructions: "Create a todo app with a warm editorial theme",
+          },
+        },
+        sourceCatalog: { roots: [], templates: [APP_SERVICE_BUILDER_TEMPLATE] },
+        onProgress: (message) => progress.push(message),
+        commandRunner: async (_command, args) => args.includes("--show-current")
+          ? { ok: true, stdout: "feature/builder\n", stderr: "" }
+          : { ok: true, stdout: "", stderr: "" },
+      });
+
+      assert.equal(result.customizationRequested, true);
+      assert.equal(result.customizationMessageId, "builder-customization-task");
+      assert.equal(sent.length, 0);
+      assert.equal(taskCalls[0][0], "start");
+      assert.equal(taskCalls[0][1].agentType, "general-purpose");
+      assert.equal(taskCalls[0][1].model, "gpt-5.6-sol");
+      assert.equal(taskCalls[0][1].name, "Customize Warm todo builder");
+      assert.match(taskCalls[0][1].prompt, /azure-app-platform-fluent-theme/);
+      assert.match(taskCalls[0][1].prompt, /azure-app-platform-spot-illustration/);
+      assert.match(taskCalls[0][1].prompt, /"targetSessionId": null/);
+      assert.match(taskCalls[0][1].prompt, /"targetAppRoot": "/);
+      assert.match(taskCalls[0][1].prompt, /Create a todo app with a warm editorial theme/);
+      assert.match(taskCalls[0][1].prompt, /builder\.yaml/);
+      assert.match(taskCalls[0][1].prompt, /web-style\.json/);
+      assert.deepEqual(taskCalls.slice(1), [
+        ["cancel", { id: "builder-customization-task" }],
+        ["remove", { id: "builder-customization-task" }],
+      ]);
+      assert.ok(progress.includes("Customizing app with Copilot..."));
+      await rm(result.worktreePath, { recursive: true, force: true });
+    });
+  });
+
+  test("App Service Builder creation falls back to session.send when session.rpc.tasks is unavailable", async () => {
+    await withFixture({}, async (root) => {
+      const sent = [];
+      const result = await requestAppWorkspace({
+        session: {
+          send: async (message) => { sent.push(message); return "builder-customization-message"; },
+          rpc: {
+            sessions: {
+              open: async () => ({ status: "created", sessionId: "builder-custom-session" }),
+            },
+          },
+        },
+        workspaceRoot: root,
+        input: {
+          appName: "Warm todo builder",
+          tierIds: ["web"],
+          templateRootId: APP_SERVICE_BUILDER_TEMPLATE.id,
+          templateInputs: {
+            agentInstructions: "Create a todo app with a warm editorial theme",
+          },
+        },
+        sourceCatalog: { roots: [], templates: [APP_SERVICE_BUILDER_TEMPLATE] },
+        commandRunner: async (_command, args) => args.includes("--show-current")
+          ? { ok: true, stdout: "feature/builder\n", stderr: "" }
+          : { ok: true, stdout: "", stderr: "" },
+      });
+
+      assert.equal(result.customizationRequested, true);
+      assert.equal(result.customizationMessageId, "builder-customization-message");
+      assert.equal(sent.length, 1);
+      assert.match(sent[0].prompt, /azure-app-platform-fluent-theme/);
+      assert.match(sent[0].prompt, /azure-app-platform-spot-illustration/);
+      assert.match(sent[0].prompt, /send_session_message/);
+      assert.match(sent[0].prompt, /delivery_mode: "immediate"/);
+      assert.match(sent[0].prompt, /mode: "autopilot"/);
+      assert.match(sent[0].prompt, /"targetSessionId": "builder-custom-session"/);
+      assert.match(sent[0].prompt, /"targetAppRoot": "/);
+      assert.match(sent[0].prompt, /Create a todo app with a warm editorial theme/);
+      assert.match(sent[0].prompt, /builder\.yaml/);
+      assert.match(sent[0].prompt, /web-style\.json/);
+      assert.match(sent[0].prompt, /\[data-style\]/);
+      assert.match(sent[0].prompt, /\[data-theme\]/);
       await rm(result.worktreePath, { recursive: true, force: true });
     });
   });
@@ -1126,6 +1341,29 @@ test("template kickoff delegates only the session boundary and runs the determin
   assert.equal(kickoff.includes("copy per-capability fragments"), false);
 });
 
+test("App Service Builder fallback kickoff includes requested post-materialization customization", () => {
+  const kickoff = buildWorkspaceKickoff({
+    appName: "Warm todo builder",
+    purpose: DEFAULT_APP_SERVICE_BUILDER_PURPOSE,
+    mode: "create",
+    journey: "new",
+    starterKind: "template",
+    tierIds: ["web"],
+    templateInputs: {
+      agentInstructions: "Create a todo app with a warm editorial theme",
+    },
+    sourcePlan: [{ kind: "empty-template", templateId: APP_SERVICE_BUILDER_TEMPLATE.id }],
+  });
+  assert.match(kickoff, /After the deterministic materializer succeeds, customize/);
+  assert.match(kickoff, /requestData\.templateInputs\.agentInstructions/);
+  assert.match(kickoff, /azure-app-platform-fluent-theme/);
+  assert.match(kickoff, /azure-app-platform-spot-illustration/);
+  assert.match(kickoff, /Preserve `builder\.yaml`, the `\/health` probe, `azure-app\.yaml`/);
+  assert.match(kickoff, /web-style\.json/);
+  assert.match(kickoff, /npm run build/);
+  assert.match(kickoff, /npm test/);
+});
+
 test("sandbox & gateway minimal kickoff verification is headless, not skill-based", () => {
   const kickoff = buildWorkspaceKickoff({
       appName: "Loan Prequal Demo",
@@ -1459,6 +1697,31 @@ test("app selection and creation route directly to the app workspace", () => {
   ]) {
     assert.equal(html.includes(expected), true, `expected ${expected}`);
   }
+});
+
+test("App Service Builder creation UI presents optional instructions and the default review state", async () => {
+  const html = renderStudioHtml("azure-app-platform", "test-token");
+  assert.match(html, /Custom instructions \(optional\)/);
+  assert.match(html, /Optional: specify a tech stack, theme, or app idea/);
+  assert.match(html, /Create a todo app/);
+  assert.match(html, /Leave blank to create the default Fluent 2 Vite starter/);
+  assert.match(html, /if \(!instructions && !isAppServiceBuilder\)/);
+  assert.match(html, /isAppServiceBuilder && !instructions/);
+  assert.match(html, /Default Vite starter \(no custom instructions\)/);
+  assert.doesNotMatch(
+    html,
+    /Provide a clean Vite TypeScript frontend ready for App Service Builder deployment\./,
+  );
+
+  assert.match(CREATE_GUIDANCE.web.boundaries, /builder\.yaml/);
+  assert.match(CREATE_GUIDANCE.web.boundaries, /\/health/);
+  assert.match(CREATE_GUIDANCE.web.boundaries, /sample environment variable/);
+  assert.match(CREATE_GUIDANCE.web.editing, /Create a todo app/);
+  assert.match(CREATE_GUIDANCE.web.editing, /Fluent theme and spot illustration skills/);
+
+  const createFlowSource = await readFile(new URL("./create-flow.mjs", import.meta.url), "utf8");
+  assert.match(createFlowSource, /Custom instructions are optional/);
+  assert.match(createFlowSource, /automatic agent customization pass/);
 });
 
 test("workspace renderer emits valid browser JavaScript", () => {

@@ -1,9 +1,156 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-style="copilot" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>__BLOCK_NAME__</title>
+  <style>
+    :root, [data-style="copilot"] {
+      --bg: #ffffff;
+      --bg-soft: #faf9f8;
+      --bg-elev: #ffffff;
+      --surface-muted: #f3f2f0;
+      --border: #e5e2dc;
+      --text: #141418;
+      --text-muted: #42434d;
+      --accent: #464feb;
+      --accent-soft: #eef0ff;
+      --accent-contrast: #ffffff;
+      --shadow-2: 0 2px 6px rgba(20, 20, 24, 0.05), 0 8px 24px rgba(70, 79, 235, 0.06);
+      --radius-2xl: 24px;
+      --radius-pill: 999px;
+      --font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      --font-display: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    [data-style="warm"] {
+      --bg-soft: #f9f5f0;
+      --bg-elev: #fffdfb;
+      --surface-muted: #f1eae1;
+      --border: #e4d9cc;
+      --text: #231b15;
+      --text-muted: #57483d;
+      --accent: #c2410c;
+      --accent-soft: #ffedd5;
+      --radius-2xl: 20px;
+    }
+    [data-style="modern"] {
+      --bg-soft: #f4f7fb;
+      --surface-muted: #eaeff7;
+      --border: #d8e1ee;
+      --text: #0f172a;
+      --text-muted: #334155;
+      --accent: #0f6cbd;
+      --accent-soft: #e6f2fb;
+      --radius-2xl: 14px;
+    }
+    [data-style="editorial"] {
+      --bg-soft: #f6f2ea;
+      --bg-elev: #fdfbf7;
+      --surface-muted: #efeae0;
+      --border: #ded6c6;
+      --text: #1c1917;
+      --text-muted: #44403c;
+      --accent: #9a3412;
+      --accent-soft: #ffedd5;
+      --radius-2xl: 8px;
+      --font-display: Georgia, Cambria, 'Times New Roman', serif;
+    }
+    [data-style="minimal"] {
+      --bg-soft: #f4f4f5;
+      --surface-muted: #e4e4e7;
+      --border: #18181b;
+      --text: #09090b;
+      --text-muted: #27272a;
+      --accent: #09090b;
+      --accent-soft: #e4e4e7;
+      --shadow-2: 4px 4px 0 0 #18181b;
+      --radius-2xl: 4px;
+      --radius-pill: 4px;
+      --font-sans: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-display: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    [data-theme="dark"] {
+      --bg: #12131a;
+      --bg-soft: #0d0e14;
+      --bg-elev: #161722;
+      --surface-muted: #232533;
+      --border: #2e3042;
+      --text: #f5f6fa;
+      --text-muted: #c7c9d9;
+      --accent: #7b83eb;
+      --accent-soft: #252849;
+      --shadow-2: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+    [data-style="warm"][data-theme="dark"] {
+      --bg-soft: #120e0c;
+      --bg-elev: #1d1612;
+      --surface-muted: #29201a;
+      --border: #3d2f28;
+      --text: #faf5f0;
+      --text-muted: #d6c7b8;
+      --accent: #fb923c;
+      --accent-soft: #3b2110;
+    }
+    [data-style="modern"][data-theme="dark"] {
+      --bg-soft: #070b14;
+      --bg-elev: #111a2e;
+      --surface-muted: #1a2640;
+      --border: #263554;
+      --text: #f1f5f9;
+      --text-muted: #cbd5e1;
+      --accent: #38bdf8;
+      --accent-soft: #102a45;
+    }
+    [data-style="editorial"][data-theme="dark"] {
+      --bg-soft: #12100e;
+      --bg-elev: #1b1815;
+      --surface-muted: #2b2723;
+      --border: #3d3731;
+      --text: #f5f2eb;
+      --text-muted: #d4cdc3;
+      --accent: #f59e0b;
+      --accent-soft: #382012;
+    }
+    [data-style="minimal"][data-theme="dark"] {
+      --bg-soft: #050506;
+      --bg-elev: #121215;
+      --surface-muted: #1c1c21;
+      --border: #e4e4e7;
+      --text: #fafafa;
+      --text-muted: #d4d4d8;
+      --accent: #fafafa;
+      --accent-soft: #27272a;
+      --shadow-2: 4px 4px 0 0 #e4e4e7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 48px 20px;
+      background: var(--bg-soft);
+      color: var(--text);
+      font: 14px/1.5 var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-2);
+      padding: 32px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font: 600 24px/1.25 var(--font-display);
+      letter-spacing: -0.02em;
+    }
+    p {
+      margin: 0;
+      color: var(--text-muted);
+    }
+  </style>
 </head>
 <body>
   <main>

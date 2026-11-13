@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAgentStatus } from "./agent-status.mjs";
+import { createAgentStatusComponent, getAgentStatus } from "./agent-status.mjs";
+import { renderInteractiveAppMapHtml } from "./interactive-app-map.mjs";
 
 const ready = { ready: true, gatewayConfigured: true, model: "model", activeGateway: { name: "gateway" } };
 test("Status Brief classifies runtime, agent availability and connection evidence independently", () => {
@@ -97,7 +98,47 @@ test("Status Brief classifies App Service Builder web-only and multi-entrypoint 
   });
   assert.equal(webOnlyRunning.state, "ready");
   assert.equal(webOnlyRunning.title, "Web app ready");
+  assert.equal(webOnlyRunning.agentLabel, "Local URL");
   assert.equal(webOnlyRunning.agent, "Web app available");
+
+  const webOnlyWithUrl = getAgentStatus({
+    app: { state: "running" },
+    readiness: { ready: true, requiresGateway: false },
+    hasWeb: true,
+    webReady: true,
+    webUrl: "http://localhost:8086",
+    hasAgent: false,
+  });
+  assert.equal(webOnlyWithUrl.agentLabel, "Local URL");
+  assert.equal(webOnlyWithUrl.agent, "http://localhost:8086");
+
+  const nodes = [];
+  const AgentStatus = createAgentStatusComponent({
+    createElement(tag, props, ...children) {
+      const node = { tag, props: props || {}, children: children.flat().filter(Boolean) };
+      nodes.push(node);
+      return node;
+    },
+    Button: "button",
+    InlineNotice: "div",
+  });
+  AgentStatus(webOnlyWithUrl);
+  const dtLabels = nodes.filter((node) => node.tag === "dt").map((node) => node.children.join(""));
+  const ddValues = nodes
+    .filter((node) => node.tag === "dd")
+    .map((node) => node.children.map((child) => (typeof child === "object" ? child.children.join("") : String(child))).join(""));
+  assert.deepEqual(dtLabels, ["Runtime", "Local URL", "Connection"]);
+  assert.deepEqual(ddValues, ["Running locally", "http://localhost:8086", "Not required"]);
+
+  const html = renderInteractiveAppMapHtml({
+    root: "/fixture/web-only",
+    generatedAt: "2026-04-20T00:00:00.000Z",
+    nodes: [{ id: "site", tierId: "web", name: "site", projectPath: ".", kind: "project", badges: [], evidence: [] }],
+    edges: [],
+    summary: { projectNodes: 1, operationNodes: 0, edges: 0 },
+  }, { apiToken: "fixture", appName: "Vite App Service Frontend" });
+  assert.doesNotMatch(html, /web-app-runner|renderWebAppRunner/);
+  assert.match(html, /webUrl:\s*webEntry\?\.url\s*\|\|\s*""/);
 
   const webOnlyNeedsGateway = getAgentStatus({
     app: { state: "stopped" },

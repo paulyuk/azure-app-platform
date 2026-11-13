@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath } from "./build-workspace.mjs";
+import { documentDeploymentBlocker, readBuildRuntime, readBuildWorkspace, resolveBuildArtifactPath, resolveProjectSourcePath, WEB_STYLE_PRESETS, writeBuildWebStyle } from "./build-workspace.mjs";
 import { invocationBody } from "./run-contract.mjs";
 
 async function fixture(action, toolDirectory = "src/tools/document-validation") {
@@ -142,3 +142,79 @@ test("document invocation carries only a bounded document, never policy override
     assert.throws(() => invocationBody(contract, "Summarize", document), /Document invocation/);
   }
 });
+
+test("Build discovers and updates Fluent Headless web style presets across HTML and React web artifacts", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "unity-web-style-")));
+  try {
+    await mkdir(join(root, "src/web/src/app"), { recursive: true });
+    await writeFile(join(root, "azure-app.yaml"), "capabilities:\n  web:\n    path: src/web\n");
+    await writeFile(
+      join(root, "src/web/index.html"),
+      '<!doctype html><html lang="en" data-style="copilot" data-theme="light"><body><button type="button" data-style-choice="copilot" data-selected="true">Copilot</button><button type="button" data-style-choice="modern">Modern</button></body></html>\n',
+    );
+    await writeFile(
+      join(root, "src/web/src/app/page.tsx"),
+      'export default function Home() {\n  const [stylePreset, setStylePreset] = useState<StylePreset>("copilot");\n  return null;\n}\n',
+    );
+    await writeFile(join(root, "src/web/package.json"), '{"name":"web","private":true}\n');
+
+    const initial = await readBuildWorkspace(root);
+    const htmlArtifact = initial.artifacts.find((item) => item.path === "src/web/index.html");
+    const reactArtifact = initial.artifacts.find((item) => item.path === "src/web/src/app/page.tsx");
+    const pkgArtifact = initial.artifacts.find((item) => item.path === "src/web/package.json");
+
+    assert.deepEqual(WEB_STYLE_PRESETS, ["copilot", "warm", "modern", "editorial", "minimal"]);
+    assert.equal(htmlArtifact.stylePreset, "copilot");
+    assert.equal(reactArtifact.stylePreset, "copilot");
+    assert.equal("stylePreset" in pkgArtifact, false);
+
+    const updatedHtml = await writeBuildWebStyle(root, htmlArtifact.id, "modern");
+    assert.equal(updatedHtml.artifact.stylePreset, "modern");
+    assert.match(updatedHtml.artifact.content, /<html lang="en" data-style="modern" data-theme="light">/);
+    assert.match(updatedHtml.artifact.content, /<button type="button" data-style-choice="copilot">Copilot<\/button>/);
+    assert.match(updatedHtml.artifact.content, /<button type="button" data-style-choice="modern" data-selected="true">Modern<\/button>/);
+
+    const updatedReact = await writeBuildWebStyle(root, reactArtifact.id, "warm");
+    assert.equal(updatedReact.artifact.stylePreset, "warm");
+    assert.match(updatedReact.artifact.content, /useState<StylePreset>\("warm"\)/);
+
+    await assert.rejects(writeBuildWebStyle(root, htmlArtifact.id, "neon"), /Choose a valid web style preset/);
+    await assert.rejects(writeBuildWebStyle(root, pkgArtifact.id, "modern"), /does not declare a configurable Fluent Headless style preset/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Build exposes default Copilot style preset, maps legacy presets, and stamps data-style on unstamped web entry files", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "unity-web-legacy-")));
+  try {
+    await mkdir(join(root, "src/web/src/app"), { recursive: true });
+    await writeFile(join(root, "azure-app.yaml"), "capabilities:\n  web:\n    path: src/web\n");
+    await writeFile(join(root, "src/web/builder.yaml"), "version: 1\n");
+    await writeFile(join(root, "src/web/index.html"), "<!doctype html><html lang=\"en\"><body><h1>App</h1></body></html>\n");
+    await writeFile(
+      join(root, "src/web/src/app/page.tsx"),
+      "export default function Home() {\n  return <div className=\"min-h-screen\"><main>App</main></div>;\n}\n",
+    );
+
+    const initial = await readBuildWorkspace(root);
+    const webArtifacts = initial.artifacts.filter((item) => item.blockCategory === "web");
+    assert.equal(webArtifacts[0].path, "src/web/index.html");
+    assert.equal(webArtifacts[0].stylePreset, "copilot");
+
+    const reactArtifact = webArtifacts.find((item) => item.path === "src/web/src/app/page.tsx");
+    assert.equal(reactArtifact.stylePreset, "copilot");
+
+    const updatedHtml = await writeBuildWebStyle(root, webArtifacts[0].id, "minimal");
+    assert.equal(updatedHtml.artifact.stylePreset, "minimal");
+    assert.match(updatedHtml.artifact.content, /<html data-style="minimal" data-theme="light" lang="en">/);
+
+    const updatedReact = await writeBuildWebStyle(root, reactArtifact.id, "editorial");
+    assert.equal(updatedReact.artifact.stylePreset, "editorial");
+    assert.match(updatedReact.artifact.content, /<div data-style="editorial" data-theme="light" className="min-h-screen">/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+

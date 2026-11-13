@@ -2,6 +2,6 @@
   "name": "empty-starter-web",
   "private": true,
   "scripts": {
-    "dev": "node server.mjs"
+    "dev": "node --watch server.mjs"
   }
 }

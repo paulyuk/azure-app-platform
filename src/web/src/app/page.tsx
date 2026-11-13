@@ -6,6 +6,7 @@ import { ResultsGrid } from "@/components/results-grid";
 import type { ChatMessage, ChatStreamEvent, DealStage, ReplySource, Vehicle } from "@/lib/types";
 import { useState } from "react";
 import { AlertIcon, DotFillIcon, XCircleIcon } from "@primer/octicons-react";
+import { Badge } from "@fluentui/react-headless-components-preview/badge";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -141,42 +142,49 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-4 py-8 md:px-6">
-      <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <main data-style="copilot" className="mx-auto min-h-screen max-w-7xl px-4 py-8 md:px-6">
+      <header className="mb-6 rounded-token-2xl border border-border bg-surface-elev p-5 shadow-token-2">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Unity Demo #1 · driveline-web
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Unity Demo #1 · driveline-web · Fluent Headless
             </p>
-            <h1 className="text-2xl font-bold text-slate-900">Car-buying chat experience</h1>
+            <h1 className="font-display text-2xl font-bold text-ink">
+              Car-buying chat experience
+            </h1>
           </div>
-          <span
-            data-testid="reply-source-badge"
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-              lastSource === "mock"
-                ? "bg-amber-500 text-white"
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge
+              data-testid="reply-source-badge"
+              icon={
+                lastSource === "mock" ? (
+                  <AlertIcon size={16} aria-hidden="true" />
+                ) : lastSource === "agent" ? (
+                  <DotFillIcon size={16} aria-hidden="true" />
+                ) : lastSource === "agent_error" ? (
+                  <XCircleIcon size={16} aria-hidden="true" />
+                ) : undefined
+              }
+              className={`inline-flex items-center gap-1.5 rounded-token-pill px-3 py-1 text-xs font-semibold ${
+                lastSource === "mock"
+                  ? "bg-status-warning text-white"
+                  : lastSource === "agent"
+                    ? "bg-status-success text-white"
+                    : lastSource === "agent_error"
+                      ? "bg-status-danger text-white"
+                      : "bg-accent text-accent-contrast"
+              }`}
+            >
+              {lastSource === "mock"
+                ? "Mock agent (no live agent reachable)"
                 : lastSource === "agent"
-                  ? "bg-emerald-600 text-white"
+                  ? "Live agent"
                   : lastSource === "agent_error"
-                    ? "bg-red-600 text-white"
-                    : "bg-slate-900 text-white"
-            }`}
-          >
-            {lastSource === "mock"
-              ? <AlertIcon size={16} aria-hidden="true" />
-              : lastSource === "agent"
-                ? <DotFillIcon size={16} aria-hidden="true" />
-                : lastSource === "agent_error"
-                  ? <XCircleIcon size={16} aria-hidden="true" />
-                  : null}
-            {lastSource === "mock"
-              ? "Mock agent (no live agent reachable)"
-              : lastSource === "agent"
-                ? "Live agent"
-                : lastSource === "agent_error"
-                  ? "Live agent reachable, turn failed (see error)"
-                  : "Waiting for first reply…"}
-          </span>
+                    ? "Live agent reachable, turn failed (see error)"
+                    : "Waiting for first reply…"}
+            </Badge>
+          </div>
         </div>
       </header>
 

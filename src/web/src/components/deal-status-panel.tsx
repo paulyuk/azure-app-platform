@@ -1,4 +1,10 @@
+"use client";
+
 import type { DealStage } from "@/lib/types";
+import { Button } from "@fluentui/react-headless-components-preview/button";
+import { Card } from "@fluentui/react-headless-components-preview/card";
+import { Input } from "@fluentui/react-headless-components-preview/input";
+import { Label } from "@fluentui/react-headless-components-preview/label";
 
 interface DealStatusPanelProps {
   stage: DealStage;
@@ -34,33 +40,37 @@ export function DealStatusPanel({
   isApplying
 }: DealStatusPanelProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-900">Deal workflow</h3>
-      <p className="mt-1 text-sm text-slate-500">
+    <Card className="rounded-token-2xl border border-border bg-surface-elev p-5 shadow-token-2">
+      <h3 className="font-display text-lg font-semibold text-ink">Deal workflow</h3>
+      <p className="mt-1 text-sm text-ink-muted">
         Capture customer email and submit for approval.
       </p>
 
       <div className="mt-4 space-y-2">
-        <label className="text-sm font-medium text-slate-700" htmlFor="email">
+        <Label className="block text-sm font-medium text-ink" htmlFor="email">
           Customer email
-        </label>
-        <input
+        </Label>
+        <Input
           id="email"
           type="email"
           value={email}
-          onChange={(event) => onEmailChange(event.target.value)}
+          onChange={(_event, data) => onEmailChange(data.value)}
           placeholder="maya@example.com"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+          root={{ className: "block w-full" }}
+          input={{
+            className:
+              "w-full rounded-token-lg border border-border-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-accent"
+          }}
         />
       </div>
 
-      <button
-        className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      <Button
+        className="mt-4 w-full rounded-token-lg bg-status-success px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 data-[disabled=true]:opacity-50"
         disabled={!isValidEmail(email) || isApplying}
         onClick={onApply}
       >
         {isApplying ? "Submitting…" : "Apply"}
-      </button>
+      </Button>
 
       <ol className="mt-6 space-y-3">
         {STAGES.map((item) => {
@@ -72,12 +82,12 @@ export function DealStatusPanel({
           return (
             <li
               key={item.id}
-              className={`rounded-xl border px-3 py-2 text-sm ${
+              className={`rounded-token-lg border px-3 py-2 text-sm font-medium ${
                 isCurrent
-                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  ? "border-status-warning bg-status-warning-soft text-status-warning"
                   : isComplete
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border-slate-200 bg-slate-50 text-slate-500"
+                    ? "border-status-success bg-status-success-soft text-status-success"
+                    : "border-border bg-surface-soft text-ink-muted"
               }`}
             >
               {item.label}
@@ -85,7 +95,7 @@ export function DealStatusPanel({
           );
         })}
       </ol>
-    </section>
+    </Card>
   );
 }
 

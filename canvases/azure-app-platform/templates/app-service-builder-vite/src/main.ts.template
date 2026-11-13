@@ -10,3 +10,4 @@ const purpose = document.querySelector<HTMLParagraphElement>('#purpose');
 if (purpose) {
   purpose.textContent = "__PURPOSE_JSON__";
 }
+

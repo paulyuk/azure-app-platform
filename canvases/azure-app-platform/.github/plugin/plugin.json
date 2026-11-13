@@ -28,6 +28,8 @@
     "./skills/azure-app-platform-canvas/",
     "./skills/azure-app-platform-hosted-skill/",
     "./skills/azure-app-platform-agent-instructions/",
-    "./skills/azure-app-platform-block-authoring/"
+    "./skills/azure-app-platform-block-authoring/",
+    "./skills/azure-app-platform-fluent-theme/",
+    "./skills/azure-app-platform-spot-illustration/"
   ]
 }

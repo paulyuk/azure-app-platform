@@ -2,6 +2,7 @@ import { discoverPlatform, runCommand } from "./discovery.mjs";
 import { traceApp } from "./app-map.mjs";
 import { PLATFORM_TIERS, getTierDefinition } from "./tier-definitions.mjs";
 export {
+  buildAppServiceBuilderCustomizationPrompt,
   buildImplementationInventory,
   buildCapabilityRequestPrompt,
   buildConnectionRequestPrompt,
@@ -16,6 +17,7 @@ export {
   requestCapabilityWork,
   requestConnectionWork,
   resolveConnectionRequest,
+  DEFAULT_APP_SERVICE_BUILDER_PURPOSE,
   WORKSPACE_TIER_IDS,
 } from "./workspace-actions.mjs";
 
