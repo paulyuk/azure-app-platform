@@ -51,6 +51,7 @@ export const EMPTY_TEMPLATE = Object.freeze({
     "scripts/dev-stop.ps1",
     "src/web",
     "src/agent/agent.yaml",
+    "src/agent/pyproject.toml",
     "src/agent/prompts/system.md",
     "src/skills/<hosted-skill>",
     "src/skills/<hosted-skill>/tests/test_contract.py",
