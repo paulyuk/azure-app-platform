@@ -334,6 +334,14 @@ body:not([data-workspace="manage"]) #workspace-diagnostics .run-output-stage { d
 #details[data-mode="manage"] .command-error-details { margin-top:6px; }
 #details[data-mode="manage"] .command-error-details > summary { cursor:pointer; font-size:11px; font-weight:600; color:var(--studio-danger); padding:2px 0; }
 #details[data-mode="manage"] .command-error-output { margin-top:4px; border-color:var(--studio-danger); }
+@media (min-width:1100px) {
+  #workspace-diagnostics[data-diagnostics="open"] { display:grid; grid-template-columns:8px minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); min-height:0; overflow:hidden; }
+  #workspace-diagnostics[data-diagnostics="open"] .run-diagnostics-resizer { grid-column:1; grid-row:1 / -1; width:8px; height:auto; cursor:col-resize; }
+  #workspace-diagnostics[data-diagnostics="open"] .run-diagnostics-resizer::after { width:2px; height:40px; top:calc(50% - 20px); left:3px; }
+  #workspace-diagnostics[data-diagnostics="open"] .run-output-stage { grid-column:2; grid-row:1; border-top:0; }
+  #workspace-diagnostics[data-diagnostics="open"] .run-support { grid-column:2; grid-row:2; height:auto; border-top:0; }
+  #workspace-diagnostics.resizing-diagnostics { cursor:col-resize; }
+}
 @media (max-width:820px) {
   .blocked-agent-stages { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }

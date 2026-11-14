@@ -71,7 +71,11 @@ call stays **Unverified**. **Back to input** returns to the prompt without
 cancelling execution. Use **Clear input** to reset the task payload without
 discarding the latest run. **View execution** in the input header or workspace
 history revisits that run, while the **Output** tab exposes its logs.
-Starting a valid invocation opens **Output** alongside execution. Collapse it
+Starting a valid invocation opens **Output** alongside execution. The command
+panel docks on the right at viewport widths of 1100px and above, and below the
+workspace at narrower widths. Drag its divider or use the arrow keys to resize
+it; each orientation retains its own size. Compact, label-only panel tabs and
+workspace controls leave more room for content. Collapse it
 to keep the current request stage and recognized error and warning line counts
 visible; expand it again for details. Counts cover only the latest loaded
 shared, bounded log tail, may include other activity, and are not unique
