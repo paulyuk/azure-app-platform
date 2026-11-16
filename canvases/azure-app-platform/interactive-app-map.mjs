@@ -556,7 +556,15 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     .workspace-view-switch { display: inline-flex; max-width: 100%; padding: 3px; }
     #app-workspace-navigation ul { display: flex; flex-wrap: wrap; gap: 2px; padding: 0; margin: 0; list-style: none; }
     #app-workspace-navigation li { flex: none; }
-    #workspace-content { grid-row: 2 / -1; display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+    #workspace-content { grid-row: 2 / -1; display: grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; min-width: 0; min-height: 0; height: 100%; }
+    #workspace-content > #status { grid-row:1; min-width:0; }
+    #workspace-content > #app-workspace-main { grid-row:2; }
+    #workspace-content > #workspace-diagnostics { grid-row:3; }
+    @media (min-width:1100px) {
+      #workspace-content:has(#workspace-diagnostics[data-diagnostics="open"]) { grid-template-columns:minmax(0,1fr) var(--diagnostics-width,380px); grid-template-rows:auto minmax(0,1fr); }
+      #workspace-content:has(#workspace-diagnostics[data-diagnostics="open"]) > #status { grid-column:1 / -1; }
+      #workspace-content > #workspace-diagnostics[data-diagnostics="open"] { grid-column:2; grid-row:2; }
+    }
     .studio-workspace-content { height: 100%; min-height: 0; color: var(--text); font: 16px/normal "Segoe UI", system-ui, sans-serif; }
     #workspace-loading-header {
       display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
@@ -849,6 +857,16 @@ export function renderInteractiveAppMapHtml(appMap, { apiToken = "", appName: pr
     ${BUILD_EXPLORER_CSS}
     ${APP_LOGS_CSS}
     ${STUDIO_FILTERABLE_DROPDOWN_CSS}
+    #app-workspace-navigation .ct-button { font-size:12px; padding-inline:8px; }
+    #app-workspace-navigation .workspace-view-switch { padding:0; }
+    #workspace-diagnostics .run-tabs { display:flex; gap:0; padding:0 4px; border-bottom:1px solid var(--studio-line); }
+    #workspace-diagnostics .run-tabs > .studio-tab { flex:1; min-width:0; min-height:36px; padding:6px 4px; gap:0; border:0; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:var(--studio-muted); }
+    #workspace-diagnostics .run-tabs > .studio-tab[aria-selected="true"] { border-bottom-color:var(--studio-accent); background:var(--studio-panel); color:var(--studio-ink); }
+    #workspace-diagnostics .run-tabs > .studio-tab:hover { background:var(--studio-panel); }
+    #workspace-diagnostics .run-tabs > .studio-tab:focus-visible { outline:2px solid var(--studio-focus); outline-offset:-2px; }
+    #workspace-diagnostics .run-tabs .studio-tab-icon, #workspace-diagnostics .run-tabs .run-tab-summary { display:none; }
+    #workspace-diagnostics .run-tabs .run-tab-summary[data-attention="true"] { display:block; }
+    #workspace-diagnostics .run-tabs .studio-tab-label { font-size:11px; font-weight:600; }
     #header-runtime-action { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #workspace-runtime-actions { border:1px solid var(--border); border-radius:6px; }
     #workspace-runtime-actions .ct-button {

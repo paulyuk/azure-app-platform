@@ -27,6 +27,7 @@ export function createRunWorkspace({
   let diagnosticsOpen = false;
   let diagnosticsHeight = 240;
   let diagnosticsHeightCustomized = false;
+  let diagnosticsWidth = 380;
   let invocation = { state: "idle", phase: "" };
   let outputInfo = { status: "loading", errors: 0, warnings: 0, unseen: false };
   let stageControls;
@@ -34,6 +35,7 @@ export function createRunWorkspace({
   let drag;
   const listeners = new AbortController();
   const primaryWorkspace = diagnosticsContainer.previousElementSibling;
+  const sideDock = window.matchMedia("(min-width:1100px)");
   const roots = () => [container.querySelector(".run-workspace"), diagnosticsContainer].filter(Boolean);
   const nodes = selector => roots().flatMap(root => [...root.querySelectorAll(selector)]);
 
@@ -54,6 +56,20 @@ export function createRunWorkspace({
     const shell = diagnosticsContainer;
     const separator = shell.querySelector(".run-diagnostics-resizer");
     if (!separator) return;
+    separator.setAttribute("aria-orientation", sideDock.matches ? "vertical" : "horizontal");
+    if (sideDock.matches) {
+      const available = shell.parentElement.clientWidth;
+      const maximum = Math.floor(Math.min(560, available * .45));
+      const minimum = Math.min(300, maximum);
+      const size = Math.round(Math.max(minimum, Math.min(maximum, remember ? height : diagnosticsWidth)));
+      if (remember) diagnosticsWidth = size;
+      shell.parentElement.style.setProperty("--diagnostics-width", size + "px");
+      separator.setAttribute("aria-valuemin", String(minimum));
+      separator.setAttribute("aria-valuemax", String(maximum));
+      separator.setAttribute("aria-valuenow", String(size));
+      separator.setAttribute("aria-valuetext", size + " pixels wide");
+      return;
+    }
     const heightAvailable = Math.max(0, shell.parentElement.getBoundingClientRect().bottom -
       primaryWorkspace.getBoundingClientRect().top);
     const primaryReserve = Math.min(160, Math.floor(heightAvailable * .4));
@@ -116,7 +132,9 @@ export function createRunWorkspace({
     if (diagnosticsContainer.hasPointerCapture(pointerId)) diagnosticsContainer.releasePointerCapture(pointerId);
   }
   diagnosticsContainer.addEventListener("pointermove", event => {
-    if (drag?.pointerId === event.pointerId) sizeDiagnostics(drag.height + drag.startY - event.clientY, true);
+    if (drag?.pointerId === event.pointerId) {
+      sizeDiagnostics(drag.size + drag.start - (sideDock.matches ? event.clientX : event.clientY), true);
+    }
   }, { signal: listeners.signal });
   for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) {
     diagnosticsContainer.addEventListener(name, finishResize, { signal: listeners.signal });
@@ -124,6 +142,7 @@ export function createRunWorkspace({
   const resizeObserver = new ResizeObserver(() => sizeDiagnostics());
   resizeObserver.observe(diagnosticsContainer.parentElement);
   resizeObserver.observe(primaryWorkspace);
+  sideDock.addEventListener("change", () => { finishResize(); sizeDiagnostics(); }, { signal: listeners.signal });
 
   function capture() {
     for (const node of nodes("[data-run-disclosure]")) {
@@ -372,7 +391,8 @@ export function createRunWorkspace({
         if (event.button !== 0) return;
         event.preventDefault();
         separator.focus({ preventScroll: true });
-        drag = { pointerId: event.pointerId, startY: event.clientY, height: Number(separator.getAttribute("aria-valuenow")) };
+        drag = { pointerId: event.pointerId, start: sideDock.matches ? event.clientX : event.clientY,
+          size: Number(separator.getAttribute("aria-valuenow")) };
         diagnosticsContainer.setPointerCapture(event.pointerId);
         diagnosticsContainer.classList.add("resizing-diagnostics");
       });
@@ -384,8 +404,8 @@ export function createRunWorkspace({
           return;
         }
         const height = Number(separator.getAttribute("aria-valuenow"));
-        const next = event.key === "ArrowUp" ? height + (event.shiftKey ? 48 : 24)
-          : event.key === "ArrowDown" ? height - (event.shiftKey ? 48 : 24)
+        const next = event.key === (sideDock.matches ? "ArrowLeft" : "ArrowUp") ? height + (event.shiftKey ? 48 : 24)
+          : event.key === (sideDock.matches ? "ArrowRight" : "ArrowDown") ? height - (event.shiftKey ? 48 : 24)
             : event.key === "Home" ? 0 : event.key === "End" ? Infinity : null;
         if (next === null) return;
         event.preventDefault();
